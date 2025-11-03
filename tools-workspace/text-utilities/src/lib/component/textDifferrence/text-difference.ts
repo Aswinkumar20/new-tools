@@ -1,47 +1,53 @@
 import { Component } from '@angular/core';
+import { ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { Navigation } from '@tools-workspace/features-home';
+import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
+
 
 @Component({
   selector: 'lib-text-difference',
-  standalone: false,
+  standalone: true,
   templateUrl: './text-difference.html',
   styleUrls: ['./text-difference.scss'],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, MonacoEditorModule],
 })
-export class TextDifference {
-  text1: string = '';
-  text2: string = '';
-  diffLinesA: DiffLine[] = [];
-  diffLinesB: DiffLine[] = [];
+export class TextDifferenceComponent {
+  themes = ['vs-dark', 'vs-light'];
+  languages = ['typescript', 'javascript', 'json', 'html', 'css', 'text/plain'];
 
-  onTextChange() {
-    const a = this.text1.split('\n');
-    const b = this.text2.split('\n');
-    const max = Math.max(a.length, b.length);
 
-    this.diffLinesA = [];
-    this.diffLinesB = [];
+  editorOptions = {
+    theme: this.themes[0],
+    language: this.languages[0],
+    readOnly: false,
+    originalEditable: true,
+    fontSize: 16,
+  };
 
-    for (let i = 0; i < max; i++) {
-      const lineA = a[i] ?? '';
-      const lineB = b[i] ?? '';
+  originalModel = {
+    code: 'heLLo world!',
+    language: this.languages[0],
+  };
 
-      if (lineA === lineB) {
-        this.diffLinesA.push({ text: lineA, type: 'unchanged' });
-        this.diffLinesB.push({ text: lineB, type: 'unchanged' });
-      } else {
-        this.diffLinesA.push({ text: lineA, type: lineA ? 'removed' : 'empty' });
-        this.diffLinesB.push({ text: lineB, type: lineB ? 'added' : 'empty' });
-      }
-    }
+  modifiedModel = {
+    code: 'hello world!',
+    language: this.languages[0],
+  };
+
+  private editor: any;
+
+  onEditorInit(editor: any) {
+    this.editor = editor;
   }
 
-  get hasAnyDifference(): boolean {
-    return this.diffLinesA.some(line => line.type === 'removed') || this.diffLinesB.some(line => line.type === 'added');
+  onThemeChange(theme: string) {
+    this.editorOptions = { ...this.editorOptions, theme };
   }
 
+  onLanguageChange(language: string) {
+    this.editorOptions = { ...this.editorOptions, language };
+    this.originalModel = { ...this.originalModel, language };
+    this.modifiedModel = { ...this.modifiedModel, language };
+  }
 }
-
-interface DiffLine {
-  text: string;
-  type: 'unchanged' | 'added' | 'removed' | 'empty';
-}
-

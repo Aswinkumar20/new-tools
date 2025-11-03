@@ -1,43 +1,45 @@
-<div class="main-container" fxLayout="column">
-  <div>
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="main-container">
+  <lib-navigation></lib-navigation>
 
   <div class="container">
     <h2>Code/Text Difference Viewer</h2>
 
-    <div class="input-area">
-      <div class="input-panel">
-        <label>Original</label>
-        <textarea [(ngModel)]="text1" (input)="onTextChange()" placeholder="Paste original text or code..."></textarea>
-      </div>
+    <div class="how-to-use">
+      <h3>How to Use</h3>
+      <p>
+        Paste your original code or text in the left panel and the modified version in the right panel. The differences will be highlighted automatically.
+        You can change the theme and language of the editor using the dropdowns below.
+      </p>
+    </div>
 
-      <div class="input-panel">
-        <label>Modified</label>
-        <textarea [(ngModel)]="text2" (input)="onTextChange()" placeholder="Paste modified text or code..."></textarea>
+    <div class="toolbar">
+      <div class="toolbar-item">
+        <label for="theme">Theme:</label>
+        <select id="theme" [ngModel]="editorOptions.theme" (ngModelChange)="onThemeChange($event)">
+          <option *ngFor="let theme of themes" [value]="theme">{{ theme }}</option>
+        </select>
+      </div>
+      <div class="toolbar-item">
+        <label for="language">Language:</label>
+        <select id="language" [ngModel]="editorOptions.language" (ngModelChange)="onLanguageChange($event)">
+          <option *ngFor="let language of languages" [value]="language">{{ language }}</option>
+        </select>
       </div>
     </div>
 
-    <div class="diff-viewer" *ngIf="diffLinesA.length || diffLinesB.length"
-      [ngClass]="{ 'has-diff': hasAnyDifference }">
-      <div class="diff-column">
-        <label>Original</label>
-        <div class="diff-lines">
-          <div *ngFor="let line of diffLinesA" [ngClass]="line.type">
-            {{ line.text || ' ' }}
-          </div>
-        </div>
-      </div>
 
-      <div class="diff-column">
+
+    <div class="editor-container">
+      <div class="editor-labels">
+        <label>Original</label>
         <label>Modified</label>
-        <div class="diff-lines">
-          <div *ngFor="let line of diffLinesB" [ngClass]="line.type">
-            {{ line.text || ' ' }}
-          </div>
-        </div>
       </div>
+      <ngx-monaco-diff-editor
+        [options]="editorOptions"
+        [originalModel]="originalModel"
+        [modifiedModel]="modifiedModel"
+        (onInit)="onEditorInit($event)"
+      ></ngx-monaco-diff-editor>
     </div>
   </div>
-
 </div>

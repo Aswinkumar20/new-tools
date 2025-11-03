@@ -1,3 +1,4 @@
+import { provideMonacoEditor } from 'ngx-monaco-editor-v2';
 import {
   ApplicationConfig,
   provideBrowserGlobalErrorListeners,
@@ -16,5 +17,6 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(appRoutes),
+    provideMonacoEditor({ baseUrl: 'assets/monaco-editor/min/vs' }),
   ],
 };

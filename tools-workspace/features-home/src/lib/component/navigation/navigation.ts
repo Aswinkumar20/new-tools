@@ -6,10 +6,9 @@ import { Router } from '@angular/router';
 @Component({
   selector: 'lib-navigation',
   standalone: true,
+  imports: [CommonModule, FormsModule],
   templateUrl: './navigation.html',
-  styleUrl: './navigation.scss',
-  imports: [CommonModule, FormsModule]
-
+  styleUrls: ['./navigation.scss'],
 })
 export class Navigation implements OnInit {
   title = 'My Component';
@@ -77,7 +76,7 @@ export class Navigation implements OnInit {
   constructor(private router: Router) { }
 
   ngOnInit(): void {
-    this.logoUrl = 'icons/logo-icon.svg'; // Update with your actual logo path
+    this.logoUrl = 'assets/icons/logo-icon.svg'; // Update with your actual logo path
   }
   navigateTo(path: string) {
     this.activeLink = path === '../text-utilities' ? 'categories' : path;

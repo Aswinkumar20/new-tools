@@ -1,16 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TextReversalAndPalindromeChecker } from './text-reversal-and-palindrome-checker';
+import { TextReversalAndPalindromeCheckerComponent } from './text-reversal-and-palindrome-checker';
 
-describe('TextReversalAndPalindromeChecker', () => {
-  let component: TextReversalAndPalindromeChecker;
-  let fixture: ComponentFixture<TextReversalAndPalindromeChecker>;
+describe('TextReversalAndPalindromeCheckerComponent', () => {
+  let component: TextReversalAndPalindromeCheckerComponent;
+  let fixture: ComponentFixture<TextReversalAndPalindromeCheckerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [TextReversalAndPalindromeChecker],
+      declarations: [TextReversalAndPalindromeCheckerComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(TextReversalAndPalindromeChecker);
+    fixture = TestBed.createComponent(TextReversalAndPalindromeCheckerComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
