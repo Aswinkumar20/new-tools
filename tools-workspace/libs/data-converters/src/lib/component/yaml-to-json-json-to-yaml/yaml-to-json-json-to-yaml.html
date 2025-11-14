@@ -1,0 +1,247 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">YAML ⇄ JSON Converter</h1>
+    <p class="hero__subtitle">
+      Seamlessly translate YAML configuration into JSON and back again. Keep indentation precise,
+      catch syntax errors quickly, and share results with a single click.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let item of callouts">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.detail }}</p>
+      </article>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__title">
+        <h2>Bidirectional conversion</h2>
+        <p>{{ modeDescription }}</p>
+      </div>
+      <div class="workspace__metrics">
+        <div>
+          <strong>Lines</strong>
+          <span>{{ metrics.lines | number }}</span>
+        </div>
+        <div>
+          <strong>Payload size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
+        </div>
+        <div>
+          <strong>Active input</strong>
+          <span>{{ metrics.selection }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card editor-card">
+          <div class="mode-toggle" role="tablist" aria-label="Converter mode">
+            <button
+              *ngFor="let mode of modes"
+              class="mode-toggle__option"
+              type="button"
+              role="tab"
+              [attr.aria-selected]="conversionMode === mode.id"
+              [class.mode-toggle__option--active]="conversionMode === mode.id"
+              (click)="onModeChange(mode.id)"
+            >
+              <span class="mode-toggle__label">{{ mode.label }}</span>
+              <span class="mode-toggle__description">{{ mode.description }}</span>
+            </button>
+          </div>
+
+          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128230;</div>
+            <div class="dropzone__text">
+              <strong>Drop {{ conversionMode === 'yaml-to-json' ? 'YAML' : 'JSON' }} here</strong>
+              <span>Upload from your device or paste directly into the editor.</span>
+            </div>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost">
+                <input type="file" accept=".yml,.yaml,.json" (change)="onFileInputChange($event)" />
+                Upload
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
+            </div>
+          </div>
+
+          <textarea
+            *ngIf="conversionMode === 'yaml-to-json'; else jsonEditor"
+            class="editor editor--yaml"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="yamlInput"
+            (ngModelChange)="onYamlInputChange($event)"
+            placeholder="users:\n  - id: 1\n    name: Ada"
+          ></textarea>
+          <ng-template #jsonEditor>
+            <textarea
+              class="editor editor--json"
+              rows="18"
+              spellcheck="false"
+              [(ngModel)]="jsonInput"
+              (ngModelChange)="onJsonInputChange($event)"
+              placeholder='{\n  "id": 1,\n  "name": "Ada"\n}'
+            ></textarea>
+          </ng-template>
+
+          <div class="editor-card__controls">
+            <ng-container [ngSwitch]="conversionMode">
+              <div class="controls" *ngSwitchCase="'json-to-yaml'">
+                <div class="controls__group">
+                  <label for="yamlIndent" class="controls__label">Indentation (spaces)</label>
+                  <input
+                    id="yamlIndent"
+                    type="number"
+                    min="2"
+                    max="8"
+                    step="1"
+                    [(ngModel)]="yamlIndent"
+                    (ngModelChange)="onYamlIndentChange($event)"
+                  />
+                </div>
+                <div class="controls__group">
+                  <p class="controls__label controls__label--heading">YAML options</p>
+                  <div class="toggles">
+                    <label class="toggle">
+                      <input type="checkbox" [checked]="yamlSortKeys" (change)="toggleYamlSortKeys()" />
+                      <span>Sort keys alphabetically</span>
+                    </label>
+                    <label class="toggle">
+                      <input type="checkbox" [checked]="yamlQuoteStrings" (change)="toggleYamlQuoteStrings()" />
+                      <span>Always quote text values</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="controls" *ngSwitchDefault>
+                <div class="controls__group">
+                  <p class="controls__label controls__label--heading">JSON options</p>
+                  <div class="toggles">
+                    <label class="toggle">
+                      <input type="checkbox" [checked]="jsonPrettyPrint" (change)="toggleJsonPrettyPrint()" />
+                      <span>Pretty print output</span>
+                    </label>
+                    <label class="toggle">
+                      <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleJsonSortKeys()" />
+                      <span>Sort keys alphabetically</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="convert()">
+              Convert {{ conversionMode === 'yaml-to-json' ? 'to JSON' : 'to YAML' }}
+            </button>
+            <button class="btn btn-secondary" type="button" (click)="resetWorkspace()">Reload sample</button>
+          </div>
+        </div>
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card results-card">
+          <header class="card__header">
+            <div>
+              <h2>Conversion result</h2>
+              <p class="results-card__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="card__actions">
+              <button class="btn btn-ghost" type="button" [disabled]="!resultOutput" (click)="copyResult()">
+                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+              </button>
+              <button class="btn btn-ghost" type="button" [disabled]="!resultOutput" (click)="downloadResult()">
+                Download
+              </button>
+            </div>
+          </header>
+
+          <div
+            class="status-badge"
+            [class.status-badge--success]="conversionStatus.status === 'success'"
+            [class.status-badge--error]="conversionStatus.status === 'error'"
+          >
+            <span *ngIf="conversionStatus.status === 'success'">Success</span>
+            <span *ngIf="conversionStatus.status === 'error'">Needs attention</span>
+            <span *ngIf="conversionStatus.status === 'idle'">Queued</span>
+          </div>
+
+          <div class="results-card__preview" *ngIf="resultOutput; else emptyState">
+            <pre>{{ resultOutput }}</pre>
+          </div>
+          <ng-template #emptyState>
+            <div class="results-card__empty">
+              <p>Run a conversion to preview the output here.</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li *ngFor="let step of usageSteps">{{ step }}</li>
+      </ol>
+      <p class="info-card__tip">Switch modes to confirm the round-trip conversion stays faithful.</p>
+    </article>
+
+    <article class="info-card">
+      <h2>Conversion tips</h2>
+      <ul>
+        <li>Stick to spaces for YAML indentation—mixed tabs can break parsing.</li>
+        <li>Use quotes when keys include colons, spaces, or special characters.</li>
+        <li>Sort keys when committing YAML to keep diffs clean and predictable.</li>
+        <li>Validate by converting back to confirm semantic equivalence.</li>
+      </ul>
+    </article>
+
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Match indentation to your infrastructure repositories to avoid merge noise.</li>
+        <li>Pretty print JSON for human-friendly reviews before sharing.</li>
+        <li>Use the history log to revisit previous conversions without reuploading files.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Export the converted payload and commit it alongside your infrastructure code.</li>
+      <li>Copy the result to share with teammates during reviews.</li>
+      <li>Explore the JSON tree viewer to inspect nested structures more deeply.</li>
+    </ul>
+  </section>
+</div>

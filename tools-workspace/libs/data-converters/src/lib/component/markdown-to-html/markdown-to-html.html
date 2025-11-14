@@ -1,0 +1,302 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">Markdown ⇄ HTML Converter</h1>
+    <p class="hero__subtitle">
+      Convert Markdown to semantic HTML or flatten HTML back into Markdown effortlessly. Tweak typography,
+      list styles, and link handling with a single click.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let item of callouts">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.detail }}</p>
+      </article>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__title">
+        <h2>Bidirectional conversion</h2>
+        <p>{{ selectionDescription }}</p>
+      </div>
+      <div class="workspace__metrics">
+        <div>
+          <strong>Characters</strong>
+          <span>{{ metrics.characters | number }}</span>
+        </div>
+        <div>
+          <strong>Lines</strong>
+          <span>{{ metrics.lines | number }}</span>
+        </div>
+        <div>
+          <strong>Payload size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
+        </div>
+        <div>
+          <strong>Active input</strong>
+          <span>{{ metrics.selection }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card editor-card">
+          <div class="mode-toggle" role="tablist" aria-label="Conversion mode">
+            <button
+              *ngFor="let mode of modes"
+              type="button"
+              role="tab"
+              class="mode-toggle__option"
+              [attr.aria-selected]="conversionMode === mode.id"
+              [class.mode-toggle__option--active]="conversionMode === mode.id"
+              (click)="onSelectionModeChange(mode.id)"
+            >
+              <span class="mode-toggle__label">{{ mode.label }}</span>
+              <span class="mode-toggle__description">{{ mode.description }}</span>
+            </button>
+          </div>
+
+          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128230;</div>
+            <div class="dropzone__text">
+              <strong>Drop Markdown or HTML files here</strong>
+              <span>Supports .md, .markdown, .html, and .htm files. Content stays in your browser.</span>
+            </div>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost" for="markdown-upload">
+                <input
+                  id="markdown-upload"
+                  type="file"
+                  accept=".md,.markdown,.html,.htm,text/markdown,text/html"
+                  (change)="onFileInputChange($event)"
+                />
+                Upload file
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
+            </div>
+          </div>
+
+          <textarea
+            *ngIf="conversionMode === 'markdown-to-html'; else htmlInputEditor"
+            class="editor editor--markdown"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="markdownInput"
+            (ngModelChange)="onMarkdownInputChange($event)"
+            placeholder="# Heading\n\nStart writing Markdown here..."
+          ></textarea>
+          <ng-template #htmlInputEditor>
+            <textarea
+              class="editor editor--html"
+              rows="18"
+              spellcheck="false"
+              [(ngModel)]="htmlInput"
+              (ngModelChange)="onHtmlInputChange($event)"
+              placeholder="<article>...</article>"
+            ></textarea>
+          </ng-template>
+
+          <div class="editor-card__controls">
+            <ng-container [ngSwitch]="conversionMode">
+              <div class="controls" *ngSwitchCase="'markdown-to-html'">
+                <div class="controls__group">
+                  <p class="controls__label controls__label--heading">Markdown formatting</p>
+                  <div class="toggles">
+                    <label class="toggle" for="wrapParagraphsToggle">
+                      <input
+                        id="wrapParagraphsToggle"
+                        type="checkbox"
+                        [checked]="markdownWrapParagraphs"
+                        (change)="toggleWrapParagraphs()"
+                      />
+                      <span>Wrap paragraphs in &lt;p&gt; tags</span>
+                    </label>
+                    <label class="toggle" for="lineBreakToggle">
+                      <input
+                        id="lineBreakToggle"
+                        type="checkbox"
+                        [checked]="markdownConvertLineBreaks"
+                        (change)="toggleConvertLineBreaks()"
+                      />
+                      <span>Convert single line breaks to &lt;br&gt;</span>
+                    </label>
+                    <label class="toggle" for="escapeHtmlToggle">
+                      <input
+                        id="escapeHtmlToggle"
+                        type="checkbox"
+                        [checked]="markdownEscapeHtml"
+                        (change)="toggleEscapeHtml()"
+                      />
+                      <span>Escape raw HTML inside Markdown</span>
+                    </label>
+                    <label class="toggle" for="smartTypographyToggle">
+                      <input
+                        id="smartTypographyToggle"
+                        type="checkbox"
+                        [checked]="markdownSmartTypography"
+                        (change)="toggleSmartTypography()"
+                      />
+                      <span>Enable smart typography (quotes, ellipsis)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="controls" *ngSwitchDefault>
+                <div class="controls__group">
+                  <label class="controls__label" for="bulletStyleSelect">Bullet style</label>
+                  <select id="bulletStyleSelect" [(ngModel)]="htmlBulletStyle">
+                    <option *ngFor="let style of bulletStyles" [value]="style.value">{{ style.label }}</option>
+                  </select>
+                </div>
+                <div class="controls__group">
+                  <label class="controls__label" for="headingStyleSelect">Heading style</label>
+                  <select id="headingStyleSelect" [(ngModel)]="htmlHeadingStyle">
+                    <option *ngFor="let style of headingStyles" [value]="style.value">{{ style.label }}</option>
+                  </select>
+                </div>
+                <div class="controls__group">
+                  <label class="controls__label" for="codeFenceSelect">Code fence</label>
+                  <select id="codeFenceSelect" [(ngModel)]="htmlCodeFence">
+                    <option *ngFor="let fence of codeFences" [value]="fence">{{ fence }}</option>
+                  </select>
+                </div>
+                <div class="controls__group">
+                  <p class="controls__label controls__label--heading">Markdown output</p>
+                  <div class="toggles">
+                    <label class="toggle" for="collapseWhitespaceToggle">
+                      <input
+                        id="collapseWhitespaceToggle"
+                        type="checkbox"
+                        [checked]="htmlCollapseWhitespace"
+                        (change)="toggleCollapseWhitespace()"
+                      />
+                      <span>Collapse extra whitespace</span>
+                    </label>
+                    <label class="toggle" for="keepLinksToggle">
+                      <input
+                        id="keepLinksToggle"
+                        type="checkbox"
+                        [checked]="htmlKeepLinks"
+                        (change)="toggleKeepLinks()"
+                      />
+                      <span>Preserve hyperlinks in Markdown</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="convert()">
+              Convert {{ conversionMode === 'markdown-to-html' ? 'to HTML' : 'to Markdown' }}
+            </button>
+            <button class="btn btn-secondary" type="button" (click)="resetWorkspace()">Reload sample</button>
+          </div>
+        </div>
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card results-card">
+          <header class="card__header">
+            <div>
+              <h2>Conversion result</h2>
+              <p class="results-card__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="card__actions">
+              <button type="button" class="btn btn-ghost" [disabled]="!resultOutput" (click)="copyResult()">
+                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+              </button>
+              <button type="button" class="btn btn-ghost" [disabled]="!resultOutput" (click)="downloadResult()">
+                Download
+              </button>
+            </div>
+          </header>
+
+          <div
+            class="status-badge"
+            [class.status-badge--success]="conversionStatus.status === 'success'"
+            [class.status-badge--error]="conversionStatus.status === 'error'"
+          >
+            <span *ngIf="conversionStatus.status === 'success'">Success</span>
+            <span *ngIf="conversionStatus.status === 'error'">Needs attention</span>
+            <span *ngIf="conversionStatus.status === 'idle'">Queued</span>
+          </div>
+
+          <div class="results-card__preview" *ngIf="resultOutput; else emptyState">
+            <pre>{{ resultOutput }}</pre>
+          </div>
+          <ng-template #emptyState>
+            <div class="results-card__empty">
+              <p>Run a conversion to preview the output here.</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li *ngFor="let step of usageSteps">{{ step }}</li>
+      </ol>
+      <p class="info-card__tip">
+        Switch modes instantly to validate the round-trip between Markdown and HTML.
+      </p>
+    </article>
+
+    <article class="info-card">
+      <h2>Tips for clean conversions</h2>
+      <ul>
+        <li>Enable smart typography to automatically polish quotes and ellipses.</li>
+        <li>Match team preferences by selecting Setext or ATX heading styles.</li>
+        <li>Choose the right code fence to keep documentation consistent.</li>
+        <li>Disable link preservation when you only need anchor text in Markdown.</li>
+      </ul>
+    </article>
+
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Escape raw HTML when converting Markdown to protect against embedded scripts.</li>
+        <li>Collapse whitespace when creating Markdown from CMS-generated HTML.</li>
+        <li>Use the history log to revisit earlier conversions without reuploading files.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Share the converted output with teammates using the copy action.</li>
+      <li>Export HTML into site templates or Markdown into knowledge bases.</li>
+      <li>Run the result through the JSON formatter to document API payloads alongside content.</li>
+    </ul>
+  </section>
+</div>

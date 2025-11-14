@@ -1,0 +1,254 @@
+<div class="lec">
+  <div class="lec__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="lec__hero">
+    <div class="lec__badge">Finance toolkit</div>
+    <h1>Loan EMI Planner</h1>
+    <p>
+      Model mortgage, auto, or personal loans, compare repayment frequencies, and explore how extra payments accelerate
+      payoff.
+    </p>
+
+    <div class="lec__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="lec__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="lec__layout">
+    <section class="lec__card lec__card--form">
+      <header class="lec__card-header">
+        <div>
+          <h2>Loan details</h2>
+          <p>Enter loan amount, interest, and tenure. Toggle between reducing balance or flat rate.</p>
+        </div>
+      </header>
+
+      <form class="lec__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="lec__grid">
+          <div class="lec__input">
+            <label for="amount">Loan amount</label>
+            <input id="amount" type="number" step="0.01" formControlName="amount" />
+          </div>
+          <div class="lec__input">
+            <label for="rate">Interest rate (% p.a.)</label>
+            <input id="rate" type="number" step="0.01" formControlName="rate" />
+          </div>
+        </div>
+
+        <div class="lec__grid lec__grid--term">
+          <div class="lec__input">
+            <label for="termYears">Term (years)</label>
+            <input id="termYears" type="number" formControlName="termYears" />
+          </div>
+          <div class="lec__input">
+            <label for="termMonths">Term (months)</label>
+            <input id="termMonths" type="number" formControlName="termMonths" />
+          </div>
+          <div class="lec__input">
+            <label for="frequency">Payment frequency</label>
+            <select id="frequency" formControlName="frequency">
+              @for (frequency of frequencies; track trackFrequency($index, frequency)) {
+                <option [value]="frequency.id">{{ frequency.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="lec__loan-type">
+          <span>Loan type</span>
+          <div class="lec__segmented">
+            <button type="button" [class.is-active]="form.get('loanType')?.value === 'reducing'" (click)="setLoanType('reducing')">
+              Reducing balance
+            </button>
+            <button type="button" [class.is-active]="form.get('loanType')?.value === 'flat'" (click)="setLoanType('flat')">
+              Flat rate
+            </button>
+          </div>
+        </div>
+
+        <div class="lec__grid lec__grid--extras">
+          <div class="lec__input">
+            <label for="startDate">Start date</label>
+            <input id="startDate" type="date" formControlName="startDate" />
+          </div>
+          <div class="lec__input">
+            <label for="extraPayment">Extra payment</label>
+            <input id="extraPayment" type="number" step="0.01" formControlName="extraPayment" [disabled]="form.get('loanType')?.value === 'flat'" />
+          </div>
+          <div class="lec__input">
+            <label for="extraMode">Extra frequency</label>
+            <select id="extraMode" formControlName="extraMode" [disabled]="form.get('loanType')?.value === 'flat'">
+              <option value="none">None</option>
+              <option value="monthly">Every month</option>
+              <option value="annually">Every year</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="lec__toggle">
+          <input type="checkbox" formControlName="includeHistory" />
+          <span>Keep this calculation in history</span>
+        </label>
+
+        @if (errorMessage()) {
+          <div class="lec__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="lec__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="lec__card lec__card--summary">
+      <header class="lec__card-header">
+        <div>
+          <h2>Summary</h2>
+          <p>Key repayment metrics and totals.</p>
+        </div>
+      </header>
+
+      @if (summary()) {
+        <div class="lec__summary">
+          <div class="lec__summary-pill">
+            <strong>{{ formatCurrency(summary()!.emi) }}</strong>
+            <span>Periodic payment</span>
+            <small>Based on {{ form.get('frequency')?.value | titlecase }} schedule</small>
+          </div>
+
+          <div class="lec__metric-grid">
+            <div class="lec__metric">
+              <span>Total paid</span>
+              <strong>{{ formatCurrency(summary()!.totalPayments) }}</strong>
+            </div>
+            <div class="lec__metric">
+              <span>Total interest</span>
+              <strong>{{ formatCurrency(summary()!.totalInterest) }}</strong>
+            </div>
+            @if (summary()!.payoffDate) {
+              <div class="lec__metric">
+                <span>Projected payoff</span>
+                <strong>{{ summary()!.payoffDate | date:'mediumDate' }}</strong>
+              </div>
+            }
+            <div class="lec__metric">
+              <span>Duration</span>
+              <strong>{{ summary()!.durationMonths }} months</strong>
+            </div>
+            @if (summary()!.savingsFromExtra) {
+              <div class="lec__metric lec__metric--accent">
+                <span>Interest saved</span>
+                <strong>{{ formatCurrency(summary()!.savingsFromExtra!) }}</strong>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="lec__empty">Enter loan details to generate a plan.</div>
+      }
+    </section>
+
+    <section class="lec__card lec__card--schedule">
+      <header class="lec__card-header">
+        <div>
+          <h2>Schedule preview</h2>
+          <p>First {{ schedulePreview().length }} repayments.</p>
+        </div>
+      </header>
+      @if (schedulePreview().length > 0) {
+        <div class="lec__table-wrapper">
+          <table class="lec__table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Payment</th>
+                <th>Principal</th>
+                <th>Interest</th>
+                <th>Extra</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of schedulePreview(); track trackSchedule($index, item)) {
+                <tr>
+                  <td>{{ item.period }}</td>
+                  <td>{{ item.paymentDate ? (item.paymentDate | date:'MMM y') : '—' }}</td>
+                  <td>{{ formatCurrency(item.payment) }}</td>
+                  <td>{{ formatCurrency(item.principal) }}</td>
+                  <td>{{ formatCurrency(item.interest) }}</td>
+                  <td>{{ formatCurrency(item.extraPayment) }}</td>
+                  <td>{{ formatCurrency(item.balance) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="lec__empty">Preview will appear once the loan is calculated.</div>
+      }
+    </section>
+
+    <section class="lec__card lec__card--insights">
+      <header class="lec__card-header">
+        <h2>Insights</h2>
+      </header>
+      @if (insights().length > 0) {
+        <ul class="lec__insights">
+          @for (tip of insights(); track trackInsight($index, tip)) {
+            <li>{{ tip }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="lec__empty">Insights will appear after calculating.</div>
+      }
+    </section>
+
+    <section class="lec__card lec__card--presets">
+      <header class="lec__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="lec__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="lec__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ preset.amount | number:'1.0-0' }} @ {{ preset.rate }}% · {{ preset.termYears }} yrs</small>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="lec__card lec__card--history">
+      <header class="lec__card-header">
+        <h2>History</h2>
+        <span class="lec__history-count">{{ history().length }}</span>
+      </header>
+      <div class="lec__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="lec__history-head">
+              <div>
+                <strong>{{ formatCurrency(entry.summary.emi) }} EMI</strong>
+                <span>{{ entry.amount | number:'1.0-0' }} @ {{ entry.rate | number:'1.2-2' }}% · {{ entry.termMonths }} months</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
+            </div>
+            <p class="lec__history-meta">
+              Total interest {{ formatCurrency(entry.summary.totalInterest) }} · {{ entry.summary.durationMonths }} months
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="lec__empty">Your loan scenarios will appear here.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

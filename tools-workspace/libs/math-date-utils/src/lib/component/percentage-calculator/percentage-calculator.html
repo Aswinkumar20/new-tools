@@ -1,0 +1,235 @@
+<div class="pc">
+  <div class="pc__nav-shell">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="pc__hero">
+    <div class="pc__badge">Percent toolkit</div>
+    <h1>Percentage Calculator Suite</h1>
+    <p>
+      Compute discounts, markups, change, and relative proportions with precision. Save scenarios, visualize changes,
+      and keep every step transparent.
+    </p>
+
+    <div class="pc__actions">
+      <button type="button" class="btn btn--primary" (click)="copyResult()">Copy result</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    <div class="pc__meta">
+      <span><strong>{{ activeMode().label }}</strong> mode</span>
+      <span><strong>{{ history().length }}</strong> recent runs</span>
+      <span><strong>{{ formattedResult() || '—' }}</strong> latest output</span>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="pc__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="pc__layout">
+    <div class="pc__workspace">
+      <section class="pc__card pc__card--summary">
+        <header class="pc__summary-header">
+          <div>
+            <span class="pc__summary-pill">{{ activeMode().icon }} {{ activeMode().label }}</span>
+            <h2>Result overview</h2>
+            <p>{{ activeMode().description }}</p>
+          </div>
+          <button type="button" class="btn btn--ghost btn--small" (click)="submit()">Recalculate</button>
+        </header>
+
+        @if (result()) {
+          <div class="pc__summary-body">
+            <div class="pc__headline">
+              <span>Current result</span>
+              <strong>{{ formattedResult() }}</strong>
+            </div>
+
+            <div class="pc__metric-grid">
+              <div class="pc__metric">
+                <span>Base value</span>
+                <strong>{{ result()?.baseValue | number:'1.0-4' }}</strong>
+              </div>
+              <div class="pc__metric">
+                <span>Percentage</span>
+                <strong>{{ result()?.percentageValue | number:'1.0-4' }}%</strong>
+              </div>
+              <div class="pc__metric">
+                <span>Result</span>
+                <strong>{{ result()?.value | number:'1.0-4' }}</strong>
+              </div>
+              @if (differenceResult()) {
+                <div class="pc__metric pc__metric--accent">
+                  <span>Difference</span>
+                  <strong>{{ differenceResult() }}</strong>
+                </div>
+              }
+            </div>
+
+            @if (chartData()) {
+              <div class="pc__chart pc__chart--compact">
+                <div class="pc__chart-slice pc__chart-slice--base" [style.flex]="chartData()!.slices[0].value">
+                  Base {{ chartData()!.slices[0].value | number:'1.0-2' }}
+                </div>
+                <div class="pc__chart-slice pc__chart-slice--change" [style.flex]="chartData()!.slices[1].value">
+                  Change {{ chartData()!.slices[1].value | number:'1.0-2' }}
+                </div>
+              </div>
+            }
+
+            @if (displaySteps().length > 0 && form.get('showSteps')?.value) {
+              <div class="pc__steps">
+                <h3>How we got here</h3>
+                <ol>
+                  @for (step of displaySteps(); track trackStep($index, step)) {
+                    <li>{{ step }}</li>
+                  }
+                </ol>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="pc__empty">Enter values to preview your calculation summary.</div>
+        }
+      </section>
+
+      <section class="pc__card pc__card--interaction">
+        <header class="pc__card-header">
+          <div>
+            <h2>Choose scenario & inputs</h2>
+            <p>Switch modes and supply the numbers you know. Results update instantly.</p>
+          </div>
+        </header>
+
+        <div class="pc__mode-switch">
+          @for (mode of modes; track trackMode($index, mode)) {
+            <button
+              type="button"
+              class="pc__mode-chip"
+              [class.is-active]="form.get('mode')?.value === mode.id"
+              (click)="setMode(mode.id)"
+            >
+              <span class="pc__mode-icon">{{ mode.icon }}</span>
+              {{ mode.label }}
+            </button>
+          }
+        </div>
+
+        <form class="pc__form" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="pc__inputs">
+            @if (requiresBaseValue()) {
+              <div class="pc__input">
+                <label for="baseValue">Base value</label>
+                <input id="baseValue" type="text" formControlName="baseValue" placeholder="Enter base amount" />
+                <small>Starting figure used in the calculation.</small>
+              </div>
+            }
+
+            @if (requiresPercentageValue()) {
+              <div class="pc__input">
+                <label for="percentageValue">Percentage (%)</label>
+                <input id="percentageValue" type="text" formControlName="percentageValue" placeholder="Enter percent" />
+                <small>How much of the base to apply.</small>
+              </div>
+            }
+
+            @if (requiresResultValue()) {
+              <div class="pc__input">
+                <label for="resultValue">Result value</label>
+                <input id="resultValue" type="text" formControlName="resultValue" placeholder="Enter result amount" />
+                <small>The outcome you already know.</small>
+              </div>
+            }
+
+            @if (requiresIncreaseDecreaseValue()) {
+              <div class="pc__input">
+                <label for="increaseDecreaseValue">Increase / decrease value</label>
+                <input
+                  id="increaseDecreaseValue"
+                  type="text"
+                  formControlName="increaseDecreaseValue"
+                  placeholder="Enter difference"
+                />
+                <small>The change to add or subtract.</small>
+              </div>
+            }
+          </div>
+
+          <div class="pc__controls">
+            <div class="pc__input pc__input--compact">
+              <label for="decimalPlaces">Decimal places</label>
+              <input id="decimalPlaces" type="number" formControlName="decimalPlaces" min="0" max="6" step="1" />
+            </div>
+
+            <details class="pc__advanced">
+              <summary>Advanced options</summary>
+              <div class="pc__advanced-grid">
+                @for (option of advancedOptions; track option.id) {
+                  <label>
+                    <input type="checkbox" [formControlName]="option.id" />
+                    <div>
+                      <strong>{{ option.label }}</strong>
+                      <small>{{ option.description }}</small>
+                    </div>
+                  </label>
+                }
+              </div>
+            </details>
+          </div>
+
+          @if (errorMessage()) {
+            <div class="pc__error">{{ errorMessage() }}</div>
+          }
+
+          <div class="pc__form-actions">
+            <button type="submit" class="btn btn--primary">Calculate</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="pc__supplement">
+      <section class="pc__card pc__card--presets">
+        <header class="pc__card-header">
+          <h2>Quick presets</h2>
+        </header>
+        <div class="pc__preset-grid">
+          @for (preset of presets; track trackPreset($index, preset)) {
+            <button type="button" class="pc__preset-tile" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <small>{{ getModeLabel(preset.mode) }}</small>
+            </button>
+          }
+        </div>
+      </section>
+
+      <section class="pc__card pc__card--history">
+        <header class="pc__card-header">
+          <h2>History</h2>
+          <span class="pc__history-count">{{ history().length }}</span>
+        </header>
+        <div class="pc__history-list">
+          @for (entry of history(); track trackHistory($index, entry)) {
+            <article>
+              <div class="pc__history-head">
+                <span class="pc__history-title">{{ getModeLabel(entry.mode) }}</span>
+                <time>{{ entry.timestamp | date:'short' }}</time>
+              </div>
+              <p class="pc__history-result">{{ formatDisplay(entry.value, entry.decimalPlaces, entry.roundResult) }}</p>
+              <div class="pc__history-meta">
+                Base {{ entry.baseValue | number:'1.0-2' }} · Percentage {{ entry.percentageValue | number:'1.0-2' }}
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
+              </button>
+            </article>
+          }
+          @if (history().length === 0) {
+            <div class="pc__empty">Run a calculation to populate history.</div>
+          }
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

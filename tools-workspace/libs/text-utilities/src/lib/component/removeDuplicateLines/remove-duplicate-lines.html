@@ -1,0 +1,185 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Duplicate cleaner</p>
+          <h1>Spot and remove repeated words instantly</h1>
+          <p class="strapline">
+            Paste any draft, highlight repeated words automatically, and export a clean version ready for publishing.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Live highlighting</span>
+          <span class="meta-pill">Smart counts</span>
+          <span class="meta-pill">One-click copy</span>
+        </div>
+      </header>
+
+      <div class="editor-toolbar" aria-label="Duplicate cleaner actions">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copyOutput()"
+                  [disabled]="!outputText"
+                  aria-label="Copy cleaned text">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy cleaned</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="clear()"
+                  [disabled]="!inputText"
+                  aria-label="Clear workspace">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Live text metrics">
+          <div class="stat-chip">
+            <span class="stat-label">Words</span>
+            <span class="stat-value">{{ wordCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Duplicates</span>
+            <span class="stat-value">{{ duplicateCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Input length</span>
+            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ outputText ? outputText.length : 0 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Source text</h2>
+                <p>Typing, pasting, or importing updates highlights and counts automatically.</p>
+              </div>
+            </header>
+            <label class="sr-only" for="duplicate-input">Input text to clean</label>
+            <textarea id="duplicate-input"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (ngModelChange)="onInputChange($event)"
+                      rows="12"
+                      placeholder="Paste raw copy here to highlight duplicates…"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Highlights & clean copy</h2>
+                <p>Review duplicates visually, then grab the sanitized output.</p>
+              </div>
+              @if (outputText) {
+                <span class="panel-badge">Ready to copy</span>
+              }
+            </header>
+
+            @if (inputText) {
+              <div class="output-stack">
+                <div class="highlight-card">
+                  <h3>Highlighted duplicates</h3>
+                  <div class="highlighted-output" [innerHTML]="highlightedInput" aria-live="polite"></div>
+                </div>
+                <div class="clean-card">
+                  <label for="duplicate-output">Output (duplicates removed)</label>
+                  <textarea id="duplicate-output"
+                            class="text-area text-area--output"
+                            readonly
+                            rows="10"
+                            [value]="outputText"
+                            aria-label="Deduplicated output"></textarea>
+                  <div class="copy-row">
+                    <button type="button"
+                            class="toolbar-btn secondary"
+                            (click)="copyOutput()"
+                            [disabled]="!outputText"
+                            aria-label="Copy deduplicated text">
+                      <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                      <span>Copy output</span>
+                    </button>
+                    @if (copied) {
+                      <span class="copy-feedback">Copied!</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="panel-empty" aria-live="polite">
+                <h3>No text yet</h3>
+                <p>Start typing on the left to surface duplicates and cleaned results.</p>
+              </div>
+            }
+          </section>
+        </div>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Highlight style</span>
+            <span class="metric-value">Case-insensitive</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Duplicate limit</span>
+            <span class="metric-value">{{ duplicateCount }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Copy status</span>
+            <span class="metric-value">{{ copied ? 'Copied!' : 'Ready' }}</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="clear()"
+                  [disabled]="!inputText"
+                  aria-label="Clear duplicate cleaner">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear text</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How it works</h2>
+          <p>We scan your copy, track seen words, and flag repeat occurrences so you can tighten phrasing fast.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Highlights ignore casing, so “Team” and “team” count as duplicates.</li>
+            <li>Output preserves the first appearance of every word in order.</li>
+            <li>Copy the cleaned text or keep editing until duplicates drop to zero.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Best for</h2>
+          <p>Use the cleaner to streamline SEO copy, UX strings, or marketing headlines.</p>
+        </header>
+        <div class="insight-body highlight-guide">
+          <div>
+            <span class="dot dot-primary"></span>
+            <p><strong>Highlighted words</strong> show repeat instances detected in your source.</p>
+          </div>
+          <div>
+            <span class="dot dot-muted"></span>
+            <p><strong>Clean output</strong> keeps original ordering without repeated tokens.</p>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>

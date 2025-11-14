@@ -1,0 +1,207 @@
+<div class="bmi">
+  <div class="bmi__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="bmi__hero">
+    <div class="bmi__badge">Health metrics</div>
+    <h1>BMI & Body Health Analyzer</h1>
+    <p>
+      Explore your body mass index, understand weight targets, and review personalised guidance. Switch measurement
+      systems instantly and keep a history of your checks.
+    </p>
+
+    <div class="bmi__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="bmi__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="bmi__layout">
+    <section class="bmi__card bmi__card--form">
+      <header class="bmi__card-header">
+        <div>
+          <h2>Input details</h2>
+          <p>Choose a unit system and enter the basics. Optional fields refine your recommendations.</p>
+        </div>
+      </header>
+
+      <div class="bmi__unit-group">
+        @for (option of units; track trackUnit($index, option)) {
+          <button
+            type="button"
+            class="bmi__unit-chip"
+            [class.is-active]="form.get('unit')?.value === option.id"
+            (click)="setUnit(option.id)"
+          >
+            {{ option.label }}
+          </button>
+        }
+      </div>
+
+      <form class="bmi__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="bmi__grid">
+          <div class="bmi__input">
+            <label for="weight">Weight ({{ activeUnit().weightLabel }})</label>
+            <input id="weight" type="number" step="0.1" formControlName="weight" />
+          </div>
+          <div class="bmi__input">
+            <label for="height">Height ({{ activeUnit().heightLabel }})</label>
+            <input id="height" type="number" step="0.1" formControlName="height" />
+          </div>
+        </div>
+
+        <div class="bmi__grid bmi__grid--compact">
+          <div class="bmi__input">
+            <label for="age">Age</label>
+            <input id="age" type="number" formControlName="age" />
+          </div>
+          <div class="bmi__input">
+            <label for="gender">Gender</label>
+            <select id="gender" formControlName="gender">
+              <option value="unspecified">Unspecified</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </div>
+          <div class="bmi__input">
+            <label for="waist">Waist (cm)</label>
+            <input id="waist" type="number" step="0.1" formControlName="waist" placeholder="Optional" />
+          </div>
+        </div>
+
+        <label class="bmi__toggle">
+          <input type="checkbox" formControlName="includeHistory" />
+          <span>Store calculation in history</span>
+        </label>
+
+        @if (errorMessage()) {
+          <div class="bmi__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="bmi__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bmi__card bmi__card--summary">
+      <header class="bmi__card-header">
+        <div>
+          <h2>Summary</h2>
+          <p>Headline results based on your current data.</p>
+        </div>
+      </header>
+
+      @if (summary() && breakdown()) {
+        <div class="bmi__summary">
+          <div class="bmi__summary-pill">
+            <strong>{{ summary()!.bmi | number:'1.1-1' }}</strong>
+            <span>{{ summary()!.classification.label }}</span>
+            <small>{{ summary()!.interpretation }}</small>
+          </div>
+
+          <div class="bmi__metric-grid">
+            <div class="bmi__metric">
+              <span>Ideal weight range</span>
+              <strong>{{ summary()!.idealRange }}</strong>
+            </div>
+            <div class="bmi__metric">
+              <span>Your weight</span>
+              <strong>{{ formatWeight(breakdown()!.weightKg) }}</strong>
+            </div>
+            <div class="bmi__metric">
+              <span>Your height</span>
+              <strong>{{ formatHeight(breakdown()!.heightM * 100) }}</strong>
+            </div>
+            <div class="bmi__metric">
+              <span>Weight difference to healthy range</span>
+              <strong>{{ formatWeight(math.abs(summary()!.weightDifference)) }}</strong>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="bmi__empty">Enter your information to view BMI insights.</div>
+      }
+    </section>
+
+    <section class="bmi__card bmi__card--risks">
+      <header class="bmi__card-header">
+        <h2>Risk indicators</h2>
+      </header>
+      @if (riskIndicators().length > 0) {
+        <ul class="bmi__risk-list">
+          @for (risk of riskIndicators(); track trackRisk($index, risk)) {
+            <li [class]="'bmi__risk bmi__risk--' + risk.level">
+              <strong>{{ risk.label }}</strong>
+              <span>{{ risk.description }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="bmi__empty">No additional risk indicators detected.</div>
+      }
+    </section>
+
+    <section class="bmi__card bmi__card--recommendations">
+      <header class="bmi__card-header">
+        <h2>Recommendations</h2>
+      </header>
+      @if (recommendations().length > 0) {
+        <ul class="bmi__tips">
+          @for (tip of recommendations(); track trackRecommendation($index, tip)) {
+            <li>{{ tip }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="bmi__empty">Complete the form to receive suggestions.</div>
+      }
+    </section>
+
+    <section class="bmi__card bmi__card--presets">
+      <header class="bmi__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="bmi__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="bmi__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ preset.unit === 'metric' ? preset.weight + ' kg · ' + preset.height + ' cm' : preset.weight + ' lb · ' + preset.height + ' in' }}</small>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="bmi__card bmi__card--history">
+      <header class="bmi__card-header">
+        <h2>History</h2>
+        <span class="bmi__history-count">{{ history().length }}</span>
+      </header>
+      <div class="bmi__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="bmi__history-head">
+              <div>
+                <strong>{{ entry.summary.bmi | number:'1.1-1' }} BMI</strong>
+                <span>{{ entry.summary.classification.label }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
+              </button>
+            </div>
+            <p class="bmi__history-meta">
+              {{ formatWeight(entry.weight) }} · {{ formatHeight(entry.height) }} · {{ entry.gender | titlecase }}
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="bmi__empty">Your BMI calculations will appear here.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

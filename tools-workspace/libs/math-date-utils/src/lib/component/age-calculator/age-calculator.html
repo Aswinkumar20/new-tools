@@ -1,0 +1,261 @@
+<div class="ac">
+  <div class="ac__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ac__hero">
+    <div class="ac__badge">Life timeline</div>
+    <h1>Age Insight Explorer</h1>
+    <p>
+      Discover exact age breakdowns, upcoming milestones, and zodiac insights in one glance. Compare against today or any
+      specific date with precision down to minutes.
+    </p>
+
+    <div class="ac__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="ac__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="ac__layout">
+    <section class="ac__card ac__card--form">
+      <header class="ac__card-header">
+        <div>
+          <h2>Set birth & comparison dates</h2>
+          <p>Choose how you want to calculate the age and what extras to include.</p>
+        </div>
+      </header>
+
+      <div class="ac__anchor-group">
+        @for (anchor of anchors; track trackAnchor($index, anchor)) {
+          <button
+            type="button"
+            class="ac__anchor-chip"
+            [class.is-active]="form.get('anchor')?.value === anchor.id"
+            (click)="setAnchor(anchor.id)"
+          >
+            {{ anchor.label }}
+          </button>
+        }
+      </div>
+
+      <form class="ac__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="ac__inputs">
+          <div class="ac__input">
+            <label for="birthDate">Date of birth</label>
+            <input id="birthDate" type="date" formControlName="birthDate" />
+          </div>
+
+          @if (form.get('anchor')?.value === 'specific') {
+            <div class="ac__input">
+              <label for="comparisonDate">Compare to date</label>
+              <input id="comparisonDate" type="date" formControlName="comparisonDate" />
+            </div>
+          }
+        </div>
+
+        <label class="ac__toggle">
+          <input type="checkbox" formControlName="includeTime" />
+          <span>Include time of day</span>
+        </label>
+
+        @if (form.get('includeTime')?.value) {
+          <div class="ac__inputs ac__inputs--time">
+            <div class="ac__input">
+              <label for="birthTime">Birth time</label>
+              <input id="birthTime" type="time" formControlName="birthTime" />
+            </div>
+            <div class="ac__input">
+              <label for="comparisonTime">Comparison time</label>
+              <input id="comparisonTime" type="time" formControlName="comparisonTime" />
+            </div>
+          </div>
+        }
+
+        <details class="ac__advanced" open>
+          <summary>Display options</summary>
+          <div class="ac__advanced-grid">
+            <label>
+              <input type="checkbox" formControlName="showTimeline" />
+              <span>Show timeline breakdown</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="includeMilestones" />
+              <span>Show upcoming milestones</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="includeZodiac" />
+              <span>Include zodiac insights</span>
+            </label>
+          </div>
+        </details>
+
+        @if (errorMessage()) {
+          <div class="ac__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="ac__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="ac__card ac__card--summary">
+      <header class="ac__summary-head">
+        <div>
+          <span class="ac__summary-pill">Summary</span>
+          <h2>Current age snapshot</h2>
+        </div>
+        <span class="ac__summary-meta">Anchor: {{ getPresetLabel(activeAnchor()) }}</span>
+      </header>
+
+      @if (summary()) {
+        <div class="ac__summary-body">
+          <div class="ac__age-pill">{{ summary()!.exactAge }}</div>
+
+          <div class="ac__grid ac__grid--metrics">
+            <div class="ac__metric">
+              <span>Years</span>
+              <strong>{{ summary()!.years }}</strong>
+            </div>
+            <div class="ac__metric">
+              <span>Months</span>
+              <strong>{{ summary()!.months }}</strong>
+            </div>
+            <div class="ac__metric">
+              <span>Days</span>
+              <strong>{{ summary()!.days }}</strong>
+            </div>
+            <div class="ac__metric">
+              <span>Weeks lived</span>
+              <strong>{{ summary()!.ageInUnits.weeks | number:'1.0-0' }}</strong>
+            </div>
+            <div class="ac__metric">
+              <span>Total days</span>
+              <strong>{{ summary()!.ageInUnits.days | number:'1.0-0' }}</strong>
+            </div>
+            <div class="ac__metric">
+              <span>Total minutes</span>
+              <strong>{{ summary()!.ageInUnits.minutes | number:'1.0-0' }}</strong>
+            </div>
+          </div>
+
+          <div class="ac__next">
+            <div>
+              <span>Next birthday</span>
+              <strong>{{ summary()!.nextBirthday }}</strong>
+            </div>
+            <div>
+              <span>Countdown</span>
+              <strong>{{ summary()!.nextBirthdayCountdown.months }} months · {{ summary()!.nextBirthdayCountdown.days }} days</strong>
+            </div>
+          </div>
+
+          @if (zodiac()) {
+            <div class="ac__zodiac">
+              <div>
+                <span>Western zodiac</span>
+                <strong>{{ zodiac()!.western }}</strong>
+              </div>
+              <div>
+                <span>Chinese zodiac</span>
+                <strong>{{ zodiac()!.chinese }}</strong>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="ac__empty">Enter birth details to reveal the age summary.</div>
+      }
+    </section>
+
+    <section class="ac__card ac__card--timeline">
+      <header class="ac__card-header">
+        <h2>Life timeline</h2>
+      </header>
+      @if (timelineSegments().length > 0 && form.get('showTimeline')?.value) {
+        <div class="ac__timeline">
+          @for (segment of timelineSegments(); track trackTimeline($index, segment)) {
+            <div class="ac__timeline-item">
+              <div class="ac__timeline-bar" [style.flex-basis.%]="segment.proportion"></div>
+              <div class="ac__timeline-content">
+                <strong>{{ segment.label }}</strong>
+                <span>{{ segment.description }}</span>
+                <small>{{ segment.days | number:'1.0-0' }} days</small>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="ac__empty">Enable the timeline option to see life segments.</div>
+      }
+    </section>
+
+    <section class="ac__card ac__card--milestones">
+      <header class="ac__card-header">
+        <h2>Upcoming milestones</h2>
+      </header>
+      @if (milestones().length > 0 && form.get('includeMilestones')?.value) {
+        <ul class="ac__milestones">
+          @for (milestone of milestones(); track trackMilestone($index, milestone)) {
+            <li>
+              <strong>{{ milestone.label }}</strong>
+              <span>{{ milestone.description }}</span>
+              <small>
+                In {{ milestone.remaining.months }} months · {{ milestone.remaining.days }} days
+              </small>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ac__empty">Turn on milestones to track future moments.</div>
+      }
+    </section>
+
+    <section class="ac__card ac__card--presets">
+      <header class="ac__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="ac__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="ac__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ getPresetLabel(preset.anchor ?? 'now') }}</small>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="ac__card ac__card--history">
+      <header class="ac__card-header">
+        <h2>History</h2>
+        <span class="ac__history-count">{{ history().length }}</span>
+      </header>
+      <div class="ac__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="ac__history-head">
+              <div>
+                <strong>{{ entry.summary.exactAge }}</strong>
+                <span>{{ entry.summary.nextBirthday }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
+              </button>
+            </div>
+            <p class="ac__history-meta">
+              Birth {{ entry.birthDate }} · Compare {{ entry.comparisonDate === 'today' ? 'today' : entry.comparisonDate }} · Anchor {{ getPresetLabel(entry.anchor) }}
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="ac__empty">Your calculations will appear here for quick reuse.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

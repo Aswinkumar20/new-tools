@@ -1,0 +1,226 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Text Case Convertor</p>
+          <h1>Transform copy into any case in seconds</h1>
+          <p class="strapline">
+            Paste or write content, explore dozens of presets, and preview precise output instantly.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">20+ presets</span>
+          <span class="meta-pill">Undo history</span>
+          <span class="meta-pill">Instant preview</span>
+        </div>
+      </header>
+
+      <div class="editor-toolbar" aria-label="Case conversion controls">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copyToClipboard()"
+                  [disabled]="!convertedText"
+                  aria-label="Copy converted text">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy output</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="downloadText()"
+                  [disabled]="!convertedText"
+                  aria-label="Download converted text">
+            <img class="btn-icon" src="/assets/icons/txt.svg" alt="" />
+            <span>Download TXT</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="undo()"
+                  [disabled]="undoStack.length <= 1"
+                  aria-label="Undo latest change">
+            <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+            <span>Undo</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="redo()"
+                  [disabled]="redoStack.length === 0"
+                  aria-label="Redo change">
+            <img class="btn-icon" src="/assets/icons/redo.svg" alt="" />
+            <span>Redo</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="reset()"
+                  [disabled]="!inputText && !convertedText"
+                  aria-label="Reset input and output">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Live text counters">
+          <div class="stat-chip">
+            <span class="stat-label">Input words</span>
+            <span class="stat-value">{{ wordCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Input characters</span>
+            <span class="stat-value">{{ charCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ convertedText ? convertedText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Selected preset</span>
+            <span class="stat-value">{{ selectedCase }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Source text</h2>
+                <p>Keep typing to update the live preview.</p>
+              </div>
+            </header>
+            <label class="sr-only" for="input-text">Enter your source text</label>
+            <textarea id="input-text"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (input)="onInputChange(inputText)"
+                      rows="12"
+                      placeholder="Drop raw copy here to start transforming…"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Converted output</h2>
+                <p>Preview the {{ selectedCase }} transformation in real time.</p>
+              </div>
+              @if (convertedText) {
+                <span class="panel-badge">Ready to copy</span>
+              }
+            </header>
+
+            @if (convertedText) {
+              <textarea id="converted-text"
+                        class="text-area text-area--output"
+                        readonly
+                        rows="12"
+                        [value]="convertedText"
+                        aria-label="Converted output preview"></textarea>
+            } @else {
+              <div class="panel-empty" aria-live="polite">
+                <h3>Awaiting conversion</h3>
+                <p>Select a preset to see the transformed result. The preview updates as you type.</p>
+              </div>
+            }
+          </section>
+        </div>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">History depth</span>
+            <span class="metric-value">{{ undoStack.length }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Redo queue</span>
+            <span class="metric-value">{{ redoStack.length }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Output encoding</span>
+            <span class="metric-value">UTF-8 plain text</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="reset()"
+                  [disabled]="!inputText && !convertedText"
+                  aria-label="Clear editor">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear editor</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Workflow tips</h2>
+          <p>Pick a preset and the output updates instantly. Copy, download, or undo with one click.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Switch presets freely—the latest selection stays active for new text.</li>
+            <li>Undo/redo keeps a rolling history of the last 100 edits.</li>
+            <li>Reset clears both panes and preserves your preset selection.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Standard cases</h2>
+          <p>Everyday editorial presets for polished copy.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'lower'" (click)="onCaseChange('lower')">lowercase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upper'" (click)="onCaseChange('upper')">UPPERCASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'sentence'" (click)="onCaseChange('sentence')">Sentence case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'title'" (click)="onCaseChange('title')">Title Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'toggle'" (click)="onCaseChange('toggle')">Toggle Case</button>
+        </div>
+      </section>
+
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Programming cases</h2>
+          <p>Developer-ready naming styles for APIs, variables, and files.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'camel'" (click)="onCaseChange('camel')">camelCase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'pascal'" (click)="onCaseChange('pascal')">PascalCase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'snake'" (click)="onCaseChange('snake')">snake_case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upperSnake'" (click)="onCaseChange('upperSnake')">UPPER_SNAKE_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'kebab'" (click)="onCaseChange('kebab')">kebab-case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'train'" (click)="onCaseChange('train')">Train-Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'dot'" (click)="onCaseChange('dot')">dot.case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'path'" (click)="onCaseChange('path')">path/case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'constant'" (click)="onCaseChange('constant')">CONSTANT_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'macro'" (click)="onCaseChange('macro')">MACRO_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'camelSnake'" (click)="onCaseChange('camelSnake')">camel_Snake_Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'pascalSnake'" (click)="onCaseChange('pascalSnake')">Pascal_Snake_Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'dotPascal'" (click)="onCaseChange('dotPascal')">Dot.Pascal.Case</button>
+        </div>
+      </section>
+
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Fun & stylistic</h2>
+          <p>Expressive treatments for playful or experimental copy.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'alternating'" (click)="onCaseChange('alternating')">aLtErNaTiNg</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'studly'" (click)="onCaseChange('studly')">StUdLy CaPs</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'reversed'" (click)="onCaseChange('reversed')">Reversed Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'vowelUpper'" (click)="onCaseChange('vowelUpper')">vOwEl UppEr</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'consonantUpper'" (click)="onCaseChange('consonantUpper')">CoNSoNaNT</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'leet'" (click)="onCaseChange('leet')">1337 5P34K</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'fullwidth'" (click)="onCaseChange('fullwidth')">Ｆｕｌｌｗｉｄｔｈ</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'smallCaps'" (click)="onCaseChange('smallCaps')">sᴍᴀʟʟ ᴄᴀᴘs</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upsideDown'" (click)="onCaseChange('upsideDown')">uʍop ǝpᴉsd∩</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'mixed'" (click)="onCaseChange('mixed')">MiXeD cAsE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'bracketed'" (click)="onCaseChange('bracketed')">[bracketed]</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>

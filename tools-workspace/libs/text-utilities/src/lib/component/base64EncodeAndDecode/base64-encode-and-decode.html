@@ -1,0 +1,205 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Base64 toolkit</p>
+          <h1>Encode and decode payloads in real time</h1>
+          <p class="strapline">
+            Switch between modes, process text instantly, and copy results without leaving your editor.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Inline conversion</span>
+          <span class="meta-pill">File upload</span>
+          <span class="meta-pill">Clipboard ready</span>
+        </div>
+      </header>
+
+      <div class="mode-switcher" role="radiogroup" aria-label="Conversion mode">
+        <button type="button"
+                class="mode-chip"
+                [class.active]="mode === 'encode'"
+                (click)="selectMode('encode')"
+                [attr.aria-pressed]="mode === 'encode'">
+          Encode text
+        </button>
+        <button type="button"
+                class="mode-chip"
+                [class.active]="mode === 'decode'"
+                (click)="selectMode('decode')"
+                [attr.aria-pressed]="mode === 'decode'">
+          Decode Base64
+        </button>
+      </div>
+
+      <div class="mode-description">
+        @if (mode === 'encode') {
+          <p>
+            Base64 encoding converts raw content into a safe ASCII string—perfect for embedding assets or sending payloads
+            through text-only channels.
+          </p>
+        } @else {
+          <p>
+            Base64 decoding restores encoded strings to their original form, ideal for reconstructing files, secrets, or inline
+            media on the fly.
+          </p>
+        }
+      </div>
+
+      <div class="editor-toolbar" aria-label="Conversion actions">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copyToClipboard()"
+                  [disabled]="!outputText"
+                  aria-label="Copy converted result">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy result</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="uploadFile()"
+                  aria-label="Upload file for conversion">
+            <img class="btn-icon" src="/assets/icons/txt.svg" alt="" />
+            <span>Upload file</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="clearInput()"
+                  [disabled]="!inputText && !outputText"
+                  aria-label="Clear input and output">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Live conversion stats">
+          <div class="stat-chip">
+            <span class="stat-label">Mode</span>
+            <span class="stat-value">{{ mode }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Input length</span>
+            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ outputText ? outputText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Size delta</span>
+            <span class="stat-value">
+              {{ outputText && inputText ? (outputText.length - inputText.length) : 0 }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>{{ mode === 'encode' ? 'Source text' : 'Base64 input' }}</h2>
+                <p>{{ mode === 'encode' ? 'Paste any string to generate Base64 output.' : 'Drop encoded data to restore the original content.' }}</p>
+              </div>
+            </header>
+            <label class="sr-only" for="base64-source">{{ mode === 'encode' ? 'Text to encode' : 'Base64 string to decode' }}</label>
+            <textarea id="base64-source"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (input)="onInputChange()"
+                      rows="12"
+                      [placeholder]="mode === 'encode' ? 'Enter text to encode…' : 'Enter Base64 string to decode…'"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Converted output</h2>
+                <p>Result updates instantly as you type or upload content.</p>
+              </div>
+              @if (outputText) {
+                <span class="panel-badge">Ready to copy</span>
+              }
+            </header>
+
+            @if (outputText) {
+              <textarea id="base64-output"
+                        class="text-area text-area--output"
+                        readonly
+                        rows="12"
+                        [value]="outputText"
+                        aria-label="Converted Base64 result"></textarea>
+            } @else {
+              <div class="panel-empty" aria-live="polite">
+                <h3>No output yet</h3>
+                <p>Start typing or upload a file to see the converted result.</p>
+              </div>
+            }
+          </section>
+        </div>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Clipboard status</span>
+            <span class="metric-value">{{ outputText ? 'Available' : 'Empty' }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Upload ready</span>
+            <span class="metric-value">TXT & text-based</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Encoding</span>
+            <span class="metric-value">{{ mode === 'encode' ? 'UTF-16 ➜ Base64' : 'Base64 ➜ UTF-16' }}</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="clearInput()"
+                  [disabled]="!inputText && !outputText"
+                  aria-label="Clear converter">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear converter</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Mode reference</h2>
+          <p>Encoding expands your payload, decoding restores it. Swap modes anytime—input clears automatically.</p>
+        </header>
+        <div class="insight-body">
+          <dl class="mode-guide">
+            <div>
+              <dt>Encode text</dt>
+              <dd>Produce Base64 output to embed in HTML, CSS, or JSON payloads.</dd>
+            </div>
+            <div>
+              <dt>Decode input</dt>
+              <dd>Recover the original string from Base64, even when copied from remote APIs.</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Quick tips</h2>
+          <p>Keep conversions accurate and easy to share.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Base64 expands output by roughly 33%—check the size delta before shipping.</li>
+            <li>Use upload mode for large snippets to avoid browser paste limits.</li>
+            <li>Copy results to reuse in docs, environment files, or CDN payloads.</li>
+          </ul>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>

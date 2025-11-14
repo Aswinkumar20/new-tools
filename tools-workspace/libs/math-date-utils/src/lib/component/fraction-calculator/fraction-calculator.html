@@ -1,0 +1,235 @@
+<div class="fc">
+  <div class="fc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="fc__hero">
+    <div class="fc__badge">Fraction lab</div>
+    <h1>Interactive Fraction Calculator</h1>
+    <p>
+      Perform precise operations across rational numbers, instantly simplify results, and review working steps. Designed
+      for classrooms, tutoring, and anyone deepening their number sense.
+    </p>
+
+    <div class="fc__hero-meta">
+      <div>
+        <span class="fc__hero-label">Operations</span>
+        <strong>Add · Subtract · Multiply · Divide</strong>
+      </div>
+      <div>
+        <span class="fc__hero-label">Precision</span>
+        <strong>{{ form.get('precision')?.value }} decimal places</strong>
+      </div>
+      <div>
+        <span class="fc__hero-label">Auto simplify</span>
+        <strong>{{ form.get('autoSimplify')?.value ? 'Enabled' : 'Disabled' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="fc__quick">
+    <div class="fc__quick-actions">
+      <button type="button" class="btn btn--primary" (click)="swapFractions()">Swap fractions</button>
+      <button type="button" class="btn btn--ghost" (click)="reset()">Reset inputs</button>
+      <button type="button" class="btn btn--ghost" (click)="applyPreset('common-denominators')">Load sample</button>
+    </div>
+
+    <div class="fc__quick-summary">
+      <div>
+        <span>Current result</span>
+        <strong>{{ computation() ? formatFraction(computation()?.simplified ?? null) : 'Awaiting input' }}</strong>
+      </div>
+      <div>
+        <span>Mixed output</span>
+        <strong>{{ computation()?.mixed ? formatMixed(computation()?.mixed ?? null) : '—' }}</strong>
+      </div>
+      <div>
+        <span>Decimal view</span>
+        <strong>{{ computation()?.decimalFormatted ?? '—' }}</strong>
+      </div>
+    </div>
+
+    @if (activePreset()) {
+      <div class="fc__quick-status">
+        Loaded preset: <strong>{{ activePreset() }}</strong>
+      </div>
+    }
+  </section>
+
+  <div class="fc__layout" [formGroup]="form">
+    <section class="fc__card fc__card--inputs">
+      <header class="fc__card-header">
+        <div>
+          <h2>Build an expression</h2>
+          <p>Enter any two fractions and choose how to combine them.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="fc__alert">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <form class="fc__form" novalidate>
+        <div class="fc__fractions">
+          <article class="fc__fraction" formGroupName="fractionA">
+            <header>
+              <span>Fraction A</span>
+              <small>Supports negative values</small>
+            </header>
+            <div class="fc__fraction-line">
+              <input type="text" inputmode="numeric" formControlName="numerator" aria-label="Fraction A numerator" />
+              <span class="fc__fraction-divider" aria-hidden="true"></span>
+              <input type="text" inputmode="numeric" formControlName="denominator" aria-label="Fraction A denominator" />
+            </div>
+          </article>
+
+          <div class="fc__operations">
+            @for (op of operations; track op.id) {
+              <button
+                type="button"
+                class="fc__operation"
+                [class.fc__operation--active]="form.get('operation')?.value === op.id"
+                (click)="setOperation(op.id)"
+              >
+                <span class="fc__operation-symbol">{{ op.symbol }}</span>
+                <span class="fc__operation-label">{{ op.label }}</span>
+                <span class="fc__operation-helper">{{ op.helper }}</span>
+              </button>
+            }
+          </div>
+
+          <article class="fc__fraction" formGroupName="fractionB">
+            <header>
+              <span>Fraction B</span>
+              <small>Denominator cannot be zero</small>
+            </header>
+            <div class="fc__fraction-line">
+              <input type="text" inputmode="numeric" formControlName="numerator" aria-label="Fraction B numerator" />
+              <span class="fc__fraction-divider" aria-hidden="true"></span>
+              <input type="text" inputmode="numeric" formControlName="denominator" aria-label="Fraction B denominator" />
+            </div>
+          </article>
+        </div>
+
+        <div class="fc__options">
+          <label class="fc__toggle">
+            <input type="checkbox" formControlName="autoSimplify" />
+            <span>Auto simplify result</span>
+          </label>
+          <label class="fc__toggle">
+            <input type="checkbox" formControlName="showSteps" />
+            <span>Show working steps</span>
+          </label>
+          <label class="fc__input fc__input--compact" for="fc-precision">
+            <span>Decimal places</span>
+            <input id="fc-precision" type="number" min="0" max="12" formControlName="precision" />
+          </label>
+        </div>
+      </form>
+    </section>
+
+    <section class="fc__card fc__card--result">
+      <header class="fc__card-header">
+        <div>
+          <h2>Result</h2>
+          <p>Review simplified fraction, decimal approximation, and mixed form.</p>
+        </div>
+      </header>
+
+      @if (computation()) {
+        @let result = computation()!;
+        <div class="fc__expression">
+          <span>{{ formatFraction(result.left) }}</span>
+          <span class="fc__expression-op">{{ operationSymbol(result.operation) }}</span>
+          <span>{{ formatFraction(result.right) }}</span>
+          <span class="fc__expression-op">=</span>
+          <strong>{{ formatFraction(result.simplified) }}</strong>
+        </div>
+
+        <div class="fc__result-grid">
+          <div>
+            <span>Simplified fraction</span>
+            <strong>{{ formatFraction(result.simplified) }}</strong>
+          </div>
+          <div>
+            <span>Decimal</span>
+            <strong>{{ result.decimalFormatted }}</strong>
+          </div>
+          <div>
+            <span>Mixed number</span>
+            <strong>{{ formatMixed(result.mixed) }}</strong>
+          </div>
+          <div>
+            <span>Raw form</span>
+            <strong>{{ formatFraction(result.raw) }}</strong>
+          </div>
+        </div>
+
+        @if (insights().length) {
+          <ul class="fc__insights">
+            @for (line of insights(); track line) {
+              <li>{{ line }}</li>
+            }
+          </ul>
+        }
+
+        @if (result.steps.length && form.get('showSteps')?.value) {
+          <div class="fc__steps">
+            <h3>Working steps</h3>
+            <ol>
+              @for (step of result.steps; track step) {
+                <li>{{ step }}</li>
+              }
+            </ol>
+          </div>
+        }
+      } @else {
+        <div class="fc__empty">
+          Enter valid fractions to see the simplified result, decimal conversion, and step-by-step breakdown.
+        </div>
+      }
+    </section>
+
+    <section class="fc__card fc__card--utility">
+      <header class="fc__card-header">
+        <div>
+          <h2>Quick presets</h2>
+          <p>Load sample problems to explore different fraction scenarios.</p>
+        </div>
+      </header>
+
+      <ul class="fc__preset-list">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <li>
+            <div>
+              <strong>{{ preset.label }}</strong>
+              <p>{{ preset.description }}</p>
+            </div>
+            <div class="fc__preset-actions">
+              <span class="fc__muted">
+                {{ preset.left.numerator }}/{{ preset.left.denominator }}
+                {{ operationSymbol(preset.operation) }}
+                {{ preset.right.numerator }}/{{ preset.right.denominator }}
+              </span>
+              <button type="button" class="btn btn--ghost btn--small" (click)="applyPreset(preset.id)">Use preset</button>
+            </div>
+          </li>
+        }
+      </ul>
+
+      <div class="fc__tip">
+        <h3>Pro tip</h3>
+        <p>
+          Toggle “Show working steps” to generate classroom-ready explanations. Disable auto-simplify when you want to
+          inspect intermediate numerators and denominators.
+        </p>
+      </div>
+    </section>
+  </div>
+</div>

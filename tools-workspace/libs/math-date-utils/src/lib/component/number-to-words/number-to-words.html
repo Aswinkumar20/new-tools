@@ -1,0 +1,198 @@
+<div class="ntw">
+  <div class="ntw__nav-shell">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ntw__hero">
+    <div class="ntw__badge">Words engine</div>
+    <h1>Number to Words Studio</h1>
+    <p>
+      Transform any number into beautifully formatted words, switch locales instantly, and output currencies, ordinals,
+      or custom sentence cases in one unified workspace.
+    </p>
+
+    <div class="ntw__actions">
+      <button type="button" class="btn btn--primary" (click)="copyToClipboard()">Copy wording</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    <div class="ntw__meta">
+      <span><strong>{{ badgeMeta().locale }}</strong> locale</span>
+      <span><strong>{{ badgeMeta().format }}</strong> output</span>
+      <span><strong>{{ badgeMeta().historyCount }}</strong> recent runs</span>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="ntw__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="ntw__layout">
+    <section class="ntw__card ntw__card--form">
+      <header class="ntw__card-header">
+        <h2>Number input</h2>
+        <button type="button" class="btn-icon" aria-label="Convert now" (click)="submitForm()">↻</button>
+      </header>
+
+      <div class="ntw__card-body">
+        <form class="ntw__form" [formGroup]="form" (ngSubmit)="submitForm()">
+          <div class="ntw__form-row">
+            <label for="numericInput">Enter number</label>
+            <div class="ntw__input-wrap">
+              <input
+                id="numericInput"
+                type="text"
+                placeholder="Paste or type a number..."
+                formControlName="numericInput"
+                [attr.aria-invalid]="form.get('numericInput')!.invalid || null"
+              />
+              <button type="submit" class="btn btn--primary">Convert</button>
+            </div>
+            <p class="ntw__helper">
+              Supports negatives and up to 6 decimal places. Max safe integer range enforced.
+            </p>
+            @if (errorMessage()) {
+              <p class="ntw__error">{{ errorMessage() }}</p>
+            }
+          </div>
+
+          <div class="ntw__grid ntw__grid--cols">
+            <div class="ntw__form-row">
+              <label for="localeSelect">Locale</label>
+              <select id="localeSelect" formControlName="locale">
+                @for (locale of locales; track trackLocale($index, locale)) {
+                  <option [value]="locale.id">
+                    {{ locale.label }}
+                  </option>
+                }
+              </select>
+              <p class="ntw__helper">Example: {{ selectedLocale().sample }}</p>
+            </div>
+
+            <div class="ntw__form-row">
+              <label for="caseSelect">Case style</label>
+              <select id="caseSelect" formControlName="caseStyle">
+                @for (style of caseStyles; track trackCaseStyle($index, style)) {
+                  <option [value]="style.id">
+                    {{ style.label }}
+                  </option>
+                }
+              </select>
+              <p class="ntw__helper">{{ selectedCaseDescription() }}</p>
+            </div>
+          </div>
+
+          <div class="ntw__form-row">
+            <span class="ntw__label">Output format</span>
+            <div class="ntw__format-group">
+              @for (option of formats; track trackFormat($index, option)) {
+                <button
+                  type="button"
+                  class="ntw__format-tile"
+                  [class.is-active]="form.get('format')!.value === option.id"
+                  (click)="setFormat(option.id)"
+                >
+                  <span class="ntw__format-icon">{{ option.icon }}</span>
+                  <span class="ntw__format-title">{{ option.label }}</span>
+                  <small>{{ option.description }}</small>
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (isCurrencyFormat()) {
+            <div class="ntw__currency-panel">
+              <div class="ntw__grid ntw__grid--cols">
+                <div class="ntw__form-row">
+                  <label for="currencySelect">Currency</label>
+                  <select id="currencySelect" formControlName="currency">
+                    @for (currency of availableCurrencies(); track trackCurrency($index, currency)) {
+                      <option [value]="currency.code">
+                        {{ currency.label }} ({{ currency.symbol }})
+                      </option>
+                    }
+                  </select>
+                </div>
+
+                <div class="ntw__form-row ntw__toggle">
+                  <label>
+                    <input type="checkbox" formControlName="showCurrencySymbol" />
+                    <span>Include currency symbol</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" formControlName="includeCents" />
+                    <span>Convert minor units</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          }
+
+          <div class="ntw__toggle-group">
+            <label>
+              <input type="checkbox" formControlName="includeAnd" />
+              <span>Use "and" between large segments</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="handleNegative" />
+              <span>Prefix negative numbers</span>
+            </label>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="ntw__card ntw__card--output">
+      <header class="ntw__card-header">
+        <h2>Output preview</h2>
+        <div class="ntw__chip">{{ formatLabel() }}</div>
+      </header>
+      <div class="ntw__card-body ntw__card-body--scroll">
+        <textarea readonly [value]="formattedOutput()" placeholder="Converted words will appear here..."></textarea>
+        @if (!formattedOutput()) {
+          <div class="ntw__empty">Start by entering a number to generate wording.</div>
+        }
+        <div class="ntw__samples">
+          <span class="ntw__samples-label">Quick samples</span>
+          <div class="ntw__samples-wrap">
+            @for (sample of sampleNumbers; track trackSample($index, sample)) {
+              <button type="button" class="chip" (click)="applySample(sample)">
+                {{ sample.label }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ntw__card ntw__card--history">
+      <header class="ntw__card-header">
+        <h2>Recent conversions</h2>
+        <span class="ntw__history-count">{{ historyEntries().length }}</span>
+      </header>
+      <div class="ntw__card-body ntw__card-body--scroll">
+        <ul class="ntw__history-list">
+          @for (entry of historyEntries(); track trackHistory($index, entry)) {
+            <li>
+              <div class="ntw__history-meta">
+                <span class="ntw__history-input">{{ entry.input }}</span>
+                <span class="ntw__history-tags">
+                  {{ entry.locale }} · {{ entry.format }} · {{ entry.caseStyle }}
+                </span>
+              </div>
+              <p class="ntw__history-preview">{{ entry.text }}</p>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
+              </button>
+            </li>
+          }
+          @if (historyEntries().length === 0) {
+            <li class="ntw__history-empty">
+              Conversions will be stored here for quick reuse.
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>

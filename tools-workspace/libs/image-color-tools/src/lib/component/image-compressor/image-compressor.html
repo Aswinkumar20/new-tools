@@ -1,0 +1,228 @@
+<div class="ic">
+  <div class="ic__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ic__hero">
+    <div class="ic__badge">Media toolkit</div>
+    <h1>Image Compressor</h1>
+    <p>
+      Optimise image size and format directly in your browser. Adjust quality, resize, and export with a single click.
+      Ideal for speeding up websites, sharing assets, and trimming email attachments.
+    </p>
+
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <div class="ic__hero-meta">
+        <div>
+          <span class="ic__meta-label">Selected file</span>
+          <strong>{{ file.name }}</strong>
+        </div>
+        <div>
+          <span class="ic__meta-label">Size</span>
+          <strong>{{ formatBytes(file.size) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ic__hero-meta ic__hero-meta--placeholder">
+        Drop an image or browse to start compressing. Supports PNG, JPEG, HEIC, WebP, and RAW formats.
+      </div>
+    }
+  </section>
+
+  <div class="ic__workspace" [formGroup]="form">
+    <section class="ic__panel ic__panel--upload">
+      <header class="ic__card-header">
+        <div>
+          <h2>Upload & configure</h2>
+          <p>Pick an image, tweak quality, resize dimensions, and optional metadata controls.</p>
+        </div>
+      </header>
+
+      <div
+        class="ic__dropzone"
+        [class.ic__dropzone--active]="dragActive()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
+        <p>or drag & drop here · Max file size {{ formatBytes(45 * 1024 * 1024) }}</p>
+      </div>
+
+      <div class="ic__form-grid">
+        <label class="ic__input" for="ic-quality">
+          <span>Quality (0.1 – 1)</span>
+          <input id="ic-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
+          <small>Lower values reduce file size, higher values preserve detail.</small>
+        </label>
+
+        <label class="ic__input" for="ic-format">
+          <span>Export format</span>
+          <select id="ic-format" formControlName="format">
+            <option value="image/jpeg">JPEG (widely supported)</option>
+            <option value="image/webp">WebP (modern)</option>
+            <option value="image/png">PNG (lossless)</option>
+          </select>
+        </label>
+
+        <label class="ic__input" for="ic-width">
+          <span>Resize width</span>
+          <input id="ic-width" type="number" min="1" [max]="8000" formControlName="resizeWidth" (input)="onDimensionInput('width')" />
+        </label>
+
+        <label class="ic__input" for="ic-height">
+          <span>Resize height</span>
+          <input id="ic-height" type="number" min="1" [max]="8000" formControlName="resizeHeight" (input)="onDimensionInput('height')" />
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="keepAspect" />
+          <span>Lock aspect ratio</span>
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="stripMetadata" />
+          <span>Strip metadata (EXIF, GPS)</span>
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember session history</span>
+        </label>
+      </div>
+
+      <div class="ic__presets">
+        <h3>Quick presets</h3>
+        <div class="ic__preset-list">
+          @for (preset of presets; track preset.label) {
+            <button type="button" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="ic__actions">
+        <button type="button" class="btn btn--primary" (click)="compress()" [disabled]="!canCompress() || isProcessing()">
+          {{ isProcessing() ? 'Compressing…' : 'Compress image' }}
+        </button>
+        <button type="button" class="btn btn--ghost" (click)="clear()" [disabled]="!selectedFile()">Clear</button>
+      </div>
+    </section>
+
+    <section class="ic__panel ic__panel--preview">
+      <header class="ic__card-header">
+        <div>
+          <h2>Preview & compare</h2>
+          <p>Compare before/after stats to validate your compression choices.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ic__alert ic__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ic__alert ic__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (previewUrl()) {
+        <figure class="ic__preview">
+          <img [src]="previewUrl()" alt="Original preview" />
+        </figure>
+      } @else {
+        <div class="ic__empty">Preview will appear once an image is loaded.</div>
+      }
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ic__stats">
+          <div>
+            <span>Original</span>
+            <strong>{{ current.originalDimensions.width }} × {{ current.originalDimensions.height }}</strong>
+            <small>{{ formatBytes(current.originalSize) }}</small>
+          </div>
+          <div>
+            <span>Compressed</span>
+            <strong>{{ current.compressedDimensions.width }} × {{ current.compressedDimensions.height }}</strong>
+            <small>{{ formatBytes(current.compressedSize) }}</small>
+          </div>
+          <div>
+            <span>Reduction</span>
+            <strong>{{ (1 - current.reduction) * 100 | number: '1.0-0' }}% smaller</strong>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="ic__panel ic__panel--output">
+      <header class="ic__card-header">
+        <div>
+          <h2>Download</h2>
+          <p>Save or open your optimised asset.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ic__result-preview">
+          <img [src]="current.previewUrl" alt="Compressed preview" />
+        </div>
+
+        <div class="ic__actions">
+          <button type="button" class="btn btn--primary" (click)="download()">Download</button>
+          <a class="btn btn--ghost" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
+        </div>
+      } @else {
+        <div class="ic__empty">Compress an image to reveal the optimised output.</div>
+      }
+    </section>
+
+    <section class="ic__panel ic__panel--history">
+      <header class="ic__card-header">
+        <div>
+          <h2>Session history</h2>
+          <p>Review recent conversions completed in this session.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ic__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <div>
+                <strong>{{ entry.name ?? 'Untitled' }}</strong>
+                <span>{{ entry.format }}</span>
+                <span>{{ entry.sizes }}</span>
+                <span>{{ entry.dimensions }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ic__empty">Enable history tracking to keep a list of recent compressions.</div>
+      }
+    </section>
+  </div>
+</div>

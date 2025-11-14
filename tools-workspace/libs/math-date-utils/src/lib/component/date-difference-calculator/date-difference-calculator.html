@@ -1,0 +1,254 @@
+<div class="ddc">
+  <div class="ddc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ddc__hero">
+    <div class="ddc__badge">Date planner</div>
+    <h1>Date Difference Studio</h1>
+    <p>
+      Measure the span between any two dates, compare business days, and view upcoming milestones in a glance. Switch
+      between presets or tailor your own schedule.
+    </p>
+
+    <div class="ddc__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="ddc__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="ddc__layout">
+    <section class="ddc__card ddc__card--form">
+      <header class="ddc__card-header">
+        <div>
+          <h2>Configure comparison</h2>
+          <p>Select start and end points. You can include exact times or stick with whole days.</p>
+        </div>
+      </header>
+
+      <form class="ddc__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="ddc__input-grid">
+          <div class="ddc__input">
+            <label for="startDate">Start date</label>
+            <input id="startDate" type="date" formControlName="startDate" />
+          </div>
+          <div class="ddc__input">
+            <label for="endDate">End date</label>
+            <input id="endDate" type="date" formControlName="endDate" />
+            <small>Leave blank to use today automatically.</small>
+          </div>
+        </div>
+
+        <label class="ddc__toggle">
+          <input type="checkbox" formControlName="includeTime" />
+          <span>Include time of day</span>
+        </label>
+
+        @if (form.get('includeTime')?.value) {
+          <div class="ddc__input-grid ddc__input-grid--time">
+            <div class="ddc__input">
+              <label for="startTime">Start time</label>
+              <input id="startTime" type="time" formControlName="startTime" />
+            </div>
+            <div class="ddc__input">
+              <label for="endTime">End time</label>
+              <input id="endTime" type="time" formControlName="endTime" />
+            </div>
+          </div>
+        }
+
+        <details class="ddc__advanced" open>
+          <summary>Options</summary>
+          <div class="ddc__advanced-grid">
+            <label>
+              <input type="checkbox" formControlName="countBusinessDays" />
+              <span>Count business days</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="includeWeekdayBreakdown" />
+              <span>Include weekday breakdown</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="includeTimeline" />
+              <span>Show timeline segments</span>
+            </label>
+            <label>
+              <input type="checkbox" formControlName="includeMilestones" />
+              <span>Show upcoming milestones</span>
+            </label>
+          </div>
+        </details>
+
+        @if (errorMessage()) {
+          <div class="ddc__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="ddc__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="ddc__card ddc__card--summary">
+      <header class="ddc__card-header">
+        <div>
+          <h2>Summary</h2>
+          <p>Instant snapshot of the span between your dates.</p>
+        </div>
+      </header>
+
+      @if (summary()) {
+        <div class="ddc__summary">
+          <div class="ddc__summary-pill">
+            {{ summary()!.exactSpan }}
+            <small>
+              {{ summary()!.isForward ? 'From' : 'Until' }} {{ summary()!.startDateLabel }} to {{ summary()!.endDateLabel }}
+            </small>
+          </div>
+
+          <div class="ddc__metric-grid">
+            <div class="ddc__metric">
+              <span>Total years</span>
+              <strong>{{ summary()!.totalYears }}</strong>
+            </div>
+            <div class="ddc__metric">
+              <span>Total months</span>
+              <strong>{{ summary()!.totalMonths }}</strong>
+            </div>
+            <div class="ddc__metric">
+              <span>Total days</span>
+              <strong>{{ summary()!.totalDays | number:'1.0-0' }}</strong>
+            </div>
+            <div class="ddc__metric">
+              <span>Total hours</span>
+              <strong>{{ summary()!.totalHours | number:'1.0-0' }}</strong>
+            </div>
+            <div class="ddc__metric">
+              <span>Total minutes</span>
+              <strong>{{ summary()!.totalMinutes | number:'1.0-0' }}</strong>
+            </div>
+            @if (summary()!.businessDays !== undefined) {
+              <div class="ddc__metric ddc__metric--accent">
+                <span>Business days</span>
+                <strong>{{ summary()!.businessDays | number:'1.0-0' }}</strong>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="ddc__empty">Enter valid dates to see a detailed summary.</div>
+      }
+    </section>
+
+    <section class="ddc__card ddc__card--timeline">
+      <header class="ddc__card-header">
+        <h2>Timeline</h2>
+      </header>
+      @if (durationSegments().length > 0 && form.get('includeTimeline')?.value) {
+        <div class="ddc__timeline">
+          @for (segment of durationSegments(); track trackTimeline($index, segment)) {
+            <div class="ddc__timeline-item">
+              <div class="ddc__timeline-bar" [style.flex-basis.%]="segment.proportion"></div>
+              <div class="ddc__timeline-content">
+                <strong>{{ segment.label }}</strong>
+                <span>{{ segment.description }}</span>
+                <small>{{ segment.days | number:'1.0-0' }} days</small>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="ddc__empty">Enable timeline to view duration segments.</div>
+      }
+    </section>
+
+    <section class="ddc__card ddc__card--weekdays">
+      <header class="ddc__card-header">
+        <h2>Weekday breakdown</h2>
+      </header>
+      @if (weekdayBreakdown() && form.get('includeWeekdayBreakdown')?.value) {
+        <div class="ddc__weekday-grid">
+          <div class="ddc__metric">
+            <span>Weekdays</span>
+            <strong>{{ weekdayBreakdown()!.weekdays | number:'1.0-0' }}</strong>
+          </div>
+          <div class="ddc__metric">
+            <span>Weekend days</span>
+            <strong>{{ weekdayBreakdown()!.weekendDays | number:'1.0-0' }}</strong>
+          </div>
+          @if (weekdayBreakdown()!.businessDays !== undefined) {
+            <div class="ddc__metric">
+              <span>Business days</span>
+              <strong>{{ weekdayBreakdown()!.businessDays | number:'1.0-0' }}</strong>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="ddc__empty">Enable weekday breakdown to view weekdays vs weekends.</div>
+      }
+    </section>
+
+    <section class="ddc__card ddc__card--milestones">
+      <header class="ddc__card-header">
+        <h2>Milestones</h2>
+      </header>
+      @if (milestones().length > 0 && form.get('includeMilestones')?.value) {
+        <ul class="ddc__milestones">
+          @for (milestone of milestones(); track trackMilestone($index, milestone)) {
+            <li>
+              <strong>{{ milestone.label }}</strong>
+              <span>{{ milestone.description }}</span>
+              <small>{{ formatCountdown(milestone.remaining) }}</small>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ddc__empty">Enable milestones to track key future intervals.</div>
+      }
+    </section>
+
+    <section class="ddc__card ddc__card--presets">
+      <header class="ddc__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="ddc__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="ddc__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ preset.startDate }} → {{ preset.endDate }}</small>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="ddc__card ddc__card--history">
+      <header class="ddc__card-header">
+        <h2>History</h2>
+        <span class="ddc__history-count">{{ history().length }}</span>
+      </header>
+      <div class="ddc__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="ddc__history-head">
+              <div>
+                <strong>{{ entry.summary.exactSpan }}</strong>
+                <span>{{ entry.summary.startDateLabel }} → {{ entry.summary.endDateLabel }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
+            </div>
+            <p class="ddc__history-meta">
+              Business days {{ entry.summary.businessDays ?? 'n/a' }} · Timeline {{ entry.timeline ? 'on' : 'off' }}
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="ddc__empty">Your last comparisons will show up here.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

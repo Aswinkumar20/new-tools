@@ -1,0 +1,226 @@
+<div class="ib">
+  <div class="ib__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ib__hero">
+    <div class="ib__badge">Media toolkit</div>
+    <h1>Image to Base64 Converter</h1>
+    <p>
+      Drag and drop or browse to convert images into Base64, Base64URL, or raw text output. Handles large files safely,
+      provides metadata, preview, and quick clipboard actions—optimized for every screen.
+    </p>
+
+    @if (result()) {
+      @let info = result()!;
+      <div class="ib__hero-meta">
+        <div>
+          <span class="ib__meta-label">Source file</span>
+          <strong>{{ info.filename ?? 'Untitled' }}</strong>
+        </div>
+        <div>
+          <span class="ib__meta-label">Original size</span>
+          <strong>{{ formatBytes(info.size) }}</strong>
+        </div>
+        <div>
+          <span class="ib__meta-label">Encoded size</span>
+          <strong>{{ formatBytes(info.encodedSize) }}</strong>
+        </div>
+        <div>
+          <span class="ib__meta-label">Output format</span>
+          <strong>{{ info.outputFormat }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ib__hero-meta ib__hero-meta--placeholder">
+        Drop an image or reach for “Upload” to generate a sharable Base64 data URI instantly.
+      </div>
+    }
+  </section>
+
+  <div class="ib__board" [formGroup]="form">
+    <section class="ib__panel ib__panel--upload">
+      <header class="ib__card-header">
+        <div>
+          <h2>Upload & settings</h2>
+          <p>Drop an image, tweak encoding, then copy or download instantly.</p>
+        </div>
+      </header>
+
+      <div
+        class="ib__dropzone"
+        [class.ib__dropzone--active]="dragActive()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
+        <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
+      </div>
+
+      <div class="ib__form-grid">
+        <label class="ib__input" for="ib-format">
+          <span>Output format</span>
+          <select id="ib-format" formControlName="outputFormat">
+            <option value="base64">Base64 (data URI)</option>
+            <option value="base64url">Base64 URL-safe</option>
+            <option value="text">Plain text</option>
+          </select>
+        </label>
+
+        <label class="ib__input" for="ib-wrap">
+          <span>Wrap width</span>
+          <input id="ib-wrap" type="number" min="0" formControlName="wrapWidth" placeholder="76" />
+          <small>Blank / 0 keeps everything on one line.</small>
+        </label>
+
+        <label class="ib__input" for="ib-chunk">
+          <span>Chunk size</span>
+          <input id="ib-chunk" type="number" min="256" step="256" formControlName="chunkSize" />
+          <small>Split encoded output into digestible blocks.</small>
+        </label>
+
+        <label class="ib__toggle">
+          <input type="checkbox" formControlName="includeMime" />
+          <span>Add MIME prefix to output</span>
+        </label>
+
+        <label class="ib__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Track conversions this session</span>
+        </label>
+      </div>
+
+      @if (result()) {
+        <div class="ib__actions">
+          <button type="button" class="btn btn--primary" (click)="copyToClipboard()" [disabled]="!shareable()">
+            Copy encoded output
+          </button>
+          <button type="button" class="btn btn--ghost" (click)="downloadEncoded()">Download .txt</button>
+          <button type="button" class="btn btn--ghost" (click)="clear()">Clear</button>
+        </div>
+      }
+    </section>
+
+    <section class="ib__panel ib__panel--preview">
+      <header class="ib__card-header">
+        <div>
+          <h2>Preview & stats</h2>
+          <p>Always-on image preview with live file details.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ib__alert ib__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ib__alert ib__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (isProcessing()) {
+        <div class="ib__status ib__status--loading">Processing image…</div>
+      }
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ib__summary">
+          <figure>
+            <img [src]="current.previewUrl" alt="Preview" />
+            <figcaption>{{ current.mime }} · {{ formatBytes(current.size) }}</figcaption>
+          </figure>
+          <div class="ib__summary-meta">
+            <div>
+              <span>Compression ratio</span>
+              <strong>{{ current.compressionRatio | number: '1.2-2' }}×</strong>
+            </div>
+            <div>
+              <span>Chunks</span>
+              <strong>{{ current.chunks.length }}</strong>
+            </div>
+            <div>
+              <span>Output length</span>
+              <strong>{{ current.textPreview.length | number }}</strong>
+            </div>
+          </div>
+        </div>
+      } @else if (!isProcessing() && !errors().length) {
+        <div class="ib__empty">Drop an image to see a live preview and stats.</div>
+      }
+    </section>
+
+    <section class="ib__panel ib__panel--output">
+      <header class="ib__card-header">
+        <div>
+          <h2>Encoded output</h2>
+          <p>Full Base64 text—search, select, or copy from here.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ib__output">
+          <textarea readonly>{{ current.textPreview }}</textarea>
+        </div>
+
+        <div class="ib__chunks">
+          <details open>
+            <summary>Chunk explorer ({{ current.chunks.length }} segment{{ current.chunks.length === 1 ? '' : 's' }})</summary>
+            <div class="ib__chunk-list">
+              @for (chunk of current.chunks; track $index) {
+                <details>
+                  <summary>Chunk #{{ $index + 1 }} ({{ chunk.length | number }} chars)</summary>
+                  <pre>{{ chunk }}</pre>
+                </details>
+              }
+            </div>
+          </details>
+        </div>
+      } @else {
+        <div class="ib__empty">Encoded text will appear here after conversion.</div>
+      }
+    </section>
+
+    <section class="ib__panel ib__panel--history">
+      <header class="ib__card-header">
+        <div>
+          <h2>Conversion log</h2>
+          <p>Jump back to any previous output during this session.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ib__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)">
+                <strong>{{ entry.filename ?? 'Untitled' }}</strong>
+                <span>{{ formatBytes(entry.size) }} · {{ entry.mime }} · {{ entry.format }}</span>
+                <time>{{ entry.timestamp | date: 'medium' }}</time>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ib__empty">No conversions saved yet. Enable history tracking to keep a log.</div>
+      }
+    </section>
+  </div>
+
+</div>

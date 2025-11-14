@@ -1,0 +1,437 @@
+<div class="archive-viewer-container main-container">
+  <div class="top-navigation">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <div class="container">
+    <div class="header-section">
+      <div class="header-content">
+        <h2>Archive Viewer</h2>
+        <p class="subtitle">Browse, preview, and extract files from compressed archives with full password support.</p>
+        <div class="header-meta">
+          <span>Supports modern archive formats</span>
+          <span>All processing happens locally</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button
+          class="btn-secondary"
+          (click)="toggleAbout()"
+          [class.active]="showAbout"
+          title="Toggle about section"
+          [attr.aria-expanded]="showAbout">
+          {{ showAbout ? 'Hide Details' : 'About Viewer' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="insight-strip">
+      <div class="insight-card">
+        <span class="insight-label">Loaded archives</span>
+        <span class="insight-value">{{ archiveFiles.length }}</span>
+        <span class="insight-hint">Manage multiple compressed files</span>
+      </div>
+      <div class="insight-card">
+        <span class="insight-label">Files available</span>
+        <span class="insight-value">
+          {{ archiveFiles.length > 0 ? (archiveFiles[currentArchiveIndex]?.totalFiles || 0) : 0 }}
+        </span>
+        <span class="insight-hint">Navigate the hierarchy instantly</span>
+      </div>
+      <div class="insight-card">
+        <span class="insight-label">Active size</span>
+        <span class="insight-value">
+          {{ archiveFiles.length > 0 ? formatFileSize(archiveFiles[currentArchiveIndex]?.totalSize || 0) : '0 B' }}
+        </span>
+        <span class="insight-hint">Total extracted content</span>
+      </div>
+    </div>
+
+    <section class="about-section info-card" *ngIf="showAbout">
+      <div class="info-card-header">
+        <h3>About Archive Viewer</h3>
+        <p>Everything you need to manage and inspect archive contents directly in your browser.</p>
+      </div>
+      <div class="about-content">
+        <div class="about-section-item about-card">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            What is Archive Viewer?
+          </h3>
+          <p>
+            Archive Viewer lets you explore archive contents, preview files, and extract what you need without leaving the browser.
+            Full ZIP support is available today, with additional formats arriving soon.
+          </p>
+        </div>
+        <div class="about-section-item about-card">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            Key capabilities
+          </h3>
+          <ul class="features-list">
+            <li>Hierarchical file tree with quick expand/collapse</li>
+            <li>Instant previews for text and image files</li>
+            <li>Password-protected archive handling</li>
+            <li>Search across entire archive content</li>
+            <li>Download individual files or extract everything</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="viewer-layout">
+      <aside class="interaction-panel">
+        <section class="panel-card upload-card">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Load archives</h3>
+              <p>Drop archives or browse to inspect their contents instantly.</p>
+            </div>
+            <button class="btn-link" (click)="openFileDialog()">Browse</button>
+          </div>
+          <div class="panel-card-body">
+            <input
+              #fileInput
+              type="file"
+              accept=".zip,.rar,.7z,.tar,.gz,.bz2,.xz,.z,.cab,.iso,.apk,.jar,.war,.ear"
+              (change)="onFileSelected($event)"
+              class="file-input"
+              multiple
+              hidden>
+
+            <button
+              type="button"
+              class="drop-zone"
+              [class.active]="showDropZone"
+              (dragenter)="onDragEnter()"
+              (dragleave)="onDragLeave()"
+              (drop)="onDrop($event)"
+              (click)="openFileDialog()"
+              aria-label="Upload archive files">
+              <div class="drop-zone-content">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p class="drop-zone-text">Click to browse or drag and drop archive files here</p>
+                <p class="drop-zone-formats">Supports ZIP, RAR, 7Z, TAR, GZ, BZ2, XZ, CAB, ISO, APK, JAR</p>
+              </div>
+            </button>
+
+            <div class="upload-actions">
+              <button class="btn-primary" (click)="openFileDialog()">
+                <span>Select Archive Files</span>
+              </button>
+              <p class="upload-hint">Multiple archives allowed · Password prompts when required</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-card tips-card">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Pro tips</h3>
+              <p>Get the most out of your archive session.</p>
+            </div>
+          </div>
+          <ul class="tips-list">
+            <li>Use the search box to jump straight to a file path.</li>
+            <li>Expand all nodes before exporting for a quick scan.</li>
+            <li>Download individual files from the preview header.</li>
+          </ul>
+        </section>
+      </aside>
+
+      <section class="viewer-panel">
+        <div class="loading" *ngIf="loading">
+          <div class="spinner"></div>
+          <p>Loading archive...</p>
+          <div class="progress-bar" *ngIf="loadingProgress > 0">
+            <div class="progress-fill" [style.width.%]="loadingProgress"></div>
+          </div>
+          <p class="progress-text">{{ loadingProgress }}%</p>
+        </div>
+
+        <div class="error-message" *ngIf="errorMessage">
+          <p>{{ errorMessage }}</p>
+        </div>
+
+        <div class="archive-viewer-main viewer-card" *ngIf="archiveFiles.length > 0">
+          <div class="archive-list" *ngIf="archiveFiles.length > 0">
+            <div
+              class="archive-item"
+              *ngFor="let archive of archiveFiles; let i = index"
+              [class.active]="i === currentArchiveIndex"
+              (click)="selectArchive(i)">
+              <div class="archive-info">
+                <span class="archive-name">{{ archive.name }}</span>
+                <span class="archive-details">
+                  {{ formatFileSize(archive.size) }} • {{ archive.totalFiles }} files
+                  <span *ngIf="archive.passwordProtected"> • 🔒 Protected</span>
+                </span>
+              </div>
+              <button
+                class="btn-icon btn-remove"
+                (click)="removeArchive(i); $event.stopPropagation()"
+                title="Remove archive">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="toolbar" *ngIf="currentArchiveIndex >= 0">
+            <div class="toolbar-left">
+              <div class="search-box">
+                <input
+                  type="text"
+                  [(ngModel)]="searchText"
+                  (ngModelChange)="performSearch()"
+                  placeholder="Search files..."
+                  class="search-input">
+              </div>
+            </div>
+            <div class="toolbar-right">
+              <button
+                class="btn-icon"
+                (click)="expandAll()"
+                title="Expand All">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <button
+                class="btn-icon"
+                (click)="collapseAll()"
+                title="Collapse All">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+              </button>
+              <button
+                class="btn-secondary"
+                (click)="extractAll()"
+                title="Extract All Files">
+                <span>Extract All</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="main-content">
+            <div class="file-tree-sidebar">
+              <div class="tree-header">
+                <h3>Files</h3>
+                <span class="file-count" *ngIf="archiveFiles[currentArchiveIndex]">
+                  {{ archiveFiles[currentArchiveIndex].totalFiles }} files
+                </span>
+              </div>
+              <div class="tree-container" #fileTree>
+                <div
+                  class="tree-node"
+                  *ngFor="let file of fileTreeData"
+                  [style.padding-left.px]="file.level * 20">
+                  <div
+                    class="tree-item"
+                    [class.directory]="file.isDirectory"
+                    [class.selected]="selectedFile?.path === file.path"
+                    (click)="file.isDirectory ? toggleExpand(file) : selectFile(file)">
+                    <span class="tree-icon">
+                      <span *ngIf="file.isDirectory">
+                        <svg *ngIf="!file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <svg *ngIf="file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </span>
+                      <span *ngIf="!file.isDirectory">{{ getFileIcon(file) }}</span>
+                    </span>
+                    <span class="tree-name">{{ file.name }}</span>
+                    <span class="tree-size" *ngIf="!file.isDirectory">
+                      {{ formatFileSize(file.size) }}
+                    </span>
+                  </div>
+
+                  <ng-container *ngIf="file.children && file.expanded">
+                    <div
+                      class="tree-node"
+                      *ngFor="let child of file.children"
+                      [style.padding-left.px]="child.level * 20">
+                      <div
+                        class="tree-item"
+                        [class.directory]="child.isDirectory"
+                        [class.selected]="selectedFile?.path === child.path"
+                        (click)="child.isDirectory ? toggleExpand(child) : selectFile(child)">
+                        <span class="tree-icon">
+                          <span *ngIf="child.isDirectory">
+                            <svg *ngIf="!child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                            <svg *ngIf="child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                          </span>
+                          <span *ngIf="!child.isDirectory">{{ getFileIcon(child) }}</span>
+                        </span>
+                        <span class="tree-name">{{ child.name }}</span>
+                        <span class="tree-size" *ngIf="!child.isDirectory">
+                          {{ formatFileSize(child.size) }}
+                        </span>
+                      </div>
+
+                      <ng-container *ngIf="child.children && child.expanded">
+                        <div
+                          class="tree-node"
+                          *ngFor="let nested of child.children"
+                          [style.padding-left.px]="nested.level * 20">
+                          <div
+                            class="tree-item"
+                            [class.directory]="nested.isDirectory"
+                            [class.selected]="selectedFile?.path === nested.path"
+                            (click)="nested.isDirectory ? toggleExpand(nested) : selectFile(nested)">
+                            <span class="tree-icon">
+                              <span *ngIf="nested.isDirectory">
+                                <svg *ngIf="!nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                                <svg *ngIf="nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </span>
+                              <span *ngIf="!nested.isDirectory">{{ getFileIcon(nested) }}</span>
+                            </span>
+                            <span class="tree-name">{{ nested.name }}</span>
+                            <span class="tree-size" *ngIf="!nested.isDirectory">
+                              {{ formatFileSize(nested.size) }}
+                            </span>
+                          </div>
+
+                          <ng-container *ngIf="nested.children && nested.expanded">
+                            <div
+                              class="tree-node"
+                              *ngFor="let deep of nested.children"
+                              [style.padding-left.px]="deep.level * 20">
+                              <div
+                                class="tree-item"
+                                [class.directory]="deep.isDirectory"
+                                [class.selected]="selectedFile?.path === deep.path"
+                                (click)="deep.isDirectory ? toggleExpand(deep) : selectFile(deep)">
+                                <span class="tree-icon">
+                                  <span *ngIf="deep.isDirectory">
+                                    <svg *ngIf="!deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                      <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                    <svg *ngIf="deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                      <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                  </span>
+                                  <span *ngIf="!deep.isDirectory">{{ getFileIcon(deep) }}</span>
+                                </span>
+                                <span class="tree-name">{{ deep.name }}</span>
+                                <span class="tree-size" *ngIf="!deep.isDirectory">
+                                  {{ formatFileSize(deep.size) }}
+                                </span>
+                              </div>
+                            </div>
+                          </ng-container>
+                        </div>
+                      </ng-container>
+                    </div>
+                  </ng-container>
+                </div>
+              </div>
+            </div>
+
+            <div class="preview-panel">
+              <div class="preview-header" *ngIf="selectedFile">
+                <div class="preview-file-info">
+                  <span class="file-icon">{{ getFileIcon(selectedFile) }}</span>
+                  <span class="file-name">{{ previewFileName }}</span>
+                  <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
+                </div>
+                <button
+                  class="btn-icon"
+                  (click)="downloadFile(selectedFile)"
+                  title="Download File">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="preview-content" #previewContainer>
+                <div class="preview-empty" *ngIf="!selectedFile">
+                  <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <p>Select a file to preview</p>
+                </div>
+
+                <div class="preview-text" *ngIf="previewType === 'text'">
+                  <pre>{{ previewContent }}</pre>
+                </div>
+
+                <div class="preview-image" *ngIf="previewType === 'image'">
+                  <img [src]="previewContent" [alt]="previewFileName">
+                </div>
+
+                <div class="preview-binary" *ngIf="previewType === 'binary'">
+                  <p>{{ previewContent }}</p>
+                  <button class="btn-primary" (click)="downloadFile(selectedFile!)">
+                    Download File
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="archiveFiles.length === 0 && !loading">
+          <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <p>No archive file loaded</p>
+          <p class="hint">Upload archive files using the card on the left or drag and drop them here</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="password-dialog-overlay" *ngIf="showPasswordDialog" (click)="closePasswordDialog()">
+    <div class="password-dialog" (click)="$event.stopPropagation()">
+      <h3>Password Protected Archive</h3>
+      <p>This archive is password protected. Please enter the password to continue.</p>
+      <input
+        type="password"
+        [(ngModel)]="passwordInput"
+        placeholder="Enter password"
+        class="password-input"
+        (keydown.enter)="onPasswordSubmit()">
+      <div class="password-error" *ngIf="passwordError">
+        {{ passwordError }}
+      </div>
+      <div class="dialog-actions">
+        <button class="btn-secondary" (click)="closePasswordDialog()">Cancel</button>
+        <button class="btn-primary" (click)="onPasswordSubmit()">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>

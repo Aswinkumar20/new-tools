@@ -1,0 +1,220 @@
+<div class="tc">
+  <div class="tc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="tc__hero">
+    <div class="tc__badge">Dining helper</div>
+    <h1>Tip Calculator Suite</h1>
+    <p>
+      Quickly compute tips, split bills, and account for taxes or custom shares. Use presets for common scenarios and
+      track recent calculations.
+    </p>
+
+    <div class="tc__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="tc__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="tc__layout">
+    <section class="tc__card tc__card--form">
+      <header class="tc__card-header">
+        <div>
+          <h2>Bill details</h2>
+          <p>Enter the bill, choose tip and tax, then select how to split the total.</p>
+        </div>
+      </header>
+
+      <form class="tc__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="tc__grid">
+          <div class="tc__input">
+            <label for="amount">Bill amount</label>
+            <input id="amount" type="number" step="0.01" formControlName="amount" />
+          </div>
+          <div class="tc__input">
+            <label for="tipPercent">Tip %</label>
+            <input id="tipPercent" type="number" step="0.1" formControlName="tipPercent" />
+          </div>
+          <div class="tc__input">
+            <label for="taxPercent">Tax %</label>
+            <input id="taxPercent" type="number" step="0.1" formControlName="taxPercent" />
+          </div>
+        </div>
+
+        <div class="tc__grid tc__grid--split">
+          <div class="tc__input">
+            <label for="splitCount">Split count</label>
+            <input id="splitCount" type="number" formControlName="splitCount" [disabled]="form.get('splitMode')?.value === 'custom'" />
+          </div>
+          <div class="tc__input">
+            <label for="currency">Currency</label>
+            <select id="currency" formControlName="currency">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="CAD">CAD</option>
+              <option value="AUD">AUD</option>
+            </select>
+          </div>
+          <div class="tc__input tc__input--toggle">
+            <label class="tc__toggle">
+              <input type="checkbox" formControlName="round" />
+              <span>Round grand total</span>
+            </label>
+          </div>
+        </div>
+
+        <fieldset class="tc__split-mode">
+          <legend id="split-mode-label">Split mode</legend>
+          <div class="tc__segmented" aria-labelledby="split-mode-label">
+            <button type="button" [class.is-active]="splitMode() === 'equal'" (click)="setSplitMode('equal')">Equal split</button>
+            <button type="button" [class.is-active]="splitMode() === 'custom'" (click)="setSplitMode('custom')">Custom shares</button>
+          </div>
+        </fieldset>
+
+        @if (splitMode() === 'custom') {
+          <fieldset class="tc__custom">
+            <legend>Custom shares</legend>
+            <div class="tc__custom-grid">
+              @for (share of form.get('customShares')?.value; track math.random()) {
+                <div class="tc__custom-input">
+                  <label [attr.for]="'custom-share-' + $index">Share {{ $index + 1 }}</label>
+                  <input
+                    [id]="'custom-share-' + $index"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    [value]="share"
+                    (input)="onCustomShareInput($event, $index)"
+                  />
+                </div>
+              }
+            </div>
+          </fieldset>
+        }
+
+        <label class="tc__toggle tc__toggle--history">
+          <input type="checkbox" formControlName="includeHistory" />
+          <span>Store this calculation</span>
+        </label>
+
+        @if (errorMessage()) {
+          <div class="tc__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="tc__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="tc__card tc__card--summary">
+      <header class="tc__card-header">
+        <div>
+          <h2>Summary</h2>
+          <p>Totals and per-person splits.</p>
+        </div>
+      </header>
+
+      @if (summary()) {
+        <div class="tc__summary">
+          <div class="tc__summary-pill">
+            <strong>{{ formatCurrency(summary()!.grandTotal) }}</strong>
+            <span>Grand total</span>
+            <small>Tip {{ formatCurrency(summary()!.totalTip) }} · Tax {{ formatCurrency(summary()!.totalTax) }}</small>
+          </div>
+
+          <div class="tc__metric-grid">
+            <div class="tc__metric">
+              <span>Bill</span>
+              <strong>{{ formatCurrency(summary()!.totalBill) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Tip amount</span>
+              <strong>{{ formatCurrency(summary()!.totalTip) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Tax amount</span>
+              <strong>{{ formatCurrency(summary()!.totalTax) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Rounding adj.</span>
+              <strong>{{ formatCurrency(summary()!.roundingAdjustment) }}</strong>
+            </div>
+          </div>
+
+          <div class="tc__split-list">
+            @for (amount of summary()!.perPerson; track amount) {
+              <div class="tc__split-item">
+                <strong>{{ summary()!.perPersonLabels[$index] }}</strong>
+                <span>{{ formatCurrency(amount) }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="tc__empty">Enter bill details to see allocations.</div>
+      }
+    </section>
+
+    <section class="tc__card tc__card--insights">
+      <header class="tc__card-header">
+        <h2>Insights</h2>
+      </header>
+      @if (tips().length > 0) {
+        <ul class="tc__insights">
+          @for (tip of tips(); track trackTip($index, tip)) {
+            <li>{{ tip }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="tc__empty">Insights will appear once you calculate.</div>
+      }
+    </section>
+
+    <section class="tc__card tc__card--presets">
+      <header class="tc__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="tc__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="tc__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ preset.amount | currency:form.get('currency')?.value }} · {{ preset.tipPercent }}% tip</small>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="tc__card tc__card--history">
+      <header class="tc__card-header">
+        <h2>History</h2>
+        <span class="tc__history-count">{{ history().length }}</span>
+      </header>
+      <div class="tc__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="tc__history-head">
+              <div>
+                <strong>{{ entry.summary.perPerson.length }} split</strong>
+                <span>{{ entry.amount | currency:form.get('currency')?.value }} · {{ entry.tipPercent | number:'1.0-1' }}%</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
+            </div>
+            <p class="tc__history-meta">
+              Grand total {{ entry.summary.grandTotal | currency:form.get('currency')?.value }} · Tip {{ entry.summary.totalTip | currency:form.get('currency')?.value }}
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="tc__empty">Your recent tip calculations will appear here.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

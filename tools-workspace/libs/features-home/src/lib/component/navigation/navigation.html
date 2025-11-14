@@ -1,0 +1,204 @@
+<header class="nav" [class.nav--open]="isMobileMenuOpen">
+  <div class="nav__bar">
+    <div class="nav__brand">
+      <button
+        type="button"
+        class="nav__toggle"
+        aria-label="Toggle navigation menu"
+        [attr.aria-expanded]="isMobileMenuOpen"
+        (click)="toggleMobileMenu()">
+        <span class="nav__toggle-lines"><span></span></span>
+      </button>
+      <!-- <button type="button" class="nav__logo" (click)="navigateTo('home', 'home')">
+        <img [src]="logoUrl" alt="EasyToolHub logo" />
+      </button> -->
+
+      <nav class="nav__links" aria-label="Primary navigation">
+        <button
+          type="button"
+          class="nav__link"
+          [class.nav__link--active]="activeLink === 'home'"
+          (click)="navigateTo('home', 'home')">
+          Home
+        </button>
+  
+        <div
+          class="nav__item nav__item--dropdown"
+          (mouseenter)="onDropdownEnter()"
+          (mouseleave)="onDropdownLeave()">
+          <button
+            type="button"
+            class="nav__link"
+            [class.nav__link--active]="activeLink === 'categories'"
+            (focus)="onDropdownEnter()"
+            (click)="toggleCategoriesDropdown()"
+            [attr.aria-expanded]="isDropdownOpen">
+            Categories
+          </button>
+  
+          @if (isDropdownOpen) {
+            <div class="nav__mega">
+              <div class="nav__mega-categories">
+                @for (category of categoriesList; track category.name) {
+                  <button
+                    type="button"
+                    class="nav__mega-category"
+                    [class.nav__mega-category--active]="hoveredCategory?.name === category.name"
+                    (mouseenter)="hoverMegaCategory(category)"
+                    (focus)="hoverMegaCategory(category)">
+                    <span class="nav__mega-category-name">{{ category.name }}</span>
+                    <span class="nav__mega-category-description">{{ category.description }}</span>
+                  </button>
+                }
+              </div>
+  
+              @if (hoveredCategory?.subCategories?.length) {
+                <div class="nav__mega-tools">
+                  @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
+                    <button
+                      type="button"
+                      class="nav__mega-tool"
+                      (click)="navigateTo(sub.path, 'categories')">
+                      <span class="nav__mega-tool-name">{{ sub.name }}</span>
+                      <span class="nav__mega-tool-description">{{ sub.description }}</span>
+                    </button>
+                  }
+                </div>
+              } @else {
+                <div class="nav__mega-empty">
+                  Hover a category to explore its tools.
+                </div>
+              }
+            </div>
+          }
+        </div>
+  
+        <button
+          type="button"
+          class="nav__link"
+          [class.nav__link--active]="activeLink === 'about'"
+          (click)="navigateTo('about', 'about')">
+          About
+        </button>
+  
+        <button
+          type="button"
+          class="nav__link"
+          [class.nav__link--active]="activeLink === 'contact'"
+          (click)="navigateTo('contact', 'contact')">
+          Contact
+        </button>
+      </nav>
+    </div>
+
+
+    <div class="nav__auth" *ngIf="false">
+      <button
+        type="button"
+        class="nav__auth-link"
+        [class.nav__auth-link--active]="activeLink === 'login'"
+        (click)="navigateTo('login', 'login')">
+        Login
+      </button>
+      <button
+        type="button"
+        class="nav__auth-cta"
+        [class.nav__auth-link--active]="activeLink === 'signup'"
+        (click)="navigateTo('signup', 'signup')">
+        Sign Up
+      </button>
+    </div>
+  </div>
+
+  @if (isMobileMenuOpen) {
+    <button
+      type="button"
+      class="nav__overlay"
+      aria-label="Close navigation menu"
+      (click)="closeMobileMenu()"></button>
+  }
+
+  <aside
+    class="nav__drawer"
+    [class.nav__drawer--visible]="isMobileMenuOpen"
+    aria-label="Mobile navigation">
+    <div class="nav__drawer-header">
+      <!-- <button type="button" class="nav__logo nav__logo--drawer" (click)="navigateTo('home', 'home')">
+        <img [src]="logoUrl" alt="EasyToolHub logo" />
+      </button> -->
+      <button type="button" class="nav__close" aria-label="Close navigation menu" (click)="closeMobileMenu()">
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+
+    <nav class="nav__drawer-links" aria-label="Mobile navigation links">
+      <button
+        type="button"
+        class="nav__drawer-link"
+        [class.nav__drawer-link--active]="activeLink === 'home'"
+        (click)="navigateTo('home', 'home')">
+        Home
+      </button>
+
+      <div class="nav__drawer-section">
+        <p class="nav__drawer-title">Categories</p>
+        @for (category of categoriesList; track category.name) {
+          <div class="nav__drawer-category">
+            <button
+              type="button"
+              class="nav__drawer-subheading"
+              (click)="toggleMobileCategory(category.name)"
+              [attr.aria-expanded]="expandedMobileCategory === category.name">
+              <span>{{ category.name }}</span>
+              <span class="nav__drawer-icon" [class.nav__drawer-icon--open]="expandedMobileCategory === category.name"></span>
+            </button>
+            @if (expandedMobileCategory === category.name) {
+              <ul class="nav__drawer-sublist">
+                @for (sub of category.subCategories; track sub.path || sub.name) {
+                  <li>
+                    <button type="button" (click)="navigateTo(sub.path, 'categories')">
+                      {{ sub.name }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      </div>
+
+      <button
+        type="button"
+        class="nav__drawer-link"
+        [class.nav__drawer-link--active]="activeLink === 'about'"
+        (click)="navigateTo('about', 'about')">
+        About
+      </button>
+
+      <button
+        type="button"
+        class="nav__drawer-link"
+        [class.nav__drawer-link--active]="activeLink === 'contact'"
+        (click)="navigateTo('contact', 'contact')">
+        Contact
+      </button>
+    </nav>
+
+    <div class="nav__drawer-footer" *ngIf="false">
+      <button
+        type="button"
+        class="nav__drawer-link"
+        [class.nav__drawer-link--active]="activeLink === 'login'"
+        (click)="navigateTo('login', 'login')">
+        Login
+      </button>
+      <button
+        type="button"
+        class="nav__drawer-cta"
+        (click)="navigateTo('signup', 'signup')">
+        Sign Up
+      </button>
+    </div>
+  </aside>
+</header>

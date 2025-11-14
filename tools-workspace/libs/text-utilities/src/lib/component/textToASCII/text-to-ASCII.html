@@ -1,0 +1,208 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Encoding studio</p>
+          <h1>Translate between text, ASCII, binary, and hex instantly</h1>
+          <p class="strapline">
+            Choose your source and destination formats, convert in one click, and keep copies of the output for sharing with teammates.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Multi-format</span>
+          <span class="meta-pill">Clipboard friendly</span>
+          <span class="meta-pill">Swap-ready</span>
+        </div>
+      </header>
+
+      <div class="editor-toolbar" aria-label="Converter actions">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="convert()"
+                  [disabled]="!inputValue"
+                  aria-label="Run conversion">
+            <img class="btn-icon" src="/assets/icons/stats.svg" alt="" />
+            <span>Convert</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="swapTypes()"
+                  aria-label="Swap input and output types">
+            <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+            <span>Swap types</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copyOutput()"
+                  [disabled]="!outputValue"
+                  aria-label="Copy converted output">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy output</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="clear()"
+                  [disabled]="!inputValue && !outputValue"
+                  aria-label="Clear converter">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Conversion statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Input length</span>
+            <span class="stat-value">{{ inputValue ? inputValue.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ outputValue ? outputValue.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">From</span>
+            <span class="stat-value">{{ leftType }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">To</span>
+            <span class="stat-value">{{ rightType }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Source input</h2>
+                <p>Choose your format, paste content, and convert when ready. Swapping types resets the preview automatically.</p>
+              </div>
+            </header>
+            <div class="type-selectors">
+              <label class="select-field" for="input-type">
+                <span>Input type</span>
+                <select id="input-type" [(ngModel)]="leftType">
+                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
+                </select>
+                <small>{{ getTypeDescription(leftType) }}</small>
+              </label>
+              <button type="button"
+                      class="swap-button"
+                      (click)="swapTypes()"
+                      aria-label="Swap conversion direction">
+                ⇄
+              </button>
+              <label class="select-field" for="output-type">
+                <span>Output type</span>
+                <select id="output-type" [(ngModel)]="rightType">
+                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
+                </select>
+                <small>{{ getTypeDescription(rightType) }}</small>
+              </label>
+            </div>
+            <label class="sr-only" for="conversion-input">Enter value to convert</label>
+            <textarea id="conversion-input"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputValue"
+                      rows="8"
+                      placeholder="Paste or type the content you want to transform…"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Converted output</h2>
+                <p>Results refresh after each conversion. Use copy to grab the output instantly.</p>
+              </div>
+              @if (outputValue) {
+                <span class="panel-badge">Ready to copy</span>
+              }
+            </header>
+
+            @if (errorMessage) {
+              <div class="error-alert" role="alert">
+                <strong>Conversion failed:</strong>
+                <p>{{ errorMessage }}</p>
+              </div>
+            }
+
+            <textarea class="text-area text-area--output"
+                      readonly
+                      rows="8"
+                      [value]="outputValue"
+                      aria-label="Converted output preview"></textarea>
+
+            <div class="copy-row">
+              <button type="button"
+                      class="toolbar-btn secondary"
+                      (click)="copyOutput()"
+                      [disabled]="!outputValue"
+                      aria-label="Copy converted output">
+                <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                <span>Copy output</span>
+              </button>
+              @if (copied) {
+                <span class="copy-feedback">Copied!</span>
+              }
+            </div>
+          </section>
+        </div>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Input type</span>
+            <span class="metric-value">{{ leftType }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Output type</span>
+            <span class="metric-value">{{ rightType }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Copy status</span>
+            <span class="metric-value">{{ copied ? 'Copied' : 'Ready' }}</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="clear()"
+                  [disabled]="!inputValue && !outputValue"
+                  aria-label="Clear converter">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear all</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Format cheat sheet</h2>
+          <p>Refresh how each representation works before sharing results with engineering or content teams.</p>
+        </header>
+        <div class="insight-body format-grid">
+          <div class="format-card" *ngFor="let option of typeOptions">
+            <h3>{{ option.label }}</h3>
+            <p>{{ option.description }}</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Tips</h2>
+          <p>Keep data accurate across text transformations.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Spaces separate encoded values. Remove extra whitespace for reliable conversions.</li>
+            <li>Swap input/output types after conversion to verify reversibility.</li>
+            <li>Binary and hex outputs use padded byte groups for clarity.</li>
+          </ul>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>

@@ -1,0 +1,218 @@
+<div class="dt">
+  <div class="dt__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="dt__hero">
+    <div class="dt__badge">Calendar companion</div>
+    <h1>Find the Day for Any Date</h1>
+    <p>
+      Instantly reveal the weekday, calendar insights, and seasonal context for any date across popular time zones.
+      Handy presets and a built-in history keep planning effortless on every screen.
+    </p>
+
+    @if (details()) {
+      @let current = details()!;
+      <div class="dt__hero-meta">
+        <div>
+          <span class="dt__meta-label">Selected date</span>
+          <strong>{{ current.displayDate }}</strong>
+        </div>
+        <div>
+          <span class="dt__meta-label">Day of week</span>
+          <strong>{{ current.dayName }}</strong>
+        </div>
+        <div>
+          <span class="dt__meta-label">Relative</span>
+          <strong>{{ current.relativeLabel }}</strong>
+        </div>
+        <div>
+          <span class="dt__meta-label">Season snapshot</span>
+          <strong>{{ current.seasonLabel }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="dt__hero-meta dt__hero-meta--placeholder">
+        Select a date to view day-of-week insights.
+      </div>
+    }
+  </section>
+
+  <section class="dt__quick" [formGroup]="form">
+    <div class="dt__quick-actions">
+      <button type="button" class="btn btn--primary" (click)="presetDate('today')">Today</button>
+      <button type="button" class="btn btn--ghost" (click)="presetDate('tomorrow')">Tomorrow</button>
+      <button type="button" class="btn btn--ghost" (click)="presetDate('yesterday')">Yesterday</button>
+      <div class="dt__quick-weekdays">
+        <span>Next weekday:</span>
+        <button type="button" (click)="jumpToWeekday(1)">Mon</button>
+        <button type="button" (click)="jumpToWeekday(2)">Tue</button>
+        <button type="button" (click)="jumpToWeekday(3)">Wed</button>
+        <button type="button" (click)="jumpToWeekday(4)">Thu</button>
+        <button type="button" (click)="jumpToWeekday(5)">Fri</button>
+      </div>
+    </div>
+
+    <div class="dt__quick-summary">
+      <div>
+        <span>Day name</span>
+        <strong>{{ details()?.dayName ?? '—' }}</strong>
+      </div>
+      <div>
+        <span>ISO week</span>
+        <strong>
+          @if (details()) {
+            {{ details()!.weekNumber }} / {{ details()!.isoWeekday }}
+          } @else {
+            —
+          }
+        </strong>
+      </div>
+      <div>
+        <span>Day of year</span>
+        <strong>
+          @if (details()) {
+            {{ details()!.dayOfYear }} / {{ details()!.totalDaysInYear }}
+          } @else {
+            —
+          }
+        </strong>
+      </div>
+      <div>
+        <span>Relative</span>
+        <strong>{{ details()?.relativeLabel ?? '—' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="dt__layout" [formGroup]="form">
+    <section class="dt__card dt__card--inputs">
+      <header class="dt__card-header">
+        <div>
+          <h2>Select date and view options</h2>
+          <p>Pick any date, time zone, and locale to tailor the output.</p>
+        </div>
+      </header>
+
+      <form class="dt__form" novalidate>
+        <div class="dt__form-grid">
+          <label class="dt__input dt__input--full" for="dt-date">
+            <span>Date</span>
+            <input id="dt-date" type="date" formControlName="inputDate" />
+          </label>
+
+          <label class="dt__input" for="dt-timezone">
+            <span>Time zone</span>
+            <select id="dt-timezone" formControlName="timezone">
+              @for (zone of timezones; track zone.value) {
+                <option [value]="zone.value">{{ zone.label }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="dt__input" for="dt-locale">
+            <span>Locale</span>
+            <select id="dt-locale" formControlName="locale">
+              @for (item of locales; track item.value) {
+                <option [value]="item.value">{{ item.label }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <label class="dt__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember lookups in this session</span>
+        </label>
+      </form>
+    </section>
+
+    <section class="dt__card dt__card--result">
+      <header class="dt__card-header">
+        <div>
+          <h2>Day insights</h2>
+          <p>Understand what makes this date unique.</p>
+        </div>
+      </header>
+
+      @if (details()) {
+        @let current = details()!;
+        <div class="dt__result-summary">
+          <div>
+            <span>Day</span>
+            <strong>{{ current.dayName }}</strong>
+            <small>{{ current.shortDayName }}</small>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong>{{ current.isWeekend ? 'Weekend' : 'Weekday' }}</strong>
+            <small>{{ current.relativeLabel }}</small>
+          </div>
+          <div>
+            <span>Week number</span>
+            <strong>{{ current.weekNumber }}</strong>
+            <small>ISO day {{ current.isoWeekday }}</small>
+          </div>
+          <div>
+            <span>Day of year</span>
+            <strong>{{ current.dayOfYear }}</strong>
+            <small>of {{ current.totalDaysInYear }}</small>
+          </div>
+        </div>
+
+        <ul class="dt__insights">
+          @for (item of insights(); track item) {
+            <li>{{ item }}</li>
+          }
+        </ul>
+      } @else {
+        <div class="dt__empty">
+          Choose a date to unlock formatted output, season context, and lunar approximation.
+        </div>
+      }
+    </section>
+
+    <section class="dt__card dt__card--utility">
+      <header class="dt__card-header">
+        <div>
+          <h2>Upcoming and history</h2>
+          <p>Plan ahead or jump back to a previous lookup.</p>
+        </div>
+      </header>
+
+      <div class="dt__upcoming">
+        <h3>Upcoming days</h3>
+        <div class="dt__upcoming-grid">
+          @for (item of upcomingWeekdays(); track item.date) {
+            <button type="button" (click)="form.patchValue({ inputDate: item.date })">
+              <span>{{ item.label }}</span>
+              <small>{{ item.date }}</small>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="dt__history">
+        <div class="dt__history-header">
+          <h3>Recent lookups</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
+        </div>
+
+        @if (hasHistory()) {
+          <ul>
+            @for (entry of history(); track entry.computedAt) {
+              <li>
+                <button type="button" (click)="applyHistory(entry)">
+                  <span class="dt__history-primary">{{ entry.isoDate }} · {{ entry.dayName }}</span>
+                  <span class="dt__history-meta">{{ entry.timezone }} · {{ entry.locale }} · {{ entry.relativeLabel }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="dt__empty">No lookups stored yet. Enable “Remember lookups” to build a timeline.</div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

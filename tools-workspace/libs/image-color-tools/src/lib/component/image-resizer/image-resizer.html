@@ -1,0 +1,234 @@
+<div class="ir">
+  <div class="ir__nav">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ir__hero">
+    <div class="ir__badge">Media toolkit</div>
+    <h1>Image Resizer & Optimiser</h1>
+    <p>
+      Resize, reformat, and optimise images directly in your browser. Drag an image, pick dimensions or presets, and
+      download the ready-to-use asset instantly.
+    </p>
+
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <div class="ir__hero-meta">
+        <div>
+          <span class="ir__meta-label">Selected file</span>
+          <strong>{{ file.name }}</strong>
+        </div>
+        <div>
+          <span class="ir__meta-label">Size</span>
+          <strong>{{ formatBytes(file.size) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ir__hero-meta ir__hero-meta--placeholder">
+        Drop an image or browse to begin – supports PNG, JPEG, WebP, HEIC and RAW formats.
+      </div>
+    }
+  </section>
+
+  <div class="ir__workspace" [formGroup]="form">
+    <section class="ir__panel ir__panel--upload">
+      <header class="ir__card-header">
+        <div>
+          <h2>Upload & configure</h2>
+          <p>Select an image, adjust dimensions, lock aspect ratio, and choose export format.</p>
+        </div>
+      </header>
+
+      <div
+        class="ir__dropzone"
+        [class.ir__dropzone--active]="dragActive()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
+        <p>or drop here · Max file size {{ formatBytes(35 * 1024 * 1024) }}</p>
+      </div>
+
+      <div class="ir__form-grid">
+        <label class="ir__input" for="ir-width">
+          <span>Width (px)</span>
+          <input id="ir-width" type="number" min="1" [max]="8000" formControlName="width" (input)="onDimensionInput('width')" />
+        </label>
+
+        <label class="ir__input" for="ir-height">
+          <span>Height (px)</span>
+          <input id="ir-height" type="number" min="1" [max]="8000" formControlName="height" (input)="onDimensionInput('height')" />
+        </label>
+
+        <label class="ir__toggle">
+          <input type="checkbox" formControlName="keepAspect" />
+          <span>Lock aspect ratio</span>
+        </label>
+
+        <label class="ir__input" for="ir-interpolation">
+          <span>Interpolation</span>
+          <select id="ir-interpolation" formControlName="interpolation">
+            <option value="smooth">Smooth (quality)</option>
+            <option value="pixelated">Pixelated (retro)</option>
+          </select>
+        </label>
+
+        <label class="ir__input" for="ir-background">
+          <span>Background colour</span>
+          <input id="ir-background" type="text" placeholder="#ffffff or rgba(255,255,255,0.5)" formControlName="background" />
+          <small>Optional – used when shrinking transparent images.</small>
+        </label>
+
+        <label class="ir__input" for="ir-format">
+          <span>Export format</span>
+          <select id="ir-format" formControlName="format">
+            <option value="image/png">PNG (lossless)</option>
+            <option value="image/jpeg">JPEG (balanced)</option>
+            <option value="image/webp">WebP (modern)</option>
+          </select>
+        </label>
+
+        <label class="ir__input" for="ir-quality">
+          <span>Quality</span>
+          <input id="ir-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
+          <small>Applies to JPEG / WebP exports only.</small>
+        </label>
+
+        <label class="ir__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember conversions this session</span>
+        </label>
+      </div>
+
+      <div class="ir__presets">
+        <h3>Quick presets</h3>
+        <div class="ir__preset-list">
+          @for (preset of presets; track preset.label) {
+            <button type="button" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="ir__actions">
+        <button type="button" class="btn btn--primary" (click)="resize()" [disabled]="!canResize() || isProcessing()">
+          {{ isProcessing() ? 'Resizing…' : 'Resize image' }}
+        </button>
+        <button type="button" class="btn btn--ghost" (click)="clear()" [disabled]="!selectedFile()">Clear</button>
+      </div>
+    </section>
+
+    <section class="ir__panel ir__panel--preview">
+      <header class="ir__card-header">
+        <div>
+          <h2>Preview & stats</h2>
+          <p>Check the preview and compare original vs resized dimensions.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ir__alert ir__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ir__alert ir__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (previewUrl()) {
+        <figure class="ir__preview">
+          <img [src]="previewUrl()" alt="Original preview" />
+        </figure>
+      } @else {
+        <div class="ir__empty">Image preview will appear once a file is loaded.</div>
+      }
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ir__stats">
+          <div>
+            <span>Original</span>
+            <strong>{{ current.originalDimensions.width }} × {{ current.originalDimensions.height }}</strong>
+          </div>
+          <div>
+            <span>Resized</span>
+            <strong>{{ current.resizedDimensions.width }} × {{ current.resizedDimensions.height }}</strong>
+          </div>
+          <div>
+            <span>Size</span>
+            <strong>{{ formatBytes(current.originalSize) }} → {{ formatBytes(current.resizedSize) }}</strong>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="ir__panel ir__panel--output">
+      <header class="ir__card-header">
+        <div>
+          <h2>Download & share</h2>
+          <p>Grab your resized asset and reuse the conversion later.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ir__result-preview">
+          <img [src]="current.previewUrl" alt="Resized preview" />
+        </div>
+
+        <div class="ir__actions">
+          <button type="button" class="btn btn--primary" (click)="download()">Download</button>
+          <a class="btn btn--ghost" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
+        </div>
+      } @else {
+        <div class="ir__empty">Resize an image to see the output preview and download link.</div>
+      }
+    </section>
+
+    <section class="ir__panel ir__panel--history">
+      <header class="ir__card-header">
+        <div>
+          <h2>Conversion history</h2>
+          <p>Review past conversions during this session.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ir__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <div>
+                <strong>{{ entry.name ?? 'Untitled' }}</strong>
+                <span>{{ entry.originalDimensions }} → {{ entry.resizedDimensions }} · {{ entry.format }}</span>
+                <span>{{ entry.sizeDiff }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ir__empty">Enable history tracking to build a session log.</div>
+      }
+    </section>
+  </div>
+</div>

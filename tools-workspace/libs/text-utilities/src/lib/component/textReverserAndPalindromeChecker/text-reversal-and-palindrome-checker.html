@@ -1,0 +1,214 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Text analyser</p>
+          <h1>Flip copy or validate palindromes instantly</h1>
+          <p class="strapline">
+            Switch modes to reverse strings character by character or confirm whether your input is a true palindrome.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Realtime feedback</span>
+          <span class="meta-pill">Copy friendly</span>
+          <span class="meta-pill">Mode switching</span>
+        </div>
+      </header>
+
+      <div class="mode-switcher" role="radiogroup" aria-label="Analysis mode">
+        <button type="button"
+                class="mode-chip"
+                [class.active]="isPalindromeMode"
+                (click)="setMode('palindrome')"
+                [attr.aria-pressed]="isPalindromeMode">
+          Palindrome check
+        </button>
+        <button type="button"
+                class="mode-chip"
+                [class.active]="!isPalindromeMode"
+                (click)="setMode('reverse')"
+                [attr.aria-pressed]="!isPalindromeMode">
+          Text reversal
+        </button>
+      </div>
+
+      <div class="editor-toolbar" aria-label="Text analyser actions">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copyResult()"
+                  [disabled]="!inputText || (!resultText && isPalindromeMode && !palindromeStatus)"
+                  aria-label="Copy current text">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy {{ isPalindromeMode ? 'text' : 'reversal' }}</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="reset()"
+                  [disabled]="!inputText"
+                  aria-label="Reset input">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Text statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Input length</span>
+            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Sanitized length</span>
+            <span class="stat-value">{{ normalizedLength }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ outputLength }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Mode</span>
+            <span class="stat-value">{{ isPalindromeMode ? 'palindrome' : 'reverse' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Enter text</h2>
+                <p>The analyser updates the moment you type. We ignore punctuation and spaces when checking palindromes.</p>
+              </div>
+            </header>
+            <label class="sr-only" for="analysis-input">Input text to analyse</label>
+            <textarea id="analysis-input"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (input)="onInputChange()"
+                      rows="6"
+                      placeholder="Type or paste text to reverse or validate…"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Results</h2>
+                <p>See reversal output or palindrome verdict, with explanations tailored to the selected mode.</p>
+              </div>
+              @if (inputText) {
+                <span class="panel-badge">{{ isPalindromeMode ? 'Status' : 'Preview' }}</span>
+              }
+            </header>
+
+            @if (!inputText) {
+              <div class="panel-empty" aria-live="polite">
+                <h3>No input yet</h3>
+                <p>Start typing on the left to reveal reversal results or palindrome insights.</p>
+              </div>
+            } @else {
+              <div class="result-card">
+                @if (isPalindromeMode) {
+                  <div class="palindrome-status" [class.is-true]="palindromeStatus" [class.is-false]="palindromeStatus === false">
+                    <h3>Palindrome check</h3>
+                    <p>
+                      {{ palindromeStatus === null
+                          ? 'Enter at least one alphanumeric character to check.'
+                          : palindromeStatus
+                            ? 'Yes — this input reads the same forward and backward.'
+                            : 'No — this input is not a palindrome.' }}
+                    </p>
+                    <small>We ignore casing, spaces, and punctuation symbols during verification.</small>
+                  </div>
+                } @else {
+                  <div class="reversal-output">
+                    <h3>Reversed text</h3>
+                    <textarea class="text-area text-area--output"
+                              readonly
+                              rows="6"
+                              aria-label="Reversed text preview">{{ resultText }}</textarea>
+                    <div class="copy-row">
+                      <button type="button"
+                              class="toolbar-btn secondary"
+                              (click)="copyResult()"
+                              [disabled]="!resultText"
+                              aria-label="Copy reversed text">
+                        <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                        <span>Copy reversed</span>
+                      </button>
+                      @if (copied) {
+                        <span class="copy-feedback">Copied!</span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        </div>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Mode</span>
+            <span class="metric-value">{{ isPalindromeMode ? 'Palindrome' : 'Reverse' }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Copy status</span>
+            <span class="metric-value">{{ copied ? 'Copied' : 'Ready' }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Normalized length</span>
+            <span class="metric-value">{{ normalizedLength }}</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="reset()"
+                  [disabled]="!inputText"
+                  aria-label="Clear analyser">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear input</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How it works</h2>
+          <p>Depending on the mode, we either reverse characters or strip non-alphanumerics before comparison.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Palindrome mode ignores case, punctuation, and whitespace to focus purely on characters.</li>
+            <li>Reversal mode keeps formatting intact, ideal for generating mirrored text.</li>
+            <li>Use the copy buttons to move results into notes, QA docs, or developer handoffs.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Sample cases</h2>
+          <p>Quick examples to test both pathways and understand the output.</p>
+        </header>
+        <div class="insight-body sample-list">
+          <div>
+            <code>Never odd or even</code>
+            <span class="badge badge-true">Palindrome</span>
+          </div>
+          <div>
+            <code>Hello, world!</code>
+            <span class="badge badge-false">Not palindrome</span>
+          </div>
+          <div>
+            <code>drawer</code>
+            <span class="badge badge-reverse">Reverse → reward</span>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>

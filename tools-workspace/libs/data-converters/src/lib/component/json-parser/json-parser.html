@@ -1,0 +1,331 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">JSON Parser & Explorer</h1>
+    <p class="hero__subtitle">
+      Paste any JSON payload and instantly view a collapsible tree, run formatting/minification, filter keys,
+      and copy node paths or values with a single click.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let highlight of heroHighlights">
+        <h3>{{ highlight.title }}</h3>
+        <p>{{ highlight.detail }}</p>
+      </article>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__title">
+        <h2>Interactive workspace</h2>
+        <p>Format, restructure, and inspect your JSON payload without leaving the browser.</p>
+      </div>
+      <div class="workspace__metrics">
+        <div>
+          <strong>Characters</strong>
+          <span>{{ metrics.characters | number }}</span>
+        </div>
+        <div>
+          <strong>Lines</strong>
+          <span>{{ metrics.lines | number }}</span>
+        </div>
+        <div>
+          <strong>Size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
+        </div>
+        <div>
+          <strong>Nodes</strong>
+          <span>{{ nodeCount | number }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace__content">
+      <div class="workspace__panel">
+        <div class="card editor-card">
+          <header class="card__header">
+            <h2>JSON input</h2>
+          </header>
+          <textarea
+            class="editor"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="jsonInput"
+            (ngModelChange)="onJsonInputChange($event)"
+            placeholder='{
+  "example": true,
+  "items": [1, 2, 3]
+}'
+          ></textarea>
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="parseJson()">Parse JSON</button>
+            <button class="btn btn-secondary" type="button" (click)="formatJson()">Format</button>
+            <button class="btn btn-ghost" type="button" (click)="minifyJson()">Minify</button>
+            <button class="btn btn-link" type="button" (click)="resetWorkspace()">Load sample</button>
+          </div>
+        </div>
+
+        <div class="card status-card">
+          <header class="card__header">
+            <h2>Status</h2>
+          </header>
+          <p class="status-card__message" [class.status-card__message--error]="parseStatus.status === 'error'">
+            {{ parseStatus.message }}
+          </p>
+          <ul class="diagnostics" *ngIf="diagnostics.length">
+            <li *ngFor="let diagnostic of diagnostics" class="diagnostic">
+              <div class="diagnostic__badge">{{ diagnostic.line ? 'Line ' + diagnostic.line : 'Info' }}</div>
+              <div class="diagnostic__content">
+                <p class="diagnostic__message">{{ diagnostic.message }}</p>
+                <p class="diagnostic__meta" *ngIf="diagnostic.line">
+                  Line {{ diagnostic.line }}, Column {{ diagnostic.column }}
+                </p>
+                <pre class="diagnostic__snippet" *ngIf="diagnostic.snippet">{{ diagnostic.snippet }}</pre>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card transform-card">
+          <header class="card__header">
+            <h2>Stringify & convert</h2>
+          </header>
+          <div class="transform-card__grid">
+            <section class="transform-card__section">
+              <h3>JSON → Stringify</h3>
+              <textarea
+                class="editor editor--compact"
+                rows="10"
+                spellcheck="false"
+                [(ngModel)]="stringifyInput"
+                (ngModelChange)="onStringifyInputChange($event)"
+                [attr.placeholder]="stringifyPlaceholder"
+              ></textarea>
+              <div class="transform-card__actions">
+                <button class="btn btn-secondary" type="button" (click)="stringifyJsonInput()">Stringify</button>
+                <button
+                  class="btn btn-ghost"
+                  type="button"
+                  (click)="copyStringifyOutput()"
+                  [disabled]="!stringifyOutput"
+                >
+                  {{ copyStatus === 'success' && copyMessage === 'Stringified JSON copied' ? 'Copied!' : 'Copy result' }}
+                </button>
+              </div>
+              <p class="transform-card__status" [class.transform-card__status--error]="stringifyStatus.status === 'error'">
+                {{ stringifyStatus.message }}
+              </p>
+              <div class="transform-card__diagnostic" *ngIf="stringifyDiagnostic">
+                <strong>Error details</strong>
+                <p>{{ stringifyDiagnostic.message }}</p>
+                <p *ngIf="stringifyDiagnostic.line">
+                  Line {{ stringifyDiagnostic.line }}, Column {{ stringifyDiagnostic.column }}
+                </p>
+                <pre *ngIf="stringifyDiagnostic.snippet">{{ stringifyDiagnostic.snippet }}</pre>
+              </div>
+              <div class="transform-card__preview" *ngIf="stringifyOutput">
+                <pre>{{ stringifyOutput }}</pre>
+              </div>
+            </section>
+
+            <section class="transform-card__section">
+              <h3>Stringified → JSON</h3>
+              <textarea
+                class="editor editor--compact"
+                rows="10"
+                spellcheck="false"
+                [(ngModel)]="stringLiteralInput"
+                (ngModelChange)="onStringLiteralInputChange($event)"
+                [attr.placeholder]="stringLiteralPlaceholder"
+              ></textarea>
+              <div class="transform-card__actions">
+                <button class="btn btn-secondary" type="button" (click)="parseStringLiteral()">Convert</button>
+                <button
+                  class="btn btn-ghost"
+                  type="button"
+                  (click)="copyStringLiteralOutput()"
+                  [disabled]="!stringLiteralOutput"
+                >
+                  {{ copyStatus === 'success' && copyMessage === 'Converted JSON copied' ? 'Copied!' : 'Copy result' }}
+                </button>
+              </div>
+              <p
+                class="transform-card__status"
+                [class.transform-card__status--error]="stringLiteralStatus.status === 'error'"
+              >
+                {{ stringLiteralStatus.message }}
+              </p>
+              <div class="transform-card__diagnostic" *ngIf="stringLiteralDiagnostic">
+                <strong>Error details</strong>
+                <p>{{ stringLiteralDiagnostic.message }}</p>
+                <p *ngIf="stringLiteralDiagnostic.line">
+                  Line {{ stringLiteralDiagnostic.line }}, Column {{ stringLiteralDiagnostic.column }}
+                </p>
+                <pre *ngIf="stringLiteralDiagnostic.snippet">{{ stringLiteralDiagnostic.snippet }}</pre>
+              </div>
+              <div class="transform-card__preview" *ngIf="stringLiteralOutput">
+                <pre>{{ stringLiteralOutput }}</pre>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card filters-card">
+          <header class="card__header">
+            <h2>Filter & preview</h2>
+          </header>
+          <div class="filters">
+            <div class="filters__group">
+              <label for="filterInput">Filter nodes</label>
+              <input
+                id="filterInput"
+                type="text"
+                [(ngModel)]="filterTerm"
+                (ngModelChange)="filterTree($event)"
+                placeholder="Filter by key, value, or path"
+              />
+            </div>
+            <div class="filters__group">
+              <p class="filters__label">Preview mode</p>
+              <div class="preview-toggle" role="tablist" aria-label="Preview mode">
+                <button
+                  *ngFor="let mode of previewModes"
+                  type="button"
+                  role="tab"
+                  class="preview-toggle__option"
+                  [class.preview-toggle__option--active]="previewMode === mode.id"
+                  (click)="setPreviewMode(mode.id)"
+                >
+                  {{ mode.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card tree-card" *ngIf="filteredTree.length">
+          <header class="card__header">
+            <h2>JSON tree</h2>
+          </header>
+          <div class="tree">
+            <ng-container *ngFor="let node of filteredTree; trackBy: trackByNode">
+              <ng-container [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ node: node }"></ng-container>
+            </ng-container>
+
+            <ng-template #treeNode let-node="node">
+              <div class="tree__node" [style.paddingLeft.px]="node.level * 16">
+                <button
+                  *ngIf="node.children?.length"
+                  type="button"
+                  class="tree__toggle"
+                  (click)="toggleNode(node)"
+                  [attr.aria-expanded]="node.expanded"
+                >
+                  <span *ngIf="node.expanded">&#9662;</span>
+                  <span *ngIf="!node.expanded">&#9656;</span>
+                </button>
+                <button
+                  type="button"
+                  class="tree__key"
+                  (click)="selectNode(node)"
+                  [class.tree__key--selected]="node === selectedNode"
+                >
+                  <span class="tree__type tree__type--{{ node.type }}">{{ node.key || '$' }}</span>
+                  <span class="tree__preview">{{ node.preview }}</span>
+                </button>
+              </div>
+              <div *ngIf="node.expanded && node.children?.length">
+                <ng-container *ngFor="let child of node.children; trackBy: trackByNode">
+                  <ng-container [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ node: child }"></ng-container>
+                </ng-container>
+              </div>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="card node-card" *ngIf="selectedNode">
+          <header class="card__header">
+            <h2>Node details</h2>
+          </header>
+          <p class="node-card__path">{{ selectedNode.path }}</p>
+          <p class="node-card__type">{{ selectedNode.type | titlecase }}</p>
+          <div class="node-card__actions">
+            <button class="btn btn-ghost" type="button" (click)="copyPath(selectedNode)">
+              {{ copyStatus === 'success' && copyMessage === 'JSONPath copied' ? 'Copied!' : 'Copy path' }}
+            </button>
+            <button class="btn btn-ghost" type="button" (click)="copyValue(selectedNode)">
+              {{ copyStatus === 'success' && copyMessage === 'Node value copied' ? 'Copied!' : 'Copy value' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="card results-card" *ngIf="formattedOutput">
+          <header class="card__header">
+            <h2>{{ previewMode === 'formatted' ? 'Formatted JSON' : 'Minified JSON' }}</h2>
+            <button class="btn btn-ghost" type="button" [disabled]="!formattedOutput" (click)="copyToClipboardText(formattedOutput)">
+              {{ copyStatus === 'success' && copyMessage === 'Preview copied' ? 'Copied!' : 'Copy' }}
+            </button>
+          </header>
+          <div class="results-card__preview">
+            <pre>{{ formattedOutput }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li>Paste JSON into the editor and click “Parse JSON”.</li>
+        <li>Expand nodes in the tree to inspect nested arrays and objects.</li>
+        <li>Filter keys to quickly locate a specific value or path.</li>
+        <li>Copy JSONPath or node values for use in tests, scripts, or documentation.</li>
+      </ol>
+      <p class="info-card__tip">Toggle between formatted and minified previews to compare payload sizes quickly.</p>
+    </article>
+    <article class="info-card">
+      <h2>Tips for effective parsing</h2>
+      <ul>
+        <li>Use the “Format” button before parsing to spot structural issues.</li>
+        <li>Minify large JSON payloads to reduce their size before transmitting.</li>
+        <li>Search for keys or values with the filter to isolate relevant sections.</li>
+        <li>Leverage JSONPath copying to build selectors for automated tests.</li>
+      </ul>
+    </article>
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Combine linting with sorting keys to generate deterministic configuration files.</li>
+        <li>Copy recent actions to repeat transformations without retyping commands.</li>
+        <li>Use the tree view to visually confirm nested arrays and object structures.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Export formatted JSON to share in pull requests or documentation.</li>
+      <li>Copy JSONPath selectors for integration into automated testing suites.</li>
+      <li>Minify the payload before sending it over the network to save bandwidth.</li>
+    </ul>
+  </section>
+</div>

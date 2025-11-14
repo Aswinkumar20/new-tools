@@ -1,0 +1,336 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">Excel → JSON Converter</h1>
+    <p class="hero__subtitle">
+      Upload spreadsheets, preview the data, configure headers and column types, and export clean JSON or CSV
+      in seconds.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let highlight of heroHighlights">
+        <h3>{{ highlight.title }}</h3>
+        <p>{{ highlight.detail }}</p>
+      </article>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__metrics">
+        <div>
+          <strong>Worksheets</strong>
+          <span>{{ sheetNames.length || 0 }}</span>
+        </div>
+        <div>
+          <strong>Rows</strong>
+          <span>{{ metrics.rows | number }}</span>
+        </div>
+        <div>
+          <strong>Columns</strong>
+          <span>{{ metrics.columns | number }}</span>
+        </div>
+        <div>
+          <strong>File size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
+        </div>
+      </div>
+      <p class="workspace__description">
+        Choose a worksheet, configure headers/column types, and export the dataset in the format you need.
+      </p>
+    </div>
+
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card upload-card">
+          <div class="dropzone" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128196;</div>
+            <div class="dropzone__text">
+              <strong>Drop Excel files (.xlsx, .xls, .csv, .ods) or click to upload</strong>
+              <span>We keep processing in-browser. No data ever leaves your device.</span>
+            </div>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost" for="excelUpload">
+                <input
+                  id="excelUpload"
+                  type="file"
+                  accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.fods"
+                  (change)="onFileInputChange($event)"
+                />
+                Upload file
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Load sample</button>
+            </div>
+          </div>
+
+          <div class="upload-info" *ngIf="fileName">
+            <p><strong>File:</strong> {{ fileName }}</p>
+            <p><strong>Active sheet:</strong> {{ selectedSheet || 'None selected' }}</p>
+          </div>
+
+          <div class="form-group" *ngIf="sheetNames.length">
+            <label for="sheetSelect">Select worksheet</label>
+            <select id="sheetSelect" [(ngModel)]="selectedSheet" (ngModelChange)="onSheetChange($event)">
+              <option *ngFor="let name of sheetNames" [value]="name">{{ name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card options-card" *ngIf="hasWorksheet">
+          <header class="card__header">
+            <h2>Conversion options</h2>
+          </header>
+          <div class="controls">
+            <div class="controls__group">
+              <label class="controls__label" for="headerStrategy">Header detection</label>
+              <select
+                id="headerStrategy"
+                [(ngModel)]="headerStrategy"
+                (ngModelChange)="onHeaderStrategyChange($event)"
+              >
+                <option *ngFor="let option of headerStrategies" [value]="option.value">{{ option.label }}</option>
+              </select>
+              <textarea
+                *ngIf="headerStrategy === 'custom'"
+                class="controls__textarea"
+                rows="3"
+                [(ngModel)]="customHeadersInput"
+                placeholder="name,email,country"
+                (input)="refreshColumnMappings()"
+              ></textarea>
+            </div>
+
+            <div class="controls__group">
+              <p class="controls__label controls__label--heading">Row handling</p>
+              <div class="toggles">
+                <label class="toggle" for="includeEmptyRowsToggle">
+                  <input
+                    id="includeEmptyRowsToggle"
+                    type="checkbox"
+                    [checked]="includeEmptyRows"
+                    (change)="toggleIncludeEmptyRows()"
+                  />
+                  <span>Include blank rows</span>
+                </label>
+                <label class="toggle" for="dropEmptyColumnsToggle">
+                  <input
+                    id="dropEmptyColumnsToggle"
+                    type="checkbox"
+                    [checked]="dropEmptyColumns"
+                    (change)="toggleDropEmptyColumns()"
+                  />
+                  <span>Remove empty columns</span>
+                </label>
+                <label class="toggle" for="trimWhitespaceToggle">
+                  <input
+                    id="trimWhitespaceToggle"
+                    type="checkbox"
+                    [checked]="trimWhitespace"
+                    (change)="toggleTrimWhitespace()"
+                  />
+                  <span>Trim whitespace from values</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="controls__group">
+              <p class="controls__label controls__label--heading">Type conversions</p>
+              <div class="toggles">
+                <label class="toggle" for="convertDatesToggle">
+                  <input
+                    id="convertDatesToggle"
+                    type="checkbox"
+                    [checked]="convertDates"
+                    (change)="toggleConvertDates()"
+                  />
+                  <span>Convert dates to ISO strings</span>
+                </label>
+                <label class="toggle" for="convertNumbersToggle">
+                  <input
+                    id="convertNumbersToggle"
+                    type="checkbox"
+                    [checked]="convertNumbers"
+                    (change)="toggleConvertNumbers()"
+                  />
+                  <span>Coerce numeric strings into numbers</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="controls__group">
+              <label class="controls__label" for="outputFormat">Output format</label>
+              <select
+                id="outputFormat"
+                [(ngModel)]="outputFormat"
+              >
+                <option *ngFor="let format of outputFormats" [value]="format.value">{{ format.label }}</option>
+              </select>
+
+              <div class="form-group" *ngIf="outputFormat === 'json-object'">
+                <label for="keyColumn">Key column (for object keys)</label>
+                <select id="keyColumn" [(ngModel)]="keyColumn" (ngModelChange)="updateKeyColumn($event)">
+                  <option value="">Select column</option>
+                  <option *ngFor="let mapping of columnMappings" [value]="mapping.keyName">{{ mapping.keyName }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mapping-card" *ngIf="columnMappings.length">
+          <header class="card__header">
+            <h2>Column mapping</h2>
+          </header>
+          <table class="mapping-table">
+            <thead>
+              <tr>
+                <th>Select</th>
+                <th>Column</th>
+                <th>Key name</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let mapping of columnMappings; let i = index; trackBy: trackByColumn">
+                <td>
+                  <input
+                    type="checkbox"
+                    [checked]="selectedColumns.includes(mapping.columnName)"
+                    (change)="toggleColumnSelection(mapping.columnName)"
+                  />
+                </td>
+                <td>{{ mapping.columnName }}</td>
+                <td>
+                  <input
+                    class="mapping-table__input"
+                    type="text"
+                    [value]="mapping.keyName"
+                    (input)="updateColumnKey(i, inputKey.value)"
+                    #inputKey
+                  />
+                </td>
+                <td>
+                  <select
+                    class="mapping-table__select"
+                    [value]="mapping.type"
+                    (change)="updateColumnType(i, typeSelect.value)"
+                    #typeSelect
+                  >
+                    <option *ngFor="let type of columnTypes" [value]="type.value">{{ type.label }}</option>
+                  </select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card preview-card" *ngIf="sheetPreview.length">
+          <header class="card__header">
+            <h2>Worksheet preview</h2>
+          </header>
+          <div class="preview-table">
+            <table>
+              <thead>
+                <tr>
+                  <th *ngFor="let column of columnMappings">{{ column.columnName }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of sheetPreview">
+                  <td *ngFor="let column of columnMappings">{{ row[column.columnName] }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card diagnostics-card" *ngIf="diagnostics.length">
+          <header class="card__header">
+            <h2>Diagnostics</h2>
+          </header>
+          <ul class="diagnostics-list">
+            <li *ngFor="let diagnostic of diagnostics; trackBy: trackByDiagnostic" [class]="'diagnostic diagnostic--' + diagnostic.level">
+              <span class="diagnostic__badge">{{ diagnostic.level }}</span>
+              <p class="diagnostic__message">{{ diagnostic.message }}</p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card results-card">
+          <header class="card__header">
+            <div>
+              <h2>Conversion result</h2>
+              <p class="results-card__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="card__actions">
+              <button type="button" class="btn btn-ghost" [disabled]="!conversionResult" (click)="copyResult()">
+                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+              </button>
+              <button type="button" class="btn btn-ghost" [disabled]="!conversionResult" (click)="downloadResult()">
+                Download
+              </button>
+            </div>
+          </header>
+
+          <div class="results-card__preview" *ngIf="conversionResult; else emptyResult">
+            <pre>{{ conversionResult }}</pre>
+          </div>
+          <ng-template #emptyResult>
+            <div class="results-card__empty">
+              <p>Convert a worksheet to inspect the output here.</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li>Upload an Excel workbook (supports .xlsx, .xls, .csv, .ods, and others).</li>
+        <li>Select a worksheet, preview the data, and adjust header detection.</li>
+        <li>Optional: rename columns, change data types, or filter the columns to export.</li>
+        <li>Convert and copy/download the JSON or CSV output for your applications.</li>
+      </ol>
+      <p class="info-card__tip">Use sample data to try options before processing production spreadsheets.</p>
+    </article>
+    <article class="info-card">
+      <h2>Tips for clean exports</h2>
+      <ul>
+        <li>Use the first row as headers for consistent JSON keys.</li>
+        <li>Toggle date conversion to standardise timestamp formats.</li>
+        <li>Minimise output by selecting only the columns you need.</li>
+        <li>Sort keys when you require deterministic JSON for configuration files.</li>
+      </ul>
+    </article>
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Trim whitespace to keep payloads light and avoid mismatched keys.</li>
+        <li>Drop empty columns to prevent sparse objects in downstream pipelines.</li>
+        <li>Convert numbers and dates to keep analytics-ready data types.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Archive the exported JSON as part of your ETL workflow.</li>
+      <li>Share the download with teammates responsible for API integration.</li>
+      <li>Use the JSON formatter to prettify data before checking it into source control.</li>
+    </ul>
+  </section>
+</div>

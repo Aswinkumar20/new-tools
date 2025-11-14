@@ -1,0 +1,258 @@
+<div class="main-container">
+  <div class="navigation-shell">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="unit-converter">
+    <header class="unit-converter__header">
+      <div class="unit-converter__badge">All-in-one</div>
+      <h1>Smart Unit Converter</h1>
+      <p>
+        Convert anything from length and temperature to advanced electrical measurements with live insights and reusable presets.
+      </p>
+      <div class="unit-converter__actions">
+        <button type="button" class="btn btn--primary" (click)="focusInputField()">Start a conversion</button>
+        <button type="button" class="btn btn--ghost" (click)="viewHistory()">View conversion history</button>
+      </div>
+      <div class="unit-converter__status" *ngIf="statusMessage()">
+        {{ statusMessage() }}
+      </div>
+      <div class="unit-converter__meta">
+        <span><strong>{{ totalUnitCount }}</strong> units available</span>
+        <span><strong>{{ totalCategoryCount }}</strong> categories</span>
+        <span><strong>{{ historyCount() }}</strong> recent results</span>
+      </div>
+    </header>
+
+    <div class="unit-converter__layout">
+      <aside class="sidebar" aria-label="Conversion categories">
+        <div class="sidebar__section">
+          <label class="form-label" for="category-search">Find a unit type</label>
+          <div class="search-field">
+            <span class="search-field__icon" aria-hidden="true">🔍</span>
+            <input
+              id="category-search"
+              #categorySearch
+              type="search"
+              [value]="searchTerm()"
+              (input)="onCategorySearch(categorySearch.value)"
+              placeholder="Search length, mass, energy..."
+              aria-describedby="category-search-hint"
+            />
+          </div>
+          <p id="category-search-hint" class="hint">Instant suggestions as you type.</p>
+        </div>
+
+        <ng-container *ngIf="filteredCategories().length; else noCategoryResults">
+          <div class="sidebar__section sidebar__section--with-scroll">
+            <h2 class="sidebar__title">Popular categories</h2>
+            <div class="sidebar__scrollable">
+              <ul class="category-list">
+                <li
+                  class="category-list__item"
+                  *ngFor="let category of filteredCategories(); trackBy: trackCategory"
+                  [class.category-list__item--active]="category.id === selectedCategory()"
+                >
+                  <button type="button" class="category-list__button" (click)="setCategory(category.id)">
+                    <span>{{ category.title }}</span>
+                    <small>{{ category.description }}</small>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </ng-container>
+
+        <div class="sidebar__section sidebar__section--muted" *ngIf="quickPresetChips().length">
+          <h2 class="sidebar__title">Quick presets</h2>
+          <div class="preset-chips">
+            <button
+              type="button"
+              class="chip"
+              *ngFor="let preset of quickPresetChips(); trackBy: trackPreset"
+              (click)="onPresetChipClick(preset)"
+            >
+              {{ preset.name }}
+            </button>
+          </div>
+        </div>
+
+        <ng-template #noCategoryResults>
+          <div class="sidebar__section sidebar__section--muted">
+            <p class="hint">No categories match your search.</p>
+            <button type="button" class="btn btn--ghost btn--small" (click)="onCategorySearch('')">Reset search</button>
+          </div>
+        </ng-template>
+      </aside>
+
+      <section class="workspace" aria-labelledby="workspace-title">
+        <div class="workspace__grid">
+          <article class="converter-card converter-card--primary" aria-live="polite">
+            <header class="converter-card__header">
+              <h2 id="workspace-title">{{ selectedCategoryDetails().title }} converter</h2>
+              <button type="button" class="btn-icon" aria-label="Swap input and output units" (click)="swapUnits()">⇄</button>
+            </header>
+            <div class="converter-card__content converter-card__content--primary converter-card__content--no-scroll">
+              <p class="converter-card__subtitle">{{ selectedCategoryDetails().description }}</p>
+
+              <form class="conversion-form" [formGroup]="conversionForm" (ngSubmit)="onConversionSubmit()">
+                <fieldset>
+                  <legend class="sr-only">Conversion input</legend>
+                  <label class="form-label" for="input-value">Enter value</label>
+                  <div class="input-select">
+                    <input
+                      #inputField
+                      id="input-value"
+                      type="number"
+                      inputmode="decimal"
+                      formControlName="inputValue"
+                      [attr.aria-invalid]="conversionError() ? true : null"
+                    />
+                    <select formControlName="inputUnit" aria-label="Select input unit">
+                      <option *ngFor="let unit of categoryMeta().units; trackBy: trackUnit" [value]="unit.id">
+                        {{ formatUnitLabel(unit) }}
+                      </option>
+                    </select>
+                  </div>
+                </fieldset>
+
+                <fieldset>
+                  <legend class="sr-only">Conversion output</legend>
+                  <label class="form-label" for="output-unit">Convert to</label>
+                  <div class="input-select">
+                    <input id="output-value" type="text" [value]="formattedOutputValue()" readonly />
+                    <select id="output-unit" formControlName="outputUnit" aria-label="Select output unit">
+                      <option *ngFor="let unit of categoryMeta().units; trackBy: trackUnit" [value]="unit.id">
+                        {{ formatUnitLabel(unit) }}
+                      </option>
+                    </select>
+                  </div>
+                </fieldset>
+
+                <div class="conversion-form__status conversion-form__status--error" *ngIf="conversionError()">
+                  {{ conversionError() }}
+                </div>
+                <div class="conversion-form__status conversion-form__status--success" *ngIf="conversionSummary()">
+                  {{ conversionSummary() }}
+                </div>
+
+                <div class="conversion-form__actions">
+                  <button type="submit" class="btn btn--primary" [disabled]="isConverting()">
+                    {{ isConverting() ? 'Converting…' : 'Convert now' }}
+                  </button>
+                  <button type="button" class="btn btn--ghost" (click)="promptSavePreset()">Save as preset</button>
+                </div>
+              </form>
+            </div>
+
+            <footer class="converter-card__footer">
+              <dl class="conversion-details">
+                <div>
+                  <dt>Formula</dt>
+                  <dd>{{ conversionResult()?.formula ?? 'Pending…' }}</dd>
+                </div>
+                <div>
+                  <dt>Precision</dt>
+                  <dd>{{ conversionResult()?.precision ?? 6 }} decimal places</dd>
+                </div>
+                <div>
+                  <dt>Units tracked</dt>
+                  <dd>{{ selectedUnitsCount() }}</dd>
+                </div>
+              </dl>
+            </footer>
+          </article>
+
+          <article class="converter-card converter-card--analytics">
+            <header class="converter-card__header">
+              <h2>Conversion insights</h2>
+              <button type="button" class="btn-icon" aria-label="View options" (click)="customizeQuickActions()">⋯</button>
+            </header>
+            <div class="converter-card__content">
+              <div class="insights">
+              <div class="insights__item">
+                <span class="insights__label">Recent conversions</span>
+                <strong>{{ historyCount() }}</strong>
+                <small>Stored locally</small>
+              </div>
+              <div class="insights__item">
+                <span class="insights__label">Presets saved</span>
+                <strong>{{ presetCount() }}</strong>
+                <small>Across categories</small>
+              </div>
+              <div class="insights__item">
+                <span class="insights__label">Active category</span>
+                <strong>{{ selectedCategoryDetails().title }}</strong>
+                <small>{{ selectedUnitsCount() }} units available</small>
+              </div>
+            </div>
+            </div>
+          </article>
+
+          <article class="converter-card converter-card--history" #historySection>
+            <header class="converter-card__header">
+              <h2>History & saved presets</h2>
+              <button type="button" class="btn btn--ghost btn--small" (click)="manageHistory()">Manage</button>
+            </header>
+            <div class="converter-card__content">
+              <ul class="history-list">
+                <li *ngFor="let entry of historyEntries(); trackBy: trackHistory">
+                  <span class="history-list__unit">
+                    {{ formatNumber(entry.inputValue, entry.precision) }}
+                    {{ entry.inputUnit.symbol ?? entry.inputUnit.label }}
+                    →
+                    {{ formatNumber(entry.outputValue, entry.precision) }}
+                    {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}
+                  </span>
+                  <span class="history-list__meta">{{ formatHistoryMeta(entry) }}</span>
+                </li>
+                <li *ngIf="historyEntries().length === 0" class="history-list__empty">
+                  No conversions yet. Try converting something!
+                </li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <section class="workspace__secondary" aria-label="Additional conversion tools">
+          <article class="converter-card converter-card--secondary">
+            <header class="converter-card__header">
+              <h2>Quick convert</h2>
+              <button type="button" class="btn btn--ghost btn--small" (click)="customizeQuickActions()">Customize</button>
+            </header>
+            <div class="converter-card__content">
+              <div class="quick-convert">
+                <button
+                  type="button"
+                  class="quick-convert__item"
+                  *ngFor="let shortcut of quickShortcuts; trackBy: trackShortcut"
+                  (click)="applyQuickConversion(shortcut)"
+                >
+                  <span>{{ shortcut.label }}</span>
+                  <small>{{ shortcut.detail }}</small>
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <article class="converter-card converter-card--secondary">
+            <header class="converter-card__header">
+              <h2>Collaboration</h2>
+              <button type="button" class="btn btn--ghost btn--small" (click)="inviteCollaborators()">Invite</button>
+            </header>
+            <div class="converter-card__content">
+              <div class="collaboration">
+                <p>Share converters, track edits, and sync precision rules across your workspace.</p>
+                <ul class="collaboration__highlights">
+                  <li>Live co-editing with annotations.</li>
+                  <li>Granular access controls for each preset.</li>
+                  <li>Export results to CSV, JSON, or API endpoints.</li>
+                </ul>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+    </div>
+  </section>
+</div>

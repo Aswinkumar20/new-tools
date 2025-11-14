@@ -1,0 +1,95 @@
+<div class="homepage">
+  <lib-navigation class="site-navigation"></lib-navigation>
+
+  <main id="main-content" class="page">
+    <section class="page__intro" aria-labelledby="hero-title">
+      <div class="page__intro-content">
+        <h1 id="hero-title">EasyToolHub</h1>
+        <p class="page__intro-tagline">Launchers, editors, converters, and viewers — organised for instant access.</p>
+        <p class="page__intro-lede">
+          Discover a focused library of everyday utilities spanning text, files, data, media, and developer workflows.
+          Search once, switch tools fast, and stay productive without context switching.
+        </p>
+      </div>
+      <div class="page__intro-actions">
+        <form class="page__search" role="search" (submit)="onSearch($event)">
+          <label class="sr-only" for="homepage-search">Search tools</label>
+          <input
+            id="homepage-search"
+            placeholder="Search by tool or category..."
+            type="search"
+            name="search"
+            [(ngModel)]="searchQuery"
+            (input)="filterCategories()"
+            autocomplete="off" />
+          <button type="submit">Search</button>
+        </form>
+        <div class="page__metrics" aria-label="Platform highlights">
+          <div class="page__metric">
+            <span class="page__metric-value">{{ totalTools }}</span>
+            <span class="page__metric-label">Available tools</span>
+          </div>
+          <div class="page__metric">
+            <span class="page__metric-value">{{ toolCategories.length }}</span>
+            <span class="page__metric-label">Categories curated</span>
+          </div>
+          <div class="page__metric">
+            <span class="page__metric-value">{{ weeklyHighlights }}</span>
+            <span class="page__metric-label">Recent updates</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page__section" aria-labelledby="discover-title">
+      <header class="page__section-header">
+        <div>
+          <h2 id="discover-title">Browse by category</h2>
+          <p>Pick a category to see quick-launch links for the tools you use most.</p>
+        </div>
+      </header>
+
+      <div class="category-grid">
+        <article
+          class="category-card"
+          *ngFor="let category of filteredCategories; trackBy: trackByCategory">
+          <header class="category-card__header">
+            <div class="category-card__heading">
+              <h3>{{ category.name }}</h3>
+              <p>{{ category.description }}</p>
+            </div>
+          </header>
+          <ul class="category-card__list">
+            <li class="category-card__list-item" *ngFor="let tool of category.subCategories; trackBy: trackByTool">
+              <button
+                type="button"
+                class="category-card__item"
+                [attr.title]="tool.description || tool.name"
+                (click)="navigateTo(tool.path)"
+                (keydown.enter)="navigateTo(tool.path)">
+                <span class="category-card__item-name">{{ tool.name }}</span>
+              </button>
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      <p class="page__empty" *ngIf="filteredCategories.length === 0">
+        No tools found. Try a different search term or clear the filter to browse all categories.
+      </p>
+    </section>
+
+    <section class="page__section page__section--highlight" aria-labelledby="highlights-title">
+      <header class="page__section-header">
+        <h2 id="highlights-title">Why teams choose EasyToolHub</h2>
+        <p>Fast, reliable, and ready for every browser your team uses.</p>
+      </header>
+      <div class="highlight-grid">
+        <article class="highlight-card" *ngFor="let highlight of highlights; trackBy: trackByHighlight">
+          <h3>{{ highlight.title }}</h3>
+          <p>{{ highlight.description }}</p>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>

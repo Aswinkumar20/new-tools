@@ -1,0 +1,240 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">HTML Table → JSON Converter</h1>
+    <p class="hero__subtitle">
+      Paste an HTML snippet or upload a file containing tables, and turn it into clean JSON for APIs,
+      dashboards, or spreadsheets. Control delimiters, header rows, and data types with ease.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let item of callouts">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.detail }}</p>
+      </article>
+    </div>
+  </header>
+
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__title">
+        <h2>Detect and convert</h2>
+        <p>{{ selectionDescription }}</p>
+      </div>
+      <div class="workspace__metrics">
+        <div>
+          <strong>Rows</strong>
+          <span>{{ metrics.rows | number }}</span>
+        </div>
+        <div>
+          <strong>Columns</strong>
+          <span>{{ metrics.columns | number }}</span>
+        </div>
+        <div>
+          <strong>Payload size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card editor-card">
+          <div class="mode-toggle" role="tablist" aria-label="Table detection mode">
+            <button
+              *ngFor="let mode of selectionModes"
+              class="mode-toggle__option"
+              type="button"
+              role="tab"
+              [attr.aria-selected]="selectionMode === mode.id"
+              [class.mode-toggle__option--active]="selectionMode === mode.id"
+              (click)="onSelectionModeChange(mode.id)"
+            >
+              <span class="mode-toggle__label">{{ mode.label }}</span>
+              <span class="mode-toggle__description">{{ mode.description }}</span>
+            </button>
+          </div>
+
+          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128193;</div>
+            <div class="dropzone__text">
+              <strong>Drop HTML file or paste your table below</strong>
+              <span>Only the first matching table is used when auto-detecting.</span>
+            </div>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost">
+                <input type="file" accept=".html,text/html" (change)="onFileInputChange($event)" />
+                Upload HTML
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
+            </div>
+          </div>
+
+          <textarea
+            class="editor"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="htmlInput"
+            (ngModelChange)="onHtmlInputChange($event)"
+            placeholder="<table>...</table>"
+          ></textarea>
+
+          <div class="editor-card__controls">
+            <div class="controls">
+              <div class="controls__group" *ngIf="selectionMode === 'custom'">
+                <label for="selectorInput" class="controls__label">CSS selector</label>
+                <input
+                  id="selectorInput"
+                  type="text"
+                  [(ngModel)]="customSelector"
+                  placeholder=".pricing-table"
+                />
+              </div>
+              <div class="controls__group" *ngIf="selectionMode !== 'body'">
+                <label for="headerRows" class="controls__label">Header rows</label>
+                <input
+                  id="headerRows"
+                  type="number"
+                  min="0"
+                  max="10"
+                  [(ngModel)]="headerRows"
+                />
+              </div>
+              <div class="controls__group">
+                <p class="controls__label controls__label--heading">Cell handling</p>
+                <div class="toggles">
+                  <label class="toggle">
+                    <input type="checkbox" [checked]="trimCells" (change)="toggleTrimCells()" />
+                    <span>Trim whitespace in cells</span>
+                  </label>
+                  <label class="toggle">
+                    <input type="checkbox" [checked]="includeEmptyCells" (change)="toggleIncludeEmptyCells()" />
+                    <span>Keep empty cells</span>
+                  </label>
+                  <label class="toggle">
+                    <input type="checkbox" [checked]="compactArrays" (change)="toggleCompactArrays()" />
+                    <span>Return arrays when headers are missing</span>
+                  </label>
+                </div>
+              </div>
+              <div class="controls__group">
+                <p class="controls__label controls__label--heading">Detection</p>
+                <div class="toggles">
+                  <label class="toggle">
+                    <input type="checkbox" [checked]="detectNumbers" (change)="toggleDetectNumbers()" />
+                    <span>Convert numbers (1, 3.14)</span>
+                  </label>
+                  <label class="toggle">
+                    <input type="checkbox" [checked]="detectDates" (change)="toggleDetectDates()" />
+                    <span>Convert dates (ISO format)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="convert()">Convert to JSON</button>
+            <button class="btn btn-secondary" type="button" (click)="resetWorkspace()">Reload sample</button>
+          </div>
+        </div>
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card results-card">
+          <header class="card__header">
+            <div>
+              <h2>Conversion result</h2>
+              <p class="results-card__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="card__actions">
+              <button class="btn btn-ghost" type="button" [disabled]="!resultOutput" (click)="copyResult()">
+                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+              </button>
+              <button class="btn btn-ghost" type="button" [disabled]="!resultOutput" (click)="downloadResult()">
+                Download
+              </button>
+            </div>
+          </header>
+
+          <div
+            class="status-badge"
+            [class.status-badge--success]="conversionStatus.status === 'success'"
+            [class.status-badge--error]="conversionStatus.status === 'error'"
+          >
+            <span *ngIf="conversionStatus.status === 'success'">Success</span>
+            <span *ngIf="conversionStatus.status === 'error'">Needs attention</span>
+            <span *ngIf="conversionStatus.status === 'idle'">Queued</span>
+          </div>
+
+          <div class="results-card__preview" *ngIf="resultOutput; else emptyResult">
+            <pre>{{ resultOutput }}</pre>
+          </div>
+          <ng-template #emptyResult>
+            <div class="results-card__empty">
+              <p>Run a conversion to see JSON output here.</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li *ngFor="let step of usageSteps">{{ step }}</li>
+      </ol>
+      <p class="info-card__tip">Use mode switching to jump between auto-detect and CSS selectors instantly.</p>
+    </article>
+
+    <article class="info-card">
+      <h2>Tips for clean data</h2>
+      <ul>
+        <li>Ensure each row in the HTML table has consistent cell counts.</li>
+        <li>Include &lt;thead&gt; headers for cleaner JSON keys.</li>
+        <li>Use custom selectors for nested or specific tables within a page.</li>
+        <li>Toggle type detection to keep numbers as strings when needed.</li>
+      </ul>
+    </article>
+
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Compact arrays help when header rows are missing or inconsistent.</li>
+        <li>Trim whitespace to remove stray spaces introduced by copy-paste.</li>
+        <li>Review result history to rollback to earlier conversions quickly.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Send the generated JSON to APIs or dashboards with confidence.</li>
+      <li>Share conversion results via the copy button for team review.</li>
+      <li>Explore the JSON formatter to beautify the output before exporting.</li>
+    </ul>
+  </section>
+</div>

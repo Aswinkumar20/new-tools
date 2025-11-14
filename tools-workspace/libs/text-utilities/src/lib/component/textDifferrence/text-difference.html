@@ -1,0 +1,135 @@
+<div class="main-container">
+  <lib-navigation></lib-navigation>
+
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Diff viewer</p>
+          <h1>Compare original and modified content visually</h1>
+          <p class="strapline">
+            Drop two versions of any document, switch languages or themes, and inspect highlighted differences in real time.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Monaco editor</span>
+          <span class="meta-pill">Realtime updates</span>
+          <span class="meta-pill">Multi-language</span>
+        </div>
+      </header>
+
+      <div class="editor-toolbar diff-toolbar" aria-label="Diff viewer controls">
+        <div class="toolbar-actions">
+          <label class="select-field" for="theme-select">
+            <span>Editor theme</span>
+            <select id="theme-select"
+                    [ngModel]="editorOptions.theme"
+                    (ngModelChange)="onThemeChange($event)">
+              <option *ngFor="let theme of themes" [value]="theme">{{ theme }}</option>
+            </select>
+          </label>
+          <label class="select-field" for="language-select">
+            <span>Language</span>
+            <select id="language-select"
+                    [ngModel]="editorOptions.language"
+                    (ngModelChange)="onLanguageChange($event)">
+              <option *ngFor="let language of languages" [value]="language">{{ language }}</option>
+            </select>
+          </label>
+        </div>
+        <div class="toolbar-stats" aria-label="Diff statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Original chars</span>
+            <span class="stat-value">{{ originalModel.code.length || 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Updated chars</span>
+            <span class="stat-value">{{ modifiedModel.code.length || 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Theme</span>
+            <span class="stat-value">{{ editorOptions.theme }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Language</span>
+            <span class="stat-value">{{ editorOptions.language }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-shell diff-shell">
+        <section class="panel panel-editor">
+          <header class="panel-header">
+            <div>
+              <h2>Side-by-side diff</h2>
+              <p>Paste original content on the left and the updated version on the right. Differences highlight automatically.</p>
+            </div>
+          </header>
+          <div class="diff-labels" aria-hidden="true">
+            <span>Original</span>
+            <span>Modified</span>
+          </div>
+          <ngx-monaco-diff-editor
+            class="diff-editor"
+            [options]="editorOptions"
+            [originalModel]="originalModel"
+            [modifiedModel]="modifiedModel"
+            (onInit)="onEditorInit($event)">
+          </ngx-monaco-diff-editor>
+        </section>
+
+        <footer class="editor-footer diff-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Font size</span>
+            <span class="metric-value">{{ editorOptions.fontSize }} px</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Original editable</span>
+            <span class="metric-value">{{ editorOptions.originalEditable ? 'Yes' : 'No' }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Comparing</span>
+            <span class="metric-value">{{ originalModel.language }}</span>
+          </div>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How to use</h2>
+          <p>Align your review workflow with rapid, readable diffs for docs, code, or configuration.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Paste or type directly in the panels to update the diff in real time.</li>
+            <li>Switch languages to enable syntax-aware highlighting for more clarity.</li>
+            <li>Toggle themes to match your editor preferences when sharing screenshots.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Keyboard shortcuts</h2>
+          <p>Monaco brings familiar editor productivity to the diff surface.</p>
+        </header>
+        <div class="insight-body shortcut-list">
+          <div>
+            <span class="shortcut">⌘ / Ctrl + S</span>
+            <p>Trigger browser save dialog with the current content snapshot.</p>
+          </div>
+          <div>
+            <span class="shortcut">⌘ / Ctrl + F</span>
+            <p>Open in-editor search inside each pane to jump to changes.</p>
+          </div>
+          <div>
+            <span class="shortcut">Alt + F12</span>
+            <p>Peek definitions when using code languages such as TS or JS.</p>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
