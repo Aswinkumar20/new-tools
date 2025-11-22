@@ -1,10 +1,137 @@
-<div class="main-container">
-  <div>
+<div class="uap">
+  <div class="uap__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>UserAgentParser</h2>
-    <p>Component coming soon...</p>
+  <section class="uap__hero">
+    <div class="uap__badge">Testing toolkit</div>
+    <h1>User Agent Parser</h1>
+    <p>
+      Inspect browser user agent strings. Detect browser, OS, device type, engine, and whether the user agent looks like
+      a bot.
+    </p>
+
+    @if (parsed(); as p) {
+      <div class="uap__hero-meta">
+        <div>
+          <span class="uap__meta-label">Browser</span>
+          <strong>{{ p.browser || 'Unknown' }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">OS</span>
+          <strong>{{ p.os || 'Unknown' }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">Device</span>
+          <strong class="uap__device uap__device--{{ p.deviceType }}">{{ p.deviceType | titlecase }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">Bot</span>
+          <strong [class.uap__meta-value--bot]="p.isBot">{{ p.isBot ? 'Yes' : 'No' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="uap__hero-meta uap__hero-meta--placeholder">
+        Use the current browser user agent or paste a custom string below, then click \"Parse\".
+      </div>
+    }
+  </section>
+
+  <div class="uap__board" [formGroup]="form">
+    <section class="uap__panel uap__panel--input">
+      <header class="uap__card-header">
+        <div>
+          <h2>User agent</h2>
+          <p>Capture or paste a user agent string.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="parse()">Parse</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="uap__alert uap__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="uap__alert uap__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <label class="uap__toggle">
+        <input type="checkbox" formControlName="useCurrent" (change)="populateCurrentUA()" />
+        <div>
+          <strong>Use current browser user agent</strong>
+          <span>Automatically populate the field with this browser's user agent.</span>
+        </div>
+      </label>
+
+      <div class="uap__input-area">
+        <label for="ua" class="uap__label">User agent string</label>
+        <textarea
+          id="ua"
+          class="uap__textarea"
+          formControlName="userAgent"
+          rows="4"
+          spellcheck="false"
+        ></textarea>
+      </div>
+    </section>
+
+    <section class="uap__panel uap__panel--details">
+      <header class="uap__card-header">
+        <div>
+          <h2>Details</h2>
+          <p>Parsed user agent information.</p>
+        </div>
+      </header>
+
+      @if (hasParsed() && parsed(); as p) {
+        <div class="uap__details-grid">
+          <div class="uap__detail">
+            <span class="uap__detail-label">Browser</span>
+            <strong>{{ p.browser || 'Unknown' }}</strong>
+            <small *ngIf="p.browserVersion">Version: {{ p.browserVersion }}</small>
+          </div>
+
+          <div class="uap__detail">
+            <span class="uap__detail-label">Operating system</span>
+            <strong>{{ p.os || 'Unknown' }}</strong>
+            <small *ngIf="p.osVersion">Version: {{ p.osVersion }}</small>
+          </div>
+
+          <div class="uap__detail">
+            <span class="uap__detail-label">Rendering engine</span>
+            <strong>{{ p.engine || 'Unknown' }}</strong>
+          </div>
+
+          <div class="uap__detail">
+            <span class="uap__detail-label">Device type</span>
+            <strong class="uap__device uap__device--{{ p.deviceType }}">{{ p.deviceType | titlecase }}</strong>
+          </div>
+
+          <div class="uap__detail">
+            <span class="uap__detail-label">Looks like bot</span>
+            <strong [class.uap__meta-value--bot]="p.isBot">{{ p.isBot ? 'Yes' : 'No' }}</strong>
+          </div>
+        </div>
+
+        <section class="uap__raw">
+          <h3>Raw user agent</h3>
+          <pre class="uap__raw-text">{{ p.raw }}</pre>
+        </section>
+      } @else {
+        <div class="uap__empty">Parsed details will appear here after parsing a user agent string.</div>
+      }
+    </section>
   </div>
 </div>

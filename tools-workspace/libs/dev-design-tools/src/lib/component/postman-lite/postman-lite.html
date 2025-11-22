@@ -1,10 +1,308 @@
-<div class="main-container">
-  <div>
+<div class="pl">
+  <div class="pl__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>PostmanLite</h2>
-    <p>Component coming soon...</p>
+  <section class="pl__hero">
+    <div class="pl__badge">Dev toolkit</div>
+    <h1>Postman Lite</h1>
+    <p>
+      A lightweight API testing tool. Send HTTP requests, view responses, save requests for later, and test your APIs
+      directly from the browser.
+    </p>
+
+    @if (hasResult() && result()) {
+      <div class="pl__hero-meta">
+        <div>
+          <span class="pl__meta-label">Status</span>
+          <strong [class.pl__status--success]="result()!.success" [class.pl__status--error]="!result()!.success">
+            {{ result()!.status ?? 'Error' }}
+          </strong>
+        </div>
+        <div>
+          <span class="pl__meta-label">Method</span>
+          <strong>{{ form.controls.method.value }}</strong>
+        </div>
+        <div>
+          <span class="pl__meta-label">Duration</span>
+          <strong>{{ result() ? formatDuration(result()!.duration) : '-' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="pl__hero-meta pl__hero-meta--placeholder">
+        Configure your request and click "Send" to test the API.
+      </div>
+    }
+  </section>
+
+  <div class="pl__board" [formGroup]="form">
+    <section class="pl__panel pl__panel--request">
+      <header class="pl__card-header">
+        <div>
+          <h2>Request</h2>
+          <p>Configure your HTTP request.</p>
+        </div>
+        <div class="pl__request-actions">
+          <button type="button" class="btn btn--ghost btn--small" (click)="saveRequest()">Save</button>
+          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="pl__alert pl__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="pl__alert pl__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="pl__request-builder">
+        <div class="pl__method-url-row">
+          <select class="pl__select pl__select--method" formControlName="method">
+            @for (method of methods; track method) {
+              <option [value]="method">{{ method }}</option>
+            }
+          </select>
+          <input
+            type="url"
+            class="pl__input pl__input--url"
+            formControlName="url"
+            placeholder="https://api.example.com/endpoint"
+          />
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="sendRequest()"
+            [disabled]="isSending()"
+          >
+            @if (isSending()) {
+              Sending...
+            } @else {
+              Send
+            }
+          </button>
+        </div>
+
+        <div class="pl__headers-section">
+          <div class="pl__section-header">
+            <h3>Headers</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="addHeader()">Add header</button>
+          </div>
+
+          <div class="pl__headers-list">
+            @for (header of headersFormArray().controls; track $index; let i = $index) {
+              <div class="pl__header-item">
+                <input
+                  type="text"
+                  class="pl__input pl__input--header-key"
+                  [formControl]="header.controls.key"
+                  placeholder="Header name"
+                />
+                <input
+                  type="text"
+                  class="pl__input pl__input--header-value"
+                  [formControl]="header.controls.value"
+                  placeholder="Header value"
+                />
+                @if (headersFormArray().length > 1) {
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small pl__remove-btn"
+                    (click)="removeHeader(i)"
+                    title="Remove header"
+                  >
+                    ×
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
+          <div class="pl__body-section">
+            <h3>Body</h3>
+            <textarea
+              class="pl__textarea"
+              formControlName="body"
+              placeholder='{"key": "value"}'
+              rows="8"
+            ></textarea>
+            <small>Enter JSON or plain text for the request body</small>
+          </div>
+        }
+      </div>
+
+      <label class="pl__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent requests</span>
+        </div>
+      </label>
+    </section>
+
+    <section class="pl__panel pl__panel--response">
+      <header class="pl__card-header">
+        <div>
+          <h2>Response</h2>
+          <p>View the API response details.</p>
+        </div>
+        @if (hasResult() && result()?.body) {
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard(result()!.body || '', 'Response body')"
+          >
+            Copy body
+          </button>
+        }
+      </header>
+
+      @if (hasResult() && result(); as result) {
+        <div class="pl__response-summary">
+          <div class="pl__summary-item">
+            <span class="pl__summary-label">Status:</span>
+            <strong [class.pl__status--success]="result.success" [class.pl__status--error]="!result.success">
+              {{ result.status ?? 'N/A' }} {{ result.statusText }}
+            </strong>
+          </div>
+          <div class="pl__summary-item">
+            <span class="pl__summary-label">Duration:</span>
+            <strong>{{ formatDuration(result.duration) }}</strong>
+          </div>
+          <div class="pl__summary-item">
+            <span class="pl__summary-label">Size:</span>
+            <strong>{{ result.body ? formatBytes(result.body.length) : '0 Bytes' }}</strong>
+          </div>
+        </div>
+
+        @if (result.error) {
+          <div class="pl__error-display">
+            <strong>Error:</strong>
+            <code>{{ result.error }}</code>
+          </div>
+        }
+
+        @if (Object.keys(result.headers).length > 0) {
+          <div class="pl__response-headers">
+            <h4>Response headers</h4>
+            <div class="pl__headers-display">
+              @for (header of getHeadersList(result.headers); track header.key) {
+                <div class="pl__header-display-item">
+                  <strong>{{ header.key }}:</strong>
+                  <code>{{ header.value }}</code>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (result.body) {
+          <div class="pl__response-body">
+            <h4>Response body</h4>
+            <div class="pl__body-container">
+              <pre class="pl__body-content">{{ formatJson(tryParseJson(result.body)) }}</pre>
+            </div>
+          </div>
+        }
+      } @else {
+        <div class="pl__empty">Send a request to see the response here.</div>
+      }
+    </section>
+
+    <section class="pl__panel pl__panel--saved">
+      <header class="pl__card-header">
+        <div>
+          <h2>Saved requests</h2>
+          <p>Quick access to your saved API requests.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearSavedRequests()"
+          [disabled]="!hasSavedRequests()"
+        >
+          Clear all
+        </button>
+      </header>
+
+      @if (hasSavedRequests()) {
+        <ul class="pl__saved-list">
+          @for (request of savedRequests(); track request.id) {
+            <li>
+              <button type="button" (click)="loadRequest(request)" class="pl__saved-item">
+                <div class="pl__saved-info">
+                  <strong>{{ request.name }}</strong>
+                  <span>{{ request.method }} {{ request.url }}</span>
+                  <span class="pl__saved-timestamp">{{ formatTimestamp(request.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="deleteRequest(request.id)"
+              >
+                Delete
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="pl__empty">Save requests to access them later. Click "Save" in the request panel.</div>
+      }
+    </section>
+
+    <section class="pl__panel pl__panel--history">
+      <header class="pl__card-header">
+        <div>
+          <h2>Request history</h2>
+          <p>Quick access to recently sent requests.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="pl__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="pl__history-item">
+                <div class="pl__history-info">
+                  <strong>
+                    {{ entry.method }} {{ entry.url }}
+                  </strong>
+                  <span>
+                    {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
+                  </span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="pl__empty">Enable history tracking to keep a list of recent requests.</div>
+      }
+    </section>
   </div>
 </div>

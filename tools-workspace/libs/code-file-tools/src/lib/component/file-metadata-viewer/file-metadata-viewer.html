@@ -1,10 +1,174 @@
-<div class="main-container">
-  <div>
+<div class="fmv">
+  <div class="fmv__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>FileMetadataViewer</h2>
-    <p>Component coming soon...</p>
+  <section class="fmv__hero">
+    <div class="fmv__badge">Utility toolkit</div>
+    <h1>File Metadata Viewer</h1>
+    <p>
+      Upload files to view comprehensive metadata including file size, type, dimensions, and more. Perfect for
+      inspecting file properties and understanding file characteristics.
+    </p>
+
+    @if (hasFiles()) {
+      <div class="fmv__hero-meta">
+        <div>
+          <span class="fmv__meta-label">Files loaded</span>
+          <strong>{{ files().length }}</strong>
+        </div>
+        <div>
+          <span class="fmv__meta-label">Total size</span>
+          <strong>{{ formatFileSize(totalSize()) }}</strong>
+        </div>
+        <div>
+          <span class="fmv__meta-label">Selected</span>
+          <strong>{{ selectedFile()?.name ?? 'None' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="fmv__hero-meta fmv__hero-meta--placeholder">
+        Drag and drop files here or click to upload. View detailed metadata for any file type.
+      </div>
+    }
+  </section>
+
+  <div class="fmv__board">
+    <section
+      class="fmv__panel fmv__panel--upload"
+      [class.fmv__panel--dragging]="isDragOver()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+    >
+      <header class="fmv__card-header">
+        <div>
+          <h2>Upload files</h2>
+          <p>Drag and drop files or click to browse.</p>
+        </div>
+        @if (hasFiles()) {
+          <button type="button" class="btn btn--ghost btn--small" (click)="clearAll()">Clear all</button>
+        }
+      </header>
+
+      @if (errors().length) {
+        <div class="fmv__alert fmv__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="fmv__dropzone" [class.fmv__dropzone--active]="isDragOver()">
+        <div class="fmv__dropzone-icon">📁</div>
+        <div class="fmv__dropzone-text">
+          <strong>Drop files here or click to upload</strong>
+          <span>Supports all file types</span>
+        </div>
+        <label class="btn btn--primary">
+          <input type="file" multiple (change)="onFileInputChange($event)" style="display: none" />
+          Choose files
+        </label>
+      </div>
+
+      @if (hasFiles()) {
+        <div class="fmv__files-list">
+          @for (file of files(); track file.name + file.lastModified) {
+            <button
+              type="button"
+              class="fmv__file-item"
+              [class.fmv__file-item--selected]="selectedFile() === file"
+              (click)="selectFile(file)"
+            >
+              <div class="fmv__file-icon">{{ getFileIcon(file.extension) }}</div>
+              <div class="fmv__file-info">
+                <strong>{{ file.name }}</strong>
+                <span>{{ formatFileSize(file.size) }} • {{ getFileTypeLabel(file.mimeType) }}</span>
+              </div>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeFile(file); $event.stopPropagation()"
+              >
+                Remove
+              </button>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <section class="fmv__panel fmv__panel--metadata">
+        <header class="fmv__card-header">
+          <div>
+            <h2>File metadata</h2>
+            <p>Detailed information about the selected file.</p>
+          </div>
+          <button type="button" class="btn btn--primary btn--small" (click)="downloadFile(file)">Download</button>
+        </header>
+
+        <div class="fmv__metadata-grid">
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File name</span>
+            <strong>{{ file.name }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File size</span>
+            <strong>{{ formatFileSize(file.size) }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File type</span>
+            <strong>{{ getFileTypeLabel(file.mimeType) }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">MIME type</span>
+            <strong>{{ file.mimeType }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">Extension</span>
+            <strong>{{ file.extension || 'None' }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">Last modified</span>
+            <strong>{{ formatDate(file.lastModified) }}</strong>
+          </div>
+          @if (file.dimensions) {
+            <div class="fmv__metadata-item">
+              <span class="fmv__metadata-label">Dimensions</span>
+              <strong>{{ file.dimensions.width }} × {{ file.dimensions.height }} px</strong>
+            </div>
+          }
+          @if (file.additionalInfo) {
+            @for (item of getAdditionalInfoItems(file.additionalInfo); track item.key) {
+              <div class="fmv__metadata-item">
+                <span class="fmv__metadata-label">{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            }
+          }
+        </div>
+
+        @if (file.preview) {
+          <div class="fmv__preview-container">
+            <h3>Preview</h3>
+            <img [src]="file.preview" [alt]="file.name" class="fmv__preview-image" />
+          </div>
+        }
+      </section>
+    } @else {
+      <section class="fmv__panel fmv__panel--metadata">
+        <header class="fmv__card-header">
+          <div>
+            <h2>File metadata</h2>
+            <p>Select a file to view its metadata.</p>
+          </div>
+        </header>
+        <div class="fmv__empty">No file selected. Upload and select a file to view its metadata.</div>
+      </section>
+    }
   </div>
 </div>

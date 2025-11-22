@@ -1,10 +1,227 @@
-<div class="main-container">
-  <div>
+<div class="rbt">
+  <div class="rbt__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>ResponsiveBreakpointTester</h2>
-    <p>Component coming soon...</p>
+  <section class="rbt__hero">
+    <div class="rbt__badge">Design toolkit</div>
+    <h1>Responsive Breakpoint Tester</h1>
+    <p>
+      Test your website's responsiveness across different screen sizes. View your site at various breakpoints, see which
+      breakpoint is active, and test mobile, tablet, and desktop layouts.
+    </p>
+
+    @if (activeBreakpoint()) {
+      <div class="rbt__hero-meta">
+        <div>
+          <span class="rbt__meta-label">Active breakpoint</span>
+          <strong [style.color]="getBreakpointColor(activeBreakpoint())">
+            {{ formatBreakpointName(activeBreakpoint()) }}
+          </strong>
+        </div>
+        <div>
+          <span class="rbt__meta-label">Dimensions</span>
+          <strong>{{ currentWidth() }} × {{ currentHeight() }}px</strong>
+        </div>
+        <div>
+          <span class="rbt__meta-label">Aspect ratio</span>
+          <strong>{{ (currentWidth() / currentHeight()).toFixed(2) }}:1</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="rbt__hero-meta rbt__hero-meta--placeholder">
+        Configure the dimensions below to see which breakpoint is active.
+      </div>
+    }
+  </section>
+
+  <div class="rbt__board" [formGroup]="form">
+    <section class="rbt__panel rbt__panel--controls">
+      <header class="rbt__card-header">
+        <div>
+          <h2>Controls</h2>
+          <p>Configure the viewport size and URL.</p>
+        </div>
+        <div class="rbt__control-actions">
+          <button type="button" class="btn btn--ghost btn--small" (click)="rotate()">Rotate</button>
+          <button type="button" class="btn btn--ghost btn--small" (click)="reset()">Reset</button>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="rbt__alert rbt__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="rbt__url-section">
+        <label for="url" class="rbt__label">Website URL</label>
+        <div class="rbt__url-input-group">
+          <input
+            id="url"
+            type="url"
+            class="rbt__input rbt__input--url"
+            formControlName="url"
+            placeholder="https://example.com"
+          />
+          <button type="button" class="btn btn--primary" (click)="loadUrl()">Load</button>
+        </div>
+      </div>
+
+      <div class="rbt__dimensions-section">
+        <h3>Viewport dimensions</h3>
+        <div class="rbt__dimensions-grid">
+          <div class="rbt__dimension-group">
+            <label for="width" class="rbt__label">Width (px)</label>
+            <input
+              id="width"
+              type="number"
+              class="rbt__input"
+              formControlName="width"
+              min="320"
+              max="5000"
+              step="1"
+            />
+          </div>
+          <div class="rbt__dimension-group">
+            <label for="height" class="rbt__label">Height (px)</label>
+            <input
+              id="height"
+              type="number"
+              class="rbt__input"
+              formControlName="height"
+              min="240"
+              max="5000"
+              step="1"
+            />
+          </div>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="copyDimensions()">
+          Copy dimensions
+        </button>
+      </div>
+
+      <div class="rbt__options-section">
+        <h3>Display options</h3>
+        <label class="rbt__toggle">
+          <input type="checkbox" formControlName="showGrid" />
+          <div>
+            <strong>Show grid</strong>
+            <span>Display a grid overlay</span>
+          </div>
+        </label>
+        <label class="rbt__toggle">
+          <input type="checkbox" formControlName="showRulers" />
+          <div>
+            <strong>Show rulers</strong>
+            <span>Display measurement rulers</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <section class="rbt__panel rbt__panel--presets">
+      <header class="rbt__card-header">
+        <div>
+          <h2>Preset breakpoints</h2>
+          <p>Quick access to common device sizes.</p>
+        </div>
+      </header>
+
+      <div class="rbt__presets-grid">
+        @for (preset of presetBreakpoints; track preset.name) {
+          <button type="button" class="rbt__preset-item" (click)="applyPreset(preset)">
+            <span class="rbt__preset-icon">{{ preset.icon }}</span>
+            <div class="rbt__preset-info">
+              <strong>{{ preset.name }}</strong>
+              <span>{{ preset.width }} × {{ preset.height }}px</span>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="rbt__panel rbt__panel--viewer">
+      <header class="rbt__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>View your website at the configured size.</p>
+        </div>
+        <div class="rbt__viewer-info">
+          <span class="rbt__viewer-dimensions">{{ currentWidth() }} × {{ currentHeight() }}px</span>
+        </div>
+      </header>
+
+      <div class="rbt__breakpoint-indicator" [style.background-color]="getBreakpointColor(activeBreakpoint())">
+        <strong>{{ formatBreakpointName(activeBreakpoint()) }}</strong>
+      </div>
+
+      <div class="rbt__iframe-container" [style.width.px]="currentWidth()" [style.height.px]="currentHeight()">
+        @if (iframeUrl()) {
+          <iframe
+            #iframe
+            [src]="iframeUrl()!"
+            class="rbt__iframe"
+            [style.width.px]="currentWidth()"
+            [style.height.px]="currentHeight()"
+            title="Website preview"
+            allowfullscreen
+          ></iframe>
+        } @else {
+          <div class="rbt__iframe-placeholder">
+            <p>Enter a URL and click "Load" to preview</p>
+          </div>
+        }
+      </div>
+
+      @if (form.controls.showGrid.value) {
+        <div class="rbt__grid-overlay" [style.width.px]="currentWidth()" [style.height.px]="currentHeight()">
+          @for (row of getGridRows(); track $index) {
+            <div class="rbt__grid-line rbt__grid-line--horizontal" [style.top.px]="row"></div>
+          }
+          @for (col of getGridCols(); track $index) {
+            <div class="rbt__grid-line rbt__grid-line--vertical" [style.left.px]="col"></div>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="rbt__panel rbt__panel--breakpoints">
+      <header class="rbt__card-header">
+        <div>
+          <h2>Breakpoint reference</h2>
+          <p>Common responsive breakpoints.</p>
+        </div>
+      </header>
+
+      <div class="rbt__breakpoints-list">
+        @for (bp of commonBreakpoints; track bp.name) {
+          <div
+            class="rbt__breakpoint-item"
+            [class.rbt__breakpoint-item--active]="activeBreakpoint() && activeBreakpoint()!.name === bp.name"
+            [style.border-color]="getBreakpointColor(bp)"
+          >
+            <div class="rbt__breakpoint-color" [style.background-color]="getBreakpointColor(bp)"></div>
+            <div class="rbt__breakpoint-info">
+              <strong>{{ bp.name }}</strong>
+              <span>
+                @if (bp.max === Infinity) {
+                  {{ bp.min }}+px
+                } @else {
+                  {{ bp.min }}-{{ bp.max }}px
+                }
+              </span>
+            </div>
+            @if (activeBreakpoint() && activeBreakpoint()!.name === bp.name) {
+              <span class="rbt__breakpoint-active">Active</span>
+            }
+          </div>
+        }
+      </div>
+    </section>
   </div>
 </div>

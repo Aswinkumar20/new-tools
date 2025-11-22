@@ -1,10 +1,198 @@
-<div class="main-container">
-  <div>
+<div class="wsc">
+  <div class="wsc__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>WebsocketClient</h2>
-    <p>Component coming soon...</p>
+  <section class="wsc__hero">
+    <div class="wsc__badge">Dev toolkit</div>
+    <h1>WebSocket Client</h1>
+    <p>
+      Connect to WebSocket servers, send and receive messages in real-time. Perfect for testing WebSocket APIs,
+      debugging connections, and monitoring message traffic.
+    </p>
+
+    @if (isConnected() || isConnecting()) {
+      <div class="wsc__hero-meta">
+        <div>
+          <span class="wsc__meta-label">Status</span>
+          <strong [class.wsc__status--connected]="isConnected()" [class.wsc__status--connecting]="isConnecting()">
+            {{ connectionStatus() === 'connected' ? 'Connected' : connectionStatus() === 'connecting' ? 'Connecting...' : 'Disconnected' }}
+          </strong>
+        </div>
+        <div>
+          <span class="wsc__meta-label">Messages</span>
+          <strong>{{ messages().length }}</strong>
+        </div>
+        <div>
+          <span class="wsc__meta-label">URL</span>
+          <strong class="wsc__url-display">{{ form.controls.url.value }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="wsc__hero-meta wsc__hero-meta--placeholder">
+        Enter a WebSocket URL and click "Connect" to start.
+      </div>
+    }
+  </section>
+
+  <div class="wsc__board" [formGroup]="form">
+    <section class="wsc__panel wsc__panel--connection">
+      <header class="wsc__card-header">
+        <div>
+          <h2>Connection</h2>
+          <p>Connect to a WebSocket server.</p>
+        </div>
+        <div class="wsc__connection-actions">
+          @if (isConnected()) {
+            <button type="button" class="btn btn--ghost btn--small" (click)="disconnect()">Disconnect</button>
+          } @else {
+            <button
+              type="button"
+              class="btn btn--primary btn--small"
+              (click)="connect()"
+              [disabled]="isConnecting()"
+            >
+              @if (isConnecting()) {
+                Connecting...
+              } @else {
+                Connect
+              }
+            </button>
+          }
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="wsc__alert wsc__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="wsc__alert wsc__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="wsc__connection-form">
+        <label for="url" class="wsc__label">WebSocket URL</label>
+        <input
+          id="url"
+          type="url"
+          class="wsc__input"
+          formControlName="url"
+          placeholder="wss://echo.websocket.org"
+          [disabled]="isConnected() || isConnecting()"
+        />
+        <small>Enter a WebSocket URL (ws:// or wss://)</small>
+      </div>
+
+      <div class="wsc__status-indicator" [class.wsc__status-indicator--connected]="isConnected()" [class.wsc__status-indicator--connecting]="isConnecting()">
+        <div class="wsc__status-dot"></div>
+        <span>
+          @if (isConnected()) {
+            Connected
+          } @else if (isConnecting()) {
+            Connecting...
+          } @else {
+            Disconnected
+          }
+        </span>
+      </div>
+    </section>
+
+    <section class="wsc__panel wsc__panel--messages">
+      <header class="wsc__card-header">
+        <div>
+          <h2>Messages</h2>
+          <p>Send and receive WebSocket messages.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearMessages()"
+          [disabled]="!hasMessages()"
+        >
+          Clear
+        </button>
+      </header>
+
+      <div class="wsc__message-input-section">
+        <label for="message" class="wsc__label">Send message</label>
+        <div class="wsc__message-input-group">
+          <textarea
+            id="message"
+            class="wsc__textarea"
+            formControlName="message"
+            placeholder='{"type": "message", "data": "Hello!"}'
+            rows="3"
+            [disabled]="!isConnected()"
+          ></textarea>
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="sendMessage()"
+            [disabled]="!isConnected()"
+          >
+            Send
+          </button>
+        </div>
+        <small>Enter a message to send. JSON will be automatically formatted.</small>
+      </div>
+
+      <label class="wsc__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of sent and received messages</span>
+        </div>
+      </label>
+
+      @if (hasMessages()) {
+        <div class="wsc__messages-container">
+          @for (msg of messages(); track msg.id) {
+            <div class="wsc__message-item" [class.wsc__message-item--sent]="msg.type === 'sent'" [class.wsc__message-item--received]="msg.type === 'received'" [class.wsc__message-item--system]="msg.type === 'system'">
+              <div class="wsc__message-header">
+                <span class="wsc__message-type">
+                  @if (msg.type === 'sent') {
+                    📤 Sent
+                  } @else if (msg.type === 'received') {
+                    📥 Received
+                  } @else {
+                    ℹ️ System
+                  }
+                </span>
+                <span class="wsc__message-time">{{ formatTimestamp(msg.timestamp) }}</span>
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--small wsc__copy-btn"
+                  (click)="copyToClipboard(msg.content, 'Message')"
+                  title="Copy message"
+                >
+                  Copy
+                </button>
+              </div>
+              <div class="wsc__message-content">
+                @if (isJson(msg.content)) {
+                  <pre class="wsc__message-json">{{ formatMessageContent(msg.content) }}</pre>
+                } @else {
+                  <code class="wsc__message-text">{{ msg.content }}</code>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="wsc__empty">No messages yet. Connect and send a message to see it here.</div>
+      }
+    </section>
   </div>
 </div>

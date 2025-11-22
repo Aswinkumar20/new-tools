@@ -1,10 +1,231 @@
-<div class="main-container">
-  <div>
+<div class="jm">
+  <div class="jm__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>JavascriptMinifier</h2>
-    <p>Component coming soon...</p>
+  <section class="jm__hero">
+    <div class="jm__badge">Code toolkit</div>
+    <h1>JavaScript Minifier</h1>
+    <p>
+      Minify your JavaScript code by removing whitespace, comments, and unnecessary code. Reduce file size for faster
+      page loads while maintaining functionality. Configure minification options to suit your needs.
+    </p>
+
+    @if (result()) {
+      @let info = result()!;
+      <div class="jm__hero-meta">
+        <div>
+          <span class="jm__meta-label">Original size</span>
+          <strong>{{ formatBytes(info.originalSize) }}</strong>
+        </div>
+        <div>
+          <span class="jm__meta-label">Minified size</span>
+          <strong>{{ formatBytes(info.minifiedSize) }}</strong>
+        </div>
+        <div>
+          <span class="jm__meta-label">Reduction</span>
+          <strong>{{ info.reductionPercentage }}%</strong>
+        </div>
+        <div>
+          <span class="jm__meta-label">Saved</span>
+          <strong>{{ formatBytes(info.reduction) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="jm__hero-meta jm__hero-meta--placeholder">
+        Paste your JavaScript code and configure minification options to reduce file size instantly.
+      </div>
+    }
+  </section>
+
+  <div class="jm__board" [formGroup]="form">
+    <section class="jm__panel jm__panel--input">
+      <header class="jm__card-header">
+        <div>
+          <h2>JavaScript input</h2>
+          <p>Paste or type your JavaScript code here.</p>
+        </div>
+        <div class="jm__header-actions">
+          <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
+          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="jm__alert jm__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="jm__editor-container">
+        <textarea
+          class="jm__editor"
+          [value]="inputJs()"
+          (input)="onInputChange($any($event.target).value)"
+          placeholder="function example() {&#10;  console.log('Hello, World!');&#10;  return true;&#10;}"
+          spellcheck="false"
+        ></textarea>
+      </div>
+
+      <div class="jm__input-stats">
+        <span>{{ inputJs().length }} characters</span>
+        <span>{{ inputJs().split('\n').length }} lines</span>
+      </div>
+    </section>
+
+    <section class="jm__panel jm__panel--options">
+      <header class="jm__card-header">
+        <div>
+          <h2>Minification options</h2>
+          <p>Configure how JavaScript is minified.</p>
+        </div>
+      </header>
+
+      <div class="jm__options-grid">
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeComments" (change)="minify()" />
+          <div>
+            <strong>Remove comments</strong>
+            <span>Remove single-line (//) and multi-line (/* */) comments</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeWhitespace" (change)="minify()" />
+          <div>
+            <strong>Remove whitespace</strong>
+            <span>Remove unnecessary spaces and line breaks</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeEmptyStatements" (change)="minify()" />
+          <div>
+            <strong>Remove empty statements</strong>
+            <span>Remove empty blocks and standalone semicolons</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeUnnecessarySemicolons" (change)="minify()" />
+          <div>
+            <strong>Remove unnecessary semicolons</strong>
+            <span>Remove semicolons before closing braces</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeConsoleLogs" (change)="minify()" />
+          <div>
+            <strong>Remove console logs</strong>
+            <span>Remove console.log, console.debug, etc. statements</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="removeDebugger" (change)="minify()" />
+          <div>
+            <strong>Remove debugger statements</strong>
+            <span>Remove debugger statements</span>
+          </div>
+        </label>
+
+        <label class="jm__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <div>
+            <strong>Remember history</strong>
+            <span>Keep track of minified JavaScript</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <section class="jm__panel jm__panel--output">
+      <header class="jm__card-header">
+        <div>
+          <h2>Minified output</h2>
+          <p>Copy or download the minified JavaScript.</p>
+        </div>
+        @if (result()) {
+          <div class="jm__header-actions">
+            <button type="button" class="btn btn--primary btn--small" (click)="copyToClipboard(minifiedJs(), 'Minified JavaScript')">
+              Copy
+            </button>
+            <button type="button" class="btn btn--ghost btn--small" (click)="downloadMinified()">Download</button>
+          </div>
+        }
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="jm__editor-container">
+          <textarea class="jm__editor jm__editor--output" [value]="current.minified" readonly spellcheck="false"></textarea>
+        </div>
+
+        <div class="jm__output-stats">
+          <div class="jm__stat-item">
+            <span class="jm__stat-label">Original</span>
+            <strong>{{ formatBytes(current.originalSize) }}</strong>
+          </div>
+          <div class="jm__stat-item">
+            <span class="jm__stat-label">Minified</span>
+            <strong>{{ formatBytes(current.minifiedSize) }}</strong>
+          </div>
+          <div class="jm__stat-item jm__stat-item--highlight">
+            <span class="jm__stat-label">Reduction</span>
+            <strong>{{ current.reductionPercentage }}%</strong>
+          </div>
+          <div class="jm__stat-item">
+            <span class="jm__stat-label">Saved</span>
+            <strong>{{ formatBytes(current.reduction) }}</strong>
+          </div>
+        </div>
+      } @else {
+        <div class="jm__empty">Enter JavaScript code to see minified output here.</div>
+      }
+    </section>
+
+    <section class="jm__panel jm__panel--history">
+      <header class="jm__card-header">
+        <div>
+          <h2>Minification history</h2>
+          <p>Quick access to recently minified JavaScript.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="jm__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="jm__history-item">
+                <div class="jm__history-info">
+                  <strong>{{ formatBytes(entry.original.length) }} → {{ formatBytes(entry.minified.length) }}</strong>
+                  <span>{{ Math.round((entry.reduction / entry.original.length) * 100) }}% reduction</span>
+                </div>
+                <div class="jm__history-preview">
+                  <code>{{ entry.minified.substring(0, 60) }}{{ entry.minified.length > 60 ? '...' : '' }}</code>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="jm__empty">Enable history tracking to keep a list of recent minifications.</div>
+      }
+    </section>
   </div>
 </div>

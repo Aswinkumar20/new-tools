@@ -1,10 +1,124 @@
-<div class="main-container">
-  <div>
+<div class="dp">
+  <div class="dp__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>DrawingPad</h2>
-    <p>Component coming soon...</p>
+  <section class="dp__hero">
+    <div class="dp__badge">Media toolkit</div>
+    <h1>Drawing Pad</h1>
+    <p>
+      Draw freely on a digital canvas with customizable tools, colors, and brush sizes. Perfect for quick sketches,
+      annotations, or creative doodles. Supports mouse and touch input for desktop and mobile.
+    </p>
+
+    <div class="dp__hero-meta dp__hero-meta--placeholder">
+      Choose your tool, adjust colors and brush size, then start drawing. Use undo/redo to refine your artwork.
+    </div>
+  </section>
+
+  <div class="dp__board" [formGroup]="form">
+    <section class="dp__panel dp__panel--tools">
+      <header class="dp__card-header">
+        <div>
+          <h2>Drawing tools</h2>
+          <p>Select tools and customize your drawing experience.</p>
+        </div>
+      </header>
+
+      <div class="dp__tool-selector">
+        <button
+          type="button"
+          class="dp__tool-btn"
+          [class.dp__tool-btn--active]="currentTool() === 'pen'"
+          (click)="onToolChange('pen')"
+        >
+          <span class="dp__tool-icon">✏️</span>
+          <span>Pen</span>
+        </button>
+        <button
+          type="button"
+          class="dp__tool-btn"
+          [class.dp__tool-btn--active]="currentTool() === 'brush'"
+          (click)="onToolChange('brush')"
+        >
+          <span class="dp__tool-icon">🖌️</span>
+          <span>Brush</span>
+        </button>
+        <button
+          type="button"
+          class="dp__tool-btn"
+          [class.dp__tool-btn--active]="currentTool() === 'eraser'"
+          (click)="onToolChange('eraser')"
+        >
+          <span class="dp__tool-icon">🧹</span>
+          <span>Eraser</span>
+        </button>
+      </div>
+
+      <div class="dp__form-group">
+        <label class="dp__input" for="dp-color">
+          <span>Color</span>
+          <input type="color" id="dp-color" formControlName="color" (change)="onColorChange()" />
+        </label>
+
+        <label class="dp__input" for="dp-brush-size">
+          <span>Brush size ({{ currentBrushSize() }})</span>
+          <input
+            type="range"
+            id="dp-brush-size"
+            min="1"
+            max="100"
+            formControlName="brushSize"
+            (input)="onBrushSizeChange()"
+          />
+          <small>Adjust the size of your brush or eraser.</small>
+        </label>
+      </div>
+
+      <div class="dp__actions">
+        <button type="button" class="btn btn--ghost" (click)="undo()" [disabled]="!canUndo()">Undo</button>
+        <button type="button" class="btn btn--ghost" (click)="redo()" [disabled]="!canRedo()">Redo</button>
+        <button type="button" class="btn btn--ghost" (click)="clearCanvas()">Clear</button>
+        <button type="button" class="btn btn--primary" (click)="downloadCanvas()">Download</button>
+      </div>
+    </section>
+
+    <section class="dp__panel dp__panel--canvas">
+      <header class="dp__card-header">
+        <div>
+          <h2>Canvas</h2>
+          <p>Draw with your mouse or touch on the canvas below.</p>
+        </div>
+      </header>
+
+      <div class="dp__canvas-container">
+        <canvas
+          #drawingCanvas
+          class="dp__canvas"
+          (mousedown)="onMouseDown($event)"
+          (mousemove)="onMouseMove($event)"
+          (mouseup)="onMouseUp($event)"
+          (mouseleave)="onMouseLeave()"
+          (touchstart)="onMouseDown($event)"
+          (touchmove)="onMouseMove($event)"
+          (touchend)="onMouseUp($event)"
+        ></canvas>
+      </div>
+
+      <div class="dp__canvas-info">
+        <div class="dp__info-item">
+          <span class="dp__info-label">Tool</span>
+          <strong>{{ currentTool() }}</strong>
+        </div>
+        <div class="dp__info-item">
+          <span class="dp__info-label">Color</span>
+          <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
+        </div>
+        <div class="dp__info-item">
+          <span class="dp__info-label">Brush size</span>
+          <strong>{{ currentBrushSize() }}px</strong>
+        </div>
+      </div>
+    </section>
   </div>
 </div>

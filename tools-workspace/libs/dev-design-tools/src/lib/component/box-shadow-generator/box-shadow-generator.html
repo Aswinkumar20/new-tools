@@ -1,10 +1,270 @@
-<div class="main-container">
-  <div>
+<div class="bsg">
+  <div class="bsg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>BoxShadowGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="bsg__hero">
+    <div class="bsg__badge">Design toolkit</div>
+    <h1>Box Shadow Generator</h1>
+    <p>
+      Create beautiful CSS box shadows with ease. Control offset, blur, spread, color, and inset properties. Copy the CSS
+      code directly to use in your projects.
+    </p>
+
+    <div class="bsg__hero-meta">
+      <div>
+        <span class="bsg__meta-label">Type</span>
+        <strong>{{ form.controls.inset.value ? 'Inset' : 'Outset' }}</strong>
+      </div>
+      <div>
+        <span class="bsg__meta-label">Blur</span>
+        <strong>{{ form.controls.blur.value }}px</strong>
+      </div>
+      <div>
+        <span class="bsg__meta-label">CSS ready</span>
+        <strong>✓</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="bsg__board" [formGroup]="form">
+    <section class="bsg__panel bsg__panel--controls">
+      <header class="bsg__card-header">
+        <div>
+          <h2>Box shadow settings</h2>
+          <p>Configure all box-shadow properties.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="bsg__alert bsg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="bsg__settings-grid">
+        <div class="bsg__setting-group">
+          <label for="offsetX" class="bsg__label">Horizontal offset (X)</label>
+          <input
+            id="offsetX"
+            type="number"
+            class="bsg__input"
+            min="-100"
+            max="100"
+            formControlName="offsetX"
+          />
+          <small>Positive values move shadow right, negative moves left</small>
+        </div>
+
+        <div class="bsg__setting-group">
+          <label for="offsetY" class="bsg__label">Vertical offset (Y)</label>
+          <input
+            id="offsetY"
+            type="number"
+            class="bsg__input"
+            min="-100"
+            max="100"
+            formControlName="offsetY"
+          />
+          <small>Positive values move shadow down, negative moves up</small>
+        </div>
+
+        <div class="bsg__setting-group">
+          <label for="blur" class="bsg__label">Blur radius</label>
+          <input
+            id="blur"
+            type="number"
+            class="bsg__input"
+            min="0"
+            max="200"
+            formControlName="blur"
+          />
+          <small>Higher values create softer shadows</small>
+        </div>
+
+        <div class="bsg__setting-group">
+          <label for="spread" class="bsg__label">Spread radius</label>
+          <input
+            id="spread"
+            type="number"
+            class="bsg__input"
+            min="-50"
+            max="50"
+            formControlName="spread"
+          />
+          <small>Positive values expand, negative values shrink</small>
+        </div>
+
+        <div class="bsg__setting-group">
+          <label for="color" class="bsg__label">Color</label>
+          <div class="bsg__color-input-group">
+            <input
+              type="color"
+              [value]="getColorValue()"
+              (input)="onColorChange($event)"
+              class="bsg__color-picker"
+              title="Color"
+            />
+            <input
+              id="color"
+              type="text"
+              class="bsg__input bsg__input--color"
+              formControlName="color"
+              placeholder="rgba(0, 0, 0, 0.15)"
+            />
+          </div>
+          <small>Use rgba, hex, or named colors</small>
+        </div>
+
+        <div class="bsg__setting-group">
+          <label class="bsg__toggle">
+            <input type="checkbox" formControlName="inset" />
+            <div>
+              <strong>Inset shadow</strong>
+              <span>Create an inner shadow instead of outer</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <label class="bsg__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent box-shadow values</span>
+        </div>
+      </label>
+
+      <div class="bsg__actions">
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="bsg__panel bsg__panel--preview">
+      <header class="bsg__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>Visual preview of your box shadow.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--primary btn--small"
+          (click)="copyToClipboard(boxShadowCss(), 'Box shadow CSS')"
+        >
+          Copy CSS
+        </button>
+      </header>
+
+      <div class="bsg__preview-container">
+        <div class="bsg__preview-box" [style.box-shadow]="boxShadowStyle()">
+          <div class="bsg__preview-content">
+            <div class="bsg__preview-label">Preview</div>
+            <div class="bsg__preview-values">
+              <span>X: {{ form.controls.offsetX.value }}px</span>
+              <span>Y: {{ form.controls.offsetY.value }}px</span>
+              <span>Blur: {{ form.controls.blur.value }}px</span>
+              <span>Spread: {{ form.controls.spread.value }}px</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bsg__preview-options">
+        <div class="bsg__preview-option" [style.box-shadow]="boxShadowStyle()">Square</div>
+        <div class="bsg__preview-option bsg__preview-option--circle" [style.box-shadow]="boxShadowStyle()">Circle</div>
+        <div class="bsg__preview-option bsg__preview-option--wide" [style.box-shadow]="boxShadowStyle()">Wide</div>
+      </div>
+    </section>
+
+    <section class="bsg__panel bsg__panel--output">
+      <header class="bsg__card-header">
+        <div>
+          <h2>CSS code</h2>
+          <p>Copy the CSS code to use in your project.</p>
+        </div>
+      </header>
+
+      <div class="bsg__code-container">
+        <code class="bsg__code">{{ boxShadowCss() }}</code>
+      </div>
+
+      <div class="bsg__code-examples">
+        <h4>Usage examples</h4>
+        <div class="bsg__example">
+          <strong>Basic usage:</strong>
+          <code>.element {{ '{' }} {{ boxShadowCss() }} {{ '}' }}</code>
+        </div>
+        <div class="bsg__example">
+          <strong>With other properties:</strong>
+          <code>.card {{ '{' }} {{ boxShadowCss() }} background: #ffffff; padding: 1rem; {{ '}' }}</code>
+        </div>
+        <div class="bsg__example">
+          <strong>Multiple shadows:</strong>
+          <code>.element {{ '{' }} box-shadow: {{ boxShadowStyle() }}, 0 0 0 1px rgba(0, 0, 0, 0.1); {{ '}' }}</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="bsg__panel bsg__panel--presets">
+      <header class="bsg__card-header">
+        <div>
+          <h2>Presets</h2>
+          <p>Quick start with pre-configured box-shadow values.</p>
+        </div>
+      </header>
+
+      <div class="bsg__presets-grid">
+        @for (preset of presets; track preset.label) {
+          <button type="button" class="bsg__preset-item" (click)="applyPreset(preset)">
+            <div class="bsg__preset-preview" [style.box-shadow]="getPresetPreview(preset)"></div>
+            <div class="bsg__preset-info">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="bsg__panel bsg__panel--history">
+      <header class="bsg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently used box-shadow values.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="bsg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="bsg__history-item">
+                <div class="bsg__history-preview" [style.box-shadow]="getHistoryPreview(entry)"></div>
+                <div class="bsg__history-info">
+                  <strong>{{ entry.css }}</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="bsg__empty">Enable history tracking to keep a list of recent box-shadow values.</div>
+      }
+    </section>
   </div>
 </div>

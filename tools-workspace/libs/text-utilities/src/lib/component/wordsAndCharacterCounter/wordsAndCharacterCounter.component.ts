@@ -1,7 +1,18 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Navigation } from '@tools-workspace/features-home';
+
+// Import Google Analytics Service - use optional injection to avoid errors if not available
+// In a library, we need to check if the service exists
+declare const window: any;
+
+// Simple GA tracking function that works even if service isn't available
+function trackGAEvent(eventName: string, params?: any): void {
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', eventName, params);
+  }
+}
 
 // For worker types (will be loaded dynamically)
 type WorkerMessage = {
@@ -23,7 +34,24 @@ type WorkerMessage = {
   styleUrls: ['./wordsAndCharacterCounter.component.scss'],
   imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
 })
-export class WordsAndCharacterCounterComponent implements OnInit {
+export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
+  // Tool metadata for tracking
+  private readonly TOOL_NAME = 'character-counter';
+  private readonly TOOL_CATEGORY = 'text-utilities';
+  
+  // Tracking state
+  private hasTrackedAnalysis = false;
+  private textAnalysisCount = 0;
+  private readonly sessionStartTime = Date.now();
+  
+  // Helper method to track events
+  private trackEvent(eventName: string, params?: any): void {
+    trackGAEvent(eventName, {
+      ...params,
+      tool_name: this.TOOL_NAME,
+      tool_category: this.TOOL_CATEGORY,
+    });
+  }
   paragraphControl = new FormControl('');
 
   wordCount = 0;
@@ -87,13 +115,40 @@ export class WordsAndCharacterCounterComponent implements OnInit {
   isGeneratingPdf = false;
 
   ngOnInit(): void {
+    // Track tool usage
+    this.trackEvent('tool_usage', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      action_type: 'view',
+    });
+    
     // Subscribe to changes and use adaptive debounce (short for small text, longer for large texts)
     this.paragraphControl.valueChanges.subscribe((text) => {
       this.scheduleUpdate(text || '');
+      
+      // Track text input engagement (privacy-safe: only length, never content)
+      if (text && text.length > 0) {
+        this.trackEvent('engagement', {
+          event_category: 'user_engagement',
+          engagement_type: 'interaction',
+          element_name: 'text-input',
+        });
+      }
     });
 
     // Initial update
     this.updateCounts(this.paragraphControl.value || '');
+  }
+
+  ngOnDestroy(): void {
+    // Track session summary when user leaves
+    const sessionDuration = Math.round((Date.now() - this.sessionStartTime) / 1000);
+    this.trackEvent('tool_session_summary', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      session_duration_seconds: sessionDuration,
+      text_analyses_count: this.textAnalysisCount,
+    });
   }
 
   private scheduleUpdate(text: string) {
@@ -113,6 +168,30 @@ export class WordsAndCharacterCounterComponent implements OnInit {
       // push to history after debounced update
       this.pushHistory(this.pendingText);
       this.updateTimer = null;
+      
+      // Track text analysis (privacy-safe: only metadata)
+      if (this.pendingText && this.pendingText.trim().length > 0) {
+        this.textAnalysisCount++;
+        const textLength = this.pendingText.length;
+        
+        // Track first analysis
+        if (!this.hasTrackedAnalysis) {
+          this.hasTrackedAnalysis = true;
+          this.trackEvent('tool_first_analysis', {
+            event_category: this.TOOL_CATEGORY,
+            event_label: this.TOOL_NAME,
+            text_length: textLength,
+          });
+        }
+        
+        // Track analysis event
+        this.trackEvent('text_analysis', {
+          event_category: this.TOOL_CATEGORY,
+          event_label: this.TOOL_NAME,
+          text_length: textLength,
+          analysis_count: this.textAnalysisCount,
+        });
+      }
     }, wait);
   }
 
@@ -329,6 +408,15 @@ export class WordsAndCharacterCounterComponent implements OnInit {
   // Download analysis as PDF (default) or TXT (fallback)
   async downloadAnalysis(as: 'pdf' | 'txt' = 'pdf') {
     const text = this.paragraphControl.value || '';
+    
+    // Track download action start
+    this.trackEvent('click', {
+      event_category: 'ui_interaction',
+      event_label: `download-${as}`,
+      element_type: 'button',
+      location: this.TOOL_NAME,
+    });
+    const downloadStartTime = Date.now();
 
     // Ensure we have an up-to-date frequency list for the download.
     const trimmed = text.trim();
@@ -449,6 +537,24 @@ export class WordsAndCharacterCounterComponent implements OnInit {
 
         doc.save('text-analysis.pdf');
         this.isGeneratingPdf = false;
+        
+        // Track successful PDF download
+        const downloadDuration = Date.now() - downloadStartTime;
+        this.trackEvent('file_download', {
+          event_category: this.TOOL_CATEGORY,
+          event_label: this.TOOL_NAME,
+          file_type: 'pdf',
+          action_type: 'download',
+        });
+        this.trackEvent('tool_completion', {
+          event_category: this.TOOL_CATEGORY,
+          event_label: this.TOOL_NAME,
+          action_type: 'complete',
+          operation_type: 'download_pdf',
+          duration_ms: downloadDuration,
+          word_count: this.wordCount,
+          char_count: this.charCount,
+        });
         return;
       } catch (err) {
         console.warn('PDF generation failed, falling back to TXT', err);
@@ -466,6 +572,24 @@ export class WordsAndCharacterCounterComponent implements OnInit {
     a.click();
     URL.revokeObjectURL(url);
     this.isGeneratingPdf = false;
+    
+    // Track successful TXT download
+    const downloadDuration = Date.now() - downloadStartTime;
+    this.trackEvent('file_download', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      file_type: 'txt',
+      action_type: 'download',
+    });
+    this.trackEvent('tool_completion', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      action_type: 'complete',
+      operation_type: 'download_txt',
+      duration_ms: downloadDuration,
+      word_count: this.wordCount,
+      char_count: this.charCount,
+    });
   }
 
   // Dynamically add script tag and wait for it to load
@@ -569,6 +693,19 @@ export class WordsAndCharacterCounterComponent implements OnInit {
   }
 
   copyText(): void {
+    // Track copy action
+    this.trackEvent('click', {
+      event_category: 'ui_interaction',
+      event_label: 'copy-text',
+      element_type: 'button',
+      location: this.TOOL_NAME,
+    });
+    this.trackEvent('tool_action', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      action_type: 'copy_text',
+      has_content: this.hasContent,
+    });
     if (!this.hasContent) return;
     const text = this.paragraphControl.value || '';
     navigator.clipboard.writeText(text).then(() => {
@@ -577,6 +714,20 @@ export class WordsAndCharacterCounterComponent implements OnInit {
   }
 
   copyAllStats(): void {
+    // Track copy stats action
+    this.trackEvent('click', {
+      event_category: 'ui_interaction',
+      event_label: 'copy-stats',
+      element_type: 'button',
+      location: this.TOOL_NAME,
+    });
+    this.trackEvent('tool_action', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      action_type: 'copy_stats',
+      word_count: this.wordCount,
+      char_count: this.charCount,
+    });
     if (!this.hasContent) return;
     const stats = `Words: ${this.wordCount}\nCharacters: ${this.charCount}\nCharacters (no spaces): ${this.charCountNoSpaces}\nSentences: ${this.sentenceCount}\nParagraphs: ${this.paragraphCount}\nReadability (Flesch): ${this.readabilityScore}\nGunning Fog: ${this.gunningFog}\nSMOG: ${this.smogIndex}\nColeman-Liau: ${this.colemanLiau}`;
     navigator.clipboard.writeText(stats).then(() => {
@@ -585,6 +736,18 @@ export class WordsAndCharacterCounterComponent implements OnInit {
   }
 
   clearText(): void {
+    // Track clear action
+    this.trackEvent('click', {
+      event_category: 'ui_interaction',
+      event_label: 'clear-text',
+      element_type: 'button',
+      location: this.TOOL_NAME,
+    });
+    this.trackEvent('tool_action', {
+      event_category: this.TOOL_CATEGORY,
+      event_label: this.TOOL_NAME,
+      action_type: 'clear_text',
+    });
     if (!this.hasContent) return;
     this.paragraphControl.setValue('');
     this.showToast('Text cleared');

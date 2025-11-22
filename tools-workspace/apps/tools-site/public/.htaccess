@@ -1,0 +1,50 @@
+# Apache configuration for EasyToolHub
+# Ensure SVG files are served with correct MIME type
+
+# Force SVG MIME type - must be first
+<IfModule mod_mime.c>
+  AddType image/svg+xml .svg
+  AddType image/svg+xml .svgz
+</IfModule>
+
+# Force Content-Type header for SVG files (more reliable)
+<IfModule mod_headers.c>
+  <FilesMatch "\.svg$">
+    Header set Content-Type "image/svg+xml"
+    Header unset Content-Type
+    Header set Content-Type "image/svg+xml"
+  </FilesMatch>
+</IfModule>
+
+# Alternative method using ForceType (if mod_mime is available)
+<FilesMatch "\.svg$">
+  ForceType image/svg+xml
+</FilesMatch>
+
+# Enable CORS for images (if needed)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(svg|png|jpg|jpeg|gif|ico|webp)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# Compression for SVG files
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Redirect to HTTPS (uncomment if using HTTPS)
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} off
+#   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
+

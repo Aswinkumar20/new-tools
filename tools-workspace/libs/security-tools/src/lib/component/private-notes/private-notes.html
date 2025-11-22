@@ -1,10 +1,116 @@
-<div class="main-container">
-  <div>
+<div class="pn">
+  <div class="pn__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>PrivateNotes</h2>
-    <p>Component coming soon...</p>
+  <section class="pn__hero">
+    <div class="pn__badge">Security toolkit</div>
+    <h1>Private Notes</h1>
+    <p>
+      Create encrypted notes that live only in this browser session. Encryption happens locally using your password and
+      is never sent to a server.
+    </p>
+
+    <div class="pn__hero-meta">
+      <div>
+        <span class="pn__meta-label">Status</span>
+        <strong [class.pn__status--locked]="isLocked()" [class.pn__status--unlocked]="!isLocked()">
+          {{ hasEncrypted() ? (isLocked() ? 'Locked' : 'Unlocked') : 'No note encrypted' }}
+        </strong>
+      </div>
+      <div>
+        <span class="pn__meta-label">Last saved</span>
+        <strong>{{ formatTimestamp(state().lastSavedAt) }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="pn__board" [formGroup]="form">
+    <section class="pn__panel pn__panel--note">
+      <header class="pn__card-header">
+        <div>
+          <h2>Note</h2>
+          <p>Write or view your private note.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="pn__alert pn__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="pn__alert pn__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="pn__field">
+        <label for="note" class="pn__label">Note</label>
+        <textarea
+          id="note"
+          class="pn__textarea"
+          formControlName="note"
+          rows="8"
+          spellcheck="false"
+          placeholder="Write your private note here. It will be encrypted with the password below."
+        ></textarea>
+      </div>
+
+      <div class="pn__actions">
+        <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear text</button>
+      </div>
+    </section>
+
+    <section class="pn__panel pn__panel--security">
+      <header class="pn__card-header">
+        <div>
+          <h2>Encryption</h2>
+          <p>Password and encryption controls.</p>
+        </div>
+      </header>
+
+      <div class="pn__field">
+        <label for="password" class="pn__label">Password</label>
+        <input
+          id="password"
+          type="password"
+          class="pn__input"
+          formControlName="password"
+          autocomplete="new-password"
+          placeholder="Enter a password to encrypt/decrypt this note"
+        />
+        <p class="pn__hint">
+          Use a strong password and remember it. If you forget it, the encrypted note cannot be recovered.
+        </p>
+      </div>
+
+      <div class="pn__button-row">
+        <button type="button" class="btn btn--primary btn--small" (click)="encryptAndSave()">
+          Encrypt &amp; clear editor
+        </button>
+        <button type="button" class="btn btn--ghost btn--small" (click)="decrypt()" [disabled]="!hasEncrypted()">
+          Decrypt into editor
+        </button>
+      </div>
+
+      <button type="button" class="btn btn--ghost btn--small" (click)="clearAll()">Clear everything</button>
+
+      <div class="pn__disclaimer">
+        <p>
+          Notes are kept in memory only for this browser tab. Closing or refreshing the page will remove the encrypted
+          note.
+        </p>
+      </div>
+    </section>
   </div>
 </div>

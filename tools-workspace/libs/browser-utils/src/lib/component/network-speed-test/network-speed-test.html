@@ -1,10 +1,146 @@
-<div class="main-container">
-  <div>
+<div class="nst">
+  <div class="nst__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>NetworkSpeedTest</h2>
-    <p>Component coming soon...</p>
+  <section class="nst__hero">
+    <div class="nst__badge">Browser utilities</div>
+    <h1>Network Speed Test</h1>
+    <p>
+      Measure approximate download speed by fetching a file in your browser. Results may vary depending on server,
+      caching, and network conditions.
+    </p>
+
+    @if (hasResults() && lastResult(); as r) {
+      <div class="nst__hero-meta">
+        <div>
+          <span class="nst__meta-label">Last run</span>
+          <strong>{{ formatMbps(r.mbps) }}</strong>
+        </div>
+        <div>
+          <span class="nst__meta-label">Average speed</span>
+          <strong>{{ formatMbps(avgMbps()) }}</strong>
+        </div>
+        <div>
+          <span class="nst__meta-label">Last duration</span>
+          <strong>{{ formatMs(r.durationMs) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="nst__hero-meta nst__hero-meta--placeholder">
+        Enter a URL and click \"Run test\" to start measuring download speed.
+      </div>
+    }
+  </section>
+
+  <div class="nst__board" [formGroup]="form">
+    <section class="nst__panel nst__panel--config">
+      <header class="nst__card-header">
+        <div>
+          <h2>Configuration</h2>
+          <p>Test URL and options.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--primary btn--small"
+          (click)="runTest()"
+          [disabled]="running()"
+        >
+          {{ running() ? 'Running...' : 'Run test' }}
+        </button>
+      </header>
+
+      @if (errors().length) {
+        <div class="nst__alert nst__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="nst__field">
+        <label for="url" class="nst__label">Test URL</label>
+        <input
+          id="url"
+          type="url"
+          class="nst__input"
+          formControlName="url"
+          placeholder="https://example.com/file-to-download"
+        />
+        <small class="nst__hint">
+          Use a URL that allows cross-origin requests and points to a reasonably sized file (for example 1–10 MB).
+        </small>
+      </div>
+
+      <div class="nst__field nst__field--inline">
+        <div>
+          <label for="sizeBytes" class="nst__label">Expected size (bytes)</label>
+          <input
+            id="sizeBytes"
+            type="number"
+            class="nst__input"
+            formControlName="sizeBytes"
+            min="1"
+          />
+          <small class="nst__hint">Used to estimate speed if the response size cannot be measured.</small>
+        </div>
+        <div>
+          <label for="runs" class="nst__label">Runs</label>
+          <input
+            id="runs"
+            type="number"
+            class="nst__input"
+            formControlName="runs"
+            min="1"
+            max="5"
+          />
+          <small class="nst__hint">Number of times to repeat the test (max 5).</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="nst__panel nst__panel--results">
+      <header class="nst__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Recent test runs (last 20).</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearResults()"
+          [disabled]="!hasResults()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasResults()) {
+        <ul class="nst__list">
+          @for (result of results(); track result.timestamp) {
+            <li class="nst__item">
+              <div class="nst__item-main">
+                <div class="nst__item-row">
+                  <strong>{{ formatMbps(result.mbps) }}</strong>
+                  <span class="nst__item-duration">{{ formatMs(result.durationMs) }}</span>
+                  <span class="nst__item-time">{{ formatTimestamp(result.timestamp) }}</span>
+                </div>
+                <div class="nst__item-row">
+                  <span class="nst__item-bytes">{{ formatBytes(result.bytes) }}</span>
+                  <span class="nst__item-url">{{ result.url }}</span>
+                </div>
+                @if (result.error) {
+                  <div class="nst__item-error">Error: {{ result.error }}</div>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="nst__empty">No tests run yet.</div>
+      }
+    </section>
   </div>
 </div>

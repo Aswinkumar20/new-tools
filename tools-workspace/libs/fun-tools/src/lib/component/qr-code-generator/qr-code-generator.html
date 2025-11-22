@@ -1,10 +1,194 @@
-<div class="main-container">
-  <div>
+<div class="qrc">
+  <div class="qrc__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>QrCodeGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="qrc__hero">
+    <div class="qrc__badge">Fun tools</div>
+    <h1>QR Code Generator</h1>
+    <p>
+      Generate QR codes for URLs, text, contact information, and more. Customize size, colors, error correction level,
+      and download or copy the result.
+    </p>
+
+    @if (hasQRCode()) {
+      <div class="qrc__hero-meta">
+        <div>
+          <span class="qrc__meta-label">Status</span>
+          <strong>Ready</strong>
+        </div>
+        <div>
+          <span class="qrc__meta-label">Size</span>
+          <strong>{{ formatSize(form.controls.size.value) }}</strong>
+        </div>
+        <div>
+          <span class="qrc__meta-label">Error correction</span>
+          <strong>{{ form.controls.errorCorrectionLevel.value }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="qrc__hero-meta qrc__hero-meta--placeholder">
+        Enter text or URL below and your QR code will be generated automatically.
+      </div>
+    }
+  </section>
+
+  <div class="qrc__board" [formGroup]="form">
+    <section class="qrc__panel qrc__panel--options">
+      <header class="qrc__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure QR code content and appearance.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="qrc__alert qrc__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="qrc__field">
+        <label for="text" class="qrc__label">Content</label>
+        <textarea
+          id="text"
+          class="qrc__textarea"
+          formControlName="text"
+          placeholder="Enter text, URL, or other content..."
+          rows="4"
+        ></textarea>
+        <small class="qrc__hint">The text or URL to encode in the QR code.</small>
+      </div>
+
+      <div class="qrc__field qrc__field--inline">
+        <div>
+          <label for="size" class="qrc__label">Size (pixels)</label>
+          <input
+            id="size"
+            type="number"
+            class="qrc__input"
+            formControlName="size"
+            min="100"
+            max="1000"
+            step="8"
+          />
+          <small class="qrc__hint">QR code dimensions (100-1000px).</small>
+        </div>
+        <div>
+          <label for="margin" class="qrc__label">Margin</label>
+          <input
+            id="margin"
+            type="number"
+            class="qrc__input"
+            formControlName="margin"
+            min="0"
+            max="10"
+          />
+          <small class="qrc__hint">White space around QR code (0-10).</small>
+        </div>
+      </div>
+
+      <div class="qrc__field">
+        <label for="errorCorrectionLevel" class="qrc__label">Error Correction Level</label>
+        <select id="errorCorrectionLevel" class="qrc__select" formControlName="errorCorrectionLevel">
+          <option value="L">L - Low (~7% recovery)</option>
+          <option value="M">M - Medium (~15% recovery)</option>
+          <option value="Q">Q - Quartile (~25% recovery)</option>
+          <option value="H">H - High (~30% recovery)</option>
+        </select>
+        <small class="qrc__hint">Higher levels allow more damage but increase QR code complexity.</small>
+      </div>
+
+      <div class="qrc__field qrc__field--inline">
+        <div>
+          <label for="darkColor" class="qrc__label">Dark Color</label>
+          <div class="qrc__color-input-wrapper">
+            <input
+              id="darkColor"
+              type="color"
+              class="qrc__color-input"
+              [value]="form.controls.darkColor.value"
+              (input)="form.controls.darkColor.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="qrc__color-text"
+              formControlName="darkColor"
+              placeholder="#000000"
+            />
+          </div>
+          <small class="qrc__hint">Color of QR code modules.</small>
+        </div>
+        <div>
+          <label for="lightColor" class="qrc__label">Light Color</label>
+          <div class="qrc__color-input-wrapper">
+            <input
+              id="lightColor"
+              type="color"
+              class="qrc__color-input"
+              [value]="form.controls.lightColor.value"
+              (input)="form.controls.lightColor.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="qrc__color-text"
+              formControlName="lightColor"
+              placeholder="#ffffff"
+            />
+          </div>
+          <small class="qrc__hint">Background color.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="qrc__panel qrc__panel--preview">
+      <header class="qrc__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>Generated QR code preview.</p>
+        </div>
+        <div class="qrc__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="copyQRCode()"
+            [disabled]="!hasQRCode()"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="downloadQRCode()"
+            [disabled]="!hasQRCode()"
+          >
+            Download
+          </button>
+        </div>
+      </header>
+
+      @if (libraryLoaded() === false) {
+        <div class="qrc__empty">
+          <p>Loading QR code library...</p>
+        </div>
+      } @else if (hasQRCode() && qrCodeDataUrl(); as dataUrl) {
+        <div class="qrc__preview-container">
+          <img [src]="dataUrl" alt="Generated QR Code" class="qrc__preview-image" />
+          <div class="qrc__preview-info">
+            <p class="qrc__preview-text">
+              <strong>Content:</strong> {{ form.controls.text.value || '(empty)' }}
+            </p>
+          </div>
+        </div>
+      } @else {
+        <div class="qrc__empty">
+          <p>Enter content above to generate a QR code.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

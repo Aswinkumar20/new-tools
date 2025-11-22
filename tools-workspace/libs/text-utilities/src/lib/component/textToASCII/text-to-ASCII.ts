@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Navigation } from '@tools-workspace/features-home';
@@ -12,15 +12,19 @@ import { Navigation } from '@tools-workspace/features-home';
 
 })
 
-export class TextToASCIIComponent {
+export class TextToASCIIComponent implements OnInit, OnDestroy {
   inputValue: string = '';
   outputValue: string = '';
   errorMessage: string = '';
   copied = false;
+  isConverting = false;
 
   // two separate selectors for input (left) and output (right)
   leftType: string = 'text';
   rightType: string = 'ascii';
+  
+  private convertTimer: any = null;
+  private readonly DEBOUNCE_DELAY = 300; // milliseconds
 
 typeOptions = [
   { value: 'text', label: 'Text', description: 'Plain readable text.' },
@@ -33,6 +37,7 @@ typeOptions = [
     this.errorMessage = '';
     this.outputValue = '';
     this.copied = false;
+    this.isConverting = true;
 
     try {
       // normalize null/undefined
@@ -82,6 +87,47 @@ typeOptions = [
       }
     } catch (e: any) {
       this.errorMessage = e?.message || 'Invalid input for the selected conversion.';
+    } finally {
+      this.isConverting = false;
+    }
+  }
+
+  ngOnInit(): void {
+    // Auto-convert on format change
+    // Note: We'll handle input changes via onInputChange()
+  }
+
+  ngOnDestroy(): void {
+    if (this.convertTimer) {
+      clearTimeout(this.convertTimer);
+    }
+  }
+
+  onInputChange(): void {
+    // Clear any existing timer
+    if (this.convertTimer) {
+      clearTimeout(this.convertTimer);
+    }
+
+    // Clear previous error
+    this.errorMessage = '';
+    this.isConverting = true;
+
+    // Debounce the conversion
+    this.convertTimer = setTimeout(() => {
+      if (this.inputValue && this.inputValue.trim()) {
+        this.convert();
+      } else {
+        this.outputValue = '';
+      }
+      this.isConverting = false;
+    }, this.DEBOUNCE_DELAY);
+  }
+
+  onFormatChange(): void {
+    // Auto-convert when format changes
+    if (this.inputValue && this.inputValue.trim()) {
+      this.convert();
     }
   }
 
@@ -101,12 +147,19 @@ typeOptions = [
     return found ? found.description : '';
   }
 
-
-  clear() {
+  clearInput(): void {
     this.inputValue = '';
     this.outputValue = '';
     this.errorMessage = '';
     this.copied = false;
+    if (this.convertTimer) {
+      clearTimeout(this.convertTimer);
+    }
+    this.isConverting = false;
+  }
+
+  clear() {
+    this.clearInput();
   }
 
   copyOutput() {

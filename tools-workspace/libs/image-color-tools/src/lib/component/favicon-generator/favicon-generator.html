@@ -1,10 +1,363 @@
-<div class="main-container">
-  <div>
+<div class="fg">
+  <div class="fg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>FaviconGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="fg__hero">
+    <div class="fg__badge">Favicon toolkit</div>
+    <h1>Favicon Generator</h1>
+    <p>
+      Create custom favicons from text, emojis, or images. Generate favicons in multiple sizes and formats. Get instant HTML
+      code ready to use in your projects.
+    </p>
+
+    @if (result()) {
+      @let current = result()!;
+      <div class="fg__hero-meta">
+        <div>
+          <span class="fg__meta-label">Size</span>
+          <strong>{{ current.size }}×{{ current.size }}px</strong>
+        </div>
+        <div>
+          <span class="fg__meta-label">Format</span>
+          <strong>{{ current.format.toUpperCase() }}</strong>
+        </div>
+        <div>
+          <span class="fg__meta-label">Mode</span>
+          <strong>{{ currentMode() | titlecase }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="fg__hero-meta fg__hero-meta--placeholder">
+        Customize your favicon below and see the preview update in real-time. Perfect for websites, apps, and branding.
+      </div>
+    }
+  </section>
+
+  <div class="fg__board" [formGroup]="form">
+    <section class="fg__panel fg__panel--controls">
+      <header class="fg__card-header">
+        <div>
+          <h2>Favicon settings</h2>
+          <p>Configure your favicon appearance and options.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="fg__alert fg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="fg__form-group">
+        <label class="fg__input" for="fg-mode">
+          <span>Favicon mode</span>
+          <select id="fg-mode" formControlName="mode">
+            <option value="text">Text</option>
+            <option value="emoji">Emoji</option>
+            <option value="image">Image upload</option>
+          </select>
+        </label>
+
+        @if (form.controls.mode.value === 'text') {
+          <label class="fg__input" for="fg-text">
+            <span>Text (max 3 characters)</span>
+            <input id="fg-text" type="text" formControlName="text" maxlength="3" placeholder="F" />
+          </label>
+
+          <label class="fg__input" for="fg-font-size">
+            <span>Font size ({{ form.controls.fontSize.value }}%)</span>
+            <input
+              id="fg-font-size"
+              type="range"
+              min="10"
+              max="200"
+              formControlName="fontSize"
+              (input)="generateFavicon()"
+            />
+          </label>
+
+          <label class="fg__input" for="fg-font-family">
+            <span>Font family</span>
+            <select id="fg-font-family" formControlName="fontFamily">
+              @for (font of fontFamilies; track font) {
+                <option [value]="font">{{ font }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="fg__input" for="fg-text-color">
+            <span>Text color</span>
+            <div class="fg__color-group">
+              <input type="color" id="fg-text-color" formControlName="textColor" />
+              <input type="text" formControlName="textColor" placeholder="#ffffff" maxlength="7" />
+            </div>
+          </label>
+        }
+
+        @if (form.controls.mode.value === 'emoji') {
+          <label class="fg__input" for="fg-emoji">
+            <span>Emoji</span>
+            <input id="fg-emoji" type="text" formControlName="emoji" placeholder="⭐" maxlength="2" />
+            <small>Enter an emoji character (1-2 characters)</small>
+          </label>
+
+          <label class="fg__input" for="fg-emoji-size">
+            <span>Emoji size ({{ form.controls.fontSize.value }}%)</span>
+            <input
+              id="fg-emoji-size"
+              type="range"
+              min="10"
+              max="200"
+              formControlName="fontSize"
+              (input)="generateFavicon()"
+            />
+          </label>
+        }
+
+        @if (form.controls.mode.value === 'image') {
+          <label class="fg__input" for="fg-image-upload">
+            <span>Upload image</span>
+            <div class="fg__upload-area">
+              <input
+                #fileInput
+                type="file"
+                id="fg-image-upload"
+                accept="image/*"
+                (change)="onFileSelected($event)"
+                class="fg__file-input"
+              />
+              <label for="fg-image-upload" class="fg__upload-label">
+                @if (uploadedImage()) {
+                  <span>Image uploaded ✓</span>
+                } @else {
+                  <span>Choose image or drag & drop</span>
+                }
+              </label>
+            </div>
+            <small>Upload an image to convert to favicon</small>
+          </label>
+        }
+
+        <label class="fg__input" for="fg-background-color">
+          <span>Background color</span>
+          <div class="fg__color-group">
+            <input type="color" id="fg-background-color" formControlName="backgroundColor" />
+            <input type="text" formControlName="backgroundColor" placeholder="#007bff" maxlength="7" />
+          </div>
+        </label>
+
+        <label class="fg__input" for="fg-size">
+          <span>Favicon size</span>
+          <select id="fg-size" formControlName="size">
+            @for (size of sizes; track size) {
+              <option [value]="size">{{ size }}×{{ size }}px</option>
+            }
+          </select>
+        </label>
+
+        <label class="fg__input" for="fg-format">
+          <span>Download format</span>
+          <select id="fg-format" formControlName="format">
+            <option value="png">PNG</option>
+            <option value="ico">ICO</option>
+          </select>
+        </label>
+
+        <label class="fg__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember favicon history</span>
+        </label>
+      </div>
+
+      <div class="fg__actions">
+        <button type="button" class="btn btn--primary" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="fg__panel fg__panel--preview">
+      <header class="fg__card-header">
+        <div>
+          <h2>Live preview</h2>
+          <p>See your favicon in real-time as you edit.</p>
+        </div>
+      </header>
+
+      <div class="fg__preview-container">
+        <canvas #previewCanvas class="fg__preview-canvas"></canvas>
+        @if (!result()) {
+          <div class="fg__preview-placeholder">Generate a favicon to see preview</div>
+        }
+      </div>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="fg__preview-sizes">
+          <div class="fg__preview-size-item">
+            <div class="fg__preview-size-box" [style.width.px]="16" [style.height.px]="16">
+              <img [src]="current.dataUrl" [alt]="'16x16 favicon'" style="width: 16px; height: 16px;" />
+            </div>
+            <span>16×16</span>
+          </div>
+          <div class="fg__preview-size-item">
+            <div class="fg__preview-size-box" [style.width.px]="32" [style.height.px]="32">
+              <img [src]="current.dataUrl" [alt]="'32x32 favicon'" style="width: 32px; height: 32px;" />
+            </div>
+            <span>32×32</span>
+          </div>
+          <div class="fg__preview-size-item">
+            <div class="fg__preview-size-box" [style.width.px]="48" [style.height.px]="48">
+              <img [src]="current.dataUrl" [alt]="'48x48 favicon'" style="width: 48px; height: 48px;" />
+            </div>
+            <span>48×48</span>
+          </div>
+        </div>
+      }
+
+      @if (result()) {
+        <div class="fg__preview-actions">
+          <button type="button" class="btn btn--primary" (click)="downloadFavicon()">Download favicon</button>
+          <button type="button" class="btn btn--ghost" (click)="downloadAllSizes()">Download all sizes</button>
+        </div>
+      }
+    </section>
+
+    <section class="fg__panel fg__panel--output">
+      <header class="fg__card-header">
+        <div>
+          <h2>HTML code</h2>
+          <p>Copy the generated HTML code to use in your projects.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="fg__output-item">
+          <div class="fg__output-header">
+            <strong>Favicon HTML</strong>
+            <button type="button" class="btn btn--ghost btn--small" (click)="copyHtmlCode()">Copy</button>
+          </div>
+          <code>{{ current.htmlCode }}</code>
+        </div>
+
+        <div class="fg__output-item">
+          <div class="fg__output-header">
+            <strong>Data URL</strong>
+            <button
+              type="button"
+              class="btn btn--ghost btn--small"
+              (click)="copyToClipboard(current.dataUrl, 'Data URL')"
+            >
+              Copy
+            </button>
+          </div>
+          <code class="fg__code--truncate">{{ current.dataUrl.substring(0, 80) }}...</code>
+        </div>
+      } @else {
+        <div class="fg__empty">Generate a favicon to see the HTML code here.</div>
+      }
+    </section>
+
+    <section class="fg__panel fg__panel--presets">
+      <header class="fg__card-header">
+        <div>
+          <h2>Quick presets</h2>
+          <p>Start with a pre-configured favicon template.</p>
+        </div>
+      </header>
+
+      <div class="fg__preset-list">
+        <button
+          type="button"
+          class="fg__preset-item"
+          (click)="form.patchValue({ mode: 'text', text: 'F', backgroundColor: '#007bff', textColor: '#ffffff' })"
+        >
+          <div class="fg__preset-preview" style="background: #007bff; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px; min-height: 80px;">F</div>
+          <div class="fg__preset-info">
+            <strong>Text: F</strong>
+            <span>Blue background</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="fg__preset-item"
+          (click)="form.patchValue({ mode: 'text', text: 'A', backgroundColor: '#28a745', textColor: '#ffffff' })"
+        >
+          <div class="fg__preset-preview" style="background: #28a745; color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px; min-height: 80px;">A</div>
+          <div class="fg__preset-info">
+            <strong>Text: A</strong>
+            <span>Green background</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="fg__preset-item"
+          (click)="form.patchValue({ mode: 'emoji', emoji: '⭐', backgroundColor: '#ffc107' })"
+        >
+          <div class="fg__preset-preview" style="background: #ffc107; color: #000000; display: flex; align-items: center; justify-content: center; font-size: 24px; min-height: 80px;">⭐</div>
+          <div class="fg__preset-info">
+            <strong>Emoji: ⭐</strong>
+            <span>Yellow background</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          class="fg__preset-item"
+          (click)="form.patchValue({ mode: 'emoji', emoji: '🔥', backgroundColor: '#dc3545' })"
+        >
+          <div class="fg__preset-preview" style="background: #dc3545; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 24px; min-height: 80px;">🔥</div>
+          <div class="fg__preset-info">
+            <strong>Emoji: 🔥</strong>
+            <span>Red background</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <section class="fg__panel fg__panel--history">
+      <header class="fg__card-header">
+        <div>
+          <h2>Favicon history</h2>
+          <p>Quick access to recently generated favicons.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="fg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="fg__history-item">
+                <div class="fg__history-preview">
+                  <img [src]="entry.preview" [alt]="entry.mode" />
+                </div>
+                <div class="fg__history-details">
+                  <strong>{{ entry.mode | titlecase }}</strong>
+                  <span>{{ entry.size }}×{{ entry.size }}px</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="fg__empty">Enable history tracking to keep a list of recent favicons.</div>
+      }
+    </section>
   </div>
 </div>

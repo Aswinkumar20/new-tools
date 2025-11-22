@@ -1,10 +1,133 @@
-<div class="main-container">
-  <div>
+<div class="uuid">
+  <div class="uuid__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>UuidGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="uuid__hero">
+    <div class="uuid__badge">Security toolkit</div>
+    <h1>UUID Generator</h1>
+    <p>
+      Generate RFC 4122 version 4 UUIDs for identifiers, test data, and API keys. Customize formatting and quickly copy
+      the result.
+    </p>
+
+    @if (hasUuids() && lastUuid()) {
+      <div class="uuid__hero-meta">
+        <div>
+          <span class="uuid__meta-label">Last UUID</span>
+          <strong class="uuid__mono">{{ lastUuid() }}</strong>
+        </div>
+        <div>
+          <span class="uuid__meta-label">Generated count</span>
+          <strong>{{ uuids().length }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="uuid__hero-meta uuid__hero-meta--placeholder">
+        Choose your options below and click \"Generate\" to create UUIDs.
+      </div>
+    }
+  </section>
+
+  <div class="uuid__board" [formGroup]="form">
+    <section class="uuid__panel uuid__panel--options">
+      <header class="uuid__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure UUID format and quantity.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="uuid__alert uuid__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="uuid__field uuid__field--inline">
+        <div>
+          <label for="count" class="uuid__label">Count</label>
+          <input
+            id="count"
+            type="number"
+            class="uuid__input"
+            formControlName="count"
+            min="1"
+            max="50"
+          />
+          <small class="uuid__hint">How many UUIDs to generate at once.</small>
+        </div>
+      </div>
+
+      <div class="uuid__options">
+        <label class="uuid__toggle">
+          <input type="checkbox" formControlName="uppercase" />
+          <div>
+            <strong>Uppercase</strong>
+            <span>Render UUIDs in uppercase.</span>
+          </div>
+        </label>
+
+        <label class="uuid__toggle">
+          <input type="checkbox" formControlName="withHyphens" />
+          <div>
+            <strong>Include hyphens</strong>
+            <span>Keep the standard 8-4-4-4-12 format.</span>
+          </div>
+        </label>
+
+        <label class="uuid__toggle">
+          <input type="checkbox" formControlName="withBraces" />
+          <div>
+            <strong>Include braces</strong>
+            <span>Wrap UUIDs in curly braces: {{ '{' }}uuid{{ '}' }}.</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <section class="uuid__panel uuid__panel--output">
+      <header class="uuid__card-header">
+        <div>
+          <h2>Generated UUIDs</h2>
+          <p>Recent UUIDs (last 100).</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearList()"
+          [disabled]="!hasUuids()"
+        >
+          Clear list
+        </button>
+      </header>
+
+      @if (hasUuids() && uuids().length) {
+        <ul class="uuid__list">
+          @for (item of uuids(); track item.createdAt + item.value) {
+            <li class="uuid__item">
+              <div class="uuid__item-main">
+                <code class="uuid__mono">{{ item.value }}</code>
+                <span class="uuid__timestamp">{{ formatTimestamp(item.createdAt) }}</span>
+              </div>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="copy(item.value)"
+              >
+                Copy
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="uuid__empty">Generated UUIDs will appear here.</div>
+      }
+    </section>
   </div>
 </div>

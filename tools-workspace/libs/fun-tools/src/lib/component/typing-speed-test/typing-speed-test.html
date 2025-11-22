@@ -1,10 +1,177 @@
-<div class="main-container">
-  <div>
+<div class="tst">
+  <div class="tst__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>TypingSpeedTest</h2>
-    <p>Component coming soon...</p>
+  <section class="tst__hero">
+    <div class="tst__badge">Fun tools</div>
+    <h1>Typing Speed Test</h1>
+    <p>
+      Test your typing speed and accuracy. Type the displayed text as quickly and accurately as possible. Track your
+      progress and improve your typing skills.
+    </p>
+
+    <div class="tst__hero-meta">
+      <div>
+        <span class="tst__meta-label">WPM</span>
+        <strong>{{ currentStats().wpm }}</strong>
+      </div>
+      <div>
+        <span class="tst__meta-label">Accuracy</span>
+        <strong>{{ currentStats().accuracy }}%</strong>
+      </div>
+      <div>
+        <span class="tst__meta-label">Time</span>
+        <strong>{{ formatTime(elapsedTime()) }}</strong>
+      </div>
+      @if (hasResults()) {
+        <div>
+          <span class="tst__meta-label">Best WPM</span>
+          <strong>{{ bestWPM() }}</strong>
+        </div>
+        <div>
+          <span class="tst__meta-label">Average WPM</span>
+          <strong>{{ averageWPM() }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="tst__board">
+    <section class="tst__panel tst__panel--test">
+      <header class="tst__card-header">
+        <div>
+          <h2>Typing Test</h2>
+          <p>Type the text below as quickly and accurately as possible.</p>
+        </div>
+        <div class="tst__header-actions">
+          <select
+            class="tst__text-select"
+            [value]="selectedTextIndex()"
+            (change)="loadText(+$any($event.target).value)"
+            [disabled]="isActive()"
+          >
+            @for (text of SAMPLE_TEXTS; track $index) {
+              <option [value]="$index">Text {{ $index + 1 }}</option>
+            }
+          </select>
+          <button type="button" class="btn btn--ghost btn--small" (click)="reset()" [disabled]="!isActive() && typedText().length === 0">
+            Reset
+          </button>
+        </div>
+      </header>
+
+      <div class="tst__text-container">
+        <div class="tst__text-display">
+          @for (char of currentText(); track $index) {
+            <span
+              class="tst__char"
+              [class.tst__char--current]="$index === typedText().length"
+              [class]="getCharacterClass($index)"
+            >
+              {{ char === ' ' ? '·' : char }}
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="tst__input-container">
+        <textarea
+          class="tst__input"
+          [value]="typedText()"
+          (input)="onInput($event)"
+          [disabled]="isComplete()"
+          placeholder="Start typing here..."
+          rows="4"
+        ></textarea>
+      </div>
+
+      @if (isComplete()) {
+        <div class="tst__completion">
+          <div class="tst__completion-title">Test Complete!</div>
+          <div class="tst__completion-stats">
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">WPM</span>
+              <strong class="tst__completion-value">{{ currentStats().wpm }}</strong>
+            </div>
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">Accuracy</span>
+              <strong class="tst__completion-value">{{ currentStats().accuracy }}%</strong>
+            </div>
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">Time</span>
+              <strong class="tst__completion-value">{{ formatTime(elapsedTime()) }}</strong>
+            </div>
+          </div>
+        </div>
+      }
+
+      <div class="tst__live-stats">
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Characters</span>
+          <strong>{{ currentStats().characters }}</strong>
+        </div>
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Correct</span>
+          <strong>{{ currentStats().correct }}</strong>
+        </div>
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Incorrect</span>
+          <strong>{{ currentStats().incorrect }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="tst__panel tst__panel--results">
+      <header class="tst__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Your recent typing test results.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearResults()"
+          [disabled]="!hasResults()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasResults()) {
+        <ul class="tst__results-list">
+          @for (result of testResults(); track result.timestamp) {
+            <li class="tst__result-item">
+              <div class="tst__result-header">
+                <div class="tst__result-wpm">{{ result.wpm }} WPM</div>
+                <div class="tst__result-time">{{ formatTime(result.time) }}</div>
+              </div>
+              <div class="tst__result-details">
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Accuracy:</span>
+                  <strong>{{ result.accuracy }}%</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Characters:</span>
+                  <strong>{{ result.characters }}</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Correct:</span>
+                  <strong class="tst__result-correct">{{ result.correct }}</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Incorrect:</span>
+                  <strong class="tst__result-incorrect">{{ result.incorrect }}</strong>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="tst__empty">
+          <p>Complete a typing test to see your results here.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

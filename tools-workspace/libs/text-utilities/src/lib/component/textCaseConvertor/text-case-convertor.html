@@ -19,48 +19,6 @@
       </header>
 
       <div class="editor-toolbar" aria-label="Case conversion controls">
-        <div class="toolbar-actions">
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="copyToClipboard()"
-                  [disabled]="!convertedText"
-                  aria-label="Copy converted text">
-            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
-            <span>Copy output</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="downloadText()"
-                  [disabled]="!convertedText"
-                  aria-label="Download converted text">
-            <img class="btn-icon" src="/assets/icons/txt.svg" alt="" />
-            <span>Download TXT</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="undo()"
-                  [disabled]="undoStack.length <= 1"
-                  aria-label="Undo latest change">
-            <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
-            <span>Undo</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="redo()"
-                  [disabled]="redoStack.length === 0"
-                  aria-label="Redo change">
-            <img class="btn-icon" src="/assets/icons/redo.svg" alt="" />
-            <span>Redo</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn destructive"
-                  (click)="reset()"
-                  [disabled]="!inputText && !convertedText"
-                  aria-label="Reset input and output">
-            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-            <span>Reset</span>
-          </button>
-        </div>
         <div class="toolbar-stats" aria-label="Live text counters">
           <div class="stat-chip">
             <span class="stat-label">Input words</span>
@@ -89,6 +47,35 @@
                 <h2>Source text</h2>
                 <p>Keep typing to update the live preview.</p>
               </div>
+              <div class="panel-actions">
+                <button type="button"
+                        class="panel-btn"
+                        (click)="undo()"
+                        [disabled]="undoStack.length <= 1"
+                        aria-label="Undo latest change"
+                        [appTooltip]="'Undo (Ctrl+Z)'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+                </button>
+                <button type="button"
+                        class="panel-btn"
+                        (click)="redo()"
+                        [disabled]="redoStack.length === 0"
+                        aria-label="Redo change"
+                        [appTooltip]="'Redo (Ctrl+Y)'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/redo.svg" alt="" />
+                </button>
+                <button type="button"
+                        class="panel-btn destructive"
+                        (click)="reset()"
+                        [disabled]="!inputText && !convertedText"
+                        aria-label="Clear input"
+                        [appTooltip]="'Clear input'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+                </button>
+              </div>
             </header>
             <label class="sr-only" for="input-text">Enter your source text</label>
             <textarea id="input-text"
@@ -105,9 +92,31 @@
                 <h2>Converted output</h2>
                 <p>Preview the {{ selectedCase }} transformation in real time.</p>
               </div>
-              @if (convertedText) {
-                <span class="panel-badge">Ready to copy</span>
-              }
+              <div class="panel-actions">
+                @if (convertedText) {
+                  <span class="panel-badge">Ready to copy</span>
+                }
+                <button type="button"
+                        class="panel-btn primary"
+                        (click)="copyToClipboard()"
+                        [disabled]="!convertedText"
+                        aria-label="Copy converted text"
+                        [appTooltip]="'Copy to clipboard'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                  <span>Copy</span>
+                </button>
+                <button type="button"
+                        class="panel-btn"
+                        (click)="downloadText()"
+                        [disabled]="!convertedText"
+                        aria-label="Download converted text"
+                        [appTooltip]="'Download as TXT'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/txt.svg" alt="" />
+                  <span>Download</span>
+                </button>
+              </div>
             </header>
 
             @if (convertedText) {
@@ -219,6 +228,86 @@
           <button type="button" class="case-btn" [class.active]="selectedCase === 'upsideDown'" (click)="onCaseChange('upsideDown')">uʍop ǝpᴉsd∩</button>
           <button type="button" class="case-btn" [class.active]="selectedCase === 'mixed'" (click)="onCaseChange('mixed')">MiXeD cAsE</button>
           <button type="button" class="case-btn" [class.active]="selectedCase === 'bracketed'" (click)="onCaseChange('bracketed')">[bracketed]</button>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How to use</h2>
+          <p>Transform your text into any case format with our comprehensive converter.</p>
+        </header>
+
+        <div class="insight-body">
+          <ol class="how-to-list">
+            <li>
+              <strong>Enter your text</strong>
+              <p>Paste or type your content in the source text panel. The preview updates automatically.</p>
+            </li>
+            <li>
+              <strong>Select a case preset</strong>
+              <p>Choose from 20+ presets including standard, programming, and stylistic cases.</p>
+            </li>
+            <li>
+              <strong>Preview the result</strong>
+              <p>See the transformed output in real-time as you type or change presets.</p>
+            </li>
+            <li>
+              <strong>Copy or download</strong>
+              <p>Use "Copy output" to paste the result, or "Download TXT" to save it as a file.</p>
+            </li>
+            <li>
+              <strong>Use history</strong>
+              <p>Press <kbd>Ctrl+Z</kbd> (or <kbd>Cmd+Z</kbd> on Mac) to undo, or <kbd>Ctrl+Y</kbd> to redo changes.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our text case converter.</p>
+        </header>
+
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              The Text Case Converter is a versatile tool that transforms text into various case formats. 
+              Whether you need standard editorial cases, programming naming conventions, or creative stylistic 
+              treatments, this tool handles it all with real-time preview and instant conversion.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>20+ presets</strong>
+                <p>From lowercase to leet speak, choose from a wide variety of case transformations.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Real-time preview</strong>
+                <p>See your text transform instantly as you type or switch between presets.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Undo/redo history</strong>
+                <p>Maintain a rolling history of your last 100 edits for easy backtracking.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Export options</strong>
+                <p>Copy to clipboard or download as a text file for easy sharing and storage.</p>
+              </div>
+            </div>
+
+            <div class="use-cases">
+              <strong>Perfect for:</strong>
+              <ul class="tip-list">
+                <li>Variable and function naming</li>
+                <li>API endpoint formatting</li>
+                <li>File and folder naming</li>
+                <li>CSS class name generation</li>
+                <li>Social media formatting</li>
+                <li>Creative text styling</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
     </aside>

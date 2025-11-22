@@ -1,10 +1,448 @@
 <div class="main-container">
-  <div>
+  <div class="top-navigation">
     <lib-navigation></lib-navigation>
   </div>
 
   <div class="container">
-    <h2>AddSignature</h2>
-    <p>Component coming soon...</p>
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="header-content">
+        <h2>Add Signature to PDF</h2>
+        <p class="subtitle">Upload a PDF, create your signature, and add it to your document</p>
+        <div class="header-meta">
+          <span>Draw, Type, or Upload</span>
+          <span>Position & Resize</span>
+          <span>Download Signed PDF</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-layout">
+      <!-- Left Panel: PDF Upload & Preview -->
+      <div class="left-panel">
+        <section class="upload-section panel-card">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Upload PDF</h3>
+              <p>Select a PDF file to sign</p>
+            </div>
+            <button class="btn-link" (click)="openFileDialog()" *ngIf="!pdfFile">Browse</button>
+            <button class="btn-link danger" (click)="reset()" *ngIf="pdfFile">Reset</button>
+          </div>
+
+          <div class="panel-card-body">
+            <input
+              #fileInput
+              type="file"
+              accept=".pdf,application/pdf"
+              (change)="onFileSelected($event)"
+              class="file-input"
+              hidden>
+
+            <div class="file-info" *ngIf="pdfFile">
+              <div class="file-details">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <div>
+                  <p class="file-name">{{ pdfFile.name }}</p>
+                  <p class="file-size">{{ formatFileSize(pdfFile.size) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              *ngIf="!pdfFile"
+              class="drop-zone"
+              (click)="openFileDialog()"
+              type="button">
+              <div class="drop-zone-content">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <p class="drop-zone-text">Click to select PDF file</p>
+                <p class="drop-zone-formats">Max 50MB</p>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <!-- PDF Preview Section -->
+        <section class="preview-section panel-card" *ngIf="showPreview && pdfFile">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>PDF Preview</h3>
+              <p>Page {{ currentPage }} of {{ totalPages }}</p>
+            </div>
+            <div class="page-controls">
+              <button
+                class="btn-icon"
+                (click)="previousPage()"
+                [disabled]="currentPage <= 1"
+                title="Previous Page">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              <input
+                type="number"
+                [ngModel]="currentPage"
+                (ngModelChange)="goToPage($event)"
+                [min]="1"
+                [max]="totalPages"
+                class="page-input">
+              <button
+                class="btn-icon"
+                (click)="nextPage()"
+                [disabled]="currentPage >= totalPages"
+                title="Next Page">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <div
+              class="pdf-preview-container"
+              [class.placing-mode]="isPlacingSignature"
+              #pdfContainer>
+              <canvas
+                #pdfPreviewCanvas
+                class="pdf-preview-canvas"
+                (mousedown)="onCanvasMouseDown($event)"
+                (mousemove)="onCanvasMouseMove($event)"
+                (mouseup)="onCanvasMouseUp()"
+                (mouseleave)="onCanvasMouseLeave()"></canvas>
+              <div class="placement-hint" *ngIf="isPlacingSignature && signatureImage">
+                <p>Click on the PDF to place your signature</p>
+              </div>
+              <div class="drag-hint" *ngIf="signatureImage && !isPlacingSignature && signaturePosition.page === currentPage">
+                <p>Drag the signature to reposition it</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Panel: Signature Creation -->
+      <div class="right-panel">
+        <section class="signature-section panel-card">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Create Signature</h3>
+              <p>Choose your preferred method</p>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <!-- Signature Mode Selection -->
+            <div class="mode-selector">
+              <button
+                class="mode-btn"
+                [class.active]="signatureMode === 'draw'"
+                (click)="signatureMode = 'draw'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                  <path d="M2 2l7.586 7.586"></path>
+                  <circle cx="11" cy="11" r="2"></circle>
+                </svg>
+                Draw
+              </button>
+              <button
+                class="mode-btn"
+                [class.active]="signatureMode === 'type'"
+                (click)="signatureMode = 'type'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                  <line x1="9" y1="20" x2="15" y2="20"></line>
+                  <line x1="12" y1="4" x2="12" y2="20"></line>
+                </svg>
+                Type
+              </button>
+              <button
+                class="mode-btn"
+                [class.active]="signatureMode === 'upload'"
+                (click)="signatureMode = 'upload'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Upload
+              </button>
+            </div>
+
+            <!-- Draw Signature -->
+            <div class="signature-mode-content" *ngIf="signatureMode === 'draw'">
+              <div class="canvas-container">
+                <canvas #signatureCanvas class="signature-canvas"></canvas>
+              </div>
+              <div class="signature-actions">
+                <div class="action-group">
+                  <button 
+                    class="btn-icon" 
+                    (click)="undoSignature()"
+                    [disabled]="!canUndo()"
+                    title="Undo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 7v6h6"></path>
+                      <path d="M21 17a10 10 0 0 0-10-10 10 10 0 0 0-4 8"></path>
+                    </svg>
+                  </button>
+                  <button class="btn-secondary" (click)="clearSignature()">Clear</button>
+                </div>
+                <button class="btn-primary" (click)="saveSignature()">Save Signature</button>
+              </div>
+            </div>
+
+            <!-- Type Signature -->
+            <div class="signature-mode-content" *ngIf="signatureMode === 'type'">
+              <div class="type-signature-form">
+                <label for="typed-signature">Enter your name:</label>
+                <input
+                  id="typed-signature"
+                  type="text"
+                  [(ngModel)]="typedSignature"
+                  placeholder="Your signature"
+                  class="text-input"
+                  maxlength="50">
+                
+                <div class="font-controls">
+                  <label for="font-family">Font:</label>
+                  <select
+                    id="font-family"
+                    [(ngModel)]="typedFontFamily"
+                    class="select-input">
+                    <option value="Dancing Script">Dancing Script</option>
+                    <option value="Great Vibes">Great Vibes</option>
+                    <option value="Allura">Allura</option>
+                    <option value="Brush Script MT">Brush Script MT</option>
+                    <option value="Lucida Handwriting">Lucida Handwriting</option>
+                  </select>
+                  
+                  <label for="font-size">Size:</label>
+                  <input
+                    id="font-size"
+                    type="range"
+                    [(ngModel)]="typedFontSize"
+                    min="24"
+                    max="72"
+                    class="range-input">
+                  <span class="font-size-value">{{ typedFontSize }}px</span>
+                </div>
+              </div>
+              <div class="signature-actions">
+                <button class="btn-secondary" (click)="clearSignature()">Clear</button>
+                <button class="btn-primary" (click)="saveSignature()">Save Signature</button>
+              </div>
+            </div>
+
+            <!-- Upload Signature -->
+            <div class="signature-mode-content" *ngIf="signatureMode === 'upload'">
+              <div class="upload-signature-area">
+                <input
+                  #imageInput
+                  type="file"
+                  accept="image/*"
+                  (change)="onImageUpload($event)"
+                  class="file-input"
+                  hidden>
+                
+                <div class="signature-preview" *ngIf="signatureImage">
+                  <img [src]="signatureImage" alt="Signature preview">
+                </div>
+                
+                <button
+                  class="btn-primary"
+                  (click)="openImageDialog()"
+                  *ngIf="!signatureImage">
+                  Upload Signature Image
+                </button>
+                <button
+                  class="btn-secondary"
+                  (click)="clearSignature()"
+                  *ngIf="signatureImage">
+                  Remove Image
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Signature Placement Controls -->
+        <section class="placement-section panel-card" *ngIf="signatureImage && showPreview">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Place Signature</h3>
+              <p>Position and resize your signature</p>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <div class="placement-controls">
+              <button
+                class="btn-secondary"
+                [class.active]="isPlacingSignature"
+                (click)="togglePlacementMode()"
+                [disabled]="!signatureImage">
+                {{ isPlacingSignature ? 'Stop Placing' : 'Place/Reposition Signature' }}
+              </button>
+              
+              <div class="size-controls">
+                <label>Size:</label>
+                <button class="btn-icon" (click)="adjustSignatureSize(-10)" title="Decrease Size">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+                <span class="size-value">{{ Math.round(signaturePosition.width) }} × {{ Math.round(signaturePosition.height) }}</span>
+                <button class="btn-icon" (click)="adjustSignatureSize(10)" title="Increase Size">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="page-selector">
+                <label>Page:</label>
+                <select
+                  [(ngModel)]="signaturePosition.page"
+                  (ngModelChange)="goToPage(signaturePosition.page)"
+                  class="select-input">
+                  <option *ngFor="let page of getPagesArray()" [value]="page">
+                    Page {{ page }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Save Section -->
+        <section class="save-section panel-card" *ngIf="signatureImage && pdfFile">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Save Signed PDF</h3>
+              <p>Download your document with signature</p>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <button
+              class="btn-primary save-btn"
+              (click)="saveSignedPdf()"
+              [disabled]="loading">
+              <span *ngIf="!loading">Download Signed PDF</span>
+              <span *ngIf="loading">Processing...</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading-overlay" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Processing...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-message" *ngIf="errorMessage">
+      <button class="error-close" (click)="errorMessage = ''">×</button>
+      <p>{{ errorMessage }}</p>
+    </div>
+
+    <!-- How to Use Section -->
+    <section class="how-to-use-section panel-card">
+      <div class="panel-card-header">
+        <div class="panel-title">
+          <h3>How to Use</h3>
+          <p>Step-by-step guide to add signatures to your PDF documents</p>
+        </div>
+      </div>
+
+      <div class="panel-card-body">
+        <div class="steps-container">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h4>Upload PDF</h4>
+              <p>Click the "Browse" button or drag and drop your PDF file into the upload area. Supported file size: up to 50MB.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h4>Create Your Signature</h4>
+              <p>Choose one of three methods to create your signature:</p>
+              <ul>
+                <li><strong>Draw:</strong> Use your mouse or touchpad to draw your signature on the canvas. Use the undo button to remove the last stroke.</li>
+                <li><strong>Type:</strong> Enter your name and choose from various cursive fonts. Adjust the font size to your preference.</li>
+                <li><strong>Upload:</strong> Upload an image file (PNG, JPG) containing your signature.</li>
+              </ul>
+              <p>Click "Save Signature" after creating it.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h4>Place Your Signature</h4>
+              <p>Click the "Place/Reposition Signature" button, then click anywhere on the PDF preview where you want to place your signature. The signature will be centered at the click location.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h4>Reposition & Resize</h4>
+              <p>After placing your signature, you can:</p>
+              <ul>
+                <li><strong>Drag:</strong> Click and drag the signature to move it to a different position on the same page.</li>
+                <li><strong>Resize:</strong> Use the size controls to increase or decrease the signature size.</li>
+                <li><strong>Change Page:</strong> Select a different page from the dropdown to place the signature on another page.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <h4>Navigate Pages</h4>
+              <p>Use the page navigation controls (previous/next buttons or page number input) to view different pages of your PDF. Navigate to the page where you want to place your signature.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">6</div>
+            <div class="step-content">
+              <h4>Download Signed PDF</h4>
+              <p>Once you're satisfied with the signature placement, click "Download Signed PDF" to save your document with the signature embedded. The original PDF remains unchanged.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tips-section">
+          <h4>💡 Tips & Tricks</h4>
+          <ul>
+            <li>You can place multiple signatures on different pages of the same PDF.</li>
+            <li>The signature position is saved per page - navigate to different pages to place signatures on each.</li>
+            <li>Use the undo button while drawing to correct mistakes without clearing the entire signature.</li>
+            <li>For best results, use a white background when creating your signature image.</li>
+            <li>The PDF preview automatically adjusts to fit the available width while maintaining aspect ratio.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
   </div>
 </div>

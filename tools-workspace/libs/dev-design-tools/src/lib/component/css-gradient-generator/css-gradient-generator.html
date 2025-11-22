@@ -1,10 +1,296 @@
-<div class="main-container">
-  <div>
+<div class="cgg">
+  <div class="cgg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>CssGradientGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="cgg__hero">
+    <div class="cgg__badge">Design toolkit</div>
+    <h1>CSS Gradient Generator</h1>
+    <p>
+      Create beautiful CSS gradients with ease. Generate linear, radial, and conic gradients with custom color stops,
+      angles, and positions. Copy the CSS code directly to use in your projects.
+    </p>
+
+    @if (hasResult()) {
+      <div class="cgg__hero-meta">
+        <div>
+          <span class="cgg__meta-label">Type</span>
+          <strong>{{ result()?.type ? (result()!.type.charAt(0).toUpperCase() + result()!.type.slice(1)) : '' }}</strong>
+        </div>
+        <div>
+          <span class="cgg__meta-label">Color stops</span>
+          <strong>{{ colorStopsFormArray().length }}</strong>
+        </div>
+        <div>
+          <span class="cgg__meta-label">CSS ready</span>
+          <strong>✓</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="cgg__hero-meta cgg__hero-meta--placeholder">
+        Configure your gradient settings and color stops to generate CSS code.
+      </div>
+    }
+  </section>
+
+  <div class="cgg__board" [formGroup]="form">
+    <section class="cgg__panel cgg__panel--controls">
+      <header class="cgg__card-header">
+        <div>
+          <h2>Gradient settings</h2>
+          <p>Configure gradient type and properties.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="cgg__alert cgg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="cgg__settings-grid">
+        <div class="cgg__setting-group">
+          <label for="gradientType" class="cgg__label">Gradient type</label>
+          <select id="gradientType" class="cgg__select" formControlName="type">
+            <option value="linear">Linear</option>
+            <option value="radial">Radial</option>
+            <option value="conic">Conic</option>
+          </select>
+        </div>
+
+        @if (form.controls.type.value === 'linear' || form.controls.type.value === 'conic') {
+          <div class="cgg__setting-group">
+            <label for="angle" class="cgg__label">Angle (degrees)</label>
+            <input
+              id="angle"
+              type="number"
+              class="cgg__input"
+              min="0"
+              max="360"
+              formControlName="angle"
+            />
+          </div>
+        }
+
+        @if (form.controls.type.value === 'radial') {
+          <div class="cgg__setting-group">
+            <label for="shape" class="cgg__label">Shape</label>
+            <select id="shape" class="cgg__select" formControlName="shape">
+              <option value="ellipse">Ellipse</option>
+              <option value="circle">Circle</option>
+            </select>
+          </div>
+
+          <div class="cgg__setting-group">
+            <label for="size" class="cgg__label">Size</label>
+            <select id="size" class="cgg__select" formControlName="size">
+              <option value="farthest-corner">Farthest corner</option>
+              <option value="farthest-side">Farthest side</option>
+              <option value="closest-corner">Closest corner</option>
+              <option value="closest-side">Closest side</option>
+            </select>
+          </div>
+        }
+
+        @if (form.controls.type.value === 'radial' || form.controls.type.value === 'conic') {
+          <div class="cgg__setting-group">
+            <label for="position" class="cgg__label">Position</label>
+            <select id="position" class="cgg__select" formControlName="position">
+              <option value="center">Center</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top left">Top left</option>
+              <option value="top right">Top right</option>
+              <option value="bottom left">Bottom left</option>
+              <option value="bottom right">Bottom right</option>
+            </select>
+          </div>
+        }
+      </div>
+
+      <div class="cgg__color-stops-section">
+        <div class="cgg__section-header">
+          <h3>Color stops</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="addColorStop()">Add stop</button>
+        </div>
+
+        <div class="cgg__color-stops">
+          @for (stop of colorStopsFormArray().controls; track $index; let i = $index) {
+            <div class="cgg__color-stop-item">
+              <input
+                type="color"
+                [formControl]="stop.controls.color"
+                class="cgg__color-picker"
+                title="Color"
+              />
+              <input
+                type="text"
+                [formControl]="stop.controls.color"
+                class="cgg__color-input"
+                placeholder="#007bff"
+                maxlength="7"
+              />
+              <input
+                type="number"
+                [formControl]="stop.controls.position"
+                class="cgg__position-input"
+                min="0"
+                max="100"
+                step="0.1"
+                (input)="onPositionChange(i)"
+                title="Position (%)"
+              />
+              <span class="cgg__position-unit">%</span>
+              @if (colorStopsFormArray().length > 2) {
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--small cgg__remove-btn"
+                  (click)="removeColorStop(i)"
+                  title="Remove color stop"
+                >
+                  ×
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <label class="cgg__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of generated gradients</span>
+        </div>
+      </label>
+
+      <div class="cgg__actions">
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="cgg__panel cgg__panel--preview">
+      <header class="cgg__card-header">
+        <div>
+          <h2>Gradient preview</h2>
+          <p>Live preview of your gradient.</p>
+        </div>
+        @if (hasResult()) {
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard(gradientCss(), 'Gradient CSS')"
+          >
+            Copy CSS
+          </button>
+        }
+      </header>
+
+      @if (hasResult()) {
+        <div class="cgg__preview-container" [style.background]="getGradientStyle()">
+          <div class="cgg__preview-overlay">
+            <div class="cgg__preview-info">
+              <strong>{{ result()?.type ? (result()!.type.charAt(0).toUpperCase() + result()!.type.slice(1)) : '' }} gradient</strong>
+              <span>{{ colorStopsFormArray().length }} color stops</span>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="cgg__empty">Configure gradient settings to see preview.</div>
+      }
+    </section>
+
+    <section class="cgg__panel cgg__panel--output">
+      <header class="cgg__card-header">
+        <div>
+          <h2>CSS code</h2>
+          <p>Copy the CSS code to use in your project.</p>
+        </div>
+      </header>
+
+      @if (hasResult()) {
+        <div class="cgg__code-container">
+          <code class="cgg__code">{{ gradientCss() }}</code>
+        </div>
+
+        <div class="cgg__code-examples">
+          <h4>Usage examples</h4>
+          <div class="cgg__example">
+            <strong>Background:</strong>
+            <code>background: {{ gradientCss() }};</code>
+          </div>
+          <div class="cgg__example">
+            <strong>Background image:</strong>
+            <code>background-image: {{ gradientCss() }};</code>
+          </div>
+        </div>
+      } @else {
+        <div class="cgg__empty">Generate a gradient to see CSS code here.</div>
+      }
+    </section>
+
+    <section class="cgg__panel cgg__panel--presets">
+      <header class="cgg__card-header">
+        <div>
+          <h2>Presets</h2>
+          <p>Quick start with pre-configured gradients.</p>
+        </div>
+      </header>
+
+      <div class="cgg__presets-grid">
+        @for (preset of presets; track preset.label) {
+          <button type="button" class="cgg__preset-item" (click)="applyPreset(preset)">
+            <div class="cgg__preset-preview" [style.background]="getPresetPreview(preset)"></div>
+            <div class="cgg__preset-info">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="cgg__panel cgg__panel--history">
+      <header class="cgg__card-header">
+        <div>
+          <h2>Gradient history</h2>
+          <p>Quick access to recently generated gradients.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="cgg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="cgg__history-item">
+                <div class="cgg__history-preview" [style.background]="entry.css"></div>
+                <div class="cgg__history-info">
+                  <strong>{{ entry.type.charAt(0).toUpperCase() + entry.type.slice(1) }}</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="cgg__empty">Enable history tracking to keep a list of recent gradients.</div>
+      }
+    </section>
   </div>
 </div>

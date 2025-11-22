@@ -1,10 +1,273 @@
-<div class="main-container">
-  <div>
+<div class="brp">
+  <div class="brp__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>BorderRadiusPreview</h2>
-    <p>Component coming soon...</p>
+  <section class="brp__hero">
+    <div class="brp__badge">Design toolkit</div>
+    <h1>Border Radius Preview</h1>
+    <p>
+      Visualize and generate CSS border-radius values. Control individual corners or set them uniformly. Copy the CSS code
+      directly to use in your projects.
+    </p>
+
+    <div class="brp__hero-meta">
+      <div>
+        <span class="brp__meta-label">Mode</span>
+        <strong>{{ form.controls.mode.value === 'uniform' ? 'Uniform' : 'Individual' }}</strong>
+      </div>
+      <div>
+        <span class="brp__meta-label">Unit</span>
+        <strong>{{ form.controls.unit.value }}</strong>
+      </div>
+      <div>
+        <span class="brp__meta-label">CSS ready</span>
+        <strong>✓</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="brp__board" [formGroup]="form">
+    <section class="brp__panel brp__panel--controls">
+      <header class="brp__card-header">
+        <div>
+          <h2>Border radius settings</h2>
+          <p>Configure border-radius values and unit.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="brp__alert brp__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="brp__settings-grid">
+        <div class="brp__setting-group">
+          <label for="mode" class="brp__label">Mode</label>
+          <select id="mode" class="brp__select" formControlName="mode" (change)="onModeChange()">
+            <option value="uniform">Uniform (all corners)</option>
+            <option value="individual">Individual corners</option>
+          </select>
+        </div>
+
+        <div class="brp__setting-group">
+          <label for="unit" class="brp__label">Unit</label>
+          <select id="unit" class="brp__select" formControlName="unit">
+            <option value="px">px</option>
+            <option value="rem">rem</option>
+            <option value="em">em</option>
+            <option value="%">%</option>
+          </select>
+        </div>
+
+        @if (form.controls.mode.value === 'uniform') {
+          <div class="brp__setting-group">
+            <label for="uniform" class="brp__label">Border radius</label>
+            <input
+              id="uniform"
+              type="number"
+              class="brp__input"
+              min="0"
+              max="500"
+              formControlName="uniform"
+              (input)="onUniformChange()"
+            />
+          </div>
+        } @else {
+          <div class="brp__corners-grid">
+            <div class="brp__setting-group">
+              <label for="topLeft" class="brp__label">Top left</label>
+              <input
+                id="topLeft"
+                type="number"
+                class="brp__input"
+                min="0"
+                max="500"
+                formControlName="topLeft"
+              />
+            </div>
+
+            <div class="brp__setting-group">
+              <label for="topRight" class="brp__label">Top right</label>
+              <input
+                id="topRight"
+                type="number"
+                class="brp__input"
+                min="0"
+                max="500"
+                formControlName="topRight"
+              />
+            </div>
+
+            <div class="brp__setting-group">
+              <label for="bottomRight" class="brp__label">Bottom right</label>
+              <input
+                id="bottomRight"
+                type="number"
+                class="brp__input"
+                min="0"
+                max="500"
+                formControlName="bottomRight"
+              />
+            </div>
+
+            <div class="brp__setting-group">
+              <label for="bottomLeft" class="brp__label">Bottom left</label>
+              <input
+                id="bottomLeft"
+                type="number"
+                class="brp__input"
+                min="0"
+                max="500"
+                formControlName="bottomLeft"
+              />
+            </div>
+          </div>
+        }
+      </div>
+
+      <label class="brp__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent border-radius values</span>
+        </div>
+      </label>
+
+      <div class="brp__actions">
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="brp__panel brp__panel--preview">
+      <header class="brp__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>Visual preview of your border-radius.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--primary btn--small"
+          (click)="copyToClipboard(borderRadiusCss(), 'Border radius CSS')"
+        >
+          Copy CSS
+        </button>
+      </header>
+
+      <div class="brp__preview-container">
+        <div class="brp__preview-box" [style.border-radius]="borderRadiusStyle()">
+          <div class="brp__preview-content">
+            <div class="brp__preview-label">Preview</div>
+            <div class="brp__preview-values">
+              <span>TL: {{ form.controls.topLeft.value }}{{ form.controls.unit.value }}</span>
+              <span>TR: {{ form.controls.topRight.value }}{{ form.controls.unit.value }}</span>
+              <span>BR: {{ form.controls.bottomRight.value }}{{ form.controls.unit.value }}</span>
+              <span>BL: {{ form.controls.bottomLeft.value }}{{ form.controls.unit.value }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="brp__preview-options">
+        <div class="brp__preview-option" [style.border-radius]="borderRadiusStyle()">Square</div>
+        <div class="brp__preview-option brp__preview-option--circle" [style.border-radius]="borderRadiusStyle()">
+          Circle
+        </div>
+        <div class="brp__preview-option brp__preview-option--wide" [style.border-radius]="borderRadiusStyle()">
+          Wide
+        </div>
+      </div>
+    </section>
+
+    <section class="brp__panel brp__panel--output">
+      <header class="brp__card-header">
+        <div>
+          <h2>CSS code</h2>
+          <p>Copy the CSS code to use in your project.</p>
+        </div>
+      </header>
+
+      <div class="brp__code-container">
+        <code class="brp__code">{{ borderRadiusCss() }}</code>
+      </div>
+
+      <div class="brp__code-examples">
+        <h4>Usage examples</h4>
+        <div class="brp__example">
+          <strong>Basic usage:</strong>
+          <code>.element {{ '{' }} {{ borderRadiusCss() }} {{ '}' }}</code>
+        </div>
+        <div class="brp__example">
+          <strong>With other properties:</strong>
+          <code>.card {{ '{' }} {{ borderRadiusCss() }} background: #007bff; padding: 1rem; {{ '}' }}</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="brp__panel brp__panel--presets">
+      <header class="brp__card-header">
+        <div>
+          <h2>Presets</h2>
+          <p>Quick start with pre-configured border-radius values.</p>
+        </div>
+      </header>
+
+      <div class="brp__presets-grid">
+        @for (preset of presets; track preset.label) {
+          <button type="button" class="brp__preset-item" (click)="applyPreset(preset)">
+            <div
+              class="brp__preset-preview"
+              [style.border-radius]="getPresetPreview(preset)"
+            ></div>
+            <div class="brp__preset-info">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="brp__panel brp__panel--history">
+      <header class="brp__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently used border-radius values.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="brp__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="brp__history-item">
+                <div class="brp__history-preview" [style.border-radius]="getHistoryPreview(entry)"></div>
+                <div class="brp__history-info">
+                  <strong>{{ entry.css }}</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="brp__empty">Enable history tracking to keep a list of recent border-radius values.</div>
+      }
+    </section>
   </div>
 </div>

@@ -1,10 +1,179 @@
-<div class="main-container">
-  <div>
+<div class="eui">
+  <div class="eui__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>EmailUrlIpChecker</h2>
-    <p>Component coming soon...</p>
+  <section class="eui__hero">
+    <div class="eui__badge">Testing toolkit</div>
+    <h1>Email, URL &amp; IP Checker</h1>
+    <p>
+      Validate email addresses, URLs, and IP addresses. Detect type automatically, see detailed breakdowns, and quickly
+      spot formatting issues.
+    </p>
+
+    @if (hasResults()) {
+      <div class="eui__hero-meta">
+        <div>
+          <span class="eui__meta-label">Total</span>
+          <strong>{{ totalCount() }}</strong>
+        </div>
+        <div>
+          <span class="eui__meta-label">Valid</span>
+          <strong class="eui__meta-value--ok">{{ validCount() }}</strong>
+        </div>
+        <div>
+          <span class="eui__meta-label">Invalid</span>
+          <strong class="eui__meta-value--error">{{ invalidCount() }}</strong>
+        </div>
+        <div>
+          <span class="eui__meta-label">Types</span>
+          <strong>
+            {{ typeCounts().email }} email · {{ typeCounts().url }} URL · {{ typeCounts().ip }} IP ·
+            {{ typeCounts().unknown }} unknown
+          </strong>
+        </div>
+      </div>
+    } @else {
+      <div class="eui__hero-meta eui__hero-meta--placeholder">
+        Paste one or more values below (emails, URLs, IPs) and click "Analyze" to see validation details.
+      </div>
+    }
+  </section>
+
+  <div class="eui__board" [formGroup]="form">
+    <section class="eui__panel eui__panel--input">
+      <header class="eui__card-header">
+        <div>
+          <h2>Input</h2>
+          <p>Enter values to validate.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="analyze()">Analyze</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="eui__alert eui__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="eui__alert eui__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="eui__settings">
+        <div class="eui__setting-group">
+          <label for="mode" class="eui__label">Detection mode</label>
+          <select id="mode" class="eui__select" formControlName="mode">
+            <option value="auto">Auto-detect</option>
+            <option value="email">Email only</option>
+            <option value="url">URL only</option>
+            <option value="ip">IP only</option>
+          </select>
+          <small class="eui__hint">Choose a specific type or let the tool detect it automatically.</small>
+        </div>
+
+        <div class="eui__options">
+          <label class="eui__toggle">
+            <input type="checkbox" formControlName="allowMultiple" />
+            <div>
+              <strong>Multiple lines</strong>
+              <span>Each line is treated as a separate value.</span>
+            </div>
+          </label>
+          <label class="eui__toggle">
+            <input type="checkbox" formControlName="ignoreEmpty" />
+            <div>
+              <strong>Ignore empty lines</strong>
+              <span>Skip blank lines during analysis.</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="eui__input-area">
+        <label for="values" class="eui__label">Values</label>
+        <textarea
+          id="values"
+          class="eui__textarea"
+          formControlName="input"
+          rows="8"
+          placeholder="Example:
+john.doe@example.com
+https://example.com/path?query=1
+192.168.0.10"
+        ></textarea>
+      </div>
+    </section>
+
+    <section class="eui__panel eui__panel--results">
+      <header class="eui__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Validation status and details for each value.</p>
+        </div>
+      </header>
+
+      @if (hasResults()) {
+        <div class="eui__results-list">
+          @for (result of results(); track result.value + i; let i = $index) {
+            <article class="eui__result-item" [class.eui__result-item--valid]="result.valid" [class.eui__result-item--invalid]="!result.valid">
+              <header class="eui__result-header">
+                <span class="eui__result-index">#{{ i + 1 }}</span>
+                <span class="eui__result-type eui__result-type--{{ result.type }}">
+                  {{ result.type === 'email' ? 'Email' : result.type === 'url' ? 'URL' : result.type === 'ip' ? 'IP' : 'Unknown' }}
+                </span>
+                <span class="eui__result-status">
+                  {{ result.valid ? 'Valid' : 'Invalid' }}
+                </span>
+              </header>
+
+              <div class="eui__result-value">
+                <code>{{ result.value }}</code>
+              </div>
+
+              <div class="eui__result-meta">
+                <span>Mode: {{ result.modeUsed }}</span>
+                <span>Trimmed length: {{ result.trimmed.length }}</span>
+              </div>
+
+              @if (Object.keys(result.info).length) {
+                <div class="eui__result-info">
+                  @for (entryKey of Object.keys(result.info); track entryKey) {
+                    <div class="eui__info-row">
+                      <span class="eui__info-key">{{ entryKey }}</span>
+                      <span class="eui__info-value">{{ formatInfoValue(result.info[entryKey]) }}</span>
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (result.issues.length) {
+                <ul class="eui__issues-list">
+                  @for (issue of result.issues; track issue) {
+                    <li>{{ issue }}</li>
+                  }
+                </ul>
+              } @else {
+                <div class="eui__issues-list eui__issues-list--empty">
+                  No issues detected for this value.
+                </div>
+              }
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="eui__empty">Results will appear here after analysis.</div>
+      }
+    </section>
   </div>
 </div>

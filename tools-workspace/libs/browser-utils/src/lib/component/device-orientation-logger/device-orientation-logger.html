@@ -1,10 +1,121 @@
-<div class="main-container">
-  <div>
+<div class="dol">
+  <div class="dol__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>DeviceOrientationLogger</h2>
-    <p>Component coming soon...</p>
+  <section class="dol__hero">
+    <div class="dol__badge">Browser utilities</div>
+    <h1>Device Orientation Logger</h1>
+    <p>
+      Monitor device orientation events (alpha, beta, gamma) in real-time. Useful for debugging motion-based
+      interactions on mobile devices.
+    </p>
+
+    <div class="dol__hero-meta">
+      <div>
+        <span class="dol__meta-label">Support</span>
+        <strong>{{ supported ? 'Available' : 'Not available' }}</strong>
+      </div>
+      <div>
+        <span class="dol__meta-label">Listening</span>
+        <strong>{{ listening() ? 'Active' : 'Stopped' }}</strong>
+      </div>
+      <div>
+        <span class="dol__meta-label">Samples</span>
+        <strong>{{ samples().length }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="dol__board">
+    <section class="dol__panel dol__panel--controls">
+      <header class="dol__card-header">
+        <div>
+          <h2>Controls</h2>
+          <p>Start or stop orientation logging.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="dol__alert dol__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="dol__button-row">
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="start()"
+          [disabled]="!supported || listening()"
+        >
+          Start logging
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost"
+          (click)="stop()"
+          [disabled]="!listening()"
+        >
+          Stop
+        </button>
+        <button
+          type="button"
+          class="btn btn--ghost"
+          (click)="clear()"
+          [disabled]="!samples().length"
+        >
+          Clear samples
+        </button>
+      </div>
+
+      <p class="dol__hint">
+        On some devices (especially iOS), you may be prompted to grant permission for motion and orientation access.
+      </p>
+    </section>
+
+    <section class="dol__panel dol__panel--stream">
+      <header class="dol__card-header">
+        <div>
+          <h2>Orientation stream</h2>
+          <p>Latest device orientation samples (up to 50).</p>
+        </div>
+      </header>
+
+      @if (samples().length) {
+        <ul class="dol__list">
+          @for (sample of samples(); track sample.timestamp) {
+            <li class="dol__item">
+              <div class="dol__item-header">
+                <span class="dol__item-time">{{ formatTimestamp(sample.timestamp) }}</span>
+                <span class="dol__item-absolute">{{ sample.absolute ? 'Absolute' : 'Relative' }}</span>
+              </div>
+              <div class="dol__item-values">
+                <div class="dol__value">
+                  <span class="dol__value-label">Alpha (Z)</span>
+                  <strong>{{ sample.alpha !== null ? (sample.alpha | number: '1.0-1') + '°' : 'N/A' }}</strong>
+                </div>
+                <div class="dol__value">
+                  <span class="dol__value-label">Beta (X)</span>
+                  <strong>{{ sample.beta !== null ? (sample.beta | number: '1.0-1') + '°' : 'N/A' }}</strong>
+                </div>
+                <div class="dol__value">
+                  <span class="dol__value-label">Gamma (Y)</span>
+                  <strong>{{ sample.gamma !== null ? (sample.gamma | number: '1.0-1') + '°' : 'N/A' }}</strong>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="dol__empty">
+          <p>No orientation samples yet. Click \"Start logging\" on a supported mobile device and move it around.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

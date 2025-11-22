@@ -1,10 +1,218 @@
-<div class="main-container">
-  <div>
+<div class="mjg">
+  <div class="mjg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>MockJsonGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="mjg__hero">
+    <div class="mjg__badge">Dev toolkit</div>
+    <h1>Mock JSON Generator</h1>
+    <p>
+      Generate mock JSON data for testing and development. Define fields with different types, customize values, and
+      generate arrays of objects. Perfect for API testing and frontend development.
+    </p>
+
+    <div class="mjg__hero-meta">
+      <div>
+        <span class="mjg__meta-label">Fields</span>
+        <strong>{{ fieldsFormArray().length }}</strong>
+      </div>
+      <div>
+        <span class="mjg__meta-label">Objects</span>
+        <strong>{{ form.controls.arrayCount.value }}</strong>
+      </div>
+      <div>
+        <span class="mjg__meta-label">Ready</span>
+        <strong>{{ hasGeneratedJson() ? '✓' : '-' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="mjg__board" [formGroup]="form">
+    <section class="mjg__panel mjg__panel--builder">
+      <header class="mjg__card-header">
+        <div>
+          <h2>JSON structure builder</h2>
+          <p>Define fields and their types to generate mock data.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="mjg__alert mjg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="mjg__alert mjg__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="mjg__settings-grid">
+        <div class="mjg__setting-group">
+          <label for="arrayCount" class="mjg__label">Number of objects</label>
+          <input
+            id="arrayCount"
+            type="number"
+            class="mjg__input"
+            min="1"
+            max="100"
+            formControlName="arrayCount"
+          />
+          <small>Generate multiple objects (1 = single object, >1 = array of objects)</small>
+        </div>
+      </div>
+
+      <div class="mjg__fields-section">
+        <div class="mjg__section-header">
+          <h3>Fields</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="addField()">Add field</button>
+        </div>
+
+        <div class="mjg__fields-list">
+          @for (field of fieldsFormArray().controls; track $index; let i = $index) {
+            <div class="mjg__field-item">
+              <input
+                type="text"
+                class="mjg__input mjg__input--field-key"
+                [formControl]="field.controls.key"
+                placeholder="Field name"
+              />
+              <select class="mjg__select mjg__select--field-type" [formControl]="field.controls.type">
+                @for (type of fieldTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+              @if (field.controls.type.value === 'array') {
+                <input
+                  type="number"
+                  class="mjg__input mjg__input--array-length"
+                  [formControl]="field.controls.arrayLength"
+                  min="1"
+                  max="100"
+                  placeholder="Length"
+                  title="Array length"
+                />
+              }
+              @if (field.controls.type.value !== 'array' && field.controls.type.value !== 'object' && field.controls.type.value !== 'null') {
+                <input
+                  type="text"
+                  class="mjg__input mjg__input--field-value"
+                  [formControl]="field.controls.value"
+                  [placeholder]="getFieldPlaceholder(field.controls.type.value)"
+                />
+              }
+              <button
+                type="button"
+                class="btn btn--ghost btn--small mjg__remove-btn"
+                (click)="removeField(i)"
+                title="Remove field"
+              >
+                ×
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+
+      <label class="mjg__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent mock JSON configurations</span>
+        </div>
+      </label>
+
+      <div class="mjg__actions">
+        <button type="button" class="btn btn--primary" (click)="generateJson()">Generate JSON</button>
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="mjg__panel mjg__panel--output">
+      <header class="mjg__card-header">
+        <div>
+          <h2>Generated JSON</h2>
+          <p>Copy the generated mock JSON data.</p>
+        </div>
+        @if (hasGeneratedJson()) {
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard(formattedJson(), 'JSON')"
+          >
+            Copy JSON
+          </button>
+        }
+      </header>
+
+      @if (hasGeneratedJson()) {
+        <div class="mjg__json-container">
+          <pre class="mjg__json"><code>{{ formattedJson() }}</code></pre>
+        </div>
+
+        <div class="mjg__json-info">
+          <div class="mjg__info-item">
+            <strong>Size:</strong>
+            <span>{{ formatBytes(generatedJson().length) }}</span>
+          </div>
+          <div class="mjg__info-item">
+            <strong>Lines:</strong>
+            <span>{{ formattedJson().split('\n').length }}</span>
+          </div>
+          <div class="mjg__info-item">
+            <strong>Type:</strong>
+            <span>{{ form.controls.arrayCount.value === 1 ? 'Object' : 'Array' }}</span>
+          </div>
+        </div>
+      } @else {
+        <div class="mjg__empty">Configure fields and click "Generate JSON" to see the output.</div>
+      }
+    </section>
+
+    <section class="mjg__panel mjg__panel--history">
+      <header class="mjg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently generated mock JSON.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="mjg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="mjg__history-item">
+                <div class="mjg__history-info">
+                  <strong>{{ entry.fields.length }} fields</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                  <code class="mjg__history-preview">{{ entry.generatedJson.substring(0, 80) }}{{ entry.generatedJson.length > 80 ? '...' : '' }}</code>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="mjg__empty">Enable history tracking to keep a list of recent mock JSON configurations.</div>
+      }
+    </section>
   </div>
 </div>

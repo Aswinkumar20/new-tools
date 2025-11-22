@@ -1,17 +1,17 @@
-import { Component} from '@angular/core';
+import { Component, OnInit, OnDestroy} from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-text-case-convertor',
   standalone: true,
   templateUrl: './text-case-convertor.html',
   styleUrls: ['./text-case-convertor.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
 
 })
-export class TextCaseConvertorComponent {
+export class TextCaseConvertorComponent implements OnInit, OnDestroy {
   inputText = '';
   convertedText = '';
   selectedCase:
@@ -53,6 +53,14 @@ export class TextCaseConvertorComponent {
 
   undoStack: string[] = [''];
   redoStack: string[] = [];
+
+  ngOnInit(): void {
+    // Component initialization - tooltips handled by directive
+  }
+
+  ngOnDestroy(): void {
+    // Cleanup - tooltips handled by directive
+  }
 
   onInputChange(value: string) {
     this.inputText = value;

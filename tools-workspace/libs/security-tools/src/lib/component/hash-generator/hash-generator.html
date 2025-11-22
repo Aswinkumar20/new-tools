@@ -1,10 +1,133 @@
-<div class="main-container">
-  <div>
+<div class="hg">
+  <div class="hg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>HashGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="hg__hero">
+    <div class="hg__badge">Security toolkit</div>
+    <h1>Hash Generator</h1>
+    <p>
+      Generate cryptographic hashes for text using modern algorithms. Great for quickly checking digests, verifying data
+      integrity, or testing API signatures.
+    </p>
+
+    @if (hasResult() && result(); as r) {
+      <div class="hg__hero-meta">
+        <div>
+          <span class="hg__meta-label">Algorithm</span>
+          <strong>{{ r.algorithm | uppercase }}</strong>
+        </div>
+        <div>
+          <span class="hg__meta-label">Hash length</span>
+          <strong>{{ r.lengthBits }} bits</strong>
+        </div>
+        <div>
+          <span class="hg__meta-label">Input length</span>
+          <strong>{{ form.controls.input.value.length }} chars</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="hg__hero-meta hg__hero-meta--placeholder">
+        Type text below, choose an algorithm, and click \"Generate\" to see the hash.
+      </div>
+    }
+  </section>
+
+  <div class="hg__board" [formGroup]="form">
+    <section class="hg__panel hg__panel--input">
+      <header class="hg__card-header">
+        <div>
+          <h2>Input</h2>
+          <p>Text to hash and options.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="hg__alert hg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="hg__input-area">
+        <label for="input" class="hg__label">Text</label>
+        <textarea
+          id="input"
+          class="hg__textarea"
+          formControlName="input"
+          rows="6"
+          spellcheck="false"
+          placeholder="Enter the text you want to hash"
+        ></textarea>
+      </div>
+
+      <div class="hg__settings">
+        <div class="hg__setting-group">
+          <label for="algorithm" class="hg__label">Algorithm</label>
+          <select id="algorithm" class="hg__select" formControlName="algorithm">
+            <option value="sha256">SHA-256</option>
+            <option value="sha384">SHA-384</option>
+            <option value="sha512">SHA-512</option>
+            <option value="md5">MD5 (disabled)</option>
+            <option value="sha1">SHA-1 (disabled)</option>
+          </select>
+          <small class="hg__hint">MD5 and SHA-1 are not generated in this demo.</small>
+        </div>
+
+        <div class="hg__setting-group">
+          <label for="outputFormat" class="hg__label">Output format</label>
+          <select id="outputFormat" class="hg__select" formControlName="outputFormat">
+            <option value="hex">Hex</option>
+            <option value="base64">Base64</option>
+            <option value="both">Hex &amp; Base64</option>
+          </select>
+        </div>
+
+        <label class="hg__toggle">
+          <input type="checkbox" formControlName="uppercase" />
+          <div>
+            <strong>Uppercase hex</strong>
+            <span>Render hexadecimal hash in uppercase.</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <section class="hg__panel hg__panel--output">
+      <header class="hg__card-header">
+        <div>
+          <h2>Hash output</h2>
+          <p>Copy-ready hash values.</p>
+        </div>
+      </header>
+
+      @if (hasResult() && result(); as r) {
+        <div class="hg__output-section">
+          @if (form.controls.outputFormat.value === 'hex' || form.controls.outputFormat.value === 'both') {
+            <div class="hg__output-block">
+              <div class="hg__output-header">
+                <span class="hg__output-label">Hex</span>
+              </div>
+              <pre class="hg__code">{{ displayHex() }}</pre>
+            </div>
+          }
+
+          @if (form.controls.outputFormat.value === 'base64' || form.controls.outputFormat.value === 'both') {
+            <div class="hg__output-block">
+              <div class="hg__output-header">
+                <span class="hg__output-label">Base64</span>
+              </div>
+              <pre class="hg__code">{{ r.base64 }}</pre>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="hg__empty">Hash output will appear here after you generate a hash.</div>
+      }
+    </section>
   </div>
 </div>

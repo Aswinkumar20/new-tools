@@ -526,7 +526,7 @@ export const appRoutes: Routes = [
       {
         path: 'websocket-client',
         loadComponent: () =>
-          import('@tools-workspace/dev-design-tools').then(m => m.WebsocketClientComponent),
+          import('@tools-workspace/dev-design-tools').then(m => m.WebSocketClientComponent),
       },
       {
         path: 'http-request-generator',

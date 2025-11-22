@@ -1,10 +1,188 @@
-<div class="main-container">
-  <div>
+<div class="vr">
+  <div class="vr__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>VoiceRecorder</h2>
-    <p>Component coming soon...</p>
+  <section class="vr__hero">
+    <div class="vr__badge">Media tools</div>
+    <h1>Voice Recorder</h1>
+    <p>
+      Record audio using your microphone. Play back recordings, download them, and manage your recording history. Visual
+      feedback shows audio levels during recording.
+    </p>
+
+    <div class="vr__hero-meta">
+      <div>
+        <span class="vr__meta-label">Status</span>
+        <strong>
+          {{ isRecording() ? (isPaused() ? 'Paused' : 'Recording') : isPlaying() ? 'Playing' : 'Ready' }}
+        </strong>
+      </div>
+      <div>
+        <span class="vr__meta-label">Time</span>
+        <strong>{{ formattedTime() }}</strong>
+      </div>
+      <div>
+        <span class="vr__meta-label">Recordings</span>
+        <strong>{{ stats().count }}</strong>
+      </div>
+      @if (hasRecordings()) {
+        <div>
+          <span class="vr__meta-label">Total size</span>
+          <strong>{{ formatFileSize(stats().totalSize) }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="vr__board">
+    <section class="vr__panel vr__panel--recorder">
+      <header class="vr__card-header">
+        <div>
+          <h2>Recorder</h2>
+          <p>Record audio from your microphone.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="vr__alert vr__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="vr__recorder-container">
+        <div class="vr__audio-visualizer">
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 100"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 80"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 100"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 70"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 90"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 85"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 95"></div>
+          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 75"></div>
+        </div>
+
+        <div class="vr__timer-display">
+          <div class="vr__timer-time">{{ formattedTime() }}</div>
+          <div class="vr__timer-status">
+            {{ isRecording() ? (isPaused() ? 'Paused' : 'Recording...') : 'Ready' }}
+          </div>
+        </div>
+      </div>
+
+      <div class="vr__controls">
+        @if (!isRecording()) {
+          <button type="button" class="btn btn--primary btn--large" (click)="startRecording()">
+            Start Recording
+          </button>
+        } @else {
+          <div class="vr__recording-controls">
+            @if (isPaused()) {
+              <button type="button" class="btn btn--primary" (click)="resumeRecording()">Resume</button>
+            } @else {
+              <button type="button" class="btn btn--ghost" (click)="pauseRecording()">Pause</button>
+            }
+            <button type="button" class="btn btn--danger" (click)="stopRecording()">Stop</button>
+          </div>
+        }
+      </div>
+
+      @if (hasCurrentRecording() && currentRecording(); as recording) {
+        <div class="vr__playback">
+          <div class="vr__playback-header">
+            <div>
+              <div class="vr__playback-title">Current Recording</div>
+              <div class="vr__playback-meta">
+                {{ formatTime(recording.duration) }} · {{ formatFileSize(recording.size) }}
+              </div>
+            </div>
+            <div class="vr__playback-actions">
+              @if (isPlaying()) {
+                <button type="button" class="btn btn--ghost btn--small" (click)="stopPlayback()">Stop</button>
+              } @else {
+                <button type="button" class="btn btn--primary btn--small" (click)="playRecording(recording)">
+                  Play
+                </button>
+              }
+              <button type="button" class="btn btn--ghost btn--small" (click)="downloadRecording(recording)">
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="vr__panel vr__panel--recordings">
+      <header class="vr__card-header">
+        <div>
+          <h2>Recordings</h2>
+          <p>Your recorded audio files (last 20).</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearAllRecordings()"
+          [disabled]="!hasRecordings()"
+        >
+          Clear All
+        </button>
+      </header>
+
+      @if (hasRecordings()) {
+        <ul class="vr__recordings-list">
+          @for (recording of recordings(); track recording.id) {
+            <li
+              class="vr__recording-item"
+              [class.vr__recording-item--active]="currentRecording()?.id === recording.id && isPlaying()"
+            >
+              <div class="vr__recording-main">
+                <div class="vr__recording-info">
+                  <div class="vr__recording-time">{{ formatTime(recording.duration) }}</div>
+                  <div class="vr__recording-meta">
+                    {{ formatFileSize(recording.size) }} · {{ formatTimestamp(recording.timestamp) }}
+                  </div>
+                </div>
+                <div class="vr__recording-actions">
+                  @if (currentRecording()?.id === recording.id && isPlaying()) {
+                    <button type="button" class="vr__action-btn" (click)="stopPlayback()" title="Stop">
+                      ⏹
+                    </button>
+                  } @else {
+                    <button type="button" class="vr__action-btn" (click)="playRecording(recording)" title="Play">
+                      ▶
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="vr__action-btn"
+                    (click)="downloadRecording(recording)"
+                    title="Download"
+                  >
+                    ⬇
+                  </button>
+                  <button
+                    type="button"
+                    class="vr__action-btn vr__action-btn--danger"
+                    (click)="deleteRecording(recording.id)"
+                    title="Delete"
+                  >
+                    🗑
+                  </button>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="vr__empty">
+          <p>No recordings yet. Click "Start Recording" to begin.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

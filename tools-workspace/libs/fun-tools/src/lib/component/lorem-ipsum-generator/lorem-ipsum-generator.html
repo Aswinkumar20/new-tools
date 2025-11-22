@@ -1,10 +1,161 @@
-<div class="main-container">
-  <div>
+<div class="lig">
+  <div class="lig__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>LoremIpsumGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="lig__hero">
+    <div class="lig__badge">Fun tools</div>
+    <h1>Lorem Ipsum Generator</h1>
+    <p>
+      Generate placeholder text in Latin for design mockups, testing, and development. Customize by paragraphs, words, or
+      sentences.
+    </p>
+
+    @if (hasGeneratedText()) {
+      <div class="lig__hero-meta">
+        <div>
+          <span class="lig__meta-label">Words</span>
+          <strong>{{ stats().words }}</strong>
+        </div>
+        <div>
+          <span class="lig__meta-label">Characters</span>
+          <strong>{{ stats().characters }}</strong>
+        </div>
+        @if (form.controls.type.value === 'paragraphs') {
+          <div>
+            <span class="lig__meta-label">Paragraphs</span>
+            <strong>{{ stats().paragraphs }}</strong>
+          </div>
+        }
+        @if (form.controls.type.value === 'sentences') {
+          <div>
+            <span class="lig__meta-label">Sentences</span>
+            <strong>{{ stats().sentences }}</strong>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="lig__hero-meta lig__hero-meta--placeholder">
+        Configure options below and click "Generate" to create lorem ipsum text.
+      </div>
+    }
+  </section>
+
+  <div class="lig__board" [formGroup]="form">
+    <section class="lig__panel lig__panel--options">
+      <header class="lig__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure text generation settings.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="lig__alert lig__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="lig__field">
+        <label for="type" class="lig__label">Generation Type</label>
+        <select id="type" class="lig__select" formControlName="type">
+          <option value="paragraphs">Paragraphs</option>
+          <option value="words">Words</option>
+          <option value="sentences">Sentences</option>
+        </select>
+        <small class="lig__hint">Choose how to generate the text.</small>
+      </div>
+
+      <div class="lig__field">
+        <label for="count" class="lig__label">Count</label>
+        <input
+          id="count"
+          type="number"
+          class="lig__input"
+          formControlName="count"
+          [min]="1"
+          [max]="form.controls.type.value === 'paragraphs' ? 50 : form.controls.type.value === 'words' ? 1000 : 200"
+        />
+        <small class="lig__hint">
+          @if (form.controls.type.value === 'paragraphs') {
+            Number of paragraphs (1-50).
+          } @else if (form.controls.type.value === 'words') {
+            Number of words (1-1000).
+          } @else {
+            Number of sentences (1-200).
+          }
+        </small>
+      </div>
+
+      <div class="lig__field">
+        <label for="startWith" class="lig__label">Start With</label>
+        <select id="startWith" class="lig__select" formControlName="startWith">
+          <option value="lorem">Lorem ipsum</option>
+          <option value="random">Random words</option>
+        </select>
+        <small class="lig__hint">Whether to start with "Lorem ipsum" or random words.</small>
+      </div>
+    </section>
+
+    <section class="lig__panel lig__panel--output">
+      <header class="lig__card-header">
+        <div>
+          <h2>Generated Text</h2>
+          <p>Your lorem ipsum placeholder text.</p>
+        </div>
+        <div class="lig__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="clearText()"
+            [disabled]="!hasGeneratedText()"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard()"
+            [disabled]="!hasGeneratedText()"
+          >
+            Copy
+          </button>
+        </div>
+      </header>
+
+      @if (hasGeneratedText()) {
+        <div class="lig__output-container">
+          <pre class="lig__output-text">{{ generatedText() }}</pre>
+        </div>
+
+        <div class="lig__stats">
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Words</span>
+            <strong>{{ stats().words }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Characters</span>
+            <strong>{{ stats().characters }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Paragraphs</span>
+            <strong>{{ stats().paragraphs }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Sentences</span>
+            <strong>{{ stats().sentences }}</strong>
+          </div>
+        </div>
+      } @else {
+        <div class="lig__empty">
+          <p>Click "Generate" to create lorem ipsum text.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

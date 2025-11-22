@@ -1,10 +1,248 @@
-<div class="main-container">
-  <div>
+<div class="fqg">
+  <div class="fqg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>FlashcardQuizGenerator</h2>
-    <p>Component coming soon...</p>
-  </div>
+  <section class="fqg__hero">
+    <div class="fqg__badge">Fun tools</div>
+    <h1>Flashcard & Quiz Generator</h1>
+    <p>
+      Create flashcards for studying and test your knowledge with interactive quizzes. Track your progress and improve
+      your learning.
+    </p>
+
+    <div class="fqg__hero-meta">
+      <div>
+        <span class="fqg__meta-label">Total flashcards</span>
+        <strong>{{ flashcards().length }}</strong>
+      </div>
+      @if (quizMode()) {
+        <div>
+          <span class="fqg__meta-label">Progress</span>
+          <strong>{{ quizProgress() }}%</strong>
+        </div>
+        <div>
+          <span class="fqg__meta-label">Accuracy</span>
+          <strong>{{ quizStats().accuracy }}%</strong>
+        </div>
+      } @else if (quizStats().total > 0) {
+        <div>
+          <span class="fqg__meta-label">Last quiz accuracy</span>
+          <strong>{{ quizStats().accuracy }}%</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  @if (quizMode()) {
+    <div class="fqg__quiz-container">
+      @if (isQuizComplete()) {
+        <section class="fqg__panel fqg__panel--results">
+          <header class="fqg__card-header">
+            <div>
+              <h2>Quiz Complete!</h2>
+              <p>Review your results below.</p>
+            </div>
+            <button type="button" class="btn btn--primary btn--small" (click)="endQuiz()">Back to Flashcards</button>
+          </header>
+
+          <div class="fqg__quiz-results">
+            <div class="fqg__result-stats">
+              <div class="fqg__result-stat">
+                <span class="fqg__result-label">Correct</span>
+                <strong class="fqg__result-value fqg__result-value--correct">{{ quizStats().correct }}</strong>
+              </div>
+              <div class="fqg__result-stat">
+                <span class="fqg__result-label">Incorrect</span>
+                <strong class="fqg__result-value fqg__result-value--incorrect">{{ quizStats().incorrect }}</strong>
+              </div>
+              <div class="fqg__result-stat">
+                <span class="fqg__result-label">Accuracy</span>
+                <strong class="fqg__result-value">{{ quizStats().accuracy }}%</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+      } @else if (currentFlashcard(); as card) {
+        <section class="fqg__panel fqg__panel--quiz">
+          <header class="fqg__card-header">
+            <div>
+              <h2>Quiz Mode</h2>
+              <p>
+                Card {{ (currentQuizIndex() ?? 0) + 1 }} of {{ flashcards().length }} ({{ quizProgress() }}% complete)
+              </p>
+            </div>
+            <button type="button" class="btn btn--ghost btn--small" (click)="endQuiz()">End Quiz</button>
+          </header>
+
+          <div class="fqg__quiz-card-container">
+            <button
+              type="button"
+              class="fqg__quiz-card"
+              [class.fqg__quiz-card--flipped]="showAnswer()"
+              (click)="toggleAnswer()"
+              [attr.aria-label]="showAnswer() ? 'Hide answer' : 'Show answer'"
+            >
+              <div class="fqg__quiz-card-inner">
+                <div class="fqg__quiz-card-front">
+                  <div class="fqg__quiz-card-label">Question</div>
+                  <div class="fqg__quiz-card-content">{{ card.front }}</div>
+                  <div class="fqg__quiz-card-hint">Click to reveal answer</div>
+                </div>
+                <div class="fqg__quiz-card-back">
+                  <div class="fqg__quiz-card-label">Answer</div>
+                  <div class="fqg__quiz-card-content">{{ card.back }}</div>
+                  <div class="fqg__quiz-card-hint">Click to hide answer</div>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          @if (showAnswer()) {
+            <div class="fqg__quiz-actions">
+              <button
+                type="button"
+                class="btn btn--success"
+                (click)="submitAnswer(true)"
+              >
+                ✓ Correct
+              </button>
+              <button
+                type="button"
+                class="btn btn--danger"
+                (click)="submitAnswer(false)"
+              >
+                ✗ Incorrect
+              </button>
+            </div>
+          }
+        </section>
+      }
+    </div>
+  } @else {
+    <div class="fqg__board">
+      <section class="fqg__panel fqg__panel--editor">
+        <header class="fqg__card-header">
+          <div>
+            <h2>{{ editingFlashcard() ? 'Edit Flashcard' : 'Create Flashcard' }}</h2>
+            <p>{{ editingFlashcard() ? 'Update flashcard content' : 'Add a new flashcard to your deck' }}.</p>
+          </div>
+          @if (editingFlashcard()) {
+            <button type="button" class="btn btn--ghost btn--small" (click)="cancelEdit()">Cancel</button>
+          }
+        </header>
+
+        @if (errors().length) {
+          <div class="fqg__alert fqg__alert--error">
+            <ul>
+              @for (message of errors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        <div [formGroup]="form" class="fqg__form">
+          <div class="fqg__field">
+            <label for="front" class="fqg__label">Front (Question)</label>
+            <textarea
+              id="front"
+              class="fqg__textarea"
+              formControlName="front"
+              placeholder="Enter the question or front side..."
+              rows="4"
+            ></textarea>
+            <small class="fqg__hint">The question or prompt that appears on the front of the card.</small>
+          </div>
+
+          <div class="fqg__field">
+            <label for="back" class="fqg__label">Back (Answer)</label>
+            <textarea
+              id="back"
+              class="fqg__textarea"
+              formControlName="back"
+              placeholder="Enter the answer or back side..."
+              rows="4"
+            ></textarea>
+            <small class="fqg__hint">The answer or information that appears on the back of the card.</small>
+          </div>
+
+          <div class="fqg__form-actions">
+            @if (editingFlashcard()) {
+              <button type="button" class="btn btn--primary" (click)="updateFlashcard()">Update Flashcard</button>
+            } @else {
+              <button type="button" class="btn btn--primary" (click)="addFlashcard()">Add Flashcard</button>
+            }
+          </div>
+        </div>
+      </section>
+
+      <section class="fqg__panel fqg__panel--list">
+        <header class="fqg__card-header">
+          <div>
+            <h2>Flashcards</h2>
+            <p>Your flashcard deck ({{ flashcards().length }} cards).</p>
+          </div>
+          <div class="fqg__header-actions">
+            <button
+              type="button"
+              class="btn btn--primary btn--small"
+              (click)="startQuiz()"
+              [disabled]="!canStartQuiz()"
+            >
+              Start Quiz
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost btn--small"
+              (click)="clearAll()"
+              [disabled]="!hasFlashcards()"
+            >
+              Clear All
+            </button>
+          </div>
+        </header>
+
+        @if (hasFlashcards()) {
+          <ul class="fqg__flashcard-list">
+            @for (card of flashcards(); track card.id) {
+              <li class="fqg__flashcard-item" [class.fqg__flashcard-item--editing]="editingFlashcard() === card.id">
+                <div class="fqg__flashcard-content">
+                  <div class="fqg__flashcard-side">
+                    <span class="fqg__flashcard-side-label">Front:</span>
+                    <div class="fqg__flashcard-text">{{ card.front }}</div>
+                  </div>
+                  <div class="fqg__flashcard-side">
+                    <span class="fqg__flashcard-side-label">Back:</span>
+                    <div class="fqg__flashcard-text">{{ card.back }}</div>
+                  </div>
+                </div>
+                <div class="fqg__flashcard-actions">
+                  <button
+                    type="button"
+                    class="fqg__action-btn"
+                    (click)="editFlashcard(card)"
+                    [class.fqg__action-btn--active]="editingFlashcard() === card.id"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="fqg__action-btn fqg__action-btn--danger"
+                    (click)="deleteFlashcard(card.id)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="fqg__empty">
+            <p>No flashcards yet. Create your first flashcard using the editor on the left.</p>
+          </div>
+        }
+      </section>
+    </div>
+  }
 </div>

@@ -1,10 +1,281 @@
-<div class="main-container">
-  <div>
+<div class="ctt">
+  <div class="ctt__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>CorsTestTool</h2>
-    <p>Component coming soon...</p>
+  <section class="ctt__hero">
+    <div class="ctt__badge">Dev toolkit</div>
+    <h1>CORS Test Tool</h1>
+    <p>
+      Test Cross-Origin Resource Sharing (CORS) configurations. Send requests to any URL and inspect CORS headers,
+      response status, and identify potential CORS issues.
+    </p>
+
+    @if (hasResult()) {
+      <div class="ctt__hero-meta">
+        <div>
+          <span class="ctt__meta-label">Status</span>
+          <strong [class.ctt__status--success]="result()?.success" [class.ctt__status--error]="!result()?.success">
+            {{ result()?.status ?? 'Error' }}
+          </strong>
+        </div>
+        <div>
+          <span class="ctt__meta-label">Method</span>
+          <strong>{{ form.controls.method.value }}</strong>
+        </div>
+        <div>
+          <span class="ctt__meta-label">Duration</span>
+          <strong>{{ result() ? formatDuration(result()!.duration) : '-' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ctt__hero-meta ctt__hero-meta--placeholder">
+        Enter a URL and click "Test CORS" to check CORS configuration.
+      </div>
+    }
+  </section>
+
+  <div class="ctt__board" [formGroup]="form">
+    <section class="ctt__panel ctt__panel--controls">
+      <header class="ctt__card-header">
+        <div>
+          <h2>Request settings</h2>
+          <p>Configure the HTTP request to test.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ctt__alert ctt__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ctt__alert ctt__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="ctt__settings-grid">
+        <div class="ctt__setting-group">
+          <label for="url" class="ctt__label">URL</label>
+          <input
+            id="url"
+            type="url"
+            class="ctt__input"
+            formControlName="url"
+            placeholder="https://api.example.com/endpoint"
+          />
+          <small>Enter the full URL to test (must start with http:// or https://)</small>
+        </div>
+
+        <div class="ctt__setting-group">
+          <label for="method" class="ctt__label">HTTP Method</label>
+          <select id="method" class="ctt__select" formControlName="method">
+            @for (method of methods; track method) {
+              <option [value]="method">{{ method }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="ctt__headers-section">
+        <div class="ctt__section-header">
+          <h3>Custom headers</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="addHeader()">Add header</button>
+        </div>
+
+        <div class="ctt__headers-list">
+          @for (header of headersFormArray().controls; track $index; let i = $index) {
+            <div class="ctt__header-item">
+              <input
+                type="text"
+                class="ctt__input ctt__input--header-key"
+                [formControl]="header.controls.key"
+                placeholder="Header name"
+              />
+              <input
+                type="text"
+                class="ctt__input ctt__input--header-value"
+                [formControl]="header.controls.value"
+                placeholder="Header value"
+              />
+              @if (headersFormArray().length > 1) {
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--small ctt__remove-btn"
+                  (click)="removeHeader(i)"
+                  title="Remove header"
+                >
+                  ×
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
+        <div class="ctt__setting-group">
+          <label for="body" class="ctt__label">Request body</label>
+          <textarea
+            id="body"
+            class="ctt__textarea"
+            formControlName="body"
+            placeholder='{"key": "value"}'
+            rows="6"
+          ></textarea>
+          <small>Enter JSON or plain text for the request body</small>
+        </div>
+      }
+
+      <label class="ctt__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent CORS tests</span>
+        </div>
+      </label>
+
+      <div class="ctt__actions">
+        <button type="button" class="btn btn--primary" (click)="testCors()" [disabled]="isTesting()">
+          @if (isTesting()) {
+            Testing...
+          } @else {
+            Test CORS
+          }
+        </button>
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="ctt__panel ctt__panel--results">
+      <header class="ctt__card-header">
+        <div>
+          <h2>Test results</h2>
+          <p>CORS headers and response information.</p>
+        </div>
+      </header>
+
+      @if (hasResult() && result(); as result) {
+        <div class="ctt__result-summary">
+          <div class="ctt__result-item">
+            <span class="ctt__result-label">Status:</span>
+            <strong [class.ctt__status--success]="result.success" [class.ctt__status--error]="!result.success">
+              {{ result.status ?? 'N/A' }} {{ result.statusText }}
+            </strong>
+          </div>
+          <div class="ctt__result-item">
+            <span class="ctt__result-label">Duration:</span>
+            <strong>{{ formatDuration(result.duration) }}</strong>
+          </div>
+          <div class="ctt__result-item">
+            <span class="ctt__result-label">Success:</span>
+            <strong [class.ctt__status--success]="result.success" [class.ctt__status--error]="!result.success">
+              {{ result.success ? 'Yes' : 'No' }}
+            </strong>
+          </div>
+        </div>
+
+        @if (result.error) {
+          <div class="ctt__error-display">
+            <strong>Error:</strong>
+            <code>{{ result.error }}</code>
+          </div>
+        }
+
+        @if (Object.keys(result.corsHeaders).length > 0) {
+          <div class="ctt__cors-headers">
+            <h4>CORS headers</h4>
+            <div class="ctt__headers-display">
+              @for (header of getCorsHeadersList(result.corsHeaders); track header.key) {
+                <div class="ctt__header-display-item">
+                  <strong>{{ header.key }}:</strong>
+                  <code>{{ header.value }}</code>
+                </div>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="ctt__no-cors">
+            <p>No CORS headers found in the response.</p>
+          </div>
+        }
+
+        @if (Object.keys(result.headers).length > 0) {
+          <div class="ctt__all-headers">
+            <h4>All response headers</h4>
+            <div class="ctt__headers-display">
+              @for (header of getHeadersList(result.headers); track header.key) {
+                <div class="ctt__header-display-item">
+                  <strong>{{ header.key }}:</strong>
+                  <code>{{ header.value }}</code>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (result.body) {
+          <div class="ctt__response-body">
+            <h4>Response body</h4>
+            <div class="ctt__body-container">
+              <pre class="ctt__body-content">{{ formatJson(tryParseJson(result.body)) }}</pre>
+            </div>
+          </div>
+        }
+      } @else {
+        <div class="ctt__empty">Run a CORS test to see results here.</div>
+      }
+    </section>
+
+    <section class="ctt__panel ctt__panel--history">
+      <header class="ctt__card-header">
+        <div>
+          <h2>Test history</h2>
+          <p>Quick access to recently tested URLs.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ctt__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="ctt__history-item">
+                <div class="ctt__history-info">
+                  <strong>{{ entry.method }} {{ entry.url }}</strong>
+                  <span>
+                    {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
+                  </span>
+                  @if (Object.keys(entry.corsHeaders).length > 0) {
+                    <span class="ctt__history-cors">CORS headers: {{ Object.keys(entry.corsHeaders).length }}</span>
+                  }
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ctt__empty">Enable history tracking to keep a list of recent CORS tests.</div>
+      }
+    </section>
   </div>
 </div>

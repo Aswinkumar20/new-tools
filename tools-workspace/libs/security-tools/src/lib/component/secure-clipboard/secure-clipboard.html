@@ -1,10 +1,135 @@
-<div class="main-container">
-  <div>
+<div class="sc">
+  <div class="sc__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>SecureClipboard</h2>
-    <p>Component coming soon...</p>
+  <section class="sc__hero">
+    <div class="sc__badge">Security toolkit</div>
+    <h1>Secure Clipboard</h1>
+    <p>
+      Temporarily store sensitive text in memory and in your system clipboard with an automatic timeout. Encryption
+      happens locally and nothing is sent to a server.
+    </p>
+
+    <div class="sc__hero-meta">
+      <div>
+        <span class="sc__meta-label">Status</span>
+        <strong [class.sc__status--active]="hasStored()" [class.sc__status--inactive]="!hasStored()">
+          {{ hasStored() ? (isExpired() ? 'Expired' : 'Active') : 'Empty' }}
+        </strong>
+      </div>
+      <div>
+        <span class="sc__meta-label">Time remaining</span>
+        <strong>{{ hasStored() && !isExpired() ? remainingSeconds() + 's' : 'N/A' }}</strong>
+      </div>
+      <div>
+        <span class="sc__meta-label">Expires at</span>
+        <strong>{{ formatExpiresAt() }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="sc__board" [formGroup]="form">
+    <section class="sc__panel sc__panel--input">
+      <header class="sc__card-header">
+        <div>
+          <h2>Clipboard content</h2>
+          <p>Text to copy to the secure clipboard.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="sc__alert sc__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="sc__alert sc__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="sc__field">
+        <label for="text" class="sc__label">Text</label>
+        <textarea
+          id="text"
+          class="sc__textarea"
+          formControlName="text"
+          rows="6"
+          spellcheck="false"
+          placeholder="Paste or type sensitive text here. It will be copied to your clipboard and encrypted in memory."
+        ></textarea>
+      </div>
+
+      <div class="sc__actions">
+        <button type="button" class="btn btn--ghost btn--small" (click)="form.controls.text.setValue('')">
+          Clear text
+        </button>
+      </div>
+    </section>
+
+    <section class="sc__panel sc__panel--settings">
+      <header class="sc__card-header">
+        <div>
+          <h2>Security settings</h2>
+          <p>Password and timeout configuration.</p>
+        </div>
+      </header>
+
+      <div class="sc__field">
+        <label for="password" class="sc__label">Password</label>
+        <input
+          id="password"
+          type="password"
+          class="sc__input"
+          formControlName="password"
+          autocomplete="new-password"
+          placeholder="Password used to encrypt clipboard content"
+        />
+        <p class="sc__hint">
+          Use a strong password. If you forget it, the encrypted clipboard content cannot be recovered.
+        </p>
+      </div>
+
+      <div class="sc__field sc__field--inline">
+        <div>
+          <label for="ttl" class="sc__label">Time to live (seconds)</label>
+          <input
+            id="ttl"
+            type="number"
+            class="sc__input"
+            formControlName="ttlSeconds"
+            min="5"
+            max="600"
+          />
+          <p class="sc__hint">After this time, the secure clipboard will be cleared automatically.</p>
+        </div>
+      </div>
+
+      <div class="sc__button-row">
+        <button type="button" class="btn btn--primary btn--small" (click)="copyToSecureClipboard()">
+          Copy to secure clipboard
+        </button>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearClipboard()" [disabled]="!hasStored()">
+          Clear secure clipboard
+        </button>
+      </div>
+
+      <div class="sc__disclaimer">
+        <p>
+          This tool uses browser APIs to copy text and encrypt it in memory. It does not transmit data over the network,
+          but you should still avoid using it on untrusted devices.
+        </p>
+      </div>
+    </section>
   </div>
 </div>

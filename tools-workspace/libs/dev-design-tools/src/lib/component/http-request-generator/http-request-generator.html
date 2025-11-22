@@ -1,10 +1,231 @@
-<div class="main-container">
-  <div>
+<div class="hrg">
+  <div class="hrg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>HttpRequestGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="hrg__hero">
+    <div class="hrg__badge">Dev toolkit</div>
+    <h1>HTTP Request Generator</h1>
+    <p>
+      Generate HTTP request code snippets in multiple languages and formats. Build requests with custom headers, body,
+      and methods, then copy the generated code for your project.
+    </p>
+
+    <div class="hrg__hero-meta">
+      <div>
+        <span class="hrg__meta-label">Method</span>
+        <strong>{{ form.controls.method.value }}</strong>
+      </div>
+      <div>
+        <span class="hrg__meta-label">Format</span>
+        <strong>{{ currentFormatLabel() }}</strong>
+      </div>
+      <div>
+        <span class="hrg__meta-label">Headers</span>
+        <strong>{{ headersFormArray().length }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="hrg__board" [formGroup]="form">
+    <section class="hrg__panel hrg__panel--builder">
+      <header class="hrg__card-header">
+        <div>
+          <h2>Request builder</h2>
+          <p>Configure your HTTP request.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="hrg__alert hrg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="hrg__alert hrg__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="hrg__settings-grid">
+        <div class="hrg__setting-group">
+          <label for="url" class="hrg__label">URL</label>
+          <input
+            id="url"
+            type="url"
+            class="hrg__input"
+            formControlName="url"
+            placeholder="https://api.example.com/endpoint"
+          />
+          <small>Enter the full URL for the request</small>
+        </div>
+
+        <div class="hrg__setting-group">
+          <label for="method" class="hrg__label">HTTP Method</label>
+          <select id="method" class="hrg__select" formControlName="method">
+            @for (method of methods; track method) {
+              <option [value]="method">{{ method }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="hrg__setting-group">
+          <label for="codeFormat" class="hrg__label">Code format</label>
+          <select id="codeFormat" class="hrg__select" formControlName="codeFormat">
+            @for (format of codeFormats; track format.value) {
+              <option [value]="format.value">{{ format.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="hrg__headers-section">
+        <div class="hrg__section-header">
+          <h3>Headers</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="addHeader()">Add header</button>
+        </div>
+
+        <div class="hrg__headers-list">
+          @for (header of headersFormArray().controls; track $index; let i = $index) {
+            <div class="hrg__header-item">
+              <input
+                type="text"
+                class="hrg__input hrg__input--header-key"
+                [formControl]="header.controls.key"
+                placeholder="Header name"
+              />
+              <input
+                type="text"
+                class="hrg__input hrg__input--header-value"
+                [formControl]="header.controls.value"
+                placeholder="Header value"
+              />
+              @if (headersFormArray().length > 1) {
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--small hrg__remove-btn"
+                  (click)="removeHeader(i)"
+                  title="Remove header"
+                >
+                  ×
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
+        <div class="hrg__setting-group">
+          <label for="body" class="hrg__label">Request body</label>
+          <textarea
+            id="body"
+            class="hrg__textarea"
+            formControlName="body"
+            placeholder='{"key": "value"}'
+            rows="8"
+          ></textarea>
+          <small>Enter JSON or plain text for the request body</small>
+        </div>
+      }
+
+      <label class="hrg__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent request configurations</span>
+        </div>
+      </label>
+
+      <div class="hrg__actions">
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="hrg__panel hrg__panel--output">
+      <header class="hrg__card-header">
+        <div>
+          <h2>Generated code</h2>
+          <p>Copy the generated code to use in your project.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--primary btn--small"
+          (click)="copyToClipboard(generatedCode(), 'Generated code')"
+        >
+          Copy code
+        </button>
+      </header>
+
+      <div class="hrg__code-container">
+        <pre class="hrg__code"><code>{{ generatedCode() }}</code></pre>
+      </div>
+
+      <div class="hrg__code-info">
+        <div class="hrg__info-item">
+          <strong>Format:</strong>
+          <span>{{ currentFormatLabel() }}</span>
+        </div>
+        <div class="hrg__info-item">
+          <strong>Method:</strong>
+          <span>{{ form.controls.method.value }}</span>
+        </div>
+        <div class="hrg__info-item">
+          <strong>Headers:</strong>
+          <span>{{ headersFormArray().length }}</span>
+        </div>
+        @if (form.controls.body.value && (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH')) {
+          <div class="hrg__info-item">
+            <strong>Body:</strong>
+            <span>Included</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="hrg__panel hrg__panel--history">
+      <header class="hrg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently generated requests.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="hrg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="hrg__history-item">
+                <div class="hrg__history-info">
+                  <strong>{{ entry.method }} {{ entry.url }}</strong>
+                  <span>{{ getFormatLabel(entry.codeFormat) }} • {{ formatTimestamp(entry.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="hrg__empty">Enable history tracking to keep a list of recent request configurations.</div>
+      }
+    </section>
   </div>
 </div>

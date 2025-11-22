@@ -1,10 +1,251 @@
-<div class="main-container">
-  <div>
+<div class="bcg">
+  <div class="bcg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>BarcodeGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="bcg__hero">
+    <div class="bcg__badge">Fun tools</div>
+    <h1>Barcode Generator</h1>
+    <p>
+      Generate barcodes in multiple formats including CODE128, EAN13, UPC, and more. Customize appearance, size, colors,
+      and download or copy the result.
+    </p>
+
+    @if (hasBarcode()) {
+      <div class="bcg__hero-meta">
+        <div>
+          <span class="bcg__meta-label">Status</span>
+          <strong>Ready</strong>
+        </div>
+        <div>
+          <span class="bcg__meta-label">Format</span>
+          <strong>{{ form.controls.format.value }}</strong>
+        </div>
+        <div>
+          <span class="bcg__meta-label">Height</span>
+          <strong>{{ formatSize(form.controls.height.value) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="bcg__hero-meta bcg__hero-meta--placeholder">
+        Enter data below and your barcode will be generated automatically.
+      </div>
+    }
+  </section>
+
+  <div class="bcg__board" [formGroup]="form">
+    <section class="bcg__panel bcg__panel--options">
+      <header class="bcg__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure barcode data and appearance.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="bcg__alert bcg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="bcg__field">
+        <label for="text" class="bcg__label">Data</label>
+        <input
+          id="text"
+          type="text"
+          class="bcg__input"
+          formControlName="text"
+          placeholder="Enter barcode data..."
+        />
+        <small class="bcg__hint">The data to encode in the barcode (format requirements vary by barcode type).</small>
+      </div>
+
+      <div class="bcg__field">
+        <label for="format" class="bcg__label">Barcode Format</label>
+        <select id="format" class="bcg__select" formControlName="format">
+          @for (format of formats; track format.value) {
+            <option [value]="format.value">{{ format.label }} - {{ format.description }}</option>
+          }
+        </select>
+        <small class="bcg__hint">Select the barcode format based on your use case.</small>
+      </div>
+
+      <div class="bcg__field bcg__field--inline">
+        <div>
+          <label for="width" class="bcg__label">Line Width</label>
+          <input
+            id="width"
+            type="number"
+            class="bcg__input"
+            formControlName="width"
+            min="1"
+            max="10"
+            step="0.5"
+          />
+          <small class="bcg__hint">Width of barcode lines (1-10).</small>
+        </div>
+        <div>
+          <label for="height" class="bcg__label">Height (pixels)</label>
+          <input
+            id="height"
+            type="number"
+            class="bcg__input"
+            formControlName="height"
+            min="20"
+            max="300"
+          />
+          <small class="bcg__hint">Barcode height (20-300px).</small>
+        </div>
+      </div>
+
+      <div class="bcg__field bcg__field--inline">
+        <div>
+          <label for="margin" class="bcg__label">Margin</label>
+          <input
+            id="margin"
+            type="number"
+            class="bcg__input"
+            formControlName="margin"
+            min="0"
+            max="50"
+          />
+          <small class="bcg__hint">White space around barcode (0-50px).</small>
+        </div>
+        <div>
+          <label for="fontSize" class="bcg__label">Font Size</label>
+          <input
+            id="fontSize"
+            type="number"
+            class="bcg__input"
+            formControlName="fontSize"
+            min="10"
+            max="40"
+          />
+          <small class="bcg__hint">Text size if value is displayed (10-40px).</small>
+        </div>
+      </div>
+
+      <div class="bcg__field bcg__field--inline">
+        <div>
+          <label for="textAlign" class="bcg__label">Text Align</label>
+          <select id="textAlign" class="bcg__select" formControlName="textAlign">
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+          <small class="bcg__hint">Text alignment.</small>
+        </div>
+        <div>
+          <label for="textPosition" class="bcg__label">Text Position</label>
+          <select id="textPosition" class="bcg__select" formControlName="textPosition">
+            <option value="bottom">Bottom</option>
+            <option value="top">Top</option>
+          </select>
+          <small class="bcg__hint">Text position relative to barcode.</small>
+        </div>
+      </div>
+
+      <div class="bcg__field">
+        <label class="bcg__checkbox-label">
+          <input type="checkbox" class="bcg__checkbox" formControlName="displayValue" />
+          <span>Display value</span>
+        </label>
+        <small class="bcg__hint">Show the encoded value below/above the barcode.</small>
+      </div>
+
+      <div class="bcg__field bcg__field--inline">
+        <div>
+          <label for="lineColor" class="bcg__label">Line Color</label>
+          <div class="bcg__color-input-wrapper">
+            <input
+              id="lineColor"
+              type="color"
+              class="bcg__color-input"
+              [value]="form.controls.lineColor.value"
+              (input)="form.controls.lineColor.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="bcg__color-text"
+              formControlName="lineColor"
+              placeholder="#000000"
+            />
+          </div>
+          <small class="bcg__hint">Color of barcode lines.</small>
+        </div>
+        <div>
+          <label for="background" class="bcg__label">Background Color</label>
+          <div class="bcg__color-input-wrapper">
+            <input
+              id="background"
+              type="color"
+              class="bcg__color-input"
+              [value]="form.controls.background.value"
+              (input)="form.controls.background.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="bcg__color-text"
+              formControlName="background"
+              placeholder="#ffffff"
+            />
+          </div>
+          <small class="bcg__hint">Background color.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="bcg__panel bcg__panel--preview">
+      <header class="bcg__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>Generated barcode preview.</p>
+        </div>
+        <div class="bcg__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="copyBarcode()"
+            [disabled]="!hasBarcode()"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="downloadBarcode()"
+            [disabled]="!hasBarcode()"
+          >
+            Download
+          </button>
+        </div>
+      </header>
+
+      @if (libraryLoaded() === false) {
+        <div class="bcg__empty">
+          <p>Loading barcode library...</p>
+        </div>
+      } @else if (hasBarcode() && barcodeDataUrl(); as dataUrl) {
+        <div class="bcg__preview-container">
+          <img [src]="dataUrl" alt="Generated Barcode" class="bcg__preview-image" />
+          <div class="bcg__preview-info">
+            <p class="bcg__preview-text">
+              <strong>Data:</strong> {{ form.controls.text.value || '(empty)' }}
+            </p>
+            <p class="bcg__preview-text">
+              <strong>Format:</strong> {{ form.controls.format.value }}
+            </p>
+          </div>
+        </div>
+      } @else {
+        <div class="bcg__empty">
+          <p>Enter data above to generate a barcode.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

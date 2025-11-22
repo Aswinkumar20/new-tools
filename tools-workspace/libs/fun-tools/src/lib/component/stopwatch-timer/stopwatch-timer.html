@@ -1,10 +1,125 @@
-<div class="main-container">
-  <div>
+<div class="st">
+  <div class="st__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>StopwatchTimer</h2>
-    <p>Component coming soon...</p>
+  <section class="st__hero">
+    <div class="st__badge">Fun tools</div>
+    <h1>Stopwatch Timer</h1>
+    <p>
+      Track time with precision. Start, pause, and reset the stopwatch. Record lap times and view statistics for your
+      timing sessions.
+    </p>
+
+    <div class="st__hero-meta">
+      <div>
+        <span class="st__meta-label">Status</span>
+        <strong>{{ isRunning() ? 'Running' : 'Stopped' }}</strong>
+      </div>
+      <div>
+        <span class="st__meta-label">Laps</span>
+        <strong>{{ lapTimes().length }}</strong>
+      </div>
+      @if (hasLaps()) {
+        <div>
+          <span class="st__meta-label">Fastest lap</span>
+          <strong>{{ formatLapTime(stats().fastest) }}</strong>
+        </div>
+        <div>
+          <span class="st__meta-label">Average lap</span>
+          <strong>{{ formatLapTime(stats().average) }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="st__board">
+    <section class="st__panel st__panel--timer">
+      <header class="st__card-header">
+        <div>
+          <h2>Stopwatch</h2>
+          <p>Track elapsed time with precision.</p>
+        </div>
+      </header>
+
+      <div class="st__timer-container">
+        <div class="st__timer-display">
+          <div class="st__timer-time">{{ formattedTime() }}</div>
+          <div class="st__timer-status">{{ isRunning() ? 'Running' : 'Stopped' }}</div>
+        </div>
+      </div>
+
+      <div class="st__timer-controls">
+        @if (isRunning()) {
+          <button type="button" class="btn btn--primary btn--large" (click)="pause()">Pause</button>
+          <button type="button" class="btn btn--ghost" (click)="lap()">Lap</button>
+        } @else {
+          <button type="button" class="btn btn--primary btn--large" (click)="start()">Start</button>
+          <button type="button" class="btn btn--ghost" (click)="lap()" [disabled]="elapsedTime() === 0">Lap</button>
+        }
+        <button type="button" class="btn btn--ghost" (click)="reset()">Reset</button>
+      </div>
+    </section>
+
+    <section class="st__panel st__panel--laps">
+      <header class="st__card-header">
+        <div>
+          <h2>Lap Times</h2>
+          <p>Recorded lap times and statistics.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearLaps()"
+          [disabled]="!hasLaps()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasLaps()) {
+        <div class="st__stats">
+          <div class="st__stat-item">
+            <span class="st__stat-label">Total Laps</span>
+            <strong class="st__stat-value">{{ stats().count }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Fastest</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().fastest) }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Slowest</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().slowest) }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Average</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().average) }}</strong>
+          </div>
+        </div>
+
+        <ul class="st__laps-list">
+          @for (lap of lapTimes(); track lap.timestamp) {
+            <li class="st__lap-item" [class.st__lap-item--fastest]="lap.lapTime === stats().fastest"
+                [class.st__lap-item--slowest]="lap.lapTime === stats().slowest">
+              <div class="st__lap-number">Lap {{ lap.lapNumber }}</div>
+              <div class="st__lap-times">
+                <div class="st__lap-time">
+                  <span class="st__lap-label">Lap:</span>
+                  <strong>{{ formatLapTime(lap.lapTime) }}</strong>
+                </div>
+                <div class="st__lap-total">
+                  <span class="st__lap-label">Total:</span>
+                  <strong>{{ formatTime(lap.totalTime) }}</strong>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="st__empty">
+          <p>No lap times recorded yet. Click "Lap" to record lap times while the stopwatch is running.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

@@ -1,10 +1,143 @@
-<div class="main-container">
-  <div>
+<div class="sv">
+  <div class="sv__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>StorageViewer</h2>
-    <p>Component coming soon...</p>
+  <section class="sv__hero">
+    <div class="sv__badge">Browser utilities</div>
+    <h1>Storage Viewer</h1>
+    <p>
+      Inspect and manage <code>localStorage</code> and <code>sessionStorage</code> entries directly in your browser.
+      View keys, values, and approximate size usage.
+    </p>
+
+    <div class="sv__hero-meta">
+      <div>
+        <span class="sv__meta-label">Storage type</span>
+        <strong>{{ form.controls.storageType.value === 'local' ? 'localStorage' : 'sessionStorage' }}</strong>
+      </div>
+      <div>
+        <span class="sv__meta-label">Entries</span>
+        <strong>{{ entries().length }}</strong>
+      </div>
+      <div>
+        <span class="sv__meta-label">Approx. usage</span>
+        <strong>{{ formatBytes(storageInfo().usedBytes) }} / {{ formatBytes(storageInfo().quotaBytes) }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="sv__board" [formGroup]="form">
+    <section class="sv__panel sv__panel--list">
+      <header class="sv__card-header">
+        <div>
+          <h2>Stored items</h2>
+          <p>Browse and filter key/value pairs.</p>
+        </div>
+        <div class="sv__header-actions">
+          <button type="button" class="btn btn--ghost btn--small" (click)="refresh()">Refresh</button>
+          <button type="button" class="btn btn--ghost btn--small" (click)="clearStorage()" [disabled]="!hasEntries()">
+            Clear storage
+          </button>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="sv__alert sv__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="sv__controls">
+        <label class="sv__label" for="storageType">Storage</label>
+        <select id="storageType" class="sv__select" formControlName="storageType" (change)="refresh()">
+          <option value="local">localStorage</option>
+          <option value="session">sessionStorage</option>
+        </select>
+      </div>
+
+      <div class="sv__filter">
+        <label for="filter" class="sv__label">Filter</label>
+        <input
+          id="filter"
+          type="text"
+          class="sv__input"
+          formControlName="filter"
+          placeholder="Filter by key or value"
+        />
+      </div>
+
+      @if (hasEntries() && filteredEntries().length) {
+        <ul class="sv__list">
+          @for (entry of filteredEntries(); track entry.key) {
+            <li class="sv__item">
+              <div class="sv__item-main" (click)="loadEntry(entry)">
+                <strong class="sv__item-key">{{ entry.key }}</strong>
+                <span class="sv__item-size">{{ formatBytes(entry.bytes) }}</span>
+                <pre class="sv__item-value">{{ entry.value }}</pre>
+              </div>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeEntry(entry.key)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else if (hasEntries()) {
+        <div class="sv__empty">No entries match your filter.</div>
+      } @else {
+        <div class="sv__empty">No entries stored for this storage type.</div>
+      }
+    </section>
+
+    <section class="sv__panel sv__panel--editor">
+      <header class="sv__card-header">
+        <div>
+          <h2>Entry editor</h2>
+          <p>Add or edit a storage record.</p>
+        </div>
+      </header>
+
+      <div class="sv__field">
+        <label for="key" class="sv__label">Key</label>
+        <input
+          id="key"
+          type="text"
+          class="sv__input"
+          formControlName="key"
+          placeholder="Storage key"
+        />
+      </div>
+
+      <div class="sv__field">
+        <label for="value" class="sv__label">Value</label>
+        <textarea
+          id="value"
+          class="sv__textarea"
+          formControlName="value"
+          rows="6"
+          spellcheck="false"
+          placeholder="Storage value (any string, e.g. JSON)"
+        ></textarea>
+      </div>
+
+      <div class="sv__button-row">
+        <button type="button" class="btn btn--primary btn--small" (click)="saveEntry()">Save</button>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="form.controls.key.setValue(''); form.controls.value.setValue('')"
+        >
+          Clear editor
+        </button>
+      </div>
+    </section>
   </div>
 </div>

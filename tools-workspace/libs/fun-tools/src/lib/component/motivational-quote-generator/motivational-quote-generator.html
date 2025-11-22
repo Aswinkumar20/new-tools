@@ -1,10 +1,109 @@
-<div class="main-container">
-  <div>
+<div class="mqg">
+  <div class="mqg__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>MotivationalQuoteGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="mqg__hero">
+    <div class="mqg__badge">Fun tools</div>
+    <h1>Motivational Quote Generator</h1>
+    <p>
+      Get inspired with random motivational quotes from famous personalities. Save your favorites and browse through your
+      quote history.
+    </p>
+
+    <div class="mqg__hero-meta">
+      <div>
+        <span class="mqg__meta-label">Total generated</span>
+        <strong>{{ stats().totalGenerated }}</strong>
+      </div>
+      <div>
+        <span class="mqg__meta-label">Unique quotes</span>
+        <strong>{{ stats().uniqueQuotes }}</strong>
+      </div>
+      <div>
+        <span class="mqg__meta-label">Favorites</span>
+        <strong>{{ stats().favorites }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="mqg__board">
+    <section class="mqg__panel mqg__panel--quote">
+      <header class="mqg__card-header">
+        <div>
+          <h2>Quote</h2>
+          <p>Get inspired with a new quote.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generateQuote()">
+          New Quote
+        </button>
+      </header>
+
+      @if (currentQuote(); as quote) {
+        <div class="mqg__quote-card">
+          <div class="mqg__quote-icon">"</div>
+          <div class="mqg__quote-content">
+            <p class="mqg__quote-text">{{ quote.text }}</p>
+            <div class="mqg__quote-author">— {{ quote.author }}</div>
+          </div>
+        </div>
+
+        <div class="mqg__quote-actions">
+          <button
+            type="button"
+            class="btn btn--ghost"
+            (click)="toggleFavorite()"
+            [class.btn--favorite]="isFavorite()"
+          >
+            {{ isFavorite() ? '★ Favorited' : '☆ Favorite' }}
+          </button>
+          <button type="button" class="btn btn--primary" (click)="copyQuote()">Copy Quote</button>
+        </div>
+      } @else {
+        <div class="mqg__empty">
+          <p>Click "New Quote" to generate a motivational quote.</p>
+        </div>
+      }
+    </section>
+
+    <section class="mqg__panel mqg__panel--history">
+      <header class="mqg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Recently generated quotes (last 50).</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearHistory()"
+          [disabled]="!hasHistory()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="mqg__history-list">
+          @for (item of quoteHistory(); track item.timestamp) {
+            <li class="mqg__history-item" [class.mqg__history-item--favorite]="favorites().includes(item.quote.id)">
+              <div class="mqg__history-quote">
+                <p class="mqg__history-text">"{{ item.quote.text }}"</p>
+                <div class="mqg__history-author">— {{ item.quote.author }}</div>
+              </div>
+              <div class="mqg__history-meta">
+                @if (favorites().includes(item.quote.id)) {
+                  <span class="mqg__history-favorite-badge">★</span>
+                }
+                <span class="mqg__history-time">{{ formatTimestamp(item.timestamp) }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="mqg__empty">
+          <p>No quote history yet. Generate quotes to see them here.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

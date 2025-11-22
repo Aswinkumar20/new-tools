@@ -1,10 +1,214 @@
-<div class="main-container">
-  <div>
+<div class="rng">
+  <div class="rng__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>RandomNumberGenerator</h2>
-    <p>Component coming soon...</p>
+  <section class="rng__hero">
+    <div class="rng__badge">Fun tools</div>
+    <h1>Random Number Generator</h1>
+    <p>
+      Generate random numbers within a specified range. Choose between integers or decimals, generate single or multiple
+      numbers, and track statistics.
+    </p>
+
+    @if (hasResults()) {
+      <div class="rng__hero-meta">
+        <div>
+          <span class="rng__meta-label">Generated</span>
+          <strong>{{ stats().count }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Min / Max</span>
+          <strong>{{ formatNumber(stats().min) }} / {{ formatNumber(stats().max) }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Average</span>
+          <strong>{{ formatNumber(stats().average) }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Sum</span>
+          <strong>{{ formatNumber(stats().sum) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="rng__hero-meta rng__hero-meta--placeholder">
+        Configure options below and click "Generate" to create random numbers.
+      </div>
+    }
+  </section>
+
+  <div class="rng__board" [formGroup]="form">
+    <section class="rng__panel rng__panel--options">
+      <header class="rng__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure number generation settings.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="rng__alert rng__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="rng__field rng__field--inline">
+        <div>
+          <label for="min" class="rng__label">Minimum</label>
+          <input
+            id="min"
+            type="number"
+            class="rng__input"
+            formControlName="min"
+            step="any"
+            placeholder="1"
+          />
+          <small class="rng__hint">Minimum value in range.</small>
+        </div>
+        <div>
+          <label for="max" class="rng__label">Maximum</label>
+          <input
+            id="max"
+            type="number"
+            class="rng__input"
+            formControlName="max"
+            step="any"
+            placeholder="100"
+          />
+          <small class="rng__hint">Maximum value in range.</small>
+        </div>
+      </div>
+
+      <div class="rng__field">
+        <label for="count" class="rng__label">Count</label>
+        <input
+          id="count"
+          type="number"
+          class="rng__input"
+          formControlName="count"
+          min="1"
+          max="1000"
+          placeholder="1"
+        />
+        <small class="rng__hint">Number of random numbers to generate (1-1000).</small>
+      </div>
+
+      <div class="rng__field">
+        <label class="rng__checkbox-label">
+          <input type="checkbox" class="rng__checkbox" formControlName="integerOnly" />
+          <span>Integer only</span>
+        </label>
+        <small class="rng__hint">Generate only whole numbers (no decimals).</small>
+      </div>
+
+      @if (!form.controls.integerOnly.value) {
+        <div class="rng__field">
+          <label for="decimals" class="rng__label">Decimal Places</label>
+          <input
+            id="decimals"
+            type="number"
+            class="rng__input"
+            formControlName="decimals"
+            min="0"
+            max="10"
+            placeholder="2"
+          />
+          <small class="rng__hint">Number of decimal places (0-10).</small>
+        </div>
+      }
+    </section>
+
+    <section class="rng__panel rng__panel--results">
+      <header class="rng__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Generated random numbers.</p>
+        </div>
+        <div class="rng__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="clearResults()"
+            [disabled]="!hasResults()"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyResults()"
+            [disabled]="!hasResults()"
+          >
+            Copy All
+          </button>
+        </div>
+      </header>
+
+      @if (hasResults() && latestResults().length > 0) {
+        <div class="rng__results-container">
+          @if (latestResults().length === 1) {
+            <div class="rng__single-result">
+              <div class="rng__result-value">{{ formatNumber(latestResults()[0].value) }}</div>
+              <button
+                type="button"
+                class="rng__copy-btn"
+                (click)="copySingle(latestResults()[0].value)"
+                title="Copy number"
+              >
+                Copy
+              </button>
+            </div>
+          } @else {
+            <ul class="rng__results-list">
+              @for (item of latestResults(); track item.timestamp) {
+                <li class="rng__result-item">
+                  <span class="rng__result-value">{{ formatNumber(item.value) }}</span>
+                  <button
+                    type="button"
+                    class="rng__copy-btn"
+                    (click)="copySingle(item.value)"
+                    title="Copy number"
+                  >
+                    Copy
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="rng__stats">
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Count</span>
+            <strong>{{ stats().count }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Minimum</span>
+            <strong>{{ formatNumber(stats().min) }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Maximum</span>
+            <strong>{{ formatNumber(stats().max) }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Average</span>
+            <strong>{{ formatNumber(stats().average) }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Sum</span>
+            <strong>{{ formatNumber(stats().sum) }}</strong>
+          </div>
+        </div>
+      } @else {
+        <div class="rng__empty">
+          <p>Click "Generate" to create random numbers.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

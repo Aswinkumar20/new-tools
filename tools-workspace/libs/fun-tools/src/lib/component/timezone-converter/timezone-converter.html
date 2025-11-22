@@ -1,10 +1,132 @@
-<div class="main-container">
-  <div>
+<div class="tzc">
+  <div class="tzc__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>TimezoneConverter</h2>
-    <p>Component coming soon...</p>
+  <section class="tzc__hero">
+    <div class="tzc__badge">Fun tools</div>
+    <h1>Timezone Converter</h1>
+    <p>
+      Convert dates and times between different timezones. Select a source timezone and target timezone to see the
+      converted time with offset information.
+    </p>
+
+    @if (hasConversion() && convertedTime(); as conversion) {
+      <div class="tzc__hero-meta">
+        <div>
+          <span class="tzc__meta-label">Source</span>
+          <strong>{{ conversion.source.timezone }}</strong>
+        </div>
+        <div>
+          <span class="tzc__meta-label">Target</span>
+          <strong>{{ conversion.target.timezone }}</strong>
+        </div>
+        <div>
+          <span class="tzc__meta-label">Difference</span>
+          <strong>{{ conversion.difference }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="tzc__hero-meta tzc__hero-meta--placeholder">
+        Select date/time and timezones below to see the conversion.
+      </div>
+    }
+  </section>
+
+  <div class="tzc__board" [formGroup]="form">
+    <section class="tzc__panel tzc__panel--input">
+      <header class="tzc__card-header">
+        <div>
+          <h2>Input</h2>
+          <p>Enter date and time, select source and target timezones.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="useCurrentTime()">Use Current Time</button>
+      </header>
+
+      <div class="tzc__form">
+        <div class="tzc__field">
+          <label for="dateTime" class="tzc__label">Date & Time</label>
+          <input
+            id="dateTime"
+            type="datetime-local"
+            class="tzc__input"
+            formControlName="dateTime"
+          />
+          <small class="tzc__hint">Select the date and time to convert.</small>
+        </div>
+
+        <div class="tzc__field">
+          <label for="sourceTimezone" class="tzc__label">Source Timezone</label>
+          <select id="sourceTimezone" class="tzc__select" formControlName="sourceTimezone">
+            @for (tz of timezones; track tz.value) {
+              <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
+            }
+          </select>
+          <small class="tzc__hint">The timezone of the input date/time.</small>
+        </div>
+
+        <div class="tzc__field">
+          <div class="tzc__field-header">
+            <label for="targetTimezone" class="tzc__label">Target Timezone</label>
+            <button
+              type="button"
+              class="tzc__swap-btn"
+              (click)="swapTimezones()"
+              title="Swap timezones"
+            >
+              ⇄ Swap
+            </button>
+          </div>
+          <select id="targetTimezone" class="tzc__select" formControlName="targetTimezone">
+            @for (tz of timezones; track tz.value) {
+              <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
+            }
+          </select>
+          <small class="tzc__hint">The timezone to convert to.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="tzc__panel tzc__panel--result">
+      <header class="tzc__card-header">
+        <div>
+          <h2>Conversion</h2>
+          <p>Converted time and timezone information.</p>
+        </div>
+      </header>
+
+      @if (hasConversion() && convertedTime(); as conversion) {
+        <div class="tzc__conversion-container">
+          <div class="tzc__time-card tzc__time-card--source">
+            <div class="tzc__time-label">Source Time</div>
+            <div class="tzc__time-value">{{ conversion.source.time }}</div>
+            <div class="tzc__timezone-info">
+              <div class="tzc__timezone-name">{{ conversion.source.timezone }}</div>
+              <div class="tzc__timezone-offset">{{ conversion.source.offset }}</div>
+            </div>
+          </div>
+
+          <div class="tzc__arrow">→</div>
+
+          <div class="tzc__time-card tzc__time-card--target">
+            <div class="tzc__time-label">Target Time</div>
+            <div class="tzc__time-value">{{ conversion.target.time }}</div>
+            <div class="tzc__timezone-info">
+              <div class="tzc__timezone-name">{{ conversion.target.timezone }}</div>
+              <div class="tzc__timezone-offset">{{ conversion.target.offset }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tzc__difference">
+          <div class="tzc__difference-label">Time Difference</div>
+          <div class="tzc__difference-value">{{ conversion.difference }}</div>
+        </div>
+      } @else {
+        <div class="tzc__empty">
+          <p>Enter date/time and select timezones to see the conversion.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

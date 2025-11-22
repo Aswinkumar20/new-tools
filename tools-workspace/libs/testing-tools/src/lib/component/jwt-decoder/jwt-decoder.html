@@ -1,10 +1,177 @@
-<div class="main-container">
-  <div>
+<div class="jwt">
+  <div class="jwt__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>JwtDecoder</h2>
-    <p>Component coming soon...</p>
+  <section class="jwt__hero">
+    <div class="jwt__badge">Testing toolkit</div>
+    <h1>JWT Decoder</h1>
+    <p>
+      Decode JSON Web Tokens (JWT) safely in the browser. Inspect header and payload, see base64url decoding, and spot
+      common issues quickly.
+    </p>
+
+    @if (hasToken()) {
+      <div class="jwt__hero-meta">
+        <div>
+          <span class="jwt__meta-label">Token length</span>
+          <strong>{{ form.controls.token.value.length }} chars</strong>
+        </div>
+        <div>
+          <span class="jwt__meta-label">Parts</span>
+          <strong>{{ form.controls.token.value.split('.').length }}</strong>
+        </div>
+        <div>
+          <span class="jwt__meta-label">Pretty print</span>
+          <strong>{{ form.controls.prettyPrint.value ? 'On' : 'Off' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="jwt__hero-meta jwt__hero-meta--placeholder">
+        Paste a JWT token below and click \"Decode\" to view its header and payload.
+      </div>
+    }
+  </section>
+
+  <div class="jwt__board" [formGroup]="form">
+    <section class="jwt__panel jwt__panel--input">
+      <header class="jwt__card-header">
+        <div>
+          <h2>Token</h2>
+          <p>Paste your JWT here.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="decode()">Decode</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="jwt__alert jwt__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="jwt__alert jwt__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="jwt__options">
+        <label class="jwt__toggle">
+          <input type="checkbox" formControlName="prettyPrint" />
+          <div>
+            <strong>Pretty print JSON</strong>
+            <span>Format decoded JSON with indentation.</span>
+          </div>
+        </label>
+        <label class="jwt__toggle">
+          <input type="checkbox" formControlName="showDecoded" />
+          <div>
+            <strong>Show decoded sections</strong>
+            <span>Hide decoded content when unneeded.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="jwt__input-area">
+        <label for="token" class="jwt__label">JWT token</label>
+        <textarea
+          id="token"
+          class="jwt__textarea"
+          formControlName="token"
+          rows="6"
+          spellcheck="false"
+          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        ></textarea>
+      </div>
+    </section>
+
+    <section class="jwt__panel jwt__panel--decoded">
+      <header class="jwt__card-header">
+        <div>
+          <h2>Decoded</h2>
+          <p>Header, payload, and signature details.</p>
+        </div>
+      </header>
+
+      @if (hasDecoded() && decoded(); as d) {
+        @if (form.controls.showDecoded.value) {
+          <div class="jwt__sections">
+            <section class="jwt__section">
+              <header class="jwt__section-header">
+                <h3>Header</h3>
+                <span class="jwt__badge--part">Part 1</span>
+              </header>
+
+              @if (d.header.error) {
+                <div class="jwt__section-error">
+                  <strong>Error:</strong>
+                  <span>{{ d.header.error }}</span>
+                </div>
+              }
+
+              @if (d.header.json) {
+                <pre class="jwt__code">{{ d.header.json }}</pre>
+              } @else if (!d.header.error && d.header.raw) {
+                <pre class="jwt__code jwt__code--raw">{{ d.header.raw }}</pre>
+              } @else {
+                <div class="jwt__section-empty">No header content decoded.</div>
+              }
+            </section>
+
+            <section class="jwt__section">
+              <header class="jwt__section-header">
+                <h3>Payload</h3>
+                <span class="jwt__badge--part">Part 2</span>
+              </header>
+
+              @if (d.payload.error) {
+                <div class="jwt__section-error">
+                  <strong>Error:</strong>
+                  <span>{{ d.payload.error }}</span>
+                </div>
+              }
+
+              @if (d.payload.json) {
+                <pre class="jwt__code">{{ d.payload.json }}</pre>
+              } @else if (!d.payload.error && d.payload.raw) {
+                <pre class="jwt__code jwt__code--raw">{{ d.payload.raw }}</pre>
+              } @else {
+                <div class="jwt__section-empty">No payload content decoded.</div>
+              }
+            </section>
+
+            <section class="jwt__section">
+              <header class="jwt__section-header">
+                <h3>Signature</h3>
+                <span class="jwt__badge--part">Part 3</span>
+              </header>
+
+              @if (d.signature.present) {
+                <pre class="jwt__code jwt__code--raw">{{ d.signature.raw }}</pre>
+                <p class="jwt__signature-hint">
+                  Signature is shown in base64url form. This tool does not verify signatures or keys.
+                </p>
+              } @else {
+                <div class="jwt__section-empty">
+                  No signature part found. This may indicate an unsigned JWT (for example, with <code>alg: "none"</code>).
+                </div>
+              }
+            </section>
+          </div>
+        } @else {
+          <div class="jwt__section-empty">Decoded sections are hidden. Enable them using the toggle above.</div>
+        }
+      } @else {
+        <div class="jwt__section-empty">Decoded header and payload will appear here after decoding a token.</div>
+      }
+    </section>
   </div>
 </div>

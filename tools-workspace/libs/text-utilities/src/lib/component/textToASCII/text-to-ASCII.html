@@ -18,40 +18,7 @@
         </div>
       </header>
 
-      <div class="editor-toolbar" aria-label="Converter actions">
-        <div class="toolbar-actions">
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="convert()"
-                  [disabled]="!inputValue"
-                  aria-label="Run conversion">
-            <img class="btn-icon" src="/assets/icons/stats.svg" alt="" />
-            <span>Convert</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="swapTypes()"
-                  aria-label="Swap input and output types">
-            <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
-            <span>Swap types</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="copyOutput()"
-                  [disabled]="!outputValue"
-                  aria-label="Copy converted output">
-            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
-            <span>Copy output</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn destructive"
-                  (click)="clear()"
-                  [disabled]="!inputValue && !outputValue"
-                  aria-label="Clear converter">
-            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-            <span>Reset</span>
-          </button>
-        </div>
+      <div class="editor-toolbar" aria-label="Conversion statistics">
         <div class="toolbar-stats" aria-label="Conversion statistics">
           <div class="stat-chip">
             <span class="stat-label">Input length</span>
@@ -69,84 +36,152 @@
             <span class="stat-label">To</span>
             <span class="stat-value">{{ rightType }}</span>
           </div>
+          @if (isConverting) {
+            <div class="stat-chip converting">
+              <span class="stat-label">Status</span>
+              <span class="stat-value">Converting...</span>
+            </div>
+          }
         </div>
       </div>
 
       <div class="editor-shell">
+        <div class="conversion-controls">
+          <div class="format-selector-group">
+            <label class="select-field" for="input-type">
+              <span>Input format</span>
+              <div class="select-wrapper">
+                <select id="input-type" [(ngModel)]="leftType" (ngModelChange)="onFormatChange()" class="format-select">
+                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
+                </select>
+              </div>
+              <small>{{ getTypeDescription(leftType) }}</small>
+            </label>
+            
+            <button type="button"
+                    class="swap-button"
+                    (click)="swapTypes()"
+                    aria-label="Swap conversion direction"
+                    title="Swap input and output formats">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 4L3 8L7 12M13 4L17 8L13 12M3 8H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            
+            <label class="select-field" for="output-type">
+              <span>Output format</span>
+              <div class="select-wrapper">
+                <select id="output-type" [(ngModel)]="rightType" (ngModelChange)="onFormatChange()" class="format-select">
+                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
+                </select>
+              </div>
+              <small>{{ getTypeDescription(rightType) }}</small>
+            </label>
+          </div>
+        </div>
+
         <div class="panel-grid">
           <section class="panel panel-input">
             <header class="panel-header">
               <div>
                 <h2>Source input</h2>
-                <p>Choose your format, paste content, and convert when ready. Swapping types resets the preview automatically.</p>
+                <p>Paste or type your content - conversion happens automatically as you type.</p>
+              </div>
+              <div class="panel-actions">
+                <button type="button"
+                        class="panel-btn"
+                        (click)="clearInput()"
+                        [disabled]="!inputValue"
+                        aria-label="Clear input"
+                        title="Clear input">
+                  <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+                </button>
               </div>
             </header>
-            <div class="type-selectors">
-              <label class="select-field" for="input-type">
-                <span>Input type</span>
-                <select id="input-type" [(ngModel)]="leftType">
-                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
-                </select>
-                <small>{{ getTypeDescription(leftType) }}</small>
-              </label>
-              <button type="button"
-                      class="swap-button"
-                      (click)="swapTypes()"
-                      aria-label="Swap conversion direction">
-                ⇄
-              </button>
-              <label class="select-field" for="output-type">
-                <span>Output type</span>
-                <select id="output-type" [(ngModel)]="rightType">
-                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
-                </select>
-                <small>{{ getTypeDescription(rightType) }}</small>
-              </label>
-            </div>
             <label class="sr-only" for="conversion-input">Enter value to convert</label>
-            <textarea id="conversion-input"
-                      class="text-area text-area--input"
-                      [(ngModel)]="inputValue"
-                      rows="8"
-                      placeholder="Paste or type the content you want to transform…"></textarea>
+            <div class="textarea-wrapper">
+              <textarea id="conversion-input"
+                        class="text-area text-area--input"
+                        [(ngModel)]="inputValue"
+                        (input)="onInputChange()"
+                        rows="10"
+                        placeholder="Paste or type the content you want to transform…"></textarea>
+            </div>
+            <div class="panel-footer-actions">
+              <button type="button"
+                      class="action-btn"
+                      (click)="convert()"
+                      [disabled]="!inputValue"
+                      aria-label="Convert manually">
+                <img class="btn-icon" src="/assets/icons/stats.svg" alt="" />
+                <span>Convert</span>
+              </button>
+            </div>
           </section>
 
           <section class="panel panel-output">
             <header class="panel-header">
               <div>
                 <h2>Converted output</h2>
-                <p>Results refresh after each conversion. Use copy to grab the output instantly.</p>
+                <p>Your converted content appears here automatically.</p>
               </div>
-              @if (outputValue) {
-                <span class="panel-badge">Ready to copy</span>
-              }
+              <div class="panel-actions">
+                @if (outputValue && !errorMessage) {
+                  <span class="panel-badge">Ready to copy</span>
+                }
+                @if (errorMessage) {
+                  <span class="panel-badge error-badge">Error</span>
+                }
+                <button type="button"
+                        class="panel-btn"
+                        (click)="copyOutput()"
+                        [disabled]="!outputValue"
+                        aria-label="Copy output"
+                        title="Copy to clipboard">
+                  <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                </button>
+                @if (copied) {
+                  <span class="copy-feedback-inline">Copied!</span>
+                }
+              </div>
             </header>
 
-            @if (errorMessage) {
-              <div class="error-alert" role="alert">
-                <strong>Conversion failed:</strong>
-                <p>{{ errorMessage }}</p>
-              </div>
-            }
+            <div class="textarea-wrapper" [class.has-error]="errorMessage">
+              <textarea class="text-area text-area--output"
+                        readonly
+                        rows="10"
+                        [value]="errorMessage ? '' : outputValue"
+                        [placeholder]="errorMessage ? 'Fix the input format to see converted output...' : 'Converted output will appear here...'"
+                        aria-label="Converted output preview"></textarea>
+              @if (errorMessage) {
+                <div class="error-overlay">
+                  <div class="error-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <p class="error-text">{{ errorMessage }}</p>
+                </div>
+              }
+            </div>
 
-            <textarea class="text-area text-area--output"
-                      readonly
-                      rows="8"
-                      [value]="outputValue"
-                      aria-label="Converted output preview"></textarea>
-
-            <div class="copy-row">
+            <div class="panel-footer-actions">
               <button type="button"
-                      class="toolbar-btn secondary"
+                      class="action-btn secondary"
                       (click)="copyOutput()"
                       [disabled]="!outputValue"
                       aria-label="Copy converted output">
                 <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
                 <span>Copy output</span>
               </button>
-              @if (copied) {
-                <span class="copy-feedback">Copied!</span>
-              }
+              <button type="button"
+                      class="action-btn"
+                      (click)="swapTypes()"
+                      aria-label="Swap formats"
+                      title="Swap input and output formats">
+                <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+                <span>Swap</span>
+              </button>
             </div>
           </section>
         </div>
@@ -201,6 +236,86 @@
             <li>Swap input/output types after conversion to verify reversibility.</li>
             <li>Binary and hex outputs use padded byte groups for clarity.</li>
           </ul>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How to use</h2>
+          <p>Convert text between different encoding formats in just a few steps.</p>
+        </header>
+
+        <div class="insight-body">
+          <ol class="how-to-list">
+            <li>
+              <strong>Select input type</strong>
+              <p>Choose the format of your input text (Text, Decimal, Binary, Hex, etc.).</p>
+            </li>
+            <li>
+              <strong>Choose output type</strong>
+              <p>Select the desired output format for conversion.</p>
+            </li>
+            <li>
+              <strong>Enter your value</strong>
+              <p>Paste or type your content in the input field. Conversion happens instantly.</p>
+            </li>
+            <li>
+              <strong>Review results</strong>
+              <p>Check the converted output in the right panel. Errors display clearly if conversion fails.</p>
+            </li>
+            <li>
+              <strong>Copy or swap</strong>
+              <p>Copy the output or use the swap button to reverse input/output types for verification.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our text-to-ASCII converter.</p>
+        </header>
+
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              The Text to ASCII Converter transforms text between multiple encoding formats including 
+              plain text, decimal, binary, hexadecimal, octal, and more. Perfect for developers, 
+              system administrators, and anyone working with different data representations.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>Multiple formats</strong>
+                <p>Convert between text, decimal, binary, hex, octal, and other encoding formats.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Bidirectional</strong>
+                <p>Swap input and output types to verify conversions and reverse transformations.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Error handling</strong>
+                <p>Clear error messages help identify and fix invalid input formats.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Real-time conversion</strong>
+                <p>See results instantly as you type or change input/output types.</p>
+              </div>
+            </div>
+
+            <div class="use-cases">
+              <strong>Perfect for:</strong>
+              <ul class="tip-list">
+                <li>Character encoding conversion</li>
+                <li>Binary data analysis</li>
+                <li>Hexadecimal debugging</li>
+                <li>System administration tasks</li>
+                <li>Data format verification</li>
+                <li>Educational purposes</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
     </aside>

@@ -1,10 +1,169 @@
-<div class="main-container">
-  <div>
+<div class="pt">
+  <div class="pt__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>PomodoroTimer</h2>
-    <p>Component coming soon...</p>
+  <section class="pt__hero">
+    <div class="pt__badge">Fun tools</div>
+    <h1>Pomodoro Timer</h1>
+    <p>
+      Boost productivity with the Pomodoro Technique. Work in focused 25-minute intervals with short breaks. Track your
+      completed sessions and maintain your flow.
+    </p>
+
+    <div class="pt__hero-meta">
+      <div>
+        <span class="pt__meta-label">Completed</span>
+        <strong>{{ completedPomodoros() }}</strong>
+      </div>
+      <div>
+        <span class="pt__meta-label">Current session</span>
+        <strong>{{ currentSession() }}</strong>
+      </div>
+      <div>
+        <span class="pt__meta-label">Mode</span>
+        <strong>{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long Break' : 'Break' }}</strong>
+      </div>
+      <div>
+        <span class="pt__meta-label">Status</span>
+        <strong>{{ isRunning() ? 'Running' : 'Paused' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="pt__board" [formGroup]="form">
+    <section class="pt__panel pt__panel--timer">
+      <header class="pt__card-header">
+        <div>
+          <h2>Timer</h2>
+          <p>{{ mode() === 'work' ? 'Focus time' : mode() === 'longBreak' ? 'Long break time' : 'Break time' }}.</p>
+        </div>
+      </header>
+
+      <div class="pt__timer-container">
+        <div class="pt__timer-circle" [class.pt__timer-circle--work]="isWorkMode()"
+             [class.pt__timer-circle--break]="isBreakMode()">
+          <svg class="pt__timer-svg" viewBox="0 0 100 100">
+            <circle class="pt__timer-bg" cx="50" cy="50" r="45" />
+            <circle
+              class="pt__timer-progress"
+              cx="50"
+              cy="50"
+              r="45"
+              [attr.stroke-dasharray]="getCircleCircumference()"
+              [attr.stroke-dashoffset]="getCircleDashOffset()"
+            />
+          </svg>
+          <div class="pt__timer-content">
+            <div class="pt__timer-time">{{ formatTimeDisplay() }}</div>
+            <div class="pt__timer-mode">{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long Break' : 'Break' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt__timer-controls">
+        @if (isRunning()) {
+          <button type="button" class="btn btn--primary btn--large" (click)="pauseTimer()">Pause</button>
+        } @else {
+          <button type="button" class="btn btn--primary btn--large" (click)="startTimer()">Start</button>
+        }
+        <button type="button" class="btn btn--ghost" (click)="resetTimer()">Reset</button>
+        <button type="button" class="btn btn--ghost" (click)="skipTimer()">Skip</button>
+      </div>
+    </section>
+
+    <section class="pt__panel pt__panel--settings">
+      <header class="pt__card-header">
+        <div>
+          <h2>Settings</h2>
+          <p>Customize timer durations.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="resetStats()"
+          [disabled]="completedPomodoros() === 0 && currentSession() === 0"
+        >
+          Reset Stats
+        </button>
+      </header>
+
+      <div class="pt__settings-form">
+        <div class="pt__field">
+          <label for="workMinutes" class="pt__label">Work Duration (minutes)</label>
+          <input
+            id="workMinutes"
+            type="number"
+            class="pt__input"
+            formControlName="workMinutes"
+            min="1"
+            max="60"
+            (change)="onSettingsChange()"
+          />
+          <small class="pt__hint">Duration of work sessions (1-60 minutes).</small>
+        </div>
+
+        <div class="pt__field">
+          <label for="breakMinutes" class="pt__label">Break Duration (minutes)</label>
+          <input
+            id="breakMinutes"
+            type="number"
+            class="pt__input"
+            formControlName="breakMinutes"
+            min="1"
+            max="30"
+            (change)="onSettingsChange()"
+          />
+          <small class="pt__hint">Duration of short breaks (1-30 minutes).</small>
+        </div>
+
+        <div class="pt__field">
+          <label for="longBreakMinutes" class="pt__label">Long Break Duration (minutes)</label>
+          <input
+            id="longBreakMinutes"
+            type="number"
+            class="pt__input"
+            formControlName="longBreakMinutes"
+            min="1"
+            max="60"
+            (change)="onSettingsChange()"
+          />
+          <small class="pt__hint">Duration of long breaks (1-60 minutes).</small>
+        </div>
+
+        <div class="pt__field">
+          <label for="longBreakInterval" class="pt__label">Long Break Interval</label>
+          <input
+            id="longBreakInterval"
+            type="number"
+            class="pt__input"
+            formControlName="longBreakInterval"
+            min="2"
+            max="10"
+            (change)="onSettingsChange()"
+          />
+          <small class="pt__hint">Number of work sessions before a long break (2-10).</small>
+        </div>
+      </div>
+
+      <div class="pt__stats">
+        <div class="pt__stat-item">
+          <span class="pt__stat-label">Completed Pomodoros</span>
+          <strong class="pt__stat-value">{{ completedPomodoros() }}</strong>
+        </div>
+        <div class="pt__stat-item">
+          <span class="pt__stat-label">Current Session</span>
+          <strong class="pt__stat-value">{{ currentSession() }}</strong>
+        </div>
+        @if (completedPomodoros() > 0) {
+          <div class="pt__stat-item">
+            <span class="pt__stat-label">Next Long Break</span>
+            <strong class="pt__stat-value">
+              {{ form.controls.longBreakInterval.value - (currentSession() % form.controls.longBreakInterval.value) }}
+            </strong>
+          </div>
+        }
+      </div>
+    </section>
   </div>
 </div>

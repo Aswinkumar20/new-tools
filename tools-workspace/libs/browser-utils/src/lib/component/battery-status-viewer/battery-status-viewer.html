@@ -1,10 +1,171 @@
-<div class="main-container">
-  <div>
+<div class="bsv">
+  <div class="bsv__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>BatteryStatusViewer</h2>
-    <p>Component coming soon...</p>
+  <section class="bsv__hero">
+    <div class="bsv__badge">Browser utilities</div>
+    <h1>Battery Status Viewer</h1>
+    <p>
+      Monitor your device's battery status in real-time. View charging state, battery level, and estimated time until
+      fully charged or discharged.
+    </p>
+
+    <div class="bsv__hero-meta">
+      <div>
+        <span class="bsv__meta-label">Support</span>
+        <strong>{{ supported ? 'Available' : 'Not available' }}</strong>
+      </div>
+      <div>
+        <span class="bsv__meta-label">Monitoring</span>
+        <strong>{{ monitoring() ? 'Active' : 'Stopped' }}</strong>
+      </div>
+      <div>
+        <span class="bsv__meta-label">Battery level</span>
+        <strong>{{ batteryPercentage() !== null ? formatPercentage(batteryLevel()) : 'N/A' }}</strong>
+      </div>
+      <div>
+        <span class="bsv__meta-label">Status</span>
+        <strong>{{ isCharging() ? 'Charging' : 'Discharging' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="bsv__board">
+    <section class="bsv__panel bsv__panel--status">
+      <header class="bsv__card-header">
+        <div>
+          <h2>Current Status</h2>
+          <p>Real-time battery information.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="refresh()"
+          [disabled]="!supported"
+        >
+          Refresh
+        </button>
+      </header>
+
+      @if (errors().length) {
+        <div class="bsv__alert bsv__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (supported && currentStatus(); as status) {
+        <div class="bsv__battery-display">
+          <div class="bsv__battery-visual">
+            <div class="bsv__battery-outline">
+              <div
+                class="bsv__battery-fill"
+                [class.bsv__battery-fill--charging]="status.charging"
+                [style.width.%]="batteryLevel() * 100"
+              ></div>
+              <div class="bsv__battery-percentage">{{ formatPercentage(status.level) }}</div>
+            </div>
+            <div class="bsv__battery-tip"></div>
+          </div>
+
+          <div class="bsv__status-grid">
+            <div class="bsv__status-item">
+              <span class="bsv__status-label">Charging</span>
+              <strong [class.bsv__status-value--charging]="status.charging">
+                {{ status.charging ? 'Yes' : 'No' }}
+              </strong>
+            </div>
+            <div class="bsv__status-item">
+              <span class="bsv__status-label">Battery Level</span>
+              <strong>{{ formatPercentage(status.level) }}</strong>
+            </div>
+            @if (status.charging && status.chargingTime !== null) {
+              <div class="bsv__status-item">
+                <span class="bsv__status-label">Time to full charge</span>
+                <strong>{{ formatTime(status.chargingTime) }}</strong>
+              </div>
+            }
+            @if (!status.charging && status.dischargingTime !== null) {
+              <div class="bsv__status-item">
+                <span class="bsv__status-label">Time until empty</span>
+                <strong>{{ formatTime(status.dischargingTime) }}</strong>
+              </div>
+            }
+          </div>
+        </div>
+      } @else if (!supported) {
+        <div class="bsv__empty">
+          <p>
+            Battery API is not supported in this browser. This feature requires a browser that supports the Battery
+            Status API (typically available on mobile devices or Chromium-based browsers).
+          </p>
+        </div>
+      } @else {
+        <div class="bsv__empty">
+          <p>Loading battery status...</p>
+        </div>
+      }
+    </section>
+
+    <section class="bsv__panel bsv__panel--history">
+      <header class="bsv__card-header">
+        <div>
+          <h2>Status History</h2>
+          <p>Recent battery status changes (up to 50).</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearHistory()"
+          [disabled]="!hasHistory()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="bsv__list">
+          @for (entry of history(); track entry.timestamp) {
+            <li class="bsv__item">
+              <div class="bsv__item-header">
+                <span class="bsv__item-time">{{ formatTimestamp(entry.timestamp) }}</span>
+                <span
+                  class="bsv__item-status"
+                  [class.bsv__item-status--charging]="entry.charging"
+                >
+                  {{ entry.charging ? 'Charging' : 'Discharging' }}
+                </span>
+              </div>
+              <div class="bsv__item-values">
+                <div class="bsv__value">
+                  <span class="bsv__value-label">Level</span>
+                  <strong>{{ formatPercentage(entry.level) }}</strong>
+                </div>
+                @if (entry.charging && entry.chargingTime !== null) {
+                  <div class="bsv__value">
+                    <span class="bsv__value-label">Time to full</span>
+                    <strong>{{ formatTime(entry.chargingTime) }}</strong>
+                  </div>
+                }
+                @if (!entry.charging && entry.dischargingTime !== null) {
+                  <div class="bsv__value">
+                    <span class="bsv__value-label">Time until empty</span>
+                    <strong>{{ formatTime(entry.dischargingTime) }}</strong>
+                  </div>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="bsv__empty">
+          <p>No battery status history yet. Status changes will be logged here automatically.</p>
+        </div>
+      }
+    </section>
   </div>
 </div>

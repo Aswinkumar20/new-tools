@@ -4,3 +4,4 @@ export * from './lib/component/navigation/navigation';
 export { NavigationComponent } from './lib/component/navigation/navigation';
 export * from './lib/component/footer/footer';
 export * from './lib/component/toast/toast';
+export * from './lib/directive/tooltip.directive';

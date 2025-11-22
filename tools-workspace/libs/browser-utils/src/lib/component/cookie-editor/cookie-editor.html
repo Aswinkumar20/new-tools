@@ -1,10 +1,258 @@
-<div class="main-container">
-  <div>
+<div class="ce">
+  <div class="ce__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>CookieEditor</h2>
-    <p>Component coming soon...</p>
+  <section class="ce__hero">
+    <div class="ce__badge">Browser utilities</div>
+    <h1>Cookie Editor</h1>
+    <p>
+      View, create, edit, and delete browser cookies. Manage cookie properties including domain, path, expiration,
+      security flags, and SameSite attributes.
+    </p>
+
+    <div class="ce__hero-meta">
+      <div>
+        <span class="ce__meta-label">Total cookies</span>
+        <strong>{{ cookieCount() }}</strong>
+      </div>
+      <div>
+        <span class="ce__meta-label">Filtered</span>
+        <strong>{{ filteredCookies().length }}</strong>
+      </div>
+      <div>
+        <span class="ce__meta-label">Editing</span>
+        <strong>{{ editingCookie() ? editingCookie() : 'None' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="ce__board">
+    <section class="ce__panel ce__panel--editor">
+      <header class="ce__card-header">
+        <div>
+          <h2>Cookie Editor</h2>
+          <p>{{ editingCookie() ? 'Edit existing cookie' : 'Create or edit a cookie' }}.</p>
+        </div>
+        <div class="ce__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="clearEditor()"
+            [disabled]="!editingCookie() && !form.value.name"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="saveCookie()"
+            [formGroup]="form"
+          >
+            {{ editingCookie() ? 'Update' : 'Create' }}
+          </button>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ce__alert ce__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div [formGroup]="form" class="ce__form">
+        <div class="ce__field">
+          <label for="name" class="ce__label">Name</label>
+          <input
+            id="name"
+            type="text"
+            class="ce__input"
+            formControlName="name"
+            placeholder="cookie-name"
+            required
+          />
+          <small class="ce__hint">Cookie name (required).</small>
+        </div>
+
+        <div class="ce__field">
+          <label for="value" class="ce__label">Value</label>
+          <textarea
+            id="value"
+            class="ce__textarea"
+            formControlName="value"
+            placeholder="cookie value"
+            rows="3"
+          ></textarea>
+          <small class="ce__hint">Cookie value.</small>
+        </div>
+
+        <div class="ce__field ce__field--inline">
+          <div>
+            <label for="domain" class="ce__label">Domain</label>
+            <input
+              id="domain"
+              type="text"
+              class="ce__input"
+              formControlName="domain"
+              placeholder="example.com"
+            />
+            <small class="ce__hint">Optional domain (leave empty for current domain).</small>
+          </div>
+          <div>
+            <label for="path" class="ce__label">Path</label>
+            <input
+              id="path"
+              type="text"
+              class="ce__input"
+              formControlName="path"
+              placeholder="/"
+            />
+            <small class="ce__hint">Cookie path (default: /).</small>
+          </div>
+        </div>
+
+        <div class="ce__field ce__field--inline">
+          <div>
+            <label for="daysToExpire" class="ce__label">Days to expire</label>
+            <input
+              id="daysToExpire"
+              type="number"
+              class="ce__input"
+              formControlName="daysToExpire"
+              min="0"
+              placeholder="7"
+            />
+            <small class="ce__hint">Days until expiration (0 = session cookie).</small>
+          </div>
+          <div>
+            <label for="sameSite" class="ce__label">SameSite</label>
+            <select id="sameSite" class="ce__select" formControlName="sameSite">
+              <option value="Lax">Lax</option>
+              <option value="Strict">Strict</option>
+              <option value="None">None</option>
+            </select>
+            <small class="ce__hint">SameSite attribute.</small>
+          </div>
+        </div>
+
+        <div class="ce__field">
+          <label class="ce__checkbox-label">
+            <input type="checkbox" class="ce__checkbox" formControlName="secure" />
+            <span>Secure (HTTPS only)</span>
+          </label>
+          <small class="ce__hint">Cookie will only be sent over HTTPS connections.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="ce__panel ce__panel--list">
+      <header class="ce__card-header">
+        <div>
+          <h2>Cookies</h2>
+          <p>Current browser cookies ({{ filteredCookies().length }} shown).</p>
+        </div>
+        <div class="ce__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="refresh()"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="deleteAllCookies()"
+            [disabled]="!hasCookies()"
+          >
+            Delete all
+          </button>
+        </div>
+      </header>
+
+      <div class="ce__filter">
+        <input
+          type="text"
+          class="ce__filter-input"
+          placeholder="Filter cookies by name or value..."
+          [value]="filterQuery()"
+          (input)="onFilterChange($event)"
+        />
+      </div>
+
+      @if (filteredCookies().length) {
+        <ul class="ce__list">
+          @for (cookie of filteredCookies(); track cookie.name) {
+            <li class="ce__item" [class.ce__item--editing]="editingCookie() === cookie.name">
+              <div class="ce__item-main">
+                <div class="ce__item-header">
+                  <div class="ce__item-name">{{ cookie.name }}</div>
+                  <div class="ce__item-actions">
+                    <button
+                      type="button"
+                      class="ce__action-btn"
+                      (click)="loadCookie(cookie)"
+                      [class.ce__action-btn--active]="editingCookie() === cookie.name"
+                      title="Edit cookie"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="ce__action-btn ce__action-btn--danger"
+                      (click)="deleteCookie(cookie.name)"
+                      title="Delete cookie"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                <div class="ce__item-value">
+                  <span class="ce__value-label">Value:</span>
+                  <code class="ce__value-code">{{ formatValue(cookie.value) }}</code>
+                </div>
+                @if (cookie.domain || cookie.path || cookie.expires || cookie.secure || cookie.sameSite) {
+                  <div class="ce__item-meta">
+                    @if (cookie.domain) {
+                      <span class="ce__meta-tag">
+                        <strong>Domain:</strong> {{ cookie.domain }}
+                      </span>
+                    }
+                    @if (cookie.path) {
+                      <span class="ce__meta-tag">
+                        <strong>Path:</strong> {{ cookie.path }}
+                      </span>
+                    }
+                    @if (cookie.expires) {
+                      <span class="ce__meta-tag">
+                        <strong>Expires:</strong> {{ cookie.expires }}
+                      </span>
+                    }
+                    @if (cookie.secure) {
+                      <span class="ce__meta-tag ce__meta-tag--flag">Secure</span>
+                    }
+                    @if (cookie.sameSite) {
+                      <span class="ce__meta-tag ce__meta-tag--flag">SameSite: {{ cookie.sameSite }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ce__empty">
+          @if (filterQuery()) {
+            <p>No cookies match the filter "{{ filterQuery() }}".</p>
+          } @else {
+            <p>No cookies found. Create a new cookie using the editor on the left.</p>
+          }
+        </div>
+      }
+    </section>
   </div>
 </div>

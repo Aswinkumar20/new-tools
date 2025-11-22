@@ -22,11 +22,21 @@ export function app(): express.Express {
 
   // Example Express Rest API endpoints
   // server.get('/api/**', (req, res) => { });
-  // Serve static files from /browser
-  server.get(
-    '*.*',
+  
+  // Serve static files from /browser with proper MIME types
+  server.use(
     express.static(distFolder, {
       maxAge: '1y',
+      setHeaders: (res, path) => {
+        // Set proper MIME types for SVG files
+        if (path.endsWith('.svg')) {
+          res.setHeader('Content-Type', 'image/svg+xml');
+        }
+        // Cache control for images
+        if (path.match(/\.(svg|png|jpg|jpeg|gif|ico|webp)$/)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
     })
   );
 

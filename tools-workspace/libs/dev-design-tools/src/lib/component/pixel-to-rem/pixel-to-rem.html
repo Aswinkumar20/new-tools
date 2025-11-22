@@ -1,10 +1,211 @@
-<div class="main-container">
-  <div>
+<div class="ptr">
+  <div class="ptr__nav">
     <lib-navigation></lib-navigation>
   </div>
 
-  <div class="container">
-    <h2>PixelToRem</h2>
-    <p>Component coming soon...</p>
+  <section class="ptr__hero">
+    <div class="ptr__badge">Design toolkit</div>
+    <h1>Pixel to REM Converter</h1>
+    <p>
+      Convert between pixels and rem units. Configure the base font size and convert values instantly. Perfect for
+      responsive design and CSS development.
+    </p>
+
+    @if (hasResult() && conversionResult()) {
+      <div class="ptr__hero-meta">
+        <div>
+          <span class="ptr__meta-label">Input</span>
+          <strong>{{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}</strong>
+        </div>
+        <div>
+          <span class="ptr__meta-label">Output</span>
+          <strong>{{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}</strong>
+        </div>
+        <div>
+          <span class="ptr__meta-label">Base size</span>
+          <strong>{{ form.controls.baseSize.value }}px</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ptr__hero-meta ptr__hero-meta--placeholder">
+        Enter a value and select conversion direction to see the result.
+      </div>
+    }
+  </section>
+
+  <div class="ptr__board" [formGroup]="form">
+    <section class="ptr__panel ptr__panel--converter">
+      <header class="ptr__card-header">
+        <div>
+          <h2>Converter</h2>
+          <p>Convert between pixels and rem units.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="swapDirection()">Swap direction</button>
+      </header>
+
+      @if (errors().length) {
+        <div class="ptr__alert ptr__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="ptr__settings-grid">
+        <div class="ptr__setting-group">
+          <label for="direction" class="ptr__label">Conversion direction</label>
+          <select id="direction" class="ptr__select" formControlName="direction">
+            <option value="px-to-rem">Pixels to REM</option>
+            <option value="rem-to-px">REM to Pixels</option>
+          </select>
+        </div>
+
+        <div class="ptr__setting-group">
+          <label for="inputValue" class="ptr__label">
+            {{ form.controls.direction.value === 'px-to-rem' ? 'Pixels' : 'REM' }}
+          </label>
+          <input
+            id="inputValue"
+            type="number"
+            class="ptr__input"
+            min="0"
+            step="0.01"
+            formControlName="inputValue"
+          />
+          <small>Enter the value to convert</small>
+        </div>
+
+        <div class="ptr__setting-group">
+          <label for="baseSize" class="ptr__label">Base font size (px)</label>
+          <input
+            id="baseSize"
+            type="number"
+            class="ptr__input"
+            min="1"
+            max="100"
+            formControlName="baseSize"
+          />
+          <small>Default browser font size (typically 16px)</small>
+        </div>
+      </div>
+
+      @if (hasResult() && conversionResult()) {
+        <div class="ptr__result-container">
+          <div class="ptr__result-display">
+            <div class="ptr__result-input">
+              <span class="ptr__result-label">Input:</span>
+              <strong class="ptr__result-value">
+                {{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}
+              </strong>
+            </div>
+            <div class="ptr__result-arrow">→</div>
+            <div class="ptr__result-output">
+              <span class="ptr__result-label">Output:</span>
+              <strong class="ptr__result-value ptr__result-value--output">
+                {{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}
+              </strong>
+            </div>
+          </div>
+
+          <div class="ptr__formula">
+            <strong>Formula:</strong>
+            <code>{{ conversionResult()!.formula }}</code>
+          </div>
+
+          <div class="ptr__result-actions">
+            <button
+              type="button"
+              class="btn btn--primary btn--small"
+              (click)="copyToClipboard(formatOutput(conversionResult()!.output) + (form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px'), 'Result')"
+            >
+              Copy result
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost btn--small"
+              (click)="copyToClipboard(conversionResult()!.formula, 'Formula')"
+            >
+              Copy formula
+            </button>
+          </div>
+        </div>
+      }
+
+      <label class="ptr__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent conversions</span>
+        </div>
+      </label>
+
+      <div class="ptr__actions">
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="ptr__panel ptr__panel--presets">
+      <header class="ptr__card-header">
+        <div>
+          <h2>Common sizes</h2>
+          <p>Quick access to commonly used pixel and rem values.</p>
+        </div>
+      </header>
+
+      <div class="ptr__presets-grid">
+        @for (size of commonSizes; track size.px) {
+          <button type="button" class="ptr__preset-item" (click)="applyCommonSize(size)">
+            <div class="ptr__preset-values">
+              <div class="ptr__preset-value">
+                <strong>{{ size.px }}px</strong>
+                <span>=</span>
+                <strong>{{ size.rem }}rem</strong>
+              </div>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="ptr__panel ptr__panel--history">
+      <header class="ptr__card-header">
+        <div>
+          <h2>Conversion history</h2>
+          <p>Quick access to recently converted values.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ptr__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="ptr__history-item">
+                <div class="ptr__history-info">
+                  <strong>
+                    {{ entry.input }}{{ entry.direction === 'px-to-rem' ? 'px' : 'rem' }} →
+                    {{ formatOutput(entry.output) }}{{ entry.direction === 'px-to-rem' ? 'rem' : 'px' }}
+                  </strong>
+                  <span>Base: {{ entry.baseSize }}px • {{ formatTimestamp(entry.timestamp) }}</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="ptr__empty">Enable history tracking to keep a list of recent conversions.</div>
+      }
+    </section>
   </div>
 </div>
