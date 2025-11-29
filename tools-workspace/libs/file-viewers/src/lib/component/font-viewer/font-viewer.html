@@ -1,464 +1,447 @@
-<div class="font-viewer-container main-container">
-  <div class="top-navigation">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="main-container">
+  <lib-navigation></lib-navigation>
 
-  <div class="container">
-    <div class="header-section">
-      <div class="header-content">
-        <h2>Interactive Font Viewer</h2>
-        <p class="subtitle">
-          Upload any font file, explore live previews, review metadata, and compare against system typefaces.
-        </p>
-        <div class="header-meta">
-          <span>Supports {{ formatHints.join(', ') }}</span>
-          <span>Preview templates for real design contexts</span>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button
-          class="btn-secondary"
-          (click)="toggleAbout()"
-          [class.active]="showAbout"
-          title="Toggle about section"
-          [attr.aria-expanded]="showAbout">
-          {{ showAbout ? 'Hide Details' : 'About Viewer' }}
-        </button>
-      </div>
-    </div>
-
-    <div class="insight-strip">
-      <div class="insight-card">
-        <span class="insight-label">Loaded fonts</span>
-        <span class="insight-value">{{ loadedFontsCount }}</span>
-        <span class="insight-hint">Preview custom typography instantly</span>
-      </div>
-      <div class="insight-card">
-        <span class="insight-label">Active template</span>
-        <span class="insight-value">{{ activeTemplateLabel }}</span>
-        <span class="insight-hint">Switch contexts with one click</span>
-      </div>
-      <div class="insight-card">
-        <span class="insight-label">Font size</span>
-        <span class="insight-value">{{ fontSize }}px</span>
-        <span class="insight-hint">Adjust for headlines or body copy</span>
-      </div>
-    </div>
-
-    <section class="about-section info-card" *ngIf="showAbout">
-      <div class="info-card-header">
-        <h3>About Font Viewer</h3>
-        <p>This toolkit lets you stress-test typography choices in realistic product scenarios.</p>
-      </div>
-      <div class="about-content">
-        <div class="about-section-item about-card">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-            Typography Toolkit
-          </h3>
-          <p>
-            Preview live text, inspect metadata, and collaborate with teammates using a single, shareable view.
-          </p>
-          <ul class="features-list">
-            <li>Render custom copy in your uploaded typeface instantly.</li>
-            <li>Switch between real-world preview templates with one click.</li>
-            <li>Download metadata for documentation and design systems.</li>
-          </ul>
-        </div>
-        <div class="about-section-item about-card">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            How to use
-          </h3>
-          <ol class="usage-steps">
-            <li *ngFor="let step of usageSteps">{{ step }}</li>
-          </ol>
-          <p class="usage-tip">
-            Tip: Explore the comparison rail to measure your font against familiar system typefaces before shipping.
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Interactive font viewer</p>
+          <h1>Upload any font file, explore live previews, and review metadata</h1>
+          <p class="strapline">
+            Compare against system typefaces, fine-tune typography for real scenarios, and document decisions for your design system.
           </p>
         </div>
-      </div>
-    </section>
+        <div class="primary-meta">
+          <span class="meta-pill">TTF, OTF, WOFF, WOFF2</span>
+          <span class="meta-pill">Live previews</span>
+          <span class="meta-pill">Metadata export</span>
+        </div>
+      </header>
 
-    <div class="viewer-layout">
-      <aside class="interaction-panel">
-        <ng-container *ngIf="fontApiSupported; else unsupportedBrowserCard">
-          <section class="panel-card upload-card">
-            <div class="panel-card-header">
-              <div class="panel-title">
-                <h3>Load font files</h3>
-                <p>Drop files or browse to start exploring typography instantly.</p>
-              </div>
-              <button class="btn-link" (click)="openFileDialog()">Browse</button>
-            </div>
-            <div class="panel-card-body">
-              <input
-                #fileInput
-                type="file"
-                accept=".ttf,.otf,.woff,.woff2"
-                (change)="onFileInputChange($event)"
-                hidden>
+      <ng-container *ngIf="fontApiSupported; else unsupportedBrowserCard">
+        <section class="insight-card upload-card">
+          <header class="insight-header">
+            <h2>Load font files</h2>
+            <p>Drop files or browse to start exploring typography instantly.</p>
+          </header>
+          <div class="insight-body">
+            <input
+              #fileInput
+              type="file"
+              accept=".ttf,.otf,.woff,.woff2"
+              (change)="onFileInputChange($event)"
+              hidden>
 
-              <button
-                type="button"
-                class="drop-zone"
-                [class.active]="isDragOver"
-                (dragenter)="onDragEnter($event)"
-                (dragover)="onDragOver($event)"
-                (dragleave)="onDragLeave($event)"
-                (drop)="onDrop($event)"
-                (click)="openFileDialog()"
-                aria-label="Upload font files">
-                <div class="drop-zone-content">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                  </svg>
-                  <p class="drop-zone-text">Click to browse or drag and drop font files</p>
-                  <p class="drop-zone-formats">
-                    Supports {{ formatHints.join(', ') }} • Max size depends on your browser
-                  </p>
-                </div>
-              </button>
-
-              <div class="upload-actions">
-                <button class="btn-primary" (click)="openFileDialog()">
-                  <span>Select Font File</span>
-                </button>
-                <button class="btn-secondary" type="button" (click)="resetPreviewControls()">
-                  Reset Controls
-                </button>
-                <p class="upload-hint">
-                  Need inspiration? Drop any open-source font from Google Fonts to preview instantly.
+            <button
+              type="button"
+              class="drop-zone"
+              [class.active]="isDragOver"
+              (dragenter)="onDragEnter($event)"
+              (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave($event)"
+              (drop)="onDrop($event)"
+              (click)="openFileDialog()"
+              aria-label="Upload font files">
+              <div class="drop-zone-content">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p class="drop-zone-text">Click to browse or drag and drop font files</p>
+                <p class="drop-zone-formats">
+                  Supports {{ formatHints.join(', ') }} • Max size depends on your browser
                 </p>
               </div>
+            </button>
+
+            <div class="upload-actions">
+              <button class="btn-primary" (click)="openFileDialog()">
+                <span>Select Font File</span>
+              </button>
+              <button class="btn-secondary" type="button" (click)="resetPreviewControls()">
+                Reset Controls
+              </button>
+              <p class="upload-hint">
+                Need inspiration? Drop any open-source font from Google Fonts to preview instantly.
+              </p>
             </div>
-          </section>
+          </div>
+        </section>
+      </ng-container>
 
-          <section class="panel-card tips-card">
-            <div class="panel-card-header">
-              <div class="panel-title">
-                <h3>Preview tips</h3>
-                <p>Make the most of your typography review.</p>
-              </div>
+      <ng-template #unsupportedBrowserCard>
+        <section class="insight-card warning-card">
+          <header class="insight-header">
+            <h2>Browser update required</h2>
+            <p>Live font previews need the FontFace API which isn't available here.</p>
+          </header>
+          <div class="insight-body">
+            <p>
+              Please switch to a modern browser such as the latest Chrome, Edge, Firefox, or Safari to continue.
+            </p>
+          </div>
+        </section>
+      </ng-template>
+    </section>
+
+    <aside class="workspace-secondary">
+      <div class="editor-toolbar font-toolbar" aria-label="Font viewer controls">
+        <div class="toolbar-stats" aria-label="Font statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Loaded fonts</span>
+            <span class="stat-value">{{ loadedFontsCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Active template</span>
+            <span class="stat-value">{{ activeTemplateLabel }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Font size</span>
+            <span class="stat-value">{{ fontSize }}px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="viewer-shell font-shell">
+        <section class="panel panel-viewer">
+          <header class="panel-header">
+            <div>
+              <h2>Font preview</h2>
+              <p *ngIf="fontLoaded">Font ready! Explore previews, metadata, and comparison tools below.</p>
+              <p *ngIf="!fontLoaded">Upload font files to start viewing and analyzing them.</p>
             </div>
-            <ul class="tips-list">
-              <li>Use templates to review headlines, UI labels, and numeric data in context.</li>
-              <li>
-                Adjust size, spacing, and smoothing to simulate real product environments before handoff.
-              </li>
-              <li>Download metadata to document decisions in your design system.</li>
-            </ul>
-          </section>
-        </ng-container>
-      </aside>
+          </header>
 
-      <section class="viewer-panel">
-        <div class="loading" *ngIf="!fontApiSupported">
-          <div class="spinner"></div>
-          <p>Checking browser font support...</p>
-        </div>
+          <div class="loading" *ngIf="!fontApiSupported">
+            <div class="spinner"></div>
+            <p>Checking browser font support...</p>
+          </div>
 
-        <div class="error-message" *ngIf="loadError">
-          <p>{{ loadError }}</p>
-        </div>
+          <div class="error-message" *ngIf="loadError">
+            <p>{{ loadError }}</p>
+          </div>
 
-        <div class="status-success" *ngIf="fontLoaded && !loadError">
-          <p>Font ready! Explore previews, metadata, and comparison tools below.</p>
-        </div>
-
-        <div class="viewer-card">
-          <div class="font-viewer-panels">
-            <div class="font-controls">
-              <div class="panel-card">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Preview controls</h3>
-                    <p>Fine-tune typography for real scenarios.</p>
+          <div class="viewer-content" *ngIf="fontApiSupported">
+            <div class="font-viewer-panels" *ngIf="fontLoaded">
+              <div class="font-controls">
+                <div class="panel-card">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Preview controls</h3>
+                      <p>Fine-tune typography for real scenarios.</p>
+                    </div>
+                    <button class="btn-link" type="button" (click)="resetPreviewControls()">Reset</button>
                   </div>
-                  <button class="btn-link" type="button" (click)="resetPreviewControls()">Reset</button>
+                  <div class="panel-card-body">
+                    <div class="form-group">
+                      <label for="sampleText">Live sample text</label>
+                      <textarea
+                        id="sampleText"
+                        rows="4"
+                        [(ngModel)]="sampleText"
+                        (ngModelChange)="onSampleTextInput($event)"
+                        placeholder="Type or paste your own content to preview"
+                      ></textarea>
+                    </div>
+
+                    <div class="form-group form-group--slider">
+                      <label for="fontSize">Font size: {{ fontSize }}px</label>
+                      <input id="fontSize" type="range" min="12" max="144" [(ngModel)]="fontSize" />
+                    </div>
+
+                    <div class="form-group form-group--slider">
+                      <label for="lineHeight">Line height: {{ lineHeight | number: '1.1-2' }}</label>
+                      <input
+                        id="lineHeight"
+                        type="range"
+                        min="1"
+                        max="2"
+                        step="0.05"
+                        [(ngModel)]="lineHeight"
+                      />
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="form-group">
+                        <label for="letterSpacing">Letter spacing (px)</label>
+                        <input
+                          id="letterSpacing"
+                          type="number"
+                          min="-5"
+                          max="10"
+                          step="0.1"
+                          [(ngModel)]="letterSpacing"
+                        />
+                      </div>
+
+                      <div class="form-group">
+                        <label for="wordSpacing">Word spacing (px)</label>
+                        <input
+                          id="wordSpacing"
+                          type="number"
+                          min="-10"
+                          max="20"
+                          step="1"
+                          [(ngModel)]="wordSpacing"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="form-group">
+                        <label for="weightSelect">Font weight</label>
+                        <select id="weightSelect" [(ngModel)]="selectedWeight">
+                          <option *ngFor="let weight of [100, 200, 300, 400, 500, 600, 700, 800, 900]" [value]="weight">
+                            {{ weight }}
+                          </option>
+                        </select>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="styleSelect">Font style</label>
+                        <select id="styleSelect" [(ngModel)]="selectedStyle">
+                          <option value="normal">Normal</option>
+                          <option value="italic">Italic</option>
+                          <option value="oblique">Oblique</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="form-group">
+                        <label for="textColor">Text color</label>
+                        <input id="textColor" type="color" [(ngModel)]="textColor" />
+                      </div>
+                      <div class="form-group">
+                        <label for="backgroundColor">Background</label>
+                        <input id="backgroundColor" type="color" [(ngModel)]="backgroundColor" />
+                      </div>
+                    </div>
+
+                    <div class="form-group form-group--toggles">
+                      <label>
+                        <input type="checkbox" [(ngModel)]="uppercase" />
+                        Uppercase preview
+                      </label>
+                      <label>
+                        <input type="checkbox" [(ngModel)]="enableSmoothPreview" />
+                        Font smoothing hint
+                      </label>
+                    </div>
+                  </div>
                 </div>
-                <div class="panel-card-body">
-                  <div class="form-group">
-                    <label for="sampleText">Live sample text</label>
-                    <textarea
-                      id="sampleText"
-                      rows="4"
-                      [(ngModel)]="sampleText"
-                      (ngModelChange)="onSampleTextInput($event)"
-                      placeholder="Type or paste your own content to preview"
-                    ></textarea>
-                  </div>
 
-                  <div class="form-group form-group--slider">
-                    <label for="fontSize">Font size: {{ fontSize }}px</label>
-                    <input id="fontSize" type="range" min="12" max="144" [(ngModel)]="fontSize" />
-                  </div>
-
-                  <div class="form-group form-group--slider">
-                    <label for="lineHeight">Line height: {{ lineHeight | number: '1.1-2' }}</label>
-                    <input
-                      id="lineHeight"
-                      type="range"
-                      min="1"
-                      max="2"
-                      step="0.05"
-                      [(ngModel)]="lineHeight"
-                    />
-                  </div>
-
-                  <div class="form-grid">
-                    <div class="form-group">
-                      <label for="letterSpacing">Letter spacing (px)</label>
-                      <input
-                        id="letterSpacing"
-                        type="number"
-                        min="-5"
-                        max="10"
-                        step="0.1"
-                        [(ngModel)]="letterSpacing"
-                      />
-                    </div>
-
-                    <div class="form-group">
-                      <label for="wordSpacing">Word spacing (px)</label>
-                      <input
-                        id="wordSpacing"
-                        type="number"
-                        min="-10"
-                        max="20"
-                        step="1"
-                        [(ngModel)]="wordSpacing"
-                      />
+                <div class="panel-card">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Preview templates</h3>
+                      <p>Select real-world content patterns to evaluate typography.</p>
                     </div>
                   </div>
+                  <div class="templates">
+                    <button
+                      *ngFor="let template of previewTemplates; trackBy: trackByTemplateId"
+                      class="template"
+                      type="button"
+                      [class.template--active]="selectedTemplateId === template.id"
+                      (click)="onTemplateSelect(template.id)">
+                      <div class="template__label">{{ template.label }}</div>
+                      <p class="template__description">{{ template.description }}</p>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                  <div class="form-grid">
+              <div class="font-preview" [class.font-preview--empty]="!fontLoaded">
+                <div class="panel-card preview-card" *ngIf="fontLoaded">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Live preview</h3>
+                      <p>See how your font performs with current settings.</p>
+                    </div>
+                    <a class="btn-link" *ngIf="downloadUrl" [href]="downloadUrl" download>
+                      Download font
+                    </a>
+                  </div>
+                  <div class="panel-card-body preview-card__body">
+                    <div class="preview-card__stage" [ngStyle]="previewHostStyles">
+                      {{ comparisonPreviewText }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="panel-card metadata-card" *ngIf="fontMetadata">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Font metadata</h3>
+                      <p>Document the important attributes for your design system.</p>
+                    </div>
+                  </div>
+                  <dl class="metadata-grid">
+                    <div>
+                      <dt>File name</dt>
+                      <dd>{{ fontMetadata.fileName }}</dd>
+                    </div>
+                    <div>
+                      <dt>File size</dt>
+                      <dd>{{ fontMetadata.formattedSize }}</dd>
+                    </div>
+                    <div>
+                      <dt>Format</dt>
+                      <dd>{{ fontMetadata.formatLabel }}</dd>
+                    </div>
+                    <div>
+                      <dt>MIME type</dt>
+                      <dd>{{ fontMetadata.mimeType }}</dd>
+                    </div>
+                    <div>
+                      <dt>Family name</dt>
+                      <dd>{{ fontMetadata.family }}</dd>
+                    </div>
+                    <div>
+                      <dt>Weight</dt>
+                      <dd>{{ fontMetadata.weight }}</dd>
+                    </div>
+                    <div>
+                      <dt>Style</dt>
+                      <dd>{{ fontMetadata.style }}</dd>
+                    </div>
+                    <div>
+                      <dt>Stretch</dt>
+                      <dd>{{ fontMetadata.stretch }}</dd>
+                    </div>
+                    <div>
+                      <dt>Variation / features</dt>
+                      <dd>{{ fontMetadata.variationSettings || 'Not specified' }}</dd>
+                    </div>
+                    <div>
+                      <dt>Last modified</dt>
+                      <dd>{{ fontMetadata.lastModified }}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div class="panel-card comparison-card" *ngIf="fontLoaded">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Side-by-side comparison</h3>
+                      <p>Review your font next to familiar system typefaces.</p>
+                    </div>
                     <div class="form-group">
-                      <label for="weightSelect">Font weight</label>
-                      <select id="weightSelect" [(ngModel)]="selectedWeight">
-                        <option *ngFor="let weight of [100, 200, 300, 400, 500, 600, 700, 800, 900]" [value]="weight">
-                          {{ weight }}
+                      <label for="comparisonSelect">Reference font</label>
+                      <select id="comparisonSelect" [(ngModel)]="comparisonFont">
+                        <option *ngFor="let font of comparisonFonts" [value]="font.value">
+                          {{ font.label }}
                         </option>
                       </select>
                     </div>
-
-                    <div class="form-group">
-                      <label for="styleSelect">Font style</label>
-                      <select id="styleSelect" [(ngModel)]="selectedStyle">
-                        <option value="normal">Normal</option>
-                        <option value="italic">Italic</option>
-                        <option value="oblique">Oblique</option>
-                      </select>
-                    </div>
                   </div>
-
-                  <div class="form-grid">
-                    <div class="form-group">
-                      <label for="textColor">Text color</label>
-                      <input id="textColor" type="color" [(ngModel)]="textColor" />
+                  <div class="comparison-card__body">
+                    <div class="comparison-card__panel">
+                      <h3>Your font</h3>
+                      <p [ngStyle]="previewHostStyles">{{ comparisonPreviewText }}</p>
                     </div>
-                    <div class="form-group">
-                      <label for="backgroundColor">Background</label>
-                      <input id="backgroundColor" type="color" [(ngModel)]="backgroundColor" />
+                    <div class="comparison-card__panel">
+                      <h3>Reference font</h3>
+                      <p
+                        [ngStyle]="{
+                          'font-family': comparisonFont,
+                          'font-size': previewHostStyles['font-size'],
+                          'line-height': previewHostStyles['line-height'],
+                          'letter-spacing': previewHostStyles['letter-spacing'],
+                          'word-spacing': previewHostStyles['word-spacing'],
+                          color: previewHostStyles['color'],
+                          'text-transform': previewHostStyles['text-transform'],
+                          'font-weight': previewHostStyles['font-weight'],
+                          'font-style': previewHostStyles['font-style']
+                        }">
+                        {{ comparisonPreviewText }}
+                      </p>
                     </div>
-                  </div>
-
-                  <div class="form-group form-group--toggles">
-                    <label>
-                      <input type="checkbox" [(ngModel)]="uppercase" />
-                      Uppercase preview
-                    </label>
-                    <label>
-                      <input type="checkbox" [(ngModel)]="enableSmoothPreview" />
-                      Font smoothing hint
-                    </label>
                   </div>
                 </div>
-              </div>
 
-              <div class="panel-card">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Preview templates</h3>
-                    <p>Select real-world content patterns to evaluate typography.</p>
+                <div class="panel-card character-card" *ngIf="fontLoaded">
+                  <div class="panel-card-header">
+                    <div class="panel-title">
+                      <h3>Character sets</h3>
+                      <p>Review glyph coverage for language and numeric needs.</p>
+                    </div>
                   </div>
-                </div>
-                <div class="templates">
-                  <button
-                    *ngFor="let template of previewTemplates; trackBy: trackByTemplateId"
-                    class="template"
-                    type="button"
-                    [class.template--active]="selectedTemplateId === template.id"
-                    (click)="onTemplateSelect(template.id)">
-                    <div class="template__label">{{ template.label }}</div>
-                    <p class="template__description">{{ template.description }}</p>
-                  </button>
+                  <div class="character-card__grid">
+                    <article class="character-card__tile" *ngFor="let showcase of characterShowcases">
+                      <h3>{{ showcase.title }}</h3>
+                      <p class="character-card__description">{{ showcase.description }}</p>
+                      <pre [ngStyle]="{ 'font-family': uploadedFontFamily }">{{ showcase.characters }}</pre>
+                    </article>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="font-preview" [class.font-preview--empty]="!fontLoaded">
-              <div class="panel-card preview-card" *ngIf="fontLoaded">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Live preview</h3>
-                    <p>See how your font performs with current settings.</p>
-                  </div>
-                  <a class="btn-link" *ngIf="downloadUrl" [href]="downloadUrl" download>
-                    Download font
-                  </a>
-                </div>
-                <div class="panel-card-body preview-card__body">
-                  <div class="preview-card__stage" [ngStyle]="previewHostStyles">
-                    {{ comparisonPreviewText }}
-                  </div>
-                </div>
-              </div>
+            <div class="empty-gallery" *ngIf="!fontLoaded">
+              <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p>No font file loaded</p>
+              <p class="hint">Upload font files using the panel above or drag and drop them anywhere on the page</p>
+            </div>
+          </div>
+        </section>
+      </div>
 
-              <div class="panel-card metadata-card" *ngIf="fontMetadata">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Font metadata</h3>
-                    <p>Document the important attributes for your design system.</p>
-                  </div>
-                </div>
-                <dl class="metadata-grid">
-                  <div>
-                    <dt>File name</dt>
-                    <dd>{{ fontMetadata.fileName }}</dd>
-                  </div>
-                  <div>
-                    <dt>File size</dt>
-                    <dd>{{ fontMetadata.formattedSize }}</dd>
-                  </div>
-                  <div>
-                    <dt>Format</dt>
-                    <dd>{{ fontMetadata.formatLabel }}</dd>
-                  </div>
-                  <div>
-                    <dt>MIME type</dt>
-                    <dd>{{ fontMetadata.mimeType }}</dd>
-                  </div>
-                  <div>
-                    <dt>Family name</dt>
-                    <dd>{{ fontMetadata.family }}</dd>
-                  </div>
-                  <div>
-                    <dt>Weight</dt>
-                    <dd>{{ fontMetadata.weight }}</dd>
-                  </div>
-                  <div>
-                    <dt>Style</dt>
-                    <dd>{{ fontMetadata.style }}</dd>
-                  </div>
-                  <div>
-                    <dt>Stretch</dt>
-                    <dd>{{ fontMetadata.stretch }}</dd>
-                  </div>
-                  <div>
-                    <dt>Variation / features</dt>
-                    <dd>{{ fontMetadata.variationSettings || 'Not specified' }}</dd>
-                  </div>
-                  <div>
-                    <dt>Last modified</dt>
-                    <dd>{{ fontMetadata.lastModified }}</dd>
-                  </div>
-                </dl>
-              </div>
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Preview tips</h2>
+          <p>Make the most of your typography review.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Use templates to review headlines, UI labels, and numeric data in context.</li>
+            <li>Adjust size, spacing, and smoothing to simulate real product environments before handoff.</li>
+            <li>Download metadata to document decisions in your design system.</li>
+            <li>Compare your font against system typefaces to measure readability and style.</li>
+            <li>Review character sets to ensure full language and symbol support.</li>
+          </ul>
+        </div>
+      </section>
 
-              <div class="panel-card comparison-card" *ngIf="fontLoaded">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Side-by-side comparison</h3>
-                    <p>Review your font next to familiar system typefaces.</p>
-                  </div>
-                  <div class="form-group">
-                    <label for="comparisonSelect">Reference font</label>
-                    <select id="comparisonSelect" [(ngModel)]="comparisonFont">
-                      <option *ngFor="let font of comparisonFonts" [value]="font.value">
-                        {{ font.label }}
-                      </option>
-                    </select>
-                  </div>
-                </div>
-                <div class="comparison-card__body">
-                  <div class="comparison-card__panel">
-                    <h3>Your font</h3>
-                    <p [ngStyle]="previewHostStyles">{{ comparisonPreviewText }}</p>
-                  </div>
-                  <div class="comparison-card__panel">
-                    <h3>Reference font</h3>
-                    <p
-                      [ngStyle]="{
-                        'font-family': comparisonFont,
-                        'font-size': previewHostStyles['font-size'],
-                        'line-height': previewHostStyles['line-height'],
-                        'letter-spacing': previewHostStyles['letter-spacing'],
-                        'word-spacing': previewHostStyles['word-spacing'],
-                        color: previewHostStyles['color'],
-                        'text-transform': previewHostStyles['text-transform'],
-                        'font-weight': previewHostStyles['font-weight'],
-                        'font-style': previewHostStyles['font-style']
-                      }">
-                      {{ comparisonPreviewText }}
-                    </p>
-                  </div>
-                </div>
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our font viewer.</p>
+        </header>
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              This toolkit lets you stress-test typography choices in realistic product scenarios. Preview live text, 
+              inspect metadata, and collaborate with teammates using a single, shareable view.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>Live previews</strong>
+                <p>Render custom copy in your uploaded typeface instantly.</p>
               </div>
-
-              <div class="panel-card character-card" *ngIf="fontLoaded">
-                <div class="panel-card-header">
-                  <div class="panel-title">
-                    <h3>Character sets</h3>
-                    <p>Review glyph coverage for language and numeric needs.</p>
-                  </div>
-                </div>
-                <div class="character-card__grid">
-                  <article class="character-card__tile" *ngFor="let showcase of characterShowcases">
-                    <h3>{{ showcase.title }}</h3>
-                    <p class="character-card__description">{{ showcase.description }}</p>
-                    <pre [ngStyle]="{ 'font-family': uploadedFontFamily }">{{ showcase.characters }}</pre>
-                  </article>
-                </div>
+              <div class="feature-item">
+                <strong>Preview templates</strong>
+                <p>Switch between real-world content patterns with one click.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Metadata export</strong>
+                <p>Download metadata for documentation and design systems.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Font comparison</strong>
+                <p>Compare your font against familiar system typefaces.</p>
               </div>
             </div>
           </div>
-
-          <section class="next-steps" *ngIf="fontLoaded">
-            <h3>Next steps</h3>
-            <ul>
-              <li>Share this preview with your team to collect feedback quickly.</li>
-              <li>Experiment with contrast settings to test accessibility across devices.</li>
-              <li>Download the metadata block to include in your design system documentation.</li>
-            </ul>
-          </section>
         </div>
       </section>
-    </div>
+    </aside>
   </div>
-
-  <ng-template #unsupportedBrowserCard>
-    <section class="panel-card warning-card">
-      <div class="panel-card-header">
-        <div class="panel-title">
-          <h3>Browser update required</h3>
-          <p>Live font previews need the FontFace API which isn't available here.</p>
-        </div>
-      </div>
-      <div class="panel-card-body">
-        <p>
-          Please switch to a modern browser such as the latest Chrome, Edge, Firefox, or Safari to continue.
-        </p>
-      </div>
-    </section>
-  </ng-template>
 </div>

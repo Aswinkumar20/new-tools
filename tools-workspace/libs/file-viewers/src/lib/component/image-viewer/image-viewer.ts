@@ -341,43 +341,102 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   previousImage(): void {
+    if (this.images.length === 0) return;
+    
     if (this.currentImageIndex > 0) {
       this.currentImageIndex--;
       this.resetZoom();
+    } else if (this.currentImageIndex === -1 && this.images.length > 0) {
+      // If no image selected, select the last one
+      this.currentImageIndex = this.images.length - 1;
+      this.resetZoom();
     }
+    
+    // Scroll thumbnail into view
+    this.scrollThumbnailIntoView();
   }
 
   nextImage(): void {
+    if (this.images.length === 0) return;
+    
     if (this.currentImageIndex < this.images.length - 1) {
       this.currentImageIndex++;
       this.resetZoom();
+    } else if (this.currentImageIndex === -1 && this.images.length > 0) {
+      // If no image selected, select the first one
+      this.currentImageIndex = 0;
+      this.resetZoom();
+    }
+    
+    // Scroll thumbnail into view
+    this.scrollThumbnailIntoView();
+  }
+  
+  private scrollThumbnailIntoView(): void {
+    if (this.thumbnailsContainer && this.currentImageIndex >= 0) {
+      const container = this.thumbnailsContainer.nativeElement;
+      const thumbnail = container.children[this.currentImageIndex] as HTMLElement;
+      if (thumbnail) {
+        thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
     }
   }
 
   removeImage(index: number): void {
+    // Edge case: invalid index
+    if (index < 0 || index >= this.images.length) {
+      return;
+    }
+    
     // Revoke object URL to free memory
     if (this.images[index]?.url) {
       URL.revokeObjectURL(this.images[index].url);
     }
     
+    const wasCurrentImage = index === this.currentImageIndex;
     this.images.splice(index, 1);
     
     // Adjust current index
-    if (this.currentImageIndex >= this.images.length) {
-      this.currentImageIndex = this.images.length - 1;
+    if (wasCurrentImage) {
+      // If we removed the current image, select the previous one or next one
+      if (this.images.length > 0) {
+        if (index > 0) {
+          this.currentImageIndex = index - 1;
+        } else if (index < this.images.length) {
+          this.currentImageIndex = index;
+        } else {
+          this.currentImageIndex = this.images.length - 1;
+        }
+      } else {
+        this.currentImageIndex = -1;
+      }
+    } else if (index < this.currentImageIndex) {
+      // If we removed an image before the current one, adjust index
+      this.currentImageIndex--;
     }
     
-    if (this.currentImageIndex < 0) {
+    // Ensure index is valid
+    if (this.currentImageIndex >= this.images.length) {
+      this.currentImageIndex = this.images.length > 0 ? this.images.length - 1 : -1;
+    }
+    
+    if (this.currentImageIndex < 0 && this.images.length === 0) {
       this.currentImageIndex = -1;
     }
     
     this.resetZoom();
+    this.updateThumbnailScrollState();
   }
 
   clearAll(): void {
-    // Revoke all object URLs
+    // Edge case: nothing to clear
+    if (this.images.length === 0) {
+      return;
+    }
+    
+    // Revoke all object URLs to free memory
     for (const img of this.images) {
-      if (img.url) {
+      if (img.url?.startsWith('blob:')) {
         URL.revokeObjectURL(img.url);
       }
     }
@@ -385,6 +444,13 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.images = [];
     this.currentImageIndex = -1;
     this.resetZoom();
+    this.errorMessage = '';
+    this.loading = false;
+    
+    // Reset file input
+    if (this.fileInput) {
+      this.fileInput.nativeElement.value = '';
+    }
   }
 
   zoomIn(): void {
@@ -413,31 +479,43 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   enterFullscreen(): void {
-    if (!this.currentImage) return;
+    // Edge case: no image to show
+    if (!this.currentImage) {
+      return;
+    }
     
     const container = this.fullscreenContainer?.nativeElement;
-    if (!container) return;
+    if (!container) {
+      console.warn('Fullscreen container not found');
+      return;
+    }
 
     this.isFullscreen = true;
     this.cdr.detectChanges();
 
-    // Request fullscreen
-    if (container.requestFullscreen) {
-      container.requestFullscreen().catch(err => {
-        console.error('Error attempting to enable fullscreen:', err);
-        this.isFullscreen = false;
-        this.cdr.detectChanges();
-      });
-    } else if ((container as any).webkitRequestFullscreen) {
-      (container as any).webkitRequestFullscreen();
-    } else if ((container as any).mozRequestFullScreen) {
-      (container as any).mozRequestFullScreen();
-    } else if ((container as any).msRequestFullscreen) {
-      (container as any).msRequestFullscreen();
-    } else {
-      // Fallback: use fullscreen CSS class
-      container.classList.add('fullscreen-active');
-      this.isFullscreen = true;
+    // Request fullscreen with error handling
+    try {
+      if (container.requestFullscreen) {
+        container.requestFullscreen().catch(err => {
+          console.error('Error attempting to enable fullscreen:', err);
+          this.isFullscreen = false;
+          this.cdr.detectChanges();
+        });
+      } else if ((container as any).webkitRequestFullscreen) {
+        (container as any).webkitRequestFullscreen();
+      } else if ((container as any).mozRequestFullScreen) {
+        (container as any).mozRequestFullScreen();
+      } else if ((container as any).msRequestFullscreen) {
+        (container as any).msRequestFullscreen();
+      } else {
+        // Fallback: use fullscreen CSS class
+        container.classList.add('fullscreen-active');
+        this.isFullscreen = true;
+      }
+    } catch (err) {
+      console.error('Error entering fullscreen:', err);
+      this.isFullscreen = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -514,6 +592,24 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     // Exit fullscreen on Escape key
     if (e.key === 'Escape' && this.isFullscreen) {
       this.exitFullscreen();
+      return;
+    }
+    
+    // Don't handle keyboard shortcuts if user is typing in an input
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
+    
+    // Keyboard navigation for images
+    if (this.images.length > 0) {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.previousImage();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.nextImage();
+      }
     }
   }
 
@@ -567,8 +663,22 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   selectImage(index: number): void {
+    // Edge case: invalid index
+    if (index < 0 || index >= this.images.length) {
+      return;
+    }
+    
     this.currentImageIndex = index;
     this.resetZoom();
+    
+    // Scroll thumbnail into view if needed
+    if (this.thumbnailsContainer) {
+      const container = this.thumbnailsContainer.nativeElement;
+      const thumbnail = container.children[index] as HTMLElement;
+      if (thumbnail) {
+        thumbnail.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
   }
 
   openFileDialog(): void {

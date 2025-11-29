@@ -1,422 +1,413 @@
-<div class="audio-player-container main-container">
-  <div class="top-navigation">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="main-container">
+  <lib-navigation></lib-navigation>
 
-  <div class="container">
-    <!-- Header Section -->
-    <div class="header-section">
-      <div class="header-content">
-        <h2>Audio Player</h2>
-        <p class="subtitle">Play, manage, and enjoy your audio files with advanced controls and visualizations</p>
-        <div class="header-meta">
-          <span>Supports modern audio formats</span>
-          <span>Runs entirely in your browser</span>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button 
-          class="btn-secondary" 
-          (click)="toggleAbout()"
-          [class.active]="showAbout"
-          title="Toggle about section"
-          [attr.aria-expanded]="showAbout">
-          {{ showAbout ? 'Hide About' : 'About Player' }}
-        </button>
-      </div>
-    </div>
-
-    <div class="insight-strip">
-      <div class="insight-card">
-        <span class="insight-label">Loaded tracks</span>
-        <span class="insight-value">{{ audioFiles.length }}</span>
-        <span class="insight-hint">Build playlists effortlessly</span>
-      </div>
-      <div class="insight-card">
-        <span class="insight-label">Current track</span>
-        <span class="insight-value">
-          {{ audioFiles.length > 0 ? (currentTrackIndex + 1) + ' / ' + audioFiles.length : '0 / 0' }}
-        </span>
-        <span class="insight-hint">Navigate instantly</span>
-      </div>
-      <div class="insight-card">
-        <span class="insight-label">Playback speed</span>
-        <span class="insight-value">{{ playbackRate }}x</span>
-        <span class="insight-hint">Dial in the perfect pace</span>
-      </div>
-    </div>
-
-    <!-- About Section -->
-    <section class="about-section info-card" *ngIf="showAbout">
-      <div class="info-card-header">
-        <h3>About Audio Player</h3>
-        <p>Everything you need to know to get the most out of the experience.</p>
-      </div>
-      <div class="about-content">
-        <div class="about-section-item about-card">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-            What is Audio Player?
-          </h3>
-          <p>
-            Audio Player is a comprehensive audio playback tool that supports multiple formats and provides advanced features like playlists, visualizations, and playback controls.
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Audio player</p>
+          <h1>Play, manage, and enjoy your audio files</h1>
+          <p class="strapline">
+            Advanced controls, visualizations, playlist management, and playback speed control for the perfect listening experience.
           </p>
         </div>
-        <div class="about-section-item about-card">
-          <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-            </svg>
-            Features
-          </h3>
-          <ul class="features-list">
-            <li>Support for multiple audio formats (MP3, WAV, OGG, FLAC, AAC, M4A, etc.)</li>
-            <li>Playlist management with drag & drop</li>
-            <li>Playback controls (play, pause, stop, next, previous)</li>
-            <li>Progress bar with seek functionality</li>
-            <li>Volume control and mute</li>
-            <li>Playback speed control (0.5x - 2x)</li>
-            <li>Repeat modes (none, all, one)</li>
-            <li>Shuffle mode</li>
-            <li>Audio visualization with waveform</li>
-            <li>Time display (current/total)</li>
-            <li>Download functionality</li>
-          </ul>
+        <div class="primary-meta">
+          <span class="meta-pill">Multiple formats</span>
+          <span class="meta-pill">Playlist support</span>
+          <span class="meta-pill">Visualizations</span>
         </div>
-      </div>
+      </header>
+
+      <section class="insight-card upload-card">
+        <header class="insight-header">
+          <h2>Load audio</h2>
+          <p>Drop files or browse to start listening instantly.</p>
+        </header>
+        <div class="insight-body">
+          <input
+            #fileInput
+            type="file"
+            accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a,.opus,.webm,.wma,.aiff,.au"
+            (change)="onFileSelected($event)"
+            class="file-input"
+            multiple
+            hidden>
+
+          <button
+            type="button"
+            class="drop-zone"
+            [class.active]="showDropZone"
+            (dragenter)="onDragEnter()"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+            (click)="openFileDialog()"
+            aria-label="Upload audio files">
+            <div class="drop-zone-content">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p class="drop-zone-text">Click to browse or drag and drop audio files here</p>
+              <p class="drop-zone-formats">Supported: MP3, WAV, OGG, FLAC, AAC, M4A, Opus, WebM, WMA, AIFF (Max 100MB)</p>
+            </div>
+          </button>
+
+          <div class="upload-actions">
+            <button class="btn-primary" (click)="openFileDialog()">
+              <span>Select Audio Files</span>
+            </button>
+            <p class="upload-hint">Supports MP3, WAV, OGG, FLAC, AAC, M4A, Opus, WebM, WMA, AIFF · 100MB max per file</p>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <div class="viewer-layout">
-      <aside class="interaction-panel">
-        <section class="upload-section panel-card">
-          <div class="panel-card-header">
-            <div class="panel-title">
-              <h3>Load audio</h3>
-              <p>Drop files or browse to start listening instantly.</p>
-            </div>
-            <button class="btn-link" (click)="openFileDialog()">Browse</button>
+    <aside class="workspace-secondary">
+      <div class="editor-toolbar audio-toolbar" aria-label="Audio player controls">
+        <div class="toolbar-stats" aria-label="Audio statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Loaded tracks</span>
+            <span class="stat-value">{{ audioFiles.length }}</span>
           </div>
-          <div class="panel-card-body">
-            <input
-              #fileInput
-              type="file"
-              accept="audio/*,.mp3,.wav,.ogg,.flac,.aac,.m4a,.opus,.webm,.wma,.aiff,.au"
-              (change)="onFileSelected($event)"
-              class="file-input"
-              multiple
-              hidden>
+          <div class="stat-chip">
+            <span class="stat-label">Current track</span>
+            <span class="stat-value">
+              {{ audioFiles.length > 0 ? (currentTrackIndex + 1) + ' / ' + audioFiles.length : '0 / 0' }}
+            </span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Playback speed</span>
+            <span class="stat-value">{{ playbackRate }}x</span>
+          </div>
+        </div>
+      </div>
 
-            <button
-              type="button"
-              class="drop-zone"
-              [class.active]="showDropZone"
-              (dragenter)="onDragEnter()"
-              (dragleave)="onDragLeave()"
-              (drop)="onDrop($event)"
-              (click)="openFileDialog()"
-              aria-label="Upload audio files">
-              <div class="drop-zone-content">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <p class="drop-zone-text">Click to browse or drag and drop audio files here</p>
-                <p class="drop-zone-formats">Supported: MP3, WAV, OGG, FLAC, AAC, M4A, Opus, WebM, WMA, AIFF (Max 100MB)</p>
+      <div class="viewer-shell audio-shell">
+        <section class="panel panel-viewer">
+          <header class="panel-header">
+            <div>
+              <h2>Audio player</h2>
+              <p *ngIf="audioFiles.length > 0 && currentTrack">
+                {{ currentTrack.name }} • {{ formatFileSize(currentTrack.size) }} • {{ formatTime(duration) }}
+              </p>
+              <p *ngIf="audioFiles.length === 0">Upload audio files to start playing them.</p>
+            </div>
+            <div class="panel-actions viewer-controls" *ngIf="audioFiles.length > 0">
+              <div class="viewer-zoom-controls-inline">
+                <button
+                  class="btn-icon"
+                  (click)="togglePlaylist()"
+                  [class.active]="showPlaylist"
+                  title="Toggle Playlist">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                  </svg>
+                </button>
               </div>
-            </button>
-
-            <div class="upload-actions">
-              <button class="btn-primary" (click)="openFileDialog()">
-                <span>Select Audio Files</span>
-              </button>
-              <p class="upload-hint">Supports MP3, WAV, OGG, FLAC, AAC, M4A, Opus, WebM, WMA, AIFF · 100MB max per file</p>
             </div>
-          </div>
-        </section>
+          </header>
 
-        <section class="panel-card tips-card">
-          <div class="panel-card-header">
-            <div class="panel-title">
-              <h3>Pro tips</h3>
-              <p>Enhance your listening session.</p>
-            </div>
-          </div>
-          <ul class="tips-list">
-            <li>Use playback speed controls to focus on details.</li>
-            <li>Enable shuffle to keep long playlists fresh.</li>
-            <li>Download tracks to enjoy them offline.</li>
-          </ul>
-        </section>
-      </aside>
-
-      <section class="viewer-panel">
-        <div class="loading" *ngIf="loading">
-          <div class="spinner"></div>
-          <p>Loading audio files...</p>
-        </div>
-
-        <div class="error-message" *ngIf="errorMessage">
-          <p>{{ errorMessage }}</p>
-        </div>
-
-        <div class="audio-player-main viewer-card" *ngIf="audioFiles.length > 0">
-          <!-- Hidden Audio Element -->
-          <audio
-            #audioElement
-            [volume]="volume / 100"
-            [playbackRate]="playbackRate">
-          </audio>
-
-          <!-- Main Player Controls -->
-          <div class="player-controls">
-        <!-- Track Info -->
-        <div class="track-info">
-          <div class="track-name" *ngIf="currentTrack">
-            {{ currentTrack.name }}
-          </div>
-          <div class="track-details" *ngIf="currentTrack">
-            {{ formatFileSize(currentTrack.size) }} • {{ formatTime(duration) }}
-          </div>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="progress-section">
-          <div 
-            class="progress-bar"
-            #progressBar
-            (click)="onProgressBarClick($event)">
-            <div 
-              class="progress-fill"
-              [style.width.%]="duration > 0 ? (currentTime / duration * 100) : 0">
-              <div class="progress-handle"></div>
-            </div>
-          </div>
-          <div class="time-display">
-            <span>{{ formatTime(currentTime) }}</span>
-            <span>{{ formatTime(duration) }}</span>
-          </div>
-        </div>
-
-        <!-- Control Buttons -->
-        <div class="control-buttons">
-          <button
-            class="btn-icon-large"
-            (click)="toggleShuffle()"
-            [class.active]="shuffleMode"
-            title="Shuffle">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="16 3 21 3 21 8"></polyline>
-              <line x1="4" y1="20" x2="21" y2="3"></line>
-              <polyline points="21 16 21 21 16 21"></polyline>
-              <line x1="15" y1="15" x2="21" y2="21"></line>
-              <line x1="4" y1="4" x2="9" y2="9"></line>
-            </svg>
-          </button>
-
-          <button
-            class="btn-icon-large"
-            (click)="previousTrack()"
-            title="Previous">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="19 20 9 12 19 4 19 20"></polygon>
-              <line x1="5" y1="19" x2="5" y2="5"></line>
-            </svg>
-          </button>
-
-          <button
-            class="btn-play-pause"
-            (click)="isPlaying ? pause() : play()"
-            [disabled]="!currentTrack || isLoading"
-            title="{{ isPlaying ? 'Pause' : 'Play' }}">
-            <svg *ngIf="!isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            <svg *ngIf="isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16"></rect>
-              <rect x="14" y="4" width="4" height="16"></rect>
-            </svg>
-          </button>
-
-          <button
-            class="btn-icon-large"
-            (click)="nextTrack()"
-            title="Next">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="5 4 15 12 5 20 5 4"></polygon>
-              <line x1="19" y1="5" x2="19" y2="19"></line>
-            </svg>
-          </button>
-
-          <button
-            class="btn-icon-large"
-            (click)="toggleRepeat()"
-            [class.active]="repeatMode !== 'none'"
-            [title]="repeatMode === 'one' ? 'Repeat One' : repeatMode === 'all' ? 'Repeat All' : 'Repeat'">
-            <svg *ngIf="repeatMode === 'none'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="17 1 21 5 17 9"></polyline>
-              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-              <polyline points="7 23 3 19 7 15"></polyline>
-              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-            </svg>
-            <svg *ngIf="repeatMode === 'all'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="17 1 21 5 17 9"></polyline>
-              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-              <polyline points="7 23 3 19 7 15"></polyline>
-              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-              <path d="M7 7h10"></path>
-            </svg>
-            <svg *ngIf="repeatMode === 'one'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="17 1 21 5 17 9"></polyline>
-              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-              <polyline points="7 23 3 19 7 15"></polyline>
-              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Volume and Speed Controls -->
-        <div class="secondary-controls">
-          <div class="volume-control">
-            <button
-              class="btn-icon"
-              (click)="toggleMute()"
-              [title]="isMuted ? 'Unmute' : 'Mute'">
-              <svg *ngIf="!isMuted && volume > 50" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              </svg>
-              <svg *ngIf="!isMuted && volume > 0 && volume <= 50" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              </svg>
-              <svg *ngIf="isMuted || volume === 0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                <line x1="23" y1="9" x2="17" y2="15"></line>
-                <line x1="17" y1="9" x2="23" y2="15"></line>
-              </svg>
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              [value]="volume"
-              (input)="setVolume(+$any($event.target).value)"
-              class="volume-slider"
-              title="Volume">
-            <span class="volume-value">{{ volume }}%</span>
+          <div class="loading" *ngIf="loading">
+            <div class="spinner"></div>
+            <p>Loading audio files...</p>
           </div>
 
-          <div class="speed-control">
-            <label>Speed:</label>
-            <select
-              [value]="playbackRate"
-              (change)="setPlaybackRate(+$any($event.target).value)"
-              class="speed-select">
-              <option value="0.5">0.5x</option>
-              <option value="0.75">0.75x</option>
-              <option value="1">1x</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-              <option value="2">2x</option>
-            </select>
+          <div class="error-message" *ngIf="errorMessage">
+            <p>{{ errorMessage }}</p>
           </div>
 
-          <button
-            class="btn-icon"
-            (click)="togglePlaylist()"
-            [class.active]="showPlaylist"
-            title="Toggle Playlist">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="8" y1="6" x2="21" y2="6"></line>
-              <line x1="8" y1="12" x2="21" y2="12"></line>
-              <line x1="8" y1="18" x2="21" y2="18"></line>
-              <line x1="3" y1="6" x2="3.01" y2="6"></line>
-              <line x1="3" y1="12" x2="3.01" y2="12"></line>
-              <line x1="3" y1="18" x2="3.01" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
+          <div class="viewer-content" *ngIf="audioFiles.length > 0">
+            <!-- Hidden Audio Element -->
+            <audio
+              #audioElement
+              [volume]="volume / 100"
+              [playbackRate]="playbackRate">
+            </audio>
 
-      <!-- Audio Visualization -->
-      <div class="visualization-section" *ngIf="audioFiles.length > 0">
-        <canvas
-          #waveformCanvas
-          class="waveform-canvas">
-        </canvas>
-      </div>
+            <!-- Main Player Controls -->
+            <div class="player-controls">
+              <!-- Track Info -->
+              <div class="track-info">
+                <div class="track-name" *ngIf="currentTrack">
+                  {{ currentTrack.name }}
+                </div>
+                <div class="track-details" *ngIf="currentTrack">
+                  {{ formatFileSize(currentTrack.size) }} • {{ formatTime(duration) }}
+                </div>
+              </div>
 
-      <!-- Playlist -->
-      <div class="playlist-section" *ngIf="showPlaylist">
-        <div class="playlist-header">
-          <h3>Playlist ({{ audioFiles.length }})</h3>
-          <button
-            class="btn-icon"
-            (click)="openFileDialog()"
-            title="Add Files">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="playlist-items">
-          <div
-            class="playlist-item"
-            *ngFor="let track of audioFiles; let i = index"
-            [class.active]="i === currentTrackIndex"
-            [class.playing]="i === currentTrackIndex && isPlaying"
-            (click)="selectTrack(i)">
-            <div class="playlist-item-info">
-              <div class="playlist-item-number">{{ i + 1 }}</div>
-              <div class="playlist-item-details">
-                <div class="playlist-item-name">{{ track.name }}</div>
-                <div class="playlist-item-meta">
-                  {{ formatFileSize(track.size) }} • {{ formatTime(track.duration) }}
+              <!-- Progress Bar -->
+              <div class="progress-section">
+                <div 
+                  class="progress-bar"
+                  #progressBar
+                  (click)="onProgressBarClick($event)">
+                  <div 
+                    class="progress-fill"
+                    [style.width.%]="duration > 0 ? (currentTime / duration * 100) : 0">
+                    <div class="progress-handle"></div>
+                  </div>
+                </div>
+                <div class="time-display">
+                  <span>{{ formatTime(currentTime) }}</span>
+                  <span>{{ formatTime(duration) }}</span>
+                </div>
+              </div>
+
+              <!-- Control Buttons -->
+              <div class="control-buttons">
+                <button
+                  class="btn-icon-large"
+                  (click)="toggleShuffle()"
+                  [class.active]="shuffleMode"
+                  title="Shuffle">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 3 21 3 21 8"></polyline>
+                    <line x1="4" y1="20" x2="21" y2="3"></line>
+                    <polyline points="21 16 21 21 16 21"></polyline>
+                    <line x1="15" y1="15" x2="21" y2="21"></line>
+                    <line x1="4" y1="4" x2="9" y2="9"></line>
+                  </svg>
+                </button>
+
+                <button
+                  class="btn-icon-large"
+                  (click)="previousTrack()"
+                  title="Previous">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                    <line x1="5" y1="19" x2="5" y2="5"></line>
+                  </svg>
+                </button>
+
+                <button
+                  class="btn-play-pause"
+                  (click)="isPlaying ? pause() : play()"
+                  [disabled]="!currentTrack || isLoading"
+                  title="{{ isPlaying ? 'Pause' : 'Play' }}">
+                  <svg *ngIf="!isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                  <svg *ngIf="isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16"></rect>
+                    <rect x="14" y="4" width="4" height="16"></rect>
+                  </svg>
+                </button>
+
+                <button
+                  class="btn-icon-large"
+                  (click)="nextTrack()"
+                  title="Next">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                    <line x1="19" y1="5" x2="19" y2="19"></line>
+                  </svg>
+                </button>
+
+                <button
+                  class="btn-icon-large"
+                  (click)="toggleRepeat()"
+                  [class.active]="repeatMode !== 'none'"
+                  [title]="repeatMode === 'one' ? 'Repeat One' : repeatMode === 'all' ? 'Repeat All' : 'Repeat'">
+                  <svg *ngIf="repeatMode === 'none'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="17 1 21 5 17 9"></polyline>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                    <polyline points="7 23 3 19 7 15"></polyline>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                  </svg>
+                  <svg *ngIf="repeatMode === 'all'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="17 1 21 5 17 9"></polyline>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                    <polyline points="7 23 3 19 7 15"></polyline>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    <path d="M7 7h10"></path>
+                  </svg>
+                  <svg *ngIf="repeatMode === 'one'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="17 1 21 5 17 9"></polyline>
+                    <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                    <polyline points="7 23 3 19 7 15"></polyline>
+                    <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Volume and Speed Controls -->
+              <div class="secondary-controls">
+                <div class="volume-control">
+                  <button
+                    class="btn-icon"
+                    (click)="toggleMute()"
+                    [title]="isMuted ? 'Unmute' : 'Mute'">
+                    <svg *ngIf="!isMuted && volume > 50" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <svg *ngIf="!isMuted && volume > 0 && volume <= 50" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    </svg>
+                    <svg *ngIf="isMuted || volume === 0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <line x1="23" y1="9" x2="17" y2="15"></line>
+                      <line x1="17" y1="9" x2="23" y2="15"></line>
+                    </svg>
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    [value]="volume"
+                    (input)="setVolume(+$any($event.target).value)"
+                    class="volume-slider"
+                    title="Volume">
+                  <span class="volume-value">{{ volume }}%</span>
+                </div>
+
+                <div class="speed-control">
+                  <label>Speed:</label>
+                  <select
+                    [value]="playbackRate"
+                    (change)="setPlaybackRate(+$any($event.target).value)"
+                    class="speed-select">
+                    <option value="0.5">0.5x</option>
+                    <option value="0.75">0.75x</option>
+                    <option value="1">1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                  </select>
                 </div>
               </div>
             </div>
-            <button
-              class="btn-icon-small"
-              (click)="downloadTrack(track); $event.stopPropagation()"
-              title="Download">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-            </button>
-            <button
-              class="btn-icon-small btn-remove"
-              (click)="removeTrack(i); $event.stopPropagation()"
-              title="Remove">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
 
-        <div class="empty-state" *ngIf="audioFiles.length === 0 && !loading">
-          <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <p>No audio files loaded</p>
-          <p class="hint">Upload audio files using the button above or drag and drop them here</p>
+            <!-- Audio Visualization -->
+            <div class="visualization-section" *ngIf="audioFiles.length > 0">
+              <canvas
+                #waveformCanvas
+                class="waveform-canvas">
+              </canvas>
+            </div>
+
+            <!-- Playlist -->
+            <div class="playlist-section" *ngIf="showPlaylist">
+              <div class="playlist-header">
+                <h3>Playlist ({{ audioFiles.length }})</h3>
+                <button
+                  class="btn-icon"
+                  (click)="openFileDialog()"
+                  title="Add Files">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+              </div>
+              <div class="playlist-items">
+                <div
+                  class="playlist-item"
+                  *ngFor="let track of audioFiles; let i = index"
+                  [class.active]="i === currentTrackIndex"
+                  [class.playing]="i === currentTrackIndex && isPlaying"
+                  (click)="selectTrack(i)">
+                  <div class="playlist-item-info">
+                    <div class="playlist-item-number">{{ i + 1 }}</div>
+                    <div class="playlist-item-details">
+                      <div class="playlist-item-name">{{ track.name }}</div>
+                      <div class="playlist-item-meta">
+                        {{ formatFileSize(track.size) }} • {{ formatTime(track.duration) }}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    class="btn-icon-small"
+                    (click)="downloadTrack(track); $event.stopPropagation()"
+                    title="Download">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </button>
+                  <button
+                    class="btn-icon-small btn-remove"
+                    (click)="removeTrack(i); $event.stopPropagation()"
+                    title="Remove">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="empty-gallery" *ngIf="audioFiles.length === 0 && !loading">
+            <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <p>No audio files loaded</p>
+            <p class="hint">Upload audio files using the panel above or drag and drop them anywhere on the page</p>
+          </div>
+        </section>
+      </div>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Pro tips</h2>
+          <p>Enhance your listening session.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Use playback speed controls to focus on details or speed through content.</li>
+            <li>Enable shuffle to keep long playlists fresh and unpredictable.</li>
+            <li>Download tracks to enjoy them offline or share with others.</li>
+            <li>Use repeat modes for focused listening or background music.</li>
+            <li>Adjust volume and mute controls for comfortable listening levels.</li>
+          </ul>
         </div>
       </section>
-    </div>
+
+      <section class="insight-card" *ngIf="showAbout">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our audio player.</p>
+        </header>
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              Audio Player is a comprehensive audio playback tool that supports multiple formats and provides advanced 
+              features like playlists, visualizations, and playback controls.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>Multiple formats</strong>
+                <p>Support for MP3, WAV, OGG, FLAC, AAC, M4A, Opus, WebM, WMA, AIFF and more.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Playlist management</strong>
+                <p>Build and manage playlists with drag & drop functionality.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Advanced controls</strong>
+                <p>Playback speed, repeat modes, shuffle, and volume controls.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Visualizations</strong>
+                <p>Audio waveform visualization for visual feedback.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
   </div>
 </div>
