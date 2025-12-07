@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
+import { TooltipDirective } from '../../directive/tooltip.directive';
 
 
 @Component({
@@ -10,7 +11,13 @@ import { Navigation } from '../navigation/navigation';
   standalone: true,
   templateUrl: './my-component.html',
   styleUrl: './my-component.scss',
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [
+    CommonModule, 
+    FormsModule, 
+    Navigation, 
+    RouterModule,
+    TooltipDirective
+  ]
 })
 export class MyComponent implements OnInit {
   title = 'My Component';
@@ -18,7 +25,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Text & Utilities',
       description: 'Tools for text manipulation and utilities',
-      icon: 'text_fields',
+      icon: 'fas fa-font',
       path: 'text-utilities',
       subCategories: [
         {
@@ -66,7 +73,7 @@ export class MyComponent implements OnInit {
     {
       name: 'File Viewers',
       description: 'Easily open, preview, and explore different file types directly in your browser.',
-      icon: 'insert_drive_file',
+      icon: 'fas fa-file-alt',
       path: 'file-viewers',
       subCategories: [
         {
@@ -139,7 +146,7 @@ export class MyComponent implements OnInit {
     {
       name: 'JSON / Data Converters',
       description: 'Tools to convert, format, and validate JSON and data formats',
-      icon: 'data_object',
+      icon: 'fas fa-database',
       path: 'data-converters',
       subCategories: [
         {
@@ -187,7 +194,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Number & Date Tools',
       description: 'Calculators, converters, and date utilities',
-      icon: 'calculate',
+      icon: 'fas fa-calculator',
       path: 'math-date-utils',
       subCategories: [
         {
@@ -260,7 +267,7 @@ export class MyComponent implements OnInit {
     {
       name: 'PDF Tools',
       description: 'View, edit, generate, and secure PDFs',
-      icon: 'picture_as_pdf',
+      icon: 'fas fa-file-pdf',
       path: 'pdf-tools',
       subCategories: [
         {
@@ -378,7 +385,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Image & Color Tools',
       description: 'Image manipulation and color utilities',
-      icon: 'palette',
+      icon: 'fas fa-palette',
       path: 'image-color-tools',
       subCategories: [
         {
@@ -436,7 +443,7 @@ export class MyComponent implements OnInit {
     {
       name: 'File & Code Tools',
       description: 'Code formatting and file utilities',
-      icon: 'code',
+      icon: 'fas fa-code',
       path: 'code-file-tools',
       subCategories: [
         {
@@ -489,7 +496,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Design & Web Dev Tools',
       description: 'CSS tools, responsive design helpers, and web dev utilities',
-      icon: 'web',
+      icon: 'fas fa-laptop-code',
       path: 'dev-design-tools',
       subCategories: [
         {
@@ -557,7 +564,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Validation & Testing Tools',
       description: 'Validators and testing utilities',
-      icon: 'rule',
+      icon: 'fas fa-check-circle',
       path: 'testing-tools',
       subCategories: [
         {
@@ -595,7 +602,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Security & Crypto Tools',
       description: 'Hashing, encryption, and secure utilities',
-      icon: 'lock',
+      icon: 'fas fa-lock',
       path: 'security-tools',
       subCategories: [
         {
@@ -638,7 +645,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Media & Audio Tools',
       description: 'Audio, video, and media utilities',
-      icon: 'music_note',
+      icon: 'fas fa-music',
       path: 'media-tools',
       subCategories: [
         {
@@ -671,7 +678,7 @@ export class MyComponent implements OnInit {
     {
       name: 'System / Browser Utilities',
       description: 'System information and browser tools',
-      icon: 'devices',
+      icon: 'fas fa-desktop',
       path: 'browser-utils',
       subCategories: [
         {
@@ -709,7 +716,7 @@ export class MyComponent implements OnInit {
     {
       name: 'Fun & Productivity Tools',
       description: 'Entertainment and productivity helpers',
-      icon: 'emoji_emotions',
+      icon: 'fas fa-gamepad',
       path: 'fun-tools',
       subCategories: [
         {
@@ -776,19 +783,19 @@ export class MyComponent implements OnInit {
   popularTools: Array<{ name: string; path: string; category: string; iconUrl: string }> = [];
   highlights: Array<{ title: string; description: string }> = [
     {
-      title: 'Lightning-fast tools',
-      description: 'Launch a tool in under a second with zero install overhead and smart caching built for the browser.'
+      title: 'Lightning Fast Processing',
+      description: 'Launch any tool in under a second with zero install overhead and smart caching built for the browser.'
     },
     {
-      title: 'Privacy-first by design',
+      title: 'Privacy First Design',
       description: 'Your data stays on your device. No silent syncs, no tracking pixels, and no surprise pop-ups.'
     },
     {
-      title: 'Built for teams & makers',
-      description: 'Flexible enough for cross-functional teams, yet intuitive for solo creators and indie builders.'
+      title: 'Built for Everyone',
+      description: 'Intuitive enough for beginners, yet powerful enough for professionals and development teams.'
     },
     {
-      title: 'Accessible to everyone',
+      title: 'Fully Accessible',
       description: 'Keyboard-friendly navigation, high-contrast themes, and screen-reader aware markup across the board.'
     }
   ];
@@ -824,10 +831,11 @@ export class MyComponent implements OnInit {
     this.filteredCategories = this.toolCategories
       .map(category => {
         const matchingTools = category.subCategories.filter((tool: any) =>
-          tool.name.toLowerCase().includes(query)
+          tool.name.toLowerCase().includes(query) || tool.description.toLowerCase().includes(query)
         );
         if (
           category.name.toLowerCase().includes(query) ||
+          category.description.toLowerCase().includes(query) ||
           matchingTools.length > 0
         ) {
           return { ...category, subCategories: matchingTools.length > 0 ? matchingTools : category.subCategories };
@@ -851,6 +859,7 @@ export class MyComponent implements OnInit {
   trackByCategory = (_: number, category: any) => category?.name;
   trackByTool = (_: number, tool: any) => tool?.path ?? tool?.name;
   trackByHighlight = (_: number, highlight: any) => highlight?.title;
+  
   private computeTotalToolCount(): number {
     return this.toolCategories.reduce((total, category) => {
       const toolsCount = Array.isArray(category.subCategories) ? category.subCategories.length : 0;

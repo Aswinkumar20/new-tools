@@ -1,18 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
+@import './app/generic-styles.scss';
 
 :root {
   --font-sans: 'Inter', 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
-  --page-background: #f1f5f9;
-  --page-gradient: linear-gradient(180deg, rgba(241, 245, 249, 0.65), rgba(255, 255, 255, 0.95));
-  --surface-card: #ffffff;
-  --surface-muted: rgba(248, 250, 252, 0.92);
-  --surface-emphasis: rgba(59, 130, 246, 0.12);
+  // Use theme variables from generic-styles.scss
+  --page-background: var(--bg);
+  --page-gradient: var(--bg);
+  // Use theme variables from generic-styles.scss
+  --surface-card: var(--card);
+  --surface-muted: rgba(148, 163, 184, 0.08);
+  --surface-emphasis: rgba(0, 123, 255, 0.12);
+  
+  // Dark theme adjustments
+  --border-subtle: rgba(148, 163, 184, 0.2);
+  --border-strong: rgba(148, 163, 184, 0.3);
+  --border-accent: rgba(0, 123, 255, 0.3);
 
-  --border-subtle: rgba(226, 232, 240, 0.8);
-  --border-strong: rgba(203, 213, 225, 0.6);
-  --border-accent: rgba(59, 130, 246, 0.22);
+  // Border colors will be overridden by theme
 
   --shadow-soft: 0 16px 40px rgba(15, 23, 42, 0.08);
   --shadow-card: 0 24px 60px rgba(15, 23, 42, 0.1);
@@ -37,13 +43,26 @@
   --error-500: #dc2626;
   --error-100: #fee2e2;
 
-  --text-primary: #0b1f51;
-  --text-secondary: rgba(15, 23, 42, 0.76);
-  --text-tertiary: rgba(15, 23, 42, 0.62);
-  --text-muted: rgba(15, 23, 42, 0.5);
-  --text-inverse: #ffffff;
+  // Use theme variables from generic-styles.scss
+  --text-primary: var(--text);
+  --text-secondary: var(--text);
+  --text-tertiary: var(--muted);
+  --text-muted: var(--muted);
+  --text-inverse: var(--card);
 
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+// Theme variables are now defined in generic-styles.scss
+// This ensures consistent theming across all components
+
+// Dark theme border adjustments
+:root[data-theme='dark'] {
+  --border-subtle: rgba(148, 163, 184, 0.2);
+  --border-strong: rgba(148, 163, 184, 0.3);
+  --border-accent: rgba(77, 171, 247, 0.3);
+  --surface-muted: rgba(148, 163, 184, 0.12);
+  --surface-emphasis: rgba(77, 171, 247, 0.15);
 }
 
 *,
@@ -61,10 +80,10 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-sans);
-  color: var(--text-secondary);
-  background: var(--page-gradient);
-  background-attachment: fixed;
+  color: var(--text);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body,
@@ -73,6 +92,9 @@ app-root,
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 main,
@@ -115,8 +137,8 @@ app-root {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: clamp(1rem, 4vw, 0.5rem);
-  color: var(--text-secondary);
+  color: var(--text);
+  background: var(--bg) !important;
 }
 
 lib-navigation {
@@ -363,6 +385,12 @@ lib-navigation {
   transition: border 0.2s ease, box-shadow 0.2s ease !important;
 }
 
+// Editor background should remain dark for code readability
+:root[data-theme='dark'] .editor {
+  background: #0a0f1a !important;
+  color: #e2e8f0 !important;
+}
+
 .editor:focus {
   outline: none !important;
   border-color: var(--accent-500) !important;
@@ -455,8 +483,8 @@ lib-navigation {
 }
 
 .btn-secondary {
-  background: #0f172a !important;
-  color: var(--text-inverse) !important;
+  background: var(--text) !important;
+  color: var(--card) !important;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18) !important;
 }
 
@@ -639,7 +667,7 @@ lib-navigation {
 .results-card__tree,
 .results-card__tips pre {
   font-family: var(--font-mono) !important;
-  color: #000000 !important;
+  color: var(--text) !important;
   margin: 0 !important;
 }
 
@@ -744,6 +772,11 @@ lib-navigation {
   border-radius: var(--radius-sm) !important;
   border: 1px solid rgba(148, 163, 184, 0.35) !important;
   padding: 1rem !important;
+}
+
+:root[data-theme='dark'] .validation-card__excerpt {
+  background: #0a0f1a !important;
+  color: #e2e8f0 !important;
 }
 
 .validation-card__excerpt pre {
@@ -861,6 +894,11 @@ lib-navigation {
   margin: 0 !important;
   font-family: var(--font-mono) !important;
   white-space: pre-wrap !important;
+}
+
+:root[data-theme='dark'] .diagnostic__snippet {
+  background: #0a0f1a !important;
+  color: #e2e8f0 !important;
 }
 
 .info-card ol,

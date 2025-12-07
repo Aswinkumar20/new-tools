@@ -54,19 +54,29 @@
   
               @if (hoveredCategory?.subCategories?.length) {
                 <div class="nav__mega-tools">
-                  @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
-                    <button
-                      type="button"
-                      class="nav__mega-tool"
-                      (click)="navigateTo(sub.path, 'categories')">
-                      <span class="nav__mega-tool-name">{{ sub.name }}</span>
-                      <span class="nav__mega-tool-description">{{ sub.description }}</span>
+                  <div class="nav__mega-tools-header">
+                    <h3 class="nav__mega-tools-title">{{ hoveredCategory.name }} Tools</h3>
+                    <button 
+                      class="nav__mega-view-all"
+                      (click)="navigateTo(hoveredCategory.path, 'categories')">
+                      View All {{ hoveredCategory.subCategories.length }} Tools
                     </button>
-                  }
+                  </div>
+                  <div class="nav__mega-tools-grid">
+                    @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
+                      <button
+                        type="button"
+                        class="nav__mega-tool"
+                        (click)="navigateTo(sub.path, 'categories')">
+                        <span class="nav__mega-tool-name">{{ sub.name }}</span>
+                        <span class="nav__mega-tool-description">{{ sub.description }}</span>
+                      </button>
+                    }
+                  </div>
                 </div>
               } @else {
                 <div class="nav__mega-empty">
-                  Hover a category to explore its tools.
+                  <p>Hover over a category to explore its tools</p>
                 </div>
               }
             </div>
@@ -91,6 +101,81 @@
       </nav>
     </div>
 
+
+    <div class="nav__actions" *ngIf="false">
+      <!-- Language Dropdown -->
+      <div class="nav__language-wrapper" (mouseleave)="closeLanguageDropdown()">
+        <button
+          type="button"
+          class="nav__language-toggle"
+          [attr.aria-label]="'Select language'"
+          [attr.aria-expanded]="isLanguageDropdownOpen"
+          (click)="toggleLanguageDropdown()"
+          (focus)="toggleLanguageDropdown()">
+          <span class="nav__language-flag">{{ '🌐' }}</span>
+          <span class="nav__language-code">{{ (currentLanguage?.code || 'en').toUpperCase() }}</span>
+          <svg class="nav__language-chevron" [class.nav__language-chevron--open]="isLanguageDropdownOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m6 9 6 6 6-6"></path>
+          </svg>
+        </button>
+        @if (isLanguageDropdownOpen) {
+          <div class="nav__language-dropdown">
+            <div class="nav__language-search">
+              <input
+                type="text"
+                #languageSearch
+                class="nav__language-search-input"
+                placeholder="Search language..."
+                (input)="filterLanguages($event)" />
+            </div>
+            <div class="nav__language-list">
+              @for (language of filteredLanguages || supportedLanguages; track language.code) {
+                <button
+                  type="button"
+                  class="nav__language-option"
+                  [class.nav__language-option--active]="currentLanguage?.code === language.code"
+                  (click)="selectLanguage(language)">
+                  <span class="nav__language-option-flag">{{ language.flag }}</span>
+                  <div class="nav__language-option-info">
+                    <span class="nav__language-option-name">{{ language.nativeName }}</span>
+                    <span class="nav__language-option-english">{{ language.name }}</span>
+                  </div>
+                  @if (currentLanguage?.code === language.code) {
+                    <svg class="nav__language-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 6 9 17l-5-5"></path>
+                    </svg>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <button
+        type="button"
+        class="nav__theme-toggle"
+        [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+        [title]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+        (click)="toggleTheme()">
+        <span class="nav__theme-icon" [class.nav__theme-icon--dark]="isDarkMode">
+          <svg *ngIf="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2"></path>
+            <path d="M12 20v2"></path>
+            <path d="m4.93 4.93 1.41 1.41"></path>
+            <path d="m17.66 17.66 1.41 1.41"></path>
+            <path d="M2 12h2"></path>
+            <path d="M20 12h2"></path>
+            <path d="m6.34 17.66-1.41 1.41"></path>
+            <path d="m19.07 4.93-1.41 1.41"></path>
+          </svg>
+          <svg *ngIf="isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </span>
+      </button>
+    </div>
 
     <div class="nav__auth" *ngIf="false">
       <button
@@ -185,19 +270,30 @@
       </button>
     </nav>
 
-    <div class="nav__drawer-footer" *ngIf="false">
+    <div class="nav__drawer-footer">
       <button
         type="button"
-        class="nav__drawer-link"
-        [class.nav__drawer-link--active]="activeLink === 'login'"
-        (click)="navigateTo('login', 'login')">
-        Login
-      </button>
-      <button
-        type="button"
-        class="nav__drawer-cta"
-        (click)="navigateTo('signup', 'signup')">
-        Sign Up
+        class="nav__drawer-theme-toggle"
+        [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+        [title]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+        (click)="toggleTheme()">
+        <span class="nav__theme-icon" [class.nav__theme-icon--dark]="isDarkMode">
+          <svg *ngIf="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2"></path>
+            <path d="M12 20v2"></path>
+            <path d="m4.93 4.93 1.41 1.41"></path>
+            <path d="m17.66 17.66 1.41 1.41"></path>
+            <path d="M2 12h2"></path>
+            <path d="M20 12h2"></path>
+            <path d="m6.34 17.66-1.41 1.41"></path>
+            <path d="m19.07 4.93-1.41 1.41"></path>
+          </svg>
+          <svg *ngIf="isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </span>
+        <span>{{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}</span>
       </button>
     </div>
   </aside>

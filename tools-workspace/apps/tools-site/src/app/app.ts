@@ -76,6 +76,9 @@ export class App implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     if (isPlatformBrowser(this.platformId)) {
+      // Apply theme immediately on app load
+      this.applyThemeOnInit();
+      
       this.currentPath = this.router.url;
       this.pageStartTime = Date.now();
 
@@ -93,6 +96,20 @@ export class App implements OnInit, OnDestroy {
 
       // Track Core Web Vitals if available
       this.trackCoreWebVitals();
+    }
+  }
+
+  private applyThemeOnInit(): void {
+    // Load theme preference and apply immediately
+    const savedTheme = localStorage.getItem('theme');
+    const root = document.documentElement;
+    
+    if (savedTheme) {
+      root.setAttribute('data-theme', savedTheme);
+    } else {
+      // Check system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
     }
   }
 
