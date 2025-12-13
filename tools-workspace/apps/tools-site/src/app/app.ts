@@ -7,7 +7,7 @@ import { filter } from 'rxjs/operators';
 import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
-import { FooterComponent } from '@tools-workspace/features-home';
+import { FooterComponent, ToastContainerComponent } from '@tools-workspace/features-home';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { AutoGATrackerService } from './services/auto-ga-tracker.service';
 import { GaScrollDirective } from './directives/ga-scroll.directive';
@@ -15,13 +15,14 @@ import { GaScrollDirective } from './directives/ga-scroll.directive';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, FooterComponent, GaScrollDirective],
+  imports: [RouterOutlet, FooterComponent, GaScrollDirective, ToastContainerComponent],
   template: `
     <div class="app-shell" gaScroll>
       <main class="app-shell__main">
         <router-outlet></router-outlet>
       </main>
       <lib-footer></lib-footer>
+      <lib-toast-container></lib-toast-container>
     </div>
   `,
   styleUrls: ['./app.scss'],

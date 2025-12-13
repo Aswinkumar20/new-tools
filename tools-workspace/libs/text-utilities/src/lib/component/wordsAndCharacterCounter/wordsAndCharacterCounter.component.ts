@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, ToastService } from '@tools-workspace/features-home';
 
 // Import Google Analytics Service - use optional injection to avoid errors if not available
 // In a library, we need to check if the service exists
@@ -72,12 +72,8 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   charLimit = Infinity;
   charLimitExceeded = false;
   
-  // Toast notification system
-  showNotification = false;
-  notificationBackground = '#2563eb';
-  notificationTextColor = '#ffffff';
-  notificationMessage = '';
-  notificationTimeout: any;
+  // Toast service for notifications
+  private toastService = inject(ToastService);
   get charLimitLabel(): string {
     return this.charLimit === Infinity ? 'Unlimited' : String(this.charLimit);
   }
@@ -678,19 +674,6 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     return Math.round(score * 10) / 10;
   }
 
-  private showToast(message: string) {
-    // Clear any existing timeout
-    if (this.notificationTimeout) {
-      clearTimeout(this.notificationTimeout);
-    }
-    this.notificationMessage = message;
-    this.showNotification = true;
-    
-    // Auto-hide after 2 seconds
-    this.notificationTimeout = setTimeout(() => {
-      this.showNotification = false;
-    }, 2000);
-  }
 
   copyText(): void {
     // Track copy action
@@ -709,7 +692,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     if (!this.hasContent) return;
     const text = this.paragraphControl.value || '';
     navigator.clipboard.writeText(text).then(() => {
-      alert('Text copied to clipboard!');
+      this.toastService.info('Text copied to clipboard');
     });
   }
 
@@ -731,7 +714,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     if (!this.hasContent) return;
     const stats = `Words: ${this.wordCount}\nCharacters: ${this.charCount}\nCharacters (no spaces): ${this.charCountNoSpaces}\nSentences: ${this.sentenceCount}\nParagraphs: ${this.paragraphCount}\nReadability (Flesch): ${this.readabilityScore}\nGunning Fog: ${this.gunningFog}\nSMOG: ${this.smogIndex}\nColeman-Liau: ${this.colemanLiau}`;
     navigator.clipboard.writeText(stats).then(() => {
-      this.showToast('Statistics copied to clipboard');
+      this.toastService.info('Statistics copied to clipboard');
     });
   }
 
@@ -750,6 +733,6 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     });
     if (!this.hasContent) return;
     this.paragraphControl.setValue('');
-    this.showToast('Text cleared');
+    this.toastService.info('Text cleared');
   }
 }

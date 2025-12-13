@@ -1,7 +1,22 @@
-.toast-wrapper {
-  position: relative;
-  width: 100%;
+.toast-container {
+  position: fixed;
+  bottom: clamp(1.5rem, 4vw, 2.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
   pointer-events: none;
+  width: 100%;
+  max-width: 520px;
+  padding: 0 1.25rem;
+}
+
+// Ensure toasts are stacked vertically
+.toast-container > * {
+  pointer-events: auto;
 }
 
 .toast {
@@ -16,18 +31,15 @@
   font-weight: 600;
   font-size: 0.95rem;
   backdrop-filter: saturate(160%) blur(12px);
-  transform: translateY(110%);
-  opacity: 0;
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.3s ease;
-}
-
-.toast-wrapper--active .toast {
   transform: translateY(0);
   opacity: 1;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.3s ease;
+  animation: toastSlideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  position: relative;
 }
 
-.toast-wrapper--active .toast::after {
+.toast::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -39,6 +51,7 @@
 
 .toast__message {
   white-space: pre-line;
+  flex: 1;
 }
 
 .toast__close {
@@ -51,6 +64,7 @@
   padding: 0;
   opacity: 0.75;
   transition: opacity 0.15s ease, transform 0.2s ease;
+  flex-shrink: 0;
 }
 
 .toast__close:hover,
@@ -64,15 +78,26 @@
   outline-offset: 2px;
 }
 
-.toast-wrapper:not(.toast-wrapper--active) {
-  pointer-events: none;
+@keyframes toastSlideIn {
+  from {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
-.toast-wrapper--active {
-  pointer-events: none;
-}
+@media (max-width: 640px) {
+  .toast-container {
+    width: calc(100% - 2rem);
+    padding: 0;
+  }
 
-.toast-wrapper--active .toast {
-  pointer-events: auto;
+  .toast {
+    padding: 0.85rem 1.2rem;
+    font-size: 0.9rem;
+  }
 }
 
