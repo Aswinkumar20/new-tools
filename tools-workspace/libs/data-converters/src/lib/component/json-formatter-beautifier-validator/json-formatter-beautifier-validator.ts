@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '@tools-workspace/features-home';
@@ -41,7 +41,7 @@ const DEFAULT_SAMPLE = {
   description:
     'Paste JSON, format it with your preferred indentation, and validate the structure instantly.',
   settings: {
-    indentation: 2,
+    Indentation: 2,
     autoValidate: true,
     theme: 'system'
   },
@@ -51,9 +51,33 @@ const DEFAULT_SAMPLE = {
     tags: ['json', 'format', 'validate']
   },
   payload: [
-    { id: 1, label: 'Formatter', active: true },
-    { id: 2, label: 'Validator', active: true },
-    { id: 3, label: 'Tree View', active: false }
+    {
+      id: 1,
+      name: 'item A',
+      value: 100,
+      details: {
+        status: 'active',
+        createdAt: '2024-01-15T10:00:00Z'
+      }
+    },
+    {
+      id: 2,
+      name: 'item B',
+      value: 200,
+      details: {
+        status: 'pending',
+        createdAt: '2024-02-20T11:30:00Z'
+      }
+    },
+    {
+      id: 3,
+      name: 'item C',
+      value: 350,
+      details: {
+        status: 'archived',
+        createdAt: '2024-03-05T09:00:00Z'
+      }
+    }
   ]
 };
 
@@ -64,7 +88,8 @@ const DEFAULT_SAMPLE = {
   styleUrls: ['./json-formatter-beautifier-validator.scss'],
   imports: [CommonModule, FormsModule, Navigation, FlexLayoutModule]
 })
-export class JsonFormatterBeautifierValidatorComponent {
+export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit {
+  @ViewChild('editorTextarea') editorTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly resultTabs: Array<{ id: ResultTab; label: string; description: string }> = [
     {
       id: 'formatted',
@@ -122,9 +147,20 @@ export class JsonFormatterBeautifierValidatorComponent {
   copyStatus: 'idle' | 'success' | 'error' = 'idle';
   lastFormatMode: 'beautify' | 'minify' | null = null;
   isDragOver = false;
+  editorLines: number[] = [];
+  formattedLines: number[] = [];
 
   constructor() {
     this.loadSamplePayload();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.setupKeyboardShortcuts();
+    // Sync scroll after view init
+    if (this.editorTextarea?.nativeElement) {
+      this.editorTextarea.nativeElement.addEventListener('scroll', (e) => this.onEditorScroll(e));
+    }
   }
 
   get formattedOutputAvailable(): boolean {
@@ -151,6 +187,7 @@ export class JsonFormatterBeautifierValidatorComponent {
   onRawInputChange(value: string): void {
     this.rawInput = value;
     this.updateInputMetrics(value);
+    this.updateEditorLineNumbers();
     if (this.autoValidate) {
       this.validateJson(false, false);
     } else {
@@ -181,6 +218,7 @@ export class JsonFormatterBeautifierValidatorComponent {
     }
 
     this.formattedOutput = JSON.stringify(parseResult.value, null, indent);
+    this.updateFormattedLineNumbers();
     this.validationResult = {
       status: 'success',
       message: `Beautified JSON with ${this.indentLabel.toLowerCase()}.`
@@ -201,6 +239,7 @@ export class JsonFormatterBeautifierValidatorComponent {
     }
 
     this.formattedOutput = JSON.stringify(parseResult.value);
+    this.updateFormattedLineNumbers();
     this.validationResult = {
       status: 'success',
       message: 'Minified JSON payload.'
@@ -209,6 +248,61 @@ export class JsonFormatterBeautifierValidatorComponent {
     this.lastFormatMode = 'minify';
     this.recordHistory('Minified JSON');
     this.updateTree(parseResult.value);
+  }
+
+  autoFixJson(): void {
+    let fixedInput = this.rawInput;
+    
+    // Try to fix common JSON issues
+    try {
+      // Remove trailing commas
+      fixedInput = fixedInput.replace(/,(\s*[}\]])/g, '$1');
+      
+      // Fix single quotes to double quotes (basic)
+      fixedInput = fixedInput.replace(/'/g, '"');
+      
+      // Try to parse and reformat
+      const parseResult = this.safeParse(fixedInput);
+      if (parseResult.success) {
+        this.rawInput = JSON.stringify(parseResult.value, null, this.indentSize);
+        this.onRawInputChange(this.rawInput);
+        this.formatJson();
+        this.recordHistory('Auto-fixed JSON');
+        this.validationResult = {
+          status: 'success',
+          message: 'JSON auto-fixed and formatted successfully.'
+        };
+      } else {
+        this.validationResult = {
+          status: 'error',
+          message: 'Could not auto-fix JSON. Please fix errors manually.'
+        };
+        this.activeResultTab = 'validation';
+      }
+    } catch (error) {
+      this.validationResult = {
+        status: 'error',
+        message: 'Auto-fix failed. Please fix errors manually.'
+      };
+      this.activeResultTab = 'validation';
+    }
+  }
+
+  runAll(): void {
+    // Run validate, format, and update tree
+    this.validateJson(true, false);
+    this.formatJson();
+    this.activeResultTab = 'formatted';
+    this.recordHistory('Ran all operations');
+  }
+
+  onEditorScroll(event: Event): void {
+    // Sync line numbers scroll with editor scroll
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
   }
 
   validateJson(updateTree = true, setActiveTab = true): void {
@@ -331,6 +425,8 @@ export class JsonFormatterBeautifierValidatorComponent {
     this.rawInput = JSON.stringify(DEFAULT_SAMPLE, null, 2);
     this.formattedOutput = this.rawInput;
     this.updateInputMetrics(this.rawInput);
+    this.updateEditorLineNumbers();
+    this.updateFormattedLineNumbers();
     this.validationResult = {
       status: 'success',
       message: 'Sample JSON loaded. Ready for formatting or validation.'
@@ -443,6 +539,7 @@ export class JsonFormatterBeautifierValidatorComponent {
         this.rawInput = text;
         this.formattedOutput = '';
         this.onRawInputChange(text);
+        this.updateEditorLineNumbers();
         this.validationResult = null;
         this.lastFormatMode = null;
       })
@@ -552,6 +649,76 @@ export class JsonFormatterBeautifierValidatorComponent {
       return 'boolean';
     }
     return 'string';
+  }
+
+  private updateEditorLineNumbers(): void {
+    const lines = this.rawInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateFormattedLineNumbers(): void {
+    const lines = this.formattedOutput.split(/\r?\n/).length;
+    this.formattedLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private setupKeyboardShortcuts(): void {
+    // Keyboard shortcuts are handled via HostListener
+  }
+
+  getKeyboardShortcutsTooltip(): string {
+    return 'Keyboard Shortcuts:\nCtrl+B - Beautify JSON\nCtrl+M - Minify JSON\nCtrl+V - Validate JSON\nCtrl+F - Auto-Fix JSON\nCtrl+C - Copy Output\nCtrl+S - Download Output';
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboardShortcut(event: KeyboardEvent): void {
+    // Only handle shortcuts when not typing in input fields
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+      // Allow Ctrl+S for save in textarea, but handle other shortcuts
+      if (target.tagName === 'TEXTAREA' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (this.formattedOutputAvailable) {
+          this.downloadFormatted();
+        }
+        return;
+      }
+      return;
+    }
+
+    const ctrlOrCmd = event.ctrlKey || event.metaKey;
+    
+    if (ctrlOrCmd) {
+      switch (event.key.toLowerCase()) {
+        case 'b':
+          event.preventDefault();
+          this.formatJson();
+          break;
+        case 'm':
+          event.preventDefault();
+          this.minifyJson();
+          break;
+        case 'v':
+          event.preventDefault();
+          this.validateJson();
+          break;
+        case 'f':
+          event.preventDefault();
+          this.autoFixJson();
+          break;
+        case 'c':
+          if (this.formattedOutputAvailable) {
+            event.preventDefault();
+            this.copyFormatted();
+          }
+          break;
+        case 's':
+          if (this.formattedOutputAvailable) {
+            event.preventDefault();
+            this.downloadFormatted();
+          }
+          break;
+      }
+    }
   }
 
 }

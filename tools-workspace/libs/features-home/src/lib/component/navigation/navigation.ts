@@ -1,11 +1,11 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, NavigationEnd } from '@angular/router';
 import { LanguageService, Language } from '../../services/language.service';
 import { TranslationService } from '../../services/translation.service';
 import { TranslatePipe } from '../../pipe/translate.pipe';
-import { Subscription } from 'rxjs';
+import { Subscription, filter } from 'rxjs';
 
 @Component({
   selector: 'lib-navigation',
@@ -789,6 +789,13 @@ export class NavigationComponent implements OnInit, OnDestroy {
   currentLanguage: Language | undefined;
   private languageSubscription?: Subscription;
 
+  // Search properties
+  searchQuery: string = '';
+  searchResults: any[] = [];
+  isSearchDropdownOpen = false;
+  isHomePage = false;
+  private routerSubscription?: Subscription;
+
   constructor(
     private readonly router: Router,
     private languageService: LanguageService,
@@ -801,11 +808,19 @@ export class NavigationComponent implements OnInit, OnDestroy {
     this.loadThemePreference();
     this.setupThemeListener();
     this.initializeLanguage();
+    // Check route immediately and set up listener
+    this.checkCurrentRoute();
+    this.setupRouteListener();
+    // Also check route after a small delay to catch any async route changes
+    setTimeout(() => this.checkCurrentRoute(), 100);
   }
 
   ngOnDestroy(): void {
     if (this.languageSubscription) {
       this.languageSubscription.unsubscribe();
+    }
+    if (this.routerSubscription) {
+      this.routerSubscription.unsubscribe();
     }
   }
 
@@ -852,28 +867,18 @@ export class NavigationComponent implements OnInit, OnDestroy {
   }
 
   setupThemeListener(): void {
-    // Listen for system theme changes (only if user hasn't set a manual preference)
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', (e) => {
-        // Only update if user hasn't manually set a preference
-        if (!localStorage.getItem('theme')) {
-          this.isDarkMode = e.matches;
-          this.applyTheme();
-        }
-      });
-    }
+    // Theme listener removed - no automatic dark mode switching
+    // Users can manually toggle theme if needed
   }
 
   loadThemePreference(): void {
-    // Check localStorage first, then system preference
+    // Check localStorage first, default to light mode
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       this.isDarkMode = savedTheme === 'dark';
     } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      this.isDarkMode = prefersDark;
+      // Default to light mode (no dark mode by default)
+      this.isDarkMode = false;
     }
     this.applyTheme();
   }
@@ -970,6 +975,103 @@ export class NavigationComponent implements OnInit, OnDestroy {
       this.expandedMobileCategory = null;
     } else {
       this.isDropdownOpen = false;
+    }
+  }
+
+  checkCurrentRoute(): void {
+    const currentUrl = this.router.url;
+    // Normalize the URL by removing query params and fragments
+    const normalizedUrl = currentUrl.split('?')[0].split('#')[0];
+    
+    // Check if we're on home page
+    // Routes: /tools/home, /product-home, /, empty, or /tools (which redirects to home)
+    this.isHomePage = 
+      normalizedUrl === '/tools/home' || 
+      normalizedUrl === '/product-home' || 
+      normalizedUrl === '/' || 
+      normalizedUrl === '' ||
+      normalizedUrl === '/tools';
+  }
+
+  setupRouteListener(): void {
+    this.routerSubscription = this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(() => {
+        this.checkCurrentRoute();
+        this.searchQuery = '';
+        this.searchResults = [];
+        this.isSearchDropdownOpen = false;
+      });
+  }
+
+  onSearchInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.searchQuery = input.value.trim();
+    
+    if (!this.searchQuery) {
+      this.searchResults = [];
+      this.isSearchDropdownOpen = false;
+      return;
+    }
+
+    this.filterSearchResults();
+    this.isSearchDropdownOpen = this.searchResults.length > 0;
+  }
+
+  filterSearchResults(): void {
+    const query = this.searchQuery.toLowerCase().trim();
+    this.searchResults = [];
+
+    this.categoriesList.forEach((category: any) => {
+      // Search in category name
+      if (category.name.toLowerCase().includes(query)) {
+        this.searchResults.push({
+          name: category.name,
+          description: category.description,
+          path: category.path,
+          type: 'category'
+        });
+      }
+
+      // Search in tools
+      if (category.subCategories && category.subCategories.length > 0) {
+        category.subCategories.forEach((tool: any) => {
+          if (
+            tool.name.toLowerCase().includes(query) ||
+            (tool.description && tool.description.toLowerCase().includes(query))
+          ) {
+            this.searchResults.push({
+              name: tool.name,
+              description: tool.description,
+              path: tool.path,
+              category: category.name,
+              type: 'tool'
+            });
+          }
+        });
+      }
+    });
+
+    // Limit results to 10 for better performance
+    this.searchResults = this.searchResults.slice(0, 10);
+  }
+
+  onSearchResultClick(result: any): void {
+    this.navigateTo(result.path, 'search');
+    this.searchQuery = '';
+    this.searchResults = [];
+    this.isSearchDropdownOpen = false;
+  }
+
+  closeSearchDropdown(): void {
+    this.isSearchDropdownOpen = false;
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.nav__search-wrapper')) {
+      this.isSearchDropdownOpen = false;
     }
   }
 }

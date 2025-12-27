@@ -1,313 +1,232 @@
 <div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <header class="hero">
-    <div class="hero__eyebrow">Data Converter Suite</div>
-    <h1 class="hero__title">JSON Formatter & Validator</h1>
-    <p class="hero__subtitle">
-      Clean, validate, and explore a single JSON payload with a workspace designed for designers,
-      developers, and data teams. Beautify indentation, surface syntax errors, and inspect the
-      structure without leaving this page.
-    </p>
-    <div class="hero__callouts">
-      <div class="callout" *ngFor="let item of callouts">
-        <h3>{{ item.title }}</h3>
-        <p>{{ item.detail }}</p>
-      </div>
-    </div>
-  </header>
-
   <section class="workspace">
-    <div class="workspace__top" fxLayout="row" fxLayoutAlign="space-between">
-      <div class="workspace__title">
-        <h2>Interactive workspace</h2>
-        <p>Format, validate, and explore JSON side-by-side with the results.</p>
+
+    <div class="editor-hero">
+      <h1 class="editor-hero__title">JSON Formatter & Validator</h1>
+      <p class="editor-hero__subtitle">
+        Clean, validate, and explore a single JSON payload with a workspace designed for designers,
+        developers, and data teams.
+      </p>
+    </div>
+
+    
+    <div class="workspace__header">
+      <div class="workspace__actions">
+        <button class="btn-action" type="button" (click)="formatJson()" [attr.data-tooltip]="'Format JSON with proper indentation'">
+          <span class="btn-action__icon">&lt;/&gt;</span>
+          <span class="btn-action__label">Format</span>
+        </button>
+        <button class="btn-action" type="button" (click)="validateJson()" [attr.data-tooltip]="'Validate JSON syntax and structure'">
+          <span class="btn-action__icon">✓</span>
+          <span class="btn-action__label">Validate</span>
+        </button>
+        <button class="btn-action" type="button" (click)="autoFixJson()" [attr.data-tooltip]="'Automatically fix common JSON errors'">
+          <span class="btn-action__icon">🔧</span>
+          <span class="btn-action__label">Auto-Fix</span>
+        </button>
+        <button class="btn-action" type="button" (click)="formatJson()" [attr.data-tooltip]="'Beautify JSON with proper formatting'">
+          <span class="btn-action__icon">#</span>
+          <span class="btn-action__label">Beautify</span>
+        </button>
       </div>
 
-      <div class="workspace__metrics" fxLayout="row" fxLayoutAlign="start stretch">
-        <div>
-          <strong>Characters</strong>
-          <span>{{ inputMetrics.characters | number }}</span>
+      <div class="workspace__metrics">
+        <div class="metric">
+          <span class="metric__label">CHARACTERS:</span>
+          <span class="metric__value">{{ inputMetrics.characters | number }}</span>
         </div>
-        <div>
-          <strong>Lines</strong>
-          <span>{{ inputMetrics.lines | number }}</span>
+        <div class="metric">
+          <span class="metric__label">LINES:</span>
+          <span class="metric__value">{{ inputMetrics.lines | number }}</span>
         </div>
-        <div>
-          <strong>Payload size</strong>
-          <span>{{ inputMetrics.sizeLabel }}</span>
+        <div class="metric">
+          <span class="metric__label">PAYLOAD SIZE:</span>
+          <span class="metric__value">{{ inputMetrics.sizeLabel }}</span>
         </div>
       </div>
     </div>
 
     <div class="workspace__content">
-      <div
-        class="workspace__panel workspace__panel--editor"
-        [class.workspace__panel--dragging]="isDragOver"
-        (dragenter)="onDragEnter($event)"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <div class="card editor-card">
-          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
-            <div class="dropzone__icon" aria-hidden="true">&#128190;</div>
-            <div class="dropzone__text">
-              <strong>Drop JSON or upload a file</strong>
-              <span>Files stay in your browser. Paste works too.</span>
-            </div>
-            <div class="dropzone__actions">
-              <label class="btn btn-ghost">
-                <input type="file" accept="application/json,.json" (change)="onFileInputChange($event)" />
-                Upload
-              </label>
-              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
-            </div>
-          </div>
+      <div class="workspace__card workspace__card--editor">
+        <div
+          class="workspace__panel workspace__panel--editor"
+          [class.workspace__panel--dragging]="isDragOver"
+          (dragenter)="onDragEnter($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
 
-          <textarea
-            class="editor"
-            rows="18"
-            spellcheck="false"
-            [(ngModel)]="rawInput"
-            (ngModelChange)="onRawInputChange($event)"
-            placeholder="{ &quot;message&quot;: &quot;Paste JSON here&quot; }"
-          ></textarea>
-
-          <div class="editor-card__controls">
-            <div class="controls">
-              <div class="controls__group">
-                <span class="controls__label">Indentation style</span>
-                <div class="segmented">
-                  <button
-                    class="segmented__option"
-                    type="button"
-                    [class.segmented__option--active]="indentStyle === 'spaces'"
-                    (click)="onIndentStyleChange('spaces')"
-                  >
-                    Spaces
-                  </button>
-                  <button
-                    class="segmented__option"
-                    type="button"
-                    [class.segmented__option--active]="indentStyle === 'tabs'"
-                    (click)="onIndentStyleChange('tabs')"
-                  >
-                    Tabs
-                  </button>
-                </div>
-              </div>
-
-              <div class="controls__group" *ngIf="indentStyle === 'spaces'">
-                <label class="controls__label" for="indentSize">Size: {{ indentSize }} spaces</label>
-                <input
-                  id="indentSize"
-                  type="range"
-                  min="2"
-                  max="8"
-                  step="2"
-                  [ngModel]="indentSize"
-                  (ngModelChange)="onIndentSizeChange($event)"
-                />
-              </div>
-            </div>
-
-            <label class="toggle">
-              <input type="checkbox" [checked]="autoValidate" (change)="toggleAutoValidate()" />
-              <span>Auto-validate while typing</span>
+          <div class="editor-toolbar">
+            <label class="btn-upload" [attr.data-tooltip]="'Upload a JSON file or drag and drop it here'">
+              <input type="file" accept="application/json,.json" (change)="onFileInputChange($event)" />
+              <span class="btn-upload__icon">📤</span>
+              <span class="btn-upload__label">Upload / Drop</span>
             </label>
-          </div>
-
-          <div class="editor-card__actions">
-            <button class="btn btn-primary" type="button" (click)="formatJson()">Beautify</button>
-            <button class="btn btn-secondary" type="button" (click)="minifyJson()">Minify</button>
-            <button class="btn btn-ghost" type="button" (click)="validateJson()">Validate only</button>
-          </div>
-        </div>
-
-        <div class="card history-card" *ngIf="operationHistory.length">
-          <header class="card__header">
-            <h2>Recent actions</h2>
-          </header>
-          <ul>
-            <li *ngFor="let entry of operationHistory">
-              <span>{{ entry.label }}</span>
-              <time>{{ entry.timestamp }}</time>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="workspace__panel workspace__panel--results">
-        <div class="card results-card">
-          <div class="results-card__tabs" role="tablist" aria-label="Result views">
-            <button
-              *ngFor="let tab of resultTabs"
-              type="button"
-              class="results-card__tab"
-              role="tab"
-              [attr.aria-selected]="activeResultTab === tab.id"
-              [class.results-card__tab--active]="activeResultTab === tab.id"
-              (click)="setActiveResultTab(tab.id)"
-            >
-              <span class="results-card__tab-label">{{ tab.label }}</span>
-              <span class="results-card__tab-description">{{ tab.description }}</span>
+            <div class="indent-selector">
+              <label for="indentSelect">Indent:</label>
+              <select id="indentSelect" [ngModel]="indentSize" (ngModelChange)="onIndentSizeChange(+$event)" [attr.data-tooltip]="'Select indentation size for formatting'">
+                <option [value]="2">2</option>
+                <option [value]="4">4</option>
+                <option [value]="6">6</option>
+                <option [value]="8">8</option>
+              </select>
+            </div>
+            <button class="btn-reset" type="button" (click)="resetWorkspace()" [attr.data-tooltip]="'Reset to default sample JSON'">Reset Sample</button>
+            <button class="btn-shortcuts" type="button" [attr.data-tooltip]="getKeyboardShortcutsTooltip()">
+              <span class="btn-shortcuts__icon">⌨</span>
+              <span class="btn-shortcuts__label">Keyboard Shortcuts</span>
             </button>
           </div>
 
-          <div class="results-card__body" [ngSwitch]="activeResultTab">
-            <ng-container *ngSwitchCase="'formatted'">
-              <div class="results-card__toolbar">
-                <div class="results-card__status">
-                  <strong>Beautified output</strong>
-                  <span *ngIf="lastFormatMode === 'beautify'">Indented with {{ indentLabel.toLowerCase() }}</span>
-                  <span *ngIf="lastFormatMode === 'minify'">Compacted to a single line payload</span>
-                  <span *ngIf="!lastFormatMode">Format your JSON to generate output.</span>
-                </div>
-                <div class="results-card__actions">
-                  <button
-                    class="btn btn-ghost"
-                    type="button"
-                    [disabled]="!formattedOutputAvailable"
-                    (click)="copyFormatted()"
-                  >
-                    {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
-                  </button>
-                  <button
-                    class="btn btn-ghost"
-                    type="button"
-                    [disabled]="!formattedOutputAvailable"
-                    (click)="downloadFormatted()"
-                  >
-                    Download
-                  </button>
-                </div>
-              </div>
-
-              <div class="results-card__preview" *ngIf="formattedOutputAvailable; else formattedEmpty">
-                <pre>{{ formattedOutput }}</pre>
-              </div>
-              <ng-template #formattedEmpty>
-                <div class="results-card__empty">
-                  <p>Beautify or minify your JSON to see the formatted result here.</p>
-                </div>
-              </ng-template>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'tree'">
-              <div class="results-card__tree" *ngIf="treeNodes.length; else emptyTree">
-                <ul class="tree">
-                  <ng-template #treeNode let-node>
-                    <li class="tree__item" [style.paddingLeft.px]="node.level * 16">
-                      <button
-                        type="button"
-                        class="tree__toggle"
-                        *ngIf="node.children?.length"
-                        (click)="toggleNode(node)"
-                        [attr.aria-expanded]="node.expanded"
-                      >
-                        <span *ngIf="node.expanded">&#9662;</span>
-                        <span *ngIf="!node.expanded">&#9656;</span>
-                      </button>
-                      <span class="tree__key">{{ node.key || 'root' }}</span>
-                      <span class="tree__type">{{ node.type }}</span>
-                      <span class="tree__preview">{{ node.preview }}</span>
-                      <span class="tree__meta" *ngIf="node.metadata">{{ node.metadata }}</span>
-                      <ul *ngIf="node.children?.length && node.expanded">
-                        <ng-container
-                          *ngFor="let child of node.children; trackBy: trackByNodeId"
-                          [ngTemplateOutlet]="treeNode"
-                          [ngTemplateOutletContext]="{ $implicit: child }"
-                        ></ng-container>
-                      </ul>
-                    </li>
-                  </ng-template>
-                  <ng-container *ngFor="let node of treeNodes; trackBy: trackByNodeId">
-                    <ng-container [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ $implicit: node }">
-                    </ng-container>
-                  </ng-container>
-                </ul>
-              </div>
-              <ng-template #emptyTree>
-                <div class="results-card__empty">
-                  <p>Beautify or validate JSON to generate an interactive tree view.</p>
-                </div>
-              </ng-template>
-            </ng-container>
-
-            <ng-container *ngSwitchCase="'validation'">
-              <div
-                class="validation-card__status"
-                [class.validation-card__status--success]="validationResult?.status === 'success'"
-                [class.validation-card__status--error]="validationResult?.status === 'error'"
-              >
-                <strong *ngIf="validationResult?.status === 'success'">Valid JSON</strong>
-                <strong *ngIf="validationResult?.status === 'error'">Syntax error</strong>
-                <p>{{ validationResult?.message || 'Run validation to see syntax feedback.' }}</p>
-                <div class="validation-card__details" *ngIf="validationResult?.line">
-                  <span>Line {{ validationResult?.line }}, column {{ validationResult?.column }}</span>
-                </div>
-              </div>
-
-              <div class="validation-card__excerpt" *ngIf="validationResult?.excerpt">
-                <pre>{{ validationResult?.excerpt }}</pre>
-              </div>
-
-              <div class="results-card__empty" *ngIf="!validationResult">
-                <p>Validate your JSON to reveal syntax hints and structural guidance.</p>
-              </div>
-
-              <div class="results-card__tips">
-                <h3>Validation best practices</h3>
-                <ul>
-                  <li>Keep trailing commas out of JSON—only JSON5 permits them.</li>
-                  <li>Wrap property names and string values in double quotes.</li>
-                  <li>Validate before committing configuration files to version control.</li>
-                  <li>Use minified JSON when transferring data across networks.</li>
-                </ul>
-              </div>
-            </ng-container>
+          <div class="editor-wrapper">
+            <div class="editor-line-numbers">
+              <span *ngFor="let line of editorLines" class="line-number">{{ line }}</span>
+            </div>
+            <textarea
+              class="editor"
+              spellcheck="false"
+              [(ngModel)]="rawInput"
+              (ngModelChange)="onRawInputChange($event)"
+              (scroll)="onEditorScroll($event)"
+              placeholder="{ &quot;message&quot;: &quot;Paste JSON here&quot; }"
+              #editorTextarea
+            ></textarea>
           </div>
         </div>
       </div>
-      
+
+      <div class="workspace__card workspace__card--results">
+        <div class="workspace__panel workspace__panel--results">
+          <div class="results-header">
+            <div class="results-tabs" role="tablist">
+              <button
+                *ngFor="let tab of resultTabs"
+                type="button"
+                class="results-tab"
+                role="tab"
+                [attr.aria-selected]="activeResultTab === tab.id"
+                [class.results-tab--active]="activeResultTab === tab.id"
+                (click)="setActiveResultTab(tab.id)"
+                [attr.data-tooltip]="tab.description"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+            <div class="results-actions">
+              <button
+                class="btn-icon btn-icon--copy"
+                type="button"
+                [disabled]="!formattedOutputAvailable"
+                (click)="copyFormatted()"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+              <button
+                class="btn-icon btn-icon--download"
+                type="button"
+                [disabled]="!formattedOutputAvailable"
+                (click)="downloadFormatted()"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        <div class="results-content" [ngSwitch]="activeResultTab">
+          <ng-container *ngSwitchCase="'formatted'">
+            <div class="results-output" *ngIf="formattedOutputAvailable; else formattedEmpty">
+              <div class="results-output__line-numbers">
+                <span *ngFor="let line of formattedLines" class="line-number">{{ line }}</span>
+              </div>
+              <pre class="results-output__content">{{ formattedOutput }}</pre>
+            </div>
+            <ng-template #formattedEmpty>
+              <div class="results-empty">
+                <p>Beautify or minify your JSON to see the formatted result here.</p>
+              </div>
+            </ng-template>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'tree'">
+            <div class="results-tree" *ngIf="treeNodes.length; else emptyTree">
+              <div class="tree-container">
+                <ng-template #treeNode let-node>
+                  <div class="tree-node" [class.tree-node--expanded]="node.expanded && node.children?.length">
+                    <div class="tree-node__header" [style.paddingLeft.px]="node.level * 20">
+                      <button
+                        type="button"
+                        class="tree-node__toggle"
+                        *ngIf="node.children?.length"
+                        (click)="toggleNode(node)"
+                        [attr.aria-expanded]="node.expanded"
+                        [attr.data-tooltip]="node.expanded ? 'Collapse' : 'Expand'"
+                      >
+                        <span class="tree-node__icon" *ngIf="node.expanded">▼</span>
+                        <span class="tree-node__icon" *ngIf="!node.expanded">▶</span>
+                      </button>
+                      <span class="tree-node__key" *ngIf="node.key">{{ node.key }}</span>
+                      <span class="tree-node__key tree-node__key--root" *ngIf="!node.key">root</span>
+                      <span class="tree-node__type" [class]="'tree-node__type--' + node.type">{{ node.type }}</span>
+                      <span class="tree-node__preview">{{ node.preview }}</span>
+                      <span class="tree-node__meta" *ngIf="node.metadata">{{ node.metadata }}</span>
+                    </div>
+                    <div class="tree-node__children" *ngIf="node.children?.length && node.expanded">
+                      <ng-container
+                        *ngFor="let child of node.children; trackBy: trackByNodeId"
+                        [ngTemplateOutlet]="treeNode"
+                        [ngTemplateOutletContext]="{ $implicit: child }"
+                      ></ng-container>
+                    </div>
+                  </div>
+                </ng-template>
+                <ng-container *ngFor="let node of treeNodes; trackBy: trackByNodeId">
+                  <ng-container [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ $implicit: node }">
+                  </ng-container>
+                </ng-container>
+              </div>
+            </div>
+            <ng-template #emptyTree>
+              <div class="results-empty">
+                <p>Beautify or validate JSON to generate an interactive tree view.</p>
+              </div>
+            </ng-template>
+          </ng-container>
+
+          <ng-container *ngSwitchCase="'validation'">
+            <div
+              class="validation-status"
+              [class.validation-status--success]="validationResult?.status === 'success'"
+              [class.validation-status--error]="validationResult?.status === 'error'"
+            >
+              <strong *ngIf="validationResult?.status === 'success'">Valid JSON</strong>
+              <strong *ngIf="validationResult?.status === 'error'">Syntax error</strong>
+              <p>{{ validationResult?.message || 'Run validation to see syntax feedback.' }}</p>
+              <div class="validation-details" *ngIf="validationResult?.line">
+                <span>Line {{ validationResult?.line }}, column {{ validationResult?.column }}</span>
+              </div>
+            </div>
+
+            <div class="validation-excerpt" *ngIf="validationResult?.excerpt">
+              <pre>{{ validationResult?.excerpt }}</pre>
+            </div>
+
+            <div class="results-empty" *ngIf="!validationResult">
+              <p>Validate your JSON to reveal syntax hints and structural guidance.</p>
+            </div>
+          </ng-container>
+        </div>
+        </div>
+      </div>
     </div>
-  </section>
-
-  <section class="info-grid">
-    <article class="info-card">
-      <h2>About this tool</h2>
-      <p>
-        The JSON Formatter & Validator streamlines the process of preparing JSON payloads for APIs,
-        configuration files, and documentation. Paste raw content or upload a file, then refine it with
-        best-practice formatting controls and a navigable tree view.
-      </p>
-    </article>
-
-    <article class="info-card info-card--usage">
-      <h2>How to use</h2>
-      <ol>
-        <li *ngFor="let step of usageSteps">{{ step }}</li>
-      </ol>
-      <p class="info-card__tip">
-        Tip: Use the tree tab to spot nested structures without scrolling through the entire document.
-      </p>
-    </article>
-
-    <article class="info-card">
-      <h2>Formatter tips</h2>
-      <ul>
-        <li *ngFor="let tip of formatterTips">{{ tip }}</li>
-      </ul>
-    </article>
-  </section>
-
-  <section class="next-steps">
-    <h2>Next steps</h2>
-    <ul>
-      <li>Share the formatted JSON with teammates for quick reviews.</li>
-      <li>Toggle between formatted, tree, and validation views to maintain clean payloads.</li>
-      <li>Download the output to archive the canonical version used in production.</li>
-    </ul>
   </section>
 </div>
