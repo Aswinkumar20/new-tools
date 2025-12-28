@@ -803,7 +803,7 @@ export class NavigationComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    this.logoUrl = 'assets/icons/logo-icon.svg'; // Update with your actual logo path
+    this.logoUrl = 'assets/logo_text.svg';
     this.evaluateViewport();
     this.loadThemePreference();
     this.setupThemeListener();
