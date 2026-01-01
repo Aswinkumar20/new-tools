@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
+import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
 
@@ -67,7 +67,7 @@ const SAMPLE_TABLE = `<table>
   standalone: true,
   templateUrl: './html-table-to-json.html',
   styleUrls: ['./html-table-to-json.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
 export class HtmlTableToJsonComponent {
   readonly selectionModes: Array<{ id: SelectionMode; label: string; description: string }> = [

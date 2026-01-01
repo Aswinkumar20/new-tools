@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault, NgTemplateOutlet } from '@angular/common';
+import { CommonModule, NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
 
@@ -52,7 +52,7 @@ const SAMPLE_JSON = `{
   standalone: true,
   templateUrl: './yaml-to-json-json-to-yaml.html',
   styleUrls: ['./yaml-to-json-json-to-yaml.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault, NgTemplateOutlet, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault, FormsModule, NavigationComponent]
 })
 export class YamlToJsonJsonToYamlComponent {
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [

@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
+import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
 
@@ -59,7 +59,7 @@ const SAMPLE_JSON = `[
   standalone: true,
   templateUrl: './csv-to-json-json-to-csv.html',
   styleUrls: ['./csv-to-json-json-to-csv.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
 export class CsvToJsonJsonToCsvComponent {
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [

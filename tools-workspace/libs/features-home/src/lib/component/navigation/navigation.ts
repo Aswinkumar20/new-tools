@@ -4,13 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { Router, NavigationEnd } from '@angular/router';
 import { LanguageService, Language } from '../../services/language.service';
 import { TranslationService } from '../../services/translation.service';
-import { TranslatePipe } from '../../pipe/translate.pipe';
 import { Subscription, filter } from 'rxjs';
 
 @Component({
   selector: 'lib-navigation',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslatePipe],
+  imports: [CommonModule, FormsModule],
   templateUrl: './navigation.html',
   styleUrls: ['./navigation.scss'],
 })

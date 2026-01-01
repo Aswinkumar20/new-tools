@@ -3,7 +3,6 @@ import { Component, OnInit } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
-import { TooltipDirective } from '../../directive/tooltip.directive';
 
 
 @Component({
@@ -15,8 +14,7 @@ import { TooltipDirective } from '../../directive/tooltip.directive';
     CommonModule, 
     FormsModule, 
     Navigation, 
-    RouterModule,
-    TooltipDirective
+    RouterModule
   ]
 })
 export class MyComponent implements OnInit {

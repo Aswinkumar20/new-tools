@@ -1,5 +1,5 @@
 import { Component, Inject, PLATFORM_ID } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
+import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { isPlatformBrowser } from '@angular/common';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -72,7 +72,7 @@ const SHEETJS_URL = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.
   standalone: true,
   templateUrl: './excel-to-json.html',
   styleUrls: ['./excel-to-json.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
 export class ExcelToJsonComponent {
   private sheetjs: SheetJSModule | null = null;
