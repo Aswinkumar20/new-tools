@@ -834,38 +834,65 @@ export class TextFileViewerComponent implements OnInit, AfterViewInit, OnDestroy
     this.isFullscreen = true;
     this.cdr.detectChanges();
 
-    setTimeout(() => {
-      const container = this.fullscreenContainer?.nativeElement;
-      if (!container) {
-        console.error('Fullscreen container not found');
-        this.isFullscreen = false;
-        this.cdr.detectChanges();
-        return;
-      }
-
-      if (container.requestFullscreen) {
-        container.requestFullscreen().catch((err: Error) => {
-          console.error('Error attempting to enable fullscreen:', err);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const container = this.fullscreenContainer?.nativeElement;
+        if (!container) {
+          console.error('Fullscreen container not found');
           this.isFullscreen = false;
           this.cdr.detectChanges();
-        });
-      } else if ((container as any).webkitRequestFullscreen) {
-        (container as any).webkitRequestFullscreen();
-      } else if ((container as any).mozRequestFullScreen) {
-        (container as any).mozRequestFullScreen();
-      } else if ((container as any).msRequestFullscreen) {
-        (container as any).msRequestFullscreen();
-      } else {
-        container.classList.add('fullscreen-active');
-        this.isFullscreen = true;
-      }
-
-      setTimeout(() => {
-        if (this.currentFile) {
-          this.loadFile(this.currentFile);
+          return;
         }
-      }, 100);
-    }, 0);
+
+        const requestFullscreen = () => {
+          if (container.requestFullscreen) {
+            container.requestFullscreen().then(() => {
+              // Re-render content after entering fullscreen
+              setTimeout(() => {
+                if (this.currentFile) {
+                  this.loadFile(this.currentFile);
+                }
+              }, 150);
+            }).catch((err: Error) => {
+              console.error('Error attempting to enable fullscreen:', err);
+              this.isFullscreen = false;
+              this.cdr.detectChanges();
+            });
+          } else if ((container as any).webkitRequestFullscreen) {
+            (container as any).webkitRequestFullscreen();
+            setTimeout(() => {
+              if (this.currentFile) {
+                this.loadFile(this.currentFile);
+              }
+            }, 150);
+          } else if ((container as any).mozRequestFullScreen) {
+            (container as any).mozRequestFullScreen();
+            setTimeout(() => {
+              if (this.currentFile) {
+                this.loadFile(this.currentFile);
+              }
+            }, 150);
+          } else if ((container as any).msRequestFullscreen) {
+            (container as any).msRequestFullscreen();
+            setTimeout(() => {
+              if (this.currentFile) {
+                this.loadFile(this.currentFile);
+              }
+            }, 150);
+          } else {
+            container.classList.add('fullscreen-active');
+            this.isFullscreen = true;
+            setTimeout(() => {
+              if (this.currentFile) {
+                this.loadFile(this.currentFile);
+              }
+            }, 150);
+          }
+        };
+
+        requestFullscreen();
+      }, 50);
+    });
   }
 
   exitFullscreen(): void {
@@ -887,13 +914,13 @@ export class TextFileViewerComponent implements OnInit, AfterViewInit, OnDestroy
       this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
     }
 
+    // Re-render content in normal view after exiting fullscreen
     setTimeout(() => {
       if (this.currentFile) {
         this.loadFile(this.currentFile);
       }
-    }, 100);
-
-    this.cdr.detectChanges();
+      this.cdr.detectChanges();
+    }, 150);
   }
 
   toggleFullscreen(): void {

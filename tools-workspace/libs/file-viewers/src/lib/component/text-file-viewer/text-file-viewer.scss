@@ -130,23 +130,35 @@
 }
 
 .viewer-zoom-controls-inline .btn-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: rgba(148, 163, 184, 0.12);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.15);
   color: var(--text);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0;
+  flex-shrink: 0;
+  visibility: visible;
+  opacity: 1;
 }
 
 .viewer-zoom-controls-inline .btn-icon:hover:not(:disabled) {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(148, 163, 184, 0.25);
   border-color: var(--accent);
   transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.viewer-zoom-controls-inline .btn-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex-shrink: 0;
 }
 
 .viewer-zoom-controls-inline .btn-icon:disabled {
@@ -172,8 +184,9 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   flex-shrink: 0;
+  visibility: visible;
 }
 
 .clear-btn-sm {
@@ -605,22 +618,27 @@
   position: fixed;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.94);
+  max-width: 100vw;
+  max-height: 100vh;
+  background: rgba(15, 23, 42, 0.98);
   backdrop-filter: blur(12px);
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
 
   &.fullscreen-active {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100vw;
     height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
   }
 }
 
@@ -656,29 +674,32 @@
 .fullscreen-text-container {
   flex: 1;
   width: 100%;
-  height: 100%;
+  min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: clamp(2rem, 6vw, 4rem);
+  padding: clamp(2rem, 6vw, 4rem) clamp(2rem, 6vw, 4rem) clamp(8rem, 12vw, 12rem);
   box-sizing: border-box;
   overflow: auto;
+  position: relative;
 }
 
 .fullscreen-text-content {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   background: #1e1e1e;
   color: #d4d4d4;
   border-radius: 18px;
   padding: clamp(1.5rem, 3vw, 2.5rem);
   box-shadow: 0 35px 45px rgba(15, 23, 42, 0.45);
-  min-height: clamp(480px, 70vh, 680px);
   overflow: auto;
   font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.95rem;
   line-height: 1.65;
   white-space: pre;
+  max-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
 
   &.word-wrap {
     white-space: pre-wrap;
@@ -699,19 +720,22 @@
 }
 
 .fullscreen-controls-bar {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(10px);
+  width: 100%;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
   padding: clamp(1rem, 2vw, 1.5rem) clamp(1rem, 4vw, 2rem);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: clamp(1rem, 3vw, 2rem);
   z-index: 10002;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  box-sizing: border-box;
 }
 
 .fullscreen-info {
@@ -877,6 +901,15 @@
     max-height: 200px;
   }
 
+  .fullscreen-text-container {
+    padding: 1rem 1rem 10rem;
+  }
+
+  .fullscreen-text-content {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
   .fullscreen-controls-bar {
     flex-direction: column;
     gap: 1rem;
@@ -895,6 +928,37 @@
     right: 10px;
     width: 40px;
     height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .fullscreen-text-container {
+    padding: 0.75rem 0.75rem 9rem;
+  }
+
+  .fullscreen-text-content {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .fullscreen-controls-bar {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .fullscreen-search-box {
+    padding: 0.4rem 0.6rem;
+    gap: 0.5rem;
+
+    .search-input {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.5rem;
+    }
+  }
+
+  .fullscreen-zoom-controls {
+    padding: 0.3rem 0.5rem;
+    gap: 0.4rem;
   }
 }
 

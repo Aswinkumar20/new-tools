@@ -100,7 +100,8 @@ interface WordFile {
 export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('documentContainer') documentContainer!: ElementRef<HTMLDivElement>;
-  @ViewChild('viewerCard') viewerCard!: ElementRef<HTMLDivElement>;
+  @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('fullscreenDocumentContainer') fullscreenDocumentContainer!: ElementRef<HTMLDivElement>;
   
   wordFiles: WordFile[] = [];
   currentWordIndex: number = -1;
@@ -112,11 +113,13 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   
   // Drag and drop handlers
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
+  private readonly fullscreenChangeHandler = () => this.onFullscreenChange();
   
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     this.setupDragAndDrop();
+    this.setupFullscreenListeners();
   }
 
   ngAfterViewInit(): void {
@@ -141,6 +144,13 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);
+    }
+  }
+
+  setupFullscreenListeners(): void {
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+    for (const eventName of events) {
+      document.addEventListener(eventName, this.fullscreenChangeHandler);
     }
   }
 
@@ -373,76 +383,128 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     this.cdr.detectChanges();
   }
 
-  @HostListener('document:fullscreenchange')
-  @HostListener('document:webkitfullscreenchange')
   onFullscreenChange(): void {
-    if (typeof document === 'undefined') {
-      return;
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+    
+    if (!isCurrentlyFullscreen && this.isFullscreenView) {
+      // User exited fullscreen externally (e.g., F11 key, Escape)
+      this.isFullscreenView = false;
+      // Re-render in normal view
+      setTimeout(() => {
+        this.updateZoom();
+      }, 100);
+      this.cdr.detectChanges();
     }
+  }
 
-    const fullscreenElement =
-      document.fullscreenElement || (document as any).webkitFullscreenElement;
-    const isCurrentElement =
-      fullscreenElement && this.viewerCard?.nativeElement
-        ? fullscreenElement === this.viewerCard.nativeElement
-        : false;
+  toggleFullscreenView(): void {
+    if (this.isFullscreenView) {
+      this.exitFullscreenView();
+    } else {
+      this.enterFullscreenView();
+    }
+  }
 
-    this.isFullscreenView = isCurrentElement;
+  enterFullscreenView(): void {
+    if (!this.currentWord) return;
+    
+    this.isFullscreenView = true;
+    this.cdr.detectChanges();
+    
+    // Wait for the DOM to update after setting isFullscreenView to true
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const container = this.fullscreenContainer?.nativeElement;
+        if (!container) {
+          console.error('Fullscreen container not found');
+          this.isFullscreenView = false;
+          this.cdr.detectChanges();
+          return;
+        }
+
+        // Request fullscreen
+        if (container.requestFullscreen) {
+          container.requestFullscreen().then(() => {
+            // Re-render document in fullscreen after entering
+            setTimeout(() => {
+              this.renderDocumentInFullscreen();
+            }, 150);
+          }).catch((err: Error) => {
+            console.error('Error attempting to enable fullscreen:', err);
+            this.isFullscreenView = false;
+            this.cdr.detectChanges();
+          });
+        } else if ((container as any).webkitRequestFullscreen) {
+          (container as any).webkitRequestFullscreen();
+          setTimeout(() => {
+            this.renderDocumentInFullscreen();
+          }, 150);
+        } else if ((container as any).mozRequestFullScreen) {
+          (container as any).mozRequestFullScreen();
+          setTimeout(() => {
+            this.renderDocumentInFullscreen();
+          }, 150);
+        } else if ((container as any).msRequestFullscreen) {
+          (container as any).msRequestFullscreen();
+          setTimeout(() => {
+            this.renderDocumentInFullscreen();
+          }, 150);
+        } else {
+          // Fallback: use fullscreen CSS class
+          container.classList.add('fullscreen-active');
+          this.isFullscreenView = true;
+          setTimeout(() => {
+            this.renderDocumentInFullscreen();
+          }, 150);
+        }
+      }, 50);
+    });
+  }
+
+  exitFullscreenView(): void {
+    this.isFullscreenView = false;
+    
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch((err: Error) => {
+        console.error('Error attempting to exit fullscreen:', err);
+      });
+    } else if ((document as any).webkitExitFullscreen) {
+      (document as any).webkitExitFullscreen();
+    } else if ((document as any).mozCancelFullScreen) {
+      (document as any).mozCancelFullScreen();
+    } else if ((document as any).msExitFullscreen) {
+      (document as any).msExitFullscreen();
+    }
+    
+    // Remove fallback fullscreen class
+    if (this.fullscreenContainer?.nativeElement) {
+      this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
+    }
+    
+    // Re-render document in normal view
+    setTimeout(() => {
+      this.updateZoom();
+    }, 100);
+    
     this.cdr.detectChanges();
   }
 
-  async toggleFullscreenView(): Promise<void> {
-    if (this.isFullscreenView) {
-      await this.exitFullscreenView();
-    } else {
-      await this.enterFullscreenView();
-    }
-  }
-
-  private async enterFullscreenView(): Promise<void> {
-    const viewerElement = this.viewerCard?.nativeElement;
-    const request =
-      viewerElement?.requestFullscreen || (viewerElement as any)?.webkitRequestFullscreen;
-
-    if (!viewerElement || typeof request !== 'function') {
-      this.errorMessage = 'Fullscreen is not supported in this browser.';
-      this.cdr.detectChanges();
+  private renderDocumentInFullscreen(): void {
+    if (!this.currentWord || !this.fullscreenDocumentContainer?.nativeElement) {
       return;
     }
-
-    try {
-      await request.call(viewerElement);
-      this.isFullscreenView = true;
-    } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
-      this.errorMessage = 'Unable to enter full screen mode. Please try again.';
-    } finally {
-      this.cdr.detectChanges();
-    }
-  }
-
-  async exitFullscreenView(): Promise<void> {
-    if (typeof document === 'undefined') {
-      this.isFullscreenView = false;
-      this.cdr.detectChanges();
-      return;
-    }
-
-    try {
-      const exit =
-        document.exitFullscreen || (document as any)?.webkitExitFullscreen;
-      if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-        if (typeof exit === 'function') {
-          await exit.call(document);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to exit fullscreen:', error);
-      this.errorMessage = 'Unable to exit full screen mode. Please try again.';
-    } finally {
-      this.isFullscreenView = false;
-      this.cdr.detectChanges();
-    }
+    
+    const container = this.fullscreenDocumentContainer.nativeElement;
+    container.innerHTML = this.currentWord.htmlContent || '';
+    // Ensure the container can grow to accommodate long content
+    container.style.height = 'auto';
+    container.style.minHeight = 'auto';
+    this.updateZoom();
   }
 
   async loadWord(wordFile: WordFile): Promise<void> {
@@ -482,6 +544,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
         container.innerHTML = wordFile.htmlContent || '';
         // Apply zoom level
         container.style.zoom = `${this.zoomLevel}%`;
+        // Ensure the container can grow to accommodate long content
+        container.style.height = 'auto';
+        container.style.minHeight = '500px';
         this.cdr.detectChanges();
         return;
       }
@@ -528,16 +593,44 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   fitToWidth(): void {
-    this.zoomLevel = 100;
-    this.updateZoom();
+    if (!this.currentWord) return;
+
+    // Get the appropriate container based on fullscreen state
+    const container = this.isFullscreenView 
+      ? this.fullscreenDocumentContainer?.nativeElement 
+      : this.documentContainer?.nativeElement;
+    
+    if (!container) {
+      return;
+    }
+
+    // Get container width, accounting for padding
+    const containerWidth = container.clientWidth - (this.isFullscreenView ? 80 : 100);
+    
+    if (containerWidth > 0) {
+      // For documents, we'll use a simple approach - set zoom to fit width
+      // This is a simplified version - in a real scenario, you'd calculate based on content width
+      const baseWidth = 900; // Base document width
+      const scale = containerWidth / baseWidth;
+      this.zoomLevel = Math.max(50, Math.min(200, Math.round(scale * 100))); // Clamp between 50% and 200%
+      this.updateZoom();
+    }
   }
 
   updateZoom(): void {
-    const container = this.documentContainer?.nativeElement || 
+    // Update zoom for both normal and fullscreen containers
+    const normalContainer = this.documentContainer?.nativeElement || 
                       document.querySelector('.document-content-wrapper') as HTMLDivElement;
-    if (container) {
-      container.style.zoom = `${this.zoomLevel}%`;
+    const fullscreenContainer = this.fullscreenDocumentContainer?.nativeElement;
+    
+    if (normalContainer) {
+      normalContainer.style.zoom = `${this.zoomLevel}%`;
     }
+    
+    if (fullscreenContainer) {
+      fullscreenContainer.style.zoom = `${this.zoomLevel}%`;
+    }
+    
     this.cdr.detectChanges();
   }
 
@@ -610,8 +703,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
 
   clearAll(): void {
     if (this.isFullscreenView) {
-      void this.exitFullscreenView();
+      this.exitFullscreenView();
     }
+    
     for (const wordFile of this.wordFiles) {
       if (wordFile.url) {
         URL.revokeObjectURL(wordFile.url);
@@ -623,6 +717,10 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     
     if (this.documentContainer?.nativeElement) {
       this.documentContainer.nativeElement.innerHTML = '';
+    }
+    
+    if (this.fullscreenDocumentContainer?.nativeElement) {
+      this.fullscreenDocumentContainer.nativeElement.innerHTML = '';
     }
     
     this.cdr.detectChanges();
@@ -698,14 +796,34 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     }
   }
 
+  @HostListener('document:keydown', ['$event'])
+  onKeyDown(e: KeyboardEvent): void {
+    // Don't handle keyboard shortcuts if user is typing in an input
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
+
+    if (e.key === 'Escape' && this.isFullscreenView) {
+      this.exitFullscreenView();
+    }
+  }
+
   cleanup(): void {
     if (this.isFullscreenView) {
-      void this.exitFullscreenView();
+      this.exitFullscreenView();
     }
+    
     // Cleanup drag and drop
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);
       document.body.removeEventListener(eventName, this.preventDefaultsFn, false);
+    }
+    
+    // Cleanup fullscreen listeners
+    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+    for (const eventName of events) {
+      document.removeEventListener(eventName, this.fullscreenChangeHandler);
     }
     
     // Cleanup Word files

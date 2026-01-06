@@ -22,7 +22,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('imageContainer') imageContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('thumbnailsContainer') thumbnailsContainer!: ElementRef<HTMLDivElement>;
-  @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('fullscreenContainer', { static: false }) fullscreenContainer!: ElementRef<HTMLDivElement>;
   
   images: ImageFile[] = [];
   currentImageIndex: number = -1;
@@ -36,6 +36,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   thumbnailScrollLeft: number = 0;
   thumbnailScrollRight: boolean = false;
   isFullscreen: boolean = false;
+  private isEnteringFullscreen: boolean = false;
   
   // Supported formats - comprehensive list of image formats
   readonly supportedFormats = [
@@ -46,17 +47,11 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     'image/bmp',
     'image/webp',
     'image/svg+xml',
-    'image/tiff',
-    'image/tif',
     'image/x-icon',
     'image/vnd.microsoft.icon',
     'image/ico',
     'image/avif',
     'image/apng',
-    'image/heic',
-    'image/heif',
-    'image/heic-sequence',
-    'image/heif-sequence',
     'image/x-png',
     'image/x-jpeg',
     'image/x-bmp',
@@ -82,14 +77,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   ];
   
   // Formats that might have limited browser support - will verify
-  readonly limitedBrowserSupportFormats = [
-    'image/tiff',
-    'image/tif',
-    'image/heic',
-    'image/heif',
-    'image/heic-sequence',
-    'image/heif-sequence'
-  ];
+  readonly limitedBrowserSupportFormats: string[] = [];
   
   readonly maxFileSize = 50 * 1024 * 1024; // 50MB
   
@@ -205,7 +193,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       const normalizedType = this.normalizeMimeType(fileType, file.name);
       
       if (!this.supportedFormats.includes(normalizedType) && !this.isImageFile(file.name)) {
-        errors.push(`${file.name}: Unsupported format. Please use standard image formats (PNG, JPEG, GIF, BMP, SVG, WEBP, TIFF, ICO, AVIF, etc.)`);
+        errors.push(`${file.name}: Unsupported format. Please use standard image formats (PNG, JPEG, GIF, BMP, SVG, WEBP, ICO, AVIF, etc.)`);
         continue;
       }
 
@@ -475,7 +463,50 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   fitToScreen(): void {
-    this.resetZoom();
+    if (!this.currentImage) {
+      return;
+    }
+
+    // Get the container dimensions
+    const container = this.isFullscreen 
+      ? this.fullscreenContainer?.nativeElement 
+      : this.imageContainer?.nativeElement;
+    
+    if (!container) {
+      this.resetZoom();
+      return;
+    }
+
+    // Get available space (accounting for padding/margins)
+    const containerRect = container.getBoundingClientRect();
+    const availableWidth = containerRect.width - 40; // Account for padding
+    const availableHeight = containerRect.height - 40;
+
+    // Create a temporary image to get natural dimensions
+    const img = new Image();
+    img.src = this.currentImage.url;
+    
+    img.onload = () => {
+      const naturalWidth = img.width;
+      const naturalHeight = img.height;
+
+      // Calculate zoom to fit both width and height
+      const widthRatio = availableWidth / naturalWidth;
+      const heightRatio = availableHeight / naturalHeight;
+      const fitRatio = Math.min(widthRatio, heightRatio, 1); // Don't zoom in beyond 100%
+
+      // Set zoom level (convert ratio to percentage)
+      this.zoomLevel = Math.max(25, Math.min(100, Math.round(fitRatio * 100)));
+      this.isZoomed = this.zoomLevel > 100;
+      this.imageOffsetX = 0;
+      this.imageOffsetY = 0;
+      this.cdr.detectChanges();
+    };
+
+    img.onerror = () => {
+      // Fallback to reset if image fails to load
+      this.resetZoom();
+    };
   }
 
   enterFullscreen(): void {
@@ -483,43 +514,84 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.currentImage) {
       return;
     }
-    
-    const container = this.fullscreenContainer?.nativeElement;
-    if (!container) {
-      console.warn('Fullscreen container not found');
+
+    // Prevent multiple simultaneous requests
+    if (this.isEnteringFullscreen || this.isFullscreen) {
       return;
     }
 
+    this.isEnteringFullscreen = true;
+
+    // Set fullscreen state first to render the container
     this.isFullscreen = true;
     this.cdr.detectChanges();
 
-    // Request fullscreen with error handling
-    try {
-      if (container.requestFullscreen) {
-        container.requestFullscreen().catch(err => {
-          console.error('Error attempting to enable fullscreen:', err);
+    // Wait for Angular to render the DOM element
+    // Use requestAnimationFrame for better timing
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const container = this.fullscreenContainer?.nativeElement;
+        if (!container) {
+          console.warn('Fullscreen container not found after render');
           this.isFullscreen = false;
+          this.isEnteringFullscreen = false;
           this.cdr.detectChanges();
-        });
-      } else if ((container as any).webkitRequestFullscreen) {
-        (container as any).webkitRequestFullscreen();
-      } else if ((container as any).mozRequestFullScreen) {
-        (container as any).mozRequestFullScreen();
-      } else if ((container as any).msRequestFullscreen) {
-        (container as any).msRequestFullscreen();
-      } else {
-        // Fallback: use fullscreen CSS class
-        container.classList.add('fullscreen-active');
-        this.isFullscreen = true;
-      }
-    } catch (err) {
-      console.error('Error entering fullscreen:', err);
-      this.isFullscreen = false;
-      this.cdr.detectChanges();
-    }
+          return;
+        }
+
+        // Request fullscreen with error handling
+        try {
+          if (container.requestFullscreen) {
+            container.requestFullscreen().then(() => {
+              this.isEnteringFullscreen = false;
+              // Fit image to screen when entering fullscreen
+              setTimeout(() => {
+                this.fitToScreen();
+              }, 150);
+            }).catch(err => {
+              console.error('Error attempting to enable fullscreen:', err);
+              this.isFullscreen = false;
+              this.isEnteringFullscreen = false;
+              this.cdr.detectChanges();
+            });
+          } else if ((container as any).webkitRequestFullscreen) {
+            (container as any).webkitRequestFullscreen();
+            this.isEnteringFullscreen = false;
+            setTimeout(() => {
+              this.fitToScreen();
+            }, 150);
+          } else if ((container as any).mozRequestFullScreen) {
+            (container as any).mozRequestFullScreen();
+            this.isEnteringFullscreen = false;
+            setTimeout(() => {
+              this.fitToScreen();
+            }, 150);
+          } else if ((container as any).msRequestFullscreen) {
+            (container as any).msRequestFullscreen();
+            this.isEnteringFullscreen = false;
+            setTimeout(() => {
+              this.fitToScreen();
+            }, 150);
+          } else {
+            // Fallback: use fullscreen CSS class (container is already rendered)
+            container.classList.add('fullscreen-active');
+            this.isEnteringFullscreen = false;
+            setTimeout(() => {
+              this.fitToScreen();
+            }, 150);
+          }
+        } catch (err) {
+          console.error('Error entering fullscreen:', err);
+          this.isFullscreen = false;
+          this.isEnteringFullscreen = false;
+          this.cdr.detectChanges();
+        }
+      }, 100); // Give Angular time to render
+    });
   }
 
   exitFullscreen(): void {
+    this.isEnteringFullscreen = false;
     this.isFullscreen = false;
     
     // Exit fullscreen API
@@ -623,9 +695,18 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     
     if (!isCurrentlyFullscreen && this.isFullscreen) {
-      // User exited fullscreen externally (e.g., F11 key)
+      // User exited fullscreen externally (e.g., F11 key, Escape)
+      this.isEnteringFullscreen = false;
       this.isFullscreen = false;
+      // Reset zoom when exiting fullscreen
+      this.resetZoom();
       this.cdr.detectChanges();
+    } else if (isCurrentlyFullscreen && this.isFullscreen) {
+      // Just entered fullscreen, fit image to screen
+      this.isEnteringFullscreen = false;
+      setTimeout(() => {
+        this.fitToScreen();
+      }, 150);
     }
   }
 
@@ -696,12 +777,8 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       'bmp': 'image/bmp',
       'webp': 'image/webp',
       'svg': 'image/svg+xml',
-      'tiff': 'image/tiff',
-      'tif': 'image/tiff',
       'ico': 'image/x-icon',
       'avif': 'image/avif',
-      'heic': 'image/heic',
-      'heif': 'image/heif',
       'apng': 'image/apng',
       'psd': 'image/vnd.adobe.photoshop',
       'ppm': 'image/x-portable-pixmap',
@@ -717,7 +794,6 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   private normalizeMimeType(mimeType: string, filename: string): string {
     // Handle common variations
     if (mimeType === 'image/jpg') return 'image/jpeg';
-    if (mimeType === 'image/tif') return 'image/tiff';
     if (mimeType === 'image/ico' || mimeType === 'image/vnd.microsoft.icon') return 'image/x-icon';
     if (mimeType === 'image/x-png') return 'image/png';
     if (mimeType === 'image/x-jpeg') return 'image/jpeg';
@@ -733,7 +809,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Check if file is likely an image based on extension
   private isImageFile(filename: string): boolean {
-    const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'tif', 'ico', 'avif', 'heic', 'heif', 'apng', 'psd', 'ppm', 'pgm', 'pbm', 'xpm', 'xbm'];
+    const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'avif', 'apng', 'psd', 'ppm', 'pgm', 'pbm', 'xpm', 'xbm'];
     const extension = filename.split('.').pop()?.toLowerCase() || '';
     return imageExtensions.includes(extension);
   }

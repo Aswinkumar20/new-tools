@@ -519,16 +519,29 @@ export class FileViewerPdfViewerComponent implements OnInit, AfterViewInit, OnDe
   }
 
   fitToWidth(): void {
-    if (this.canvasContainer?.nativeElement && this.currentPdf && this.currentViewport) {
-      const container = this.canvasContainer.nativeElement;
-      const containerWidth = container.clientWidth - 128; // Subtract padding for navigation arrows (64px each side)
-      
-      if (this.currentViewport.width > 0) {
-        // Calculate zoom to fit the container width
-        const scale = containerWidth / this.currentViewport.width;
-        this.zoomLevel = Math.max(50, Math.min(300, Math.round(scale * 100))); // Clamp between 50% and 300%
-        this.renderPage();
-      }
+    if (!this.currentPdf || !this.currentViewport) {
+      return;
+    }
+
+    // Get the appropriate container based on fullscreen state
+    const container = this.isFullscreen 
+      ? this.fullscreenCanvasContainer?.nativeElement 
+      : this.canvasContainer?.nativeElement;
+    
+    if (!container) {
+      return;
+    }
+
+    // Get container width, accounting for padding
+    const containerWidth = this.isFullscreen
+      ? container.clientWidth - 80 // Fullscreen padding
+      : container.clientWidth - 128; // Normal view padding for navigation arrows
+    
+    if (this.currentViewport.width > 0 && containerWidth > 0) {
+      // Calculate zoom to fit the container width
+      const scale = containerWidth / this.currentViewport.width;
+      this.zoomLevel = Math.max(50, Math.min(300, Math.round(scale * 100))); // Clamp between 50% and 300%
+      this.renderPage();
     }
   }
 
@@ -544,39 +557,53 @@ export class FileViewerPdfViewerComponent implements OnInit, AfterViewInit, OnDe
     this.cdr.detectChanges();
     
     // Wait for the DOM to update after setting isFullscreen to true
-    setTimeout(() => {
-      const container = this.fullscreenContainer?.nativeElement;
-      if (!container) {
-        console.error('Fullscreen container not found');
-        this.isFullscreen = false;
-        this.cdr.detectChanges();
-        return;
-      }
-
-      // Request fullscreen
-      if (container.requestFullscreen) {
-        container.requestFullscreen().catch((err: Error) => {
-          console.error('Error attempting to enable fullscreen:', err);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const container = this.fullscreenContainer?.nativeElement;
+        if (!container) {
+          console.error('Fullscreen container not found');
           this.isFullscreen = false;
           this.cdr.detectChanges();
-        });
-      } else if ((container as any).webkitRequestFullscreen) {
-        (container as any).webkitRequestFullscreen();
-      } else if ((container as any).mozRequestFullScreen) {
-        (container as any).mozRequestFullScreen();
-      } else if ((container as any).msRequestFullscreen) {
-        (container as any).msRequestFullscreen();
-      } else {
-        // Fallback: use fullscreen CSS class
-        container.classList.add('fullscreen-active');
-        this.isFullscreen = true;
-      }
-      
-      // Re-render PDF in fullscreen mode after a short delay to ensure DOM is ready
-      setTimeout(() => {
-        this.renderPage();
-      }, 100);
-    }, 0);
+          return;
+        }
+
+        // Request fullscreen
+        if (container.requestFullscreen) {
+          container.requestFullscreen().then(() => {
+            // Fit to width and render after entering fullscreen
+            setTimeout(() => {
+              this.fitToWidth();
+            }, 150);
+          }).catch((err: Error) => {
+            console.error('Error attempting to enable fullscreen:', err);
+            this.isFullscreen = false;
+            this.cdr.detectChanges();
+          });
+        } else if ((container as any).webkitRequestFullscreen) {
+          (container as any).webkitRequestFullscreen();
+          setTimeout(() => {
+            this.fitToWidth();
+          }, 150);
+        } else if ((container as any).mozRequestFullScreen) {
+          (container as any).mozRequestFullScreen();
+          setTimeout(() => {
+            this.fitToWidth();
+          }, 150);
+        } else if ((container as any).msRequestFullscreen) {
+          (container as any).msRequestFullscreen();
+          setTimeout(() => {
+            this.fitToWidth();
+          }, 150);
+        } else {
+          // Fallback: use fullscreen CSS class
+          container.classList.add('fullscreen-active');
+          this.isFullscreen = true;
+          setTimeout(() => {
+            this.fitToWidth();
+          }, 150);
+        }
+      }, 50);
+    });
   }
 
   exitFullscreen(): void {
@@ -624,18 +651,38 @@ export class FileViewerPdfViewerComponent implements OnInit, AfterViewInit, OnDe
     );
     
     if (!isCurrentlyFullscreen && this.isFullscreen) {
+      // User exited fullscreen externally (e.g., F11 key, Escape)
       this.isFullscreen = false;
+      // Re-render in normal view
+      setTimeout(() => {
+        this.renderPage();
+      }, 100);
       this.cdr.detectChanges();
+    } else if (isCurrentlyFullscreen && this.isFullscreen) {
+      // Just entered fullscreen, fit to width
+      setTimeout(() => {
+        this.fitToWidth();
+      }, 150);
     }
   }
 
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
+    // Don't handle keyboard shortcuts if user is typing in an input
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
+
     if (e.key === 'Escape' && this.isFullscreen) {
       this.exitFullscreen();
-    } else if (e.key === 'ArrowLeft' && !this.isFullscreen) {
+    } else if (e.key === 'ArrowLeft') {
+      // Works in both normal and fullscreen mode
+      e.preventDefault();
       this.previousPage();
-    } else if (e.key === 'ArrowRight' && !this.isFullscreen) {
+    } else if (e.key === 'ArrowRight') {
+      // Works in both normal and fullscreen mode
+      e.preventDefault();
       this.nextPage();
     }
   }
