@@ -10,6 +10,8 @@ import { takeUntil } from 'rxjs/operators';
 import { FooterComponent, ToastContainerComponent } from '@tools-workspace/features-home';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { AutoGATrackerService } from './services/auto-ga-tracker.service';
+import { SeoService } from './services/seo.service';
+import { getSeoMetadataForRoute } from './config/route-seo.config';
 import { GaScrollDirective } from './directives/ga-scroll.directive';
 
 @Component({
@@ -36,7 +38,8 @@ export class App implements OnInit, OnDestroy {
     private readonly router: Router,
     @Inject(PLATFORM_ID) private readonly platformId: Object,
     private readonly gaService: GoogleAnalyticsService,
-    private readonly autoTracker: AutoGATrackerService // Initialize auto tracker
+    private readonly autoTracker: AutoGATrackerService,
+    private readonly seoService: SeoService
   ) {
     if (isPlatformBrowser(this.platformId)) {
       // Track route changes and scroll to top
@@ -55,6 +58,9 @@ export class App implements OnInit, OnDestroy {
           // Update current path and start time
           this.currentPath = event.urlAfterRedirects;
           this.pageStartTime = Date.now();
+
+          // Update SEO metadata for the new route
+          this.updateSeoForRoute(event.urlAfterRedirects);
 
           // Scroll to top
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -82,6 +88,9 @@ export class App implements OnInit, OnDestroy {
       
       this.currentPath = this.router.url;
       this.pageStartTime = Date.now();
+
+      // Update SEO metadata for initial route
+      this.updateSeoForRoute(this.currentPath);
 
       // Track initial page load performance
       if ('performance' in window && window.performance.timing) {
@@ -212,5 +221,30 @@ export class App implements OnInit, OnDestroy {
       return parts[parts.length - 1];
     }
     return undefined;
+  }
+
+  /**
+   * Update SEO metadata for a route
+   */
+  private updateSeoForRoute(url: string): void {
+    const cleanUrl = url.split('?')[0];
+    const seoMetadata = getSeoMetadataForRoute(cleanUrl);
+
+    if (seoMetadata) {
+      // Generate structured data for tool pages
+      if (cleanUrl !== '/tools/home' && cleanUrl.startsWith('/')) {
+        const toolName = seoMetadata.title?.split(' - ')[0] || 'Tool';
+        seoMetadata.structuredData = this.seoService.generateToolStructuredData(
+          toolName,
+          seoMetadata.description || '',
+          cleanUrl
+        );
+      } else {
+        // Home page structured data
+        seoMetadata.structuredData = this.seoService.generateWebsiteStructuredData();
+      }
+
+      this.seoService.updateMetadata(seoMetadata);
+    }
   }
 }

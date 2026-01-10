@@ -23,6 +23,24 @@ export function app(): express.Express {
   // Example Express Rest API endpoints
   // server.get('/api/**', (req, res) => { });
   
+  // Serve sitemap.xml
+  const sitemapPath = join(process.cwd(), 'apps/tools-site/public/sitemap.xml');
+  if (existsSync(sitemapPath)) {
+    server.get('/sitemap.xml', (req, res) => {
+      res.setHeader('Content-Type', 'application/xml');
+      res.sendFile(sitemapPath);
+    });
+  }
+  
+  // Serve robots.txt
+  const robotsPath = join(process.cwd(), 'apps/tools-site/public/robots.txt');
+  if (existsSync(robotsPath)) {
+    server.get('/robots.txt', (req, res) => {
+      res.setHeader('Content-Type', 'text/plain');
+      res.sendFile(robotsPath);
+    });
+  }
+  
   // Serve static files from /browser with proper MIME types
   server.use(
     express.static(distFolder, {
