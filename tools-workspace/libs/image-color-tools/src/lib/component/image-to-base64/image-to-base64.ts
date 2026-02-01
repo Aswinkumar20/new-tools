@@ -264,6 +264,10 @@ export class ImageToBase64Component {
     this.warnings.set([`History entry: ${entry.filename ?? 'Untitled'} (${formatBytes(entry.size)}) · ${entry.mime}`]);
   }
 
+  removeHistoryEntry(timestamp: number): void {
+    this.history.update((current) => current.filter((entry) => entry.timestamp !== timestamp));
+  }
+
   clearHistory(): void {
     this.history.set([]);
   }
@@ -311,8 +315,10 @@ export class ImageToBase64Component {
 
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
-    const decoder = new TextDecoder('iso-8859-1');
-    return btoa(decoder.decode(bytes));
+    // Convert bytes to binary string for btoa (must be Latin1 range 0-255)
+    // For byte values 0-255, fromCodePoint works identically to fromCharCode
+    const binary = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('');
+    return btoa(binary);
   }
 
   private toBase64Url(value: string): string {

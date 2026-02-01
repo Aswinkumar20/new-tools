@@ -1,264 +1,294 @@
 <div class="htr">
-  <div class="htr__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="htr__hero">
-    <div class="htr__badge">Color toolkit</div>
-    <h1>HEX to RGB Converter</h1>
-    <p>
-      Convert between HEX and RGB color formats instantly. Includes HSL/HSLA support, color preview, and quick clipboard
-      actions. Perfect for web developers, designers, and anyone working with colors.
-    </p>
+  <section class="htr__workspace">
+    <div class="htr__hero">
+      <h1 class="htr__hero-title">HEX to RGB Converter</h1>
+      <p class="htr__hero-subtitle">
+        Convert between HEX and RGB color formats instantly. Includes HSL/HSLA support, color preview, and quick clipboard
+        actions. Perfect for web developers, designers, and anyone working with colors.
+      </p>
+    </div>
 
-    @if (result()) {
-      @let current = result()!;
-      <div class="htr__hero-meta">
-        <div>
-          <span class="htr__meta-label">HEX</span>
-          <strong>{{ current.hex }}</strong>
-        </div>
-        <div>
-          <span class="htr__meta-label">RGB</span>
-          <strong>rgb({{ current.rgb.r }}, {{ current.rgb.g }}, {{ current.rgb.b }})</strong>
-        </div>
-        <div>
-          <span class="htr__meta-label">HSL</span>
-          <strong>hsl({{ current.hsl.h }}°, {{ current.hsl.s }}%, {{ current.hsl.l }}%)</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="htr__hero-meta htr__hero-meta--placeholder">
-        Enter a HEX color (e.g., #007bff) or RGB values to see conversions and preview instantly.
-      </div>
-    }
-  </section>
-
-  <div class="htr__workspace" [formGroup]="form">
-    <section class="htr__panel htr__panel--input">
-      <header class="htr__card-header">
-        <div>
-          <h2>Color input</h2>
-          <p>Enter HEX or RGB values to convert between formats.</p>
-        </div>
-      </header>
-
-      @if (errors().length) {
-        <div class="htr__alert htr__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="htr__input-group">
-        <label class="htr__input" for="htr-color-picker">
-          <span>Color picker</span>
-          <div class="htr__color-picker-wrapper">
-            <input
-              type="color"
-              id="htr-color-picker"
-              [value]="result()?.hex ?? '#007bff'"
-              (change)="onColorPickerChange($event)"
-            />
-            @if (result()) {
-              <span class="htr__color-value">{{ result()!.hex }}</span>
-            }
-          </div>
-        </label>
-
-        <label class="htr__input" for="htr-hex">
-          <span>HEX color</span>
-          <input
-            id="htr-hex"
-            type="text"
-            formControlName="hex"
-            placeholder="#007bff"
-            (input)="onHexInput()"
-            maxlength="7"
-          />
-          <small>Enter a HEX color code (e.g., #007bff or #07f).</small>
-        </label>
-
-        <div class="htr__rgb-group">
-          <label class="htr__input" for="htr-red">
-            <span>Red (0–255)</span>
-            <input id="htr-red" type="number" min="0" max="255" formControlName="red" (input)="onRgbInput()" />
-          </label>
-
-          <label class="htr__input" for="htr-green">
-            <span>Green (0–255)</span>
-            <input id="htr-green" type="number" min="0" max="255" formControlName="green" (input)="onRgbInput()" />
-          </label>
-
-          <label class="htr__input" for="htr-blue">
-            <span>Blue (0–255)</span>
-            <input id="htr-blue" type="number" min="0" max="255" formControlName="blue" (input)="onRgbInput()" />
-          </label>
-        </div>
-
-        <label class="htr__input" for="htr-alpha">
-          <span>Alpha (0–1)</span>
-          <input id="htr-alpha" type="number" min="0" max="1" step="0.01" formControlName="alpha" />
-          <small>Opacity level for RGBA/HSLA formats.</small>
-        </label>
-
-        <label class="htr__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <span>Remember conversion history</span>
-        </label>
-      </div>
-
-      <div class="htr__actions">
-        <button type="button" class="btn btn--primary" (click)="clear()">Reset</button>
-      </div>
-    </section>
-
-    <section class="htr__panel htr__panel--preview">
-      <header class="htr__card-header">
-        <div>
-          <h2>Color preview</h2>
-          <p>Visual representation of your color in various formats.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="htr__preview-container">
-          <div class="htr__preview-box" [style.background-color]="current.hex"></div>
-          <div class="htr__preview-box htr__preview-box--rgba" [style.background-color]="`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`"></div>
-          <div class="htr__preview-box htr__preview-box--hsla" [style.background-color]="`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`"></div>
-        </div>
-
-        <div class="htr__preview-labels">
-          <span>HEX</span>
-          <span>RGBA</span>
-          <span>HSLA</span>
-        </div>
-      } @else {
-        <div class="htr__empty">Enter a valid color to see the preview.</div>
-      }
-    </section>
-
-    <section class="htr__panel htr__panel--output">
-      <header class="htr__card-header">
-        <div>
-          <h2>Converted formats</h2>
-          <p>Copy any format to your clipboard with a single click.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="htr__output-list">
-          <div class="htr__output-item">
-            <div class="htr__output-header">
-              <strong>HEX</strong>
-              <button type="button" class="btn btn--ghost btn--small" (click)="copyToClipboard(current.hex, 'HEX')">
-                Copy
-              </button>
+    <div class="htr__workspace-layout" [formGroup]="form">
+      <div class="htr__workspace-main">
+        <div class="htr__workspace-card">
+          <div class="htr__workspace-panel">
+            <div class="htr__converter-header">
+              <div class="htr__converter-header-content">
+                <h2 class="htr__converter-title">HEX to RGB Converter</h2>
+                <p class="htr__converter-subtitle">Enter HEX or RGB values to convert between formats.</p>
+              </div>
+              <div class="htr__converter-header-actions">
+                <button type="button" class="htr__btn-icon" aria-label="Reset" (click)="clear()" [attr.data-tooltip]="'Reset'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                    <path d="M21 3v5h-5"></path>
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                    <path d="M3 21v-5h5"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <code>{{ current.hex }}</code>
-          </div>
 
-          <div class="htr__output-item">
-            <div class="htr__output-header">
-              <strong>RGB</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`rgb(${current.rgb.r}, ${current.rgb.g}, ${current.rgb.b})`, 'RGB')"
-              >
-                Copy
-              </button>
+            <div class="htr__converter-metrics">
+              <div class="htr__metric">
+                <span class="htr__metric-label">HEX:</span>
+                <span class="htr__metric-value">{{ result()?.hex ?? form.controls.hex.value }}</span>
+              </div>
+              <div class="htr__metric">
+                <span class="htr__metric-label">RGB:</span>
+                <span class="htr__metric-value">{{ result() ? 'rgb(' + result()!.rgb.r + ', ' + result()!.rgb.g + ', ' + result()!.rgb.b + ')' : '—' }}</span>
+              </div>
+              <div class="htr__metric">
+                <span class="htr__metric-label">HSL:</span>
+                <span class="htr__metric-value">{{ result() ? 'hsl(' + result()!.hsl.h + '°, ' + result()!.hsl.s + '%, ' + result()!.hsl.l + '%)' : '—' }}</span>
+              </div>
+              <div class="htr__metric">
+                <span class="htr__metric-label">HISTORY:</span>
+                <span class="htr__metric-value">{{ history().length }}</span>
+              </div>
             </div>
-            <code>rgb({{ current.rgb.r }}, {{ current.rgb.g }}, {{ current.rgb.b }})</code>
-          </div>
 
-          <div class="htr__output-item">
-            <div class="htr__output-header">
-              <strong>RGBA</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`, 'RGBA')"
-              >
-                Copy
-              </button>
-            </div>
-            <code>rgba({{ current.rgba.r }}, {{ current.rgba.g }}, {{ current.rgba.b }}, {{ current.rgba.a }})</code>
-          </div>
-
-          <div class="htr__output-item">
-            <div class="htr__output-header">
-              <strong>HSL</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`hsl(${current.hsl.h}, ${current.hsl.s}%, ${current.hsl.l}%)`, 'HSL')"
-              >
-                Copy
-              </button>
-            </div>
-            <code>hsl({{ current.hsl.h }}, {{ current.hsl.s }}%, {{ current.hsl.l }}%)</code>
-          </div>
-
-          <div class="htr__output-item">
-            <div class="htr__output-header">
-              <strong>HSLA</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`, 'HSLA')"
-              >
-                Copy
-              </button>
-            </div>
-            <code>hsla({{ current.hsla.h }}, {{ current.hsla.s }}%, {{ current.hsla.l }}%, {{ current.hsla.a }})</code>
-          </div>
-        </div>
-      } @else {
-        <div class="htr__empty">Convert a color to see all format outputs.</div>
-      }
-    </section>
-
-    <section class="htr__panel htr__panel--history">
-      <header class="htr__card-header">
-        <div>
-          <h2>Conversion history</h2>
-          <p>Quick access to recently converted colors from this session.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="htr__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="htr__history-item">
-                <div class="htr__history-color" [style.background-color]="entry.hex"></div>
-                <div class="htr__history-details">
-                  <strong>{{ entry.hex }}</strong>
-                  <span>{{ entry.rgb }}</span>
+            <div class="htr__conversion-form">
+              @if (errors().length) {
+                <div class="htr__conversion-status">
+                  <div class="htr__status-message htr__status-message--error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <ul>
+                      @for (message of errors(); track message) {
+                        <li>{{ message }}</li>
+                      }
+                    </ul>
+                  </div>
                 </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
+              }
+
+              <div class="htr__input-group">
+                <label class="htr__input" for="htr-color-picker">
+                  <span>Color picker</span>
+                  <div class="htr__color-picker-wrapper">
+                    <input
+                      type="color"
+                      id="htr-color-picker"
+                      [value]="result()?.hex ?? '#007bff'"
+                      (change)="onColorPickerChange($event)"
+                    />
+                    @if (result()) {
+                      <span class="htr__color-value">{{ result()!.hex }}</span>
+                    }
+                  </div>
+                </label>
+
+                <label class="htr__input" for="htr-hex">
+                  <span>HEX color</span>
+                  <input
+                    id="htr-hex"
+                    type="text"
+                    formControlName="hex"
+                    placeholder="#007bff"
+                    (input)="onHexInput()"
+                    maxlength="7"
+                  />
+                  <small>Enter a HEX color code (e.g., #007bff or #07f).</small>
+                </label>
+
+                <div class="htr__rgb-group">
+                  <label class="htr__input" for="htr-red">
+                    <span>Red (0–255)</span>
+                    <input id="htr-red" type="number" min="0" max="255" formControlName="red" (input)="onRgbInput()" />
+                  </label>
+
+                  <label class="htr__input" for="htr-green">
+                    <span>Green (0–255)</span>
+                    <input id="htr-green" type="number" min="0" max="255" formControlName="green" (input)="onRgbInput()" />
+                  </label>
+
+                  <label class="htr__input" for="htr-blue">
+                    <span>Blue (0–255)</span>
+                    <input id="htr-blue" type="number" min="0" max="255" formControlName="blue" (input)="onRgbInput()" />
+                  </label>
+                </div>
+
+                <label class="htr__input" for="htr-alpha">
+                  <span>Alpha (0–1)</span>
+                  <input id="htr-alpha" type="number" min="0" max="1" step="0.01" formControlName="alpha" />
+                  <small>Opacity level for RGBA/HSLA formats.</small>
+                </label>
+
+                <label class="htr__toggle">
+                  <input type="checkbox" formControlName="rememberHistory" />
+                  <span>Remember conversion history</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="htr__workspace-secondary">
+        <div class="htr__preview-card">
+          <div class="htr__card-header">
+            <h3 class="htr__card-title">Color Preview</h3>
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="htr__preview-container">
+              <div class="htr__preview-box" [style.background-color]="current.hex"></div>
+              <div class="htr__preview-box htr__preview-box--rgba" [style.background-color]="`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`"></div>
+              <div class="htr__preview-box htr__preview-box--hsla" [style.background-color]="`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`"></div>
+            </div>
+            <div class="htr__preview-labels">
+              <span>HEX</span>
+              <span>RGBA</span>
+              <span>HSLA</span>
+            </div>
+          } @else {
+            <div class="htr__preview-placeholder">
+              <span>Enter a valid color to see the preview.</span>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="htr__empty">Enable history tracking to keep a list of recent conversions.</div>
-      }
-    </section>
-  </div>
+        </div>
+
+        <div class="htr__output-card">
+          <div class="htr__card-header">
+            <h3 class="htr__card-title">Converted Formats</h3>
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="htr__output-list">
+              <div class="htr__output-item">
+                <div class="htr__output-header">
+                  <strong>HEX</strong>
+                  <button type="button" class="btn btn--ghost btn--small" (click)="copyToClipboard(current.hex, 'HEX')">
+                    Copy
+                  </button>
+                </div>
+                <code>{{ current.hex }}</code>
+              </div>
+
+              <div class="htr__output-item">
+                <div class="htr__output-header">
+                  <strong>RGB</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`rgb(${current.rgb.r}, ${current.rgb.g}, ${current.rgb.b})`, 'RGB')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>rgb({{ current.rgb.r }}, {{ current.rgb.g }}, {{ current.rgb.b }})</code>
+              </div>
+
+              <div class="htr__output-item">
+                <div class="htr__output-header">
+                  <strong>RGBA</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`, 'RGBA')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>rgba({{ current.rgba.r }}, {{ current.rgba.g }}, {{ current.rgba.b }}, {{ current.rgba.a }})</code>
+              </div>
+
+              <div class="htr__output-item">
+                <div class="htr__output-header">
+                  <strong>HSL</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`hsl(${current.hsl.h}, ${current.hsl.s}%, ${current.hsl.l}%)`, 'HSL')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>hsl({{ current.hsl.h }}, {{ current.hsl.s }}%, {{ current.hsl.l }}%)</code>
+              </div>
+
+              <div class="htr__output-item">
+                <div class="htr__output-header">
+                  <strong>HSLA</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`, 'HSLA')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>hsla({{ current.hsla.h }}, {{ current.hsla.s }}%, {{ current.hsla.l }}%, {{ current.hsla.a }})</code>
+              </div>
+            </div>
+          } @else {
+            <div class="htr__empty">Convert a color to see all format outputs.</div>
+          }
+        </div>
+
+        <div class="htr__insights-card">
+          <div class="htr__card-header">
+            <h3 class="htr__card-title">Conversion Insights</h3>
+          </div>
+          <div class="htr__insights-grid">
+            <div class="htr__insight-item">
+              <span class="htr__insight-label">Recent Conversions</span>
+              <strong class="htr__insight-value">{{ history().length }}</strong>
+              <small class="htr__insight-meta">Stored locally</small>
+            </div>
+            <div class="htr__insight-item">
+              <span class="htr__insight-label">Current HEX</span>
+              <strong class="htr__insight-value">{{ result()?.hex ?? form.controls.hex.value }}</strong>
+              <small class="htr__insight-meta">{{ result() ? 'Valid color' : 'No color' }}</small>
+            </div>
+            <div class="htr__insight-item">
+              <span class="htr__insight-label">Alpha</span>
+              <strong class="htr__insight-value">{{ form.controls.alpha.value }}</strong>
+              <small class="htr__insight-meta">{{ result() ? 'RGBA/HSLA ready' : 'Not set' }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="htr__history-card">
+          <div class="htr__card-header">
+            <h3 class="htr__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+              Clear
+            </button>
+          </div>
+          <div class="htr__history-list-wrapper">
+            <ul class="htr__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="htr__history-item">
+                  <button type="button" (click)="applyHistory(entry)" class="htr__history-button">
+                    <div class="htr__history-color" [style.background-color]="entry.hex"></div>
+                    <div class="htr__history-details">
+                      <strong>{{ entry.hex }}</strong>
+                      <span>{{ entry.rgb }}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="removeHistoryEntry(entry.timestamp)"
+                  >
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="htr__history-empty">Enable history tracking to keep a list of recent conversions.</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>

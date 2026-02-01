@@ -77,6 +77,10 @@ export class PaletteGeneratorComponent implements OnInit {
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
   readonly extractedColors = computed(() => this.result()?.colors ?? []);
+  readonly currentMethodLabel = computed(() => {
+    const method = this.methods.find(m => m.value === this.form.controls.method.value);
+    return method?.label ?? 'Dominant colors';
+  });
 
   ngOnInit(): void {
     // Component initialization

@@ -1,307 +1,330 @@
 <div class="gg">
-  <div class="gg__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="gg__hero">
-    <div class="gg__badge">Color toolkit</div>
-    <h1>CSS Gradient Generator</h1>
-    <p>
-      Create beautiful CSS gradients with ease. Choose from linear, radial, or conic gradients, customize color stops,
-      angles, and positions. Get instant CSS code ready to copy and use in your projects.
-    </p>
+  <section class="gg__workspace">
+    <div class="gg__hero">
+      <h1 class="gg__hero-title">CSS Gradient Generator</h1>
+      <p class="gg__hero-subtitle">
+        Create beautiful CSS gradients with ease. Choose from linear, radial, or conic gradients, customize color stops,
+        angles, and positions. Get instant CSS code ready to copy and use in your projects.
+      </p>
+    </div>
 
-    @if (result()) {
-      @let current = result()!;
-      <div class="gg__hero-meta">
-        <div>
-          <span class="gg__meta-label">Type</span>
-          <strong>{{ current.type }}</strong>
-        </div>
-        <div>
-          <span class="gg__meta-label">Color stops</span>
-          <strong>{{ current.colors.length }}</strong>
-        </div>
-        <div>
-          <span class="gg__meta-label">CSS length</span>
-          <strong>{{ current.css.length }} chars</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="gg__hero-meta gg__hero-meta--placeholder">
-        Customize your gradient below and watch the CSS code generate in real-time. Perfect for backgrounds, buttons, and
-        modern UI designs.
-      </div>
-    }
-  </section>
-
-  <div class="gg__board" [formGroup]="form">
-    <section class="gg__panel gg__panel--controls">
-      <header class="gg__card-header">
-        <div>
-          <h2>Gradient controls</h2>
-          <p>Configure type, direction, and color stops.</p>
-        </div>
-      </header>
-
-      @if (errors().length) {
-        <div class="gg__alert gg__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="gg__form-group">
-        <label class="gg__input" for="gg-type">
-          <span>Gradient type</span>
-          <select id="gg-type" formControlName="type">
-            <option value="linear">Linear</option>
-            <option value="radial">Radial</option>
-            <option value="conic">Conic</option>
-          </select>
-        </label>
-
-        @if (form.controls.type.value === 'linear' || form.controls.type.value === 'conic') {
-          <label class="gg__input" for="gg-angle">
-            <span>Angle (degrees)</span>
-            <input id="gg-angle" type="number" min="0" max="360" formControlName="angle" />
-            <small>Direction for linear, starting angle for conic.</small>
-          </label>
-        }
-
-        @if (form.controls.type.value === 'radial' || form.controls.type.value === 'conic') {
-          <label class="gg__input" for="gg-position">
-            <span>Position</span>
-            <select id="gg-position" formControlName="position">
-              <option value="center">Center</option>
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="top left">Top Left</option>
-              <option value="top right">Top Right</option>
-              <option value="bottom left">Bottom Left</option>
-              <option value="bottom right">Bottom Right</option>
-            </select>
-          </label>
-        }
-
-        @if (form.controls.type.value === 'radial') {
-          <label class="gg__input" for="gg-shape">
-            <span>Shape</span>
-            <select id="gg-shape" formControlName="shape">
-              <option value="ellipse">Ellipse</option>
-              <option value="circle">Circle</option>
-            </select>
-          </label>
-
-          <label class="gg__input" for="gg-size">
-            <span>Size</span>
-            <select id="gg-size" formControlName="size">
-              <option value="closest-side">Closest Side</option>
-              <option value="farthest-side">Farthest Side</option>
-              <option value="closest-corner">Closest Corner</option>
-              <option value="farthest-corner">Farthest Corner</option>
-            </select>
-          </label>
-        }
-      </div>
-
-      <div class="gg__color-stops-section">
-        <div class="gg__section-header">
-          <h3>Color stops</h3>
-          <button type="button" class="btn btn--ghost btn--small" (click)="addColorStop()">Add stop</button>
-        </div>
-
-        <div class="gg__color-stops">
-          @for (stop of colorStopsFormArray().controls; track $index; let i = $index) {
-            <div class="gg__color-stop-item">
-              <input
-                type="color"
-                [formControl]="stop.controls.color"
-                class="gg__color-picker"
-                title="Color"
-              />
-              <input
-                type="text"
-                [formControl]="stop.controls.color"
-                class="gg__color-input"
-                placeholder="#007bff"
-                maxlength="7"
-              />
-              <input
-                type="number"
-                [formControl]="stop.controls.position"
-                class="gg__position-input"
-                min="0"
-                max="100"
-                step="0.1"
-                (input)="onPositionChange(i)"
-                title="Position (%)"
-              />
-              <span class="gg__position-unit">%</span>
-              @if (colorStopsFormArray().length > 2) {
-                <button
-                  type="button"
-                  class="btn btn--ghost btn--small gg__remove-btn"
-                  (click)="removeColorStop(i)"
-                  title="Remove color stop"
-                >
-                  ×
+    <div class="gg__workspace-layout" [formGroup]="form">
+      <div class="gg__workspace-main">
+        <div class="gg__workspace-card">
+          <div class="gg__workspace-panel">
+            <div class="gg__converter-header">
+              <div class="gg__converter-header-content">
+                <h2 class="gg__converter-title">Gradient Generator</h2>
+                <p class="gg__converter-subtitle">Configure type, direction, and color stops. CSS code generates in real-time.</p>
+              </div>
+              <div class="gg__converter-header-actions">
+                <button type="button" class="gg__btn-icon" aria-label="Reset" (click)="clear()" [attr.data-tooltip]="'Reset'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                    <path d="M21 3v5h-5"></path>
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                    <path d="M3 21v-5h5"></path>
+                  </svg>
                 </button>
-              }
+              </div>
             </div>
+
+            <div class="gg__converter-metrics">
+              <div class="gg__metric">
+                <span class="gg__metric-label">TYPE:</span>
+                <span class="gg__metric-value">{{ result()?.type ?? form.controls.type.value }}</span>
+              </div>
+              <div class="gg__metric">
+                <span class="gg__metric-label">STOPS:</span>
+                <span class="gg__metric-value">{{ colorStopsFormArray().length }}</span>
+              </div>
+              <div class="gg__metric">
+                <span class="gg__metric-label">CSS:</span>
+                <span class="gg__metric-value">{{ result() ? result()!.css.length + ' chars' : '—' }}</span>
+              </div>
+              <div class="gg__metric">
+                <span class="gg__metric-label">HISTORY:</span>
+                <span class="gg__metric-value">{{ history().length }}</span>
+              </div>
+            </div>
+
+            <div class="gg__conversion-form">
+              @if (errors().length) {
+                <div class="gg__conversion-status">
+                  <div class="gg__status-message gg__status-message--error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <ul>
+                      @for (message of errors(); track message) {
+                        <li>{{ message }}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+
+              <div class="gg__form-grid">
+                <label class="gg__input" for="gg-type">
+                  <span>Gradient type</span>
+                  <select id="gg-type" formControlName="type">
+                    <option value="linear">Linear</option>
+                    <option value="radial">Radial</option>
+                    <option value="conic">Conic</option>
+                  </select>
+                </label>
+
+                @if (form.controls.type.value === 'linear' || form.controls.type.value === 'conic') {
+                  <label class="gg__input" for="gg-angle">
+                    <span>Angle (degrees)</span>
+                    <input id="gg-angle" type="number" min="0" max="360" formControlName="angle" />
+                    <small>Direction for linear, starting angle for conic.</small>
+                  </label>
+                }
+
+                @if (form.controls.type.value === 'radial' || form.controls.type.value === 'conic') {
+                  <label class="gg__input" for="gg-position">
+                    <span>Position</span>
+                    <select id="gg-position" formControlName="position">
+                      <option value="center">Center</option>
+                      <option value="top">Top</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                      <option value="top left">Top Left</option>
+                      <option value="top right">Top Right</option>
+                      <option value="bottom left">Bottom Left</option>
+                      <option value="bottom right">Bottom Right</option>
+                    </select>
+                  </label>
+                }
+
+                @if (form.controls.type.value === 'radial') {
+                  <label class="gg__input" for="gg-shape">
+                    <span>Shape</span>
+                    <select id="gg-shape" formControlName="shape">
+                      <option value="ellipse">Ellipse</option>
+                      <option value="circle">Circle</option>
+                    </select>
+                  </label>
+
+                  <label class="gg__input" for="gg-size">
+                    <span>Size</span>
+                    <select id="gg-size" formControlName="size">
+                      <option value="closest-side">Closest Side</option>
+                      <option value="farthest-side">Farthest Side</option>
+                      <option value="closest-corner">Closest Corner</option>
+                      <option value="farthest-corner">Farthest Corner</option>
+                    </select>
+                  </label>
+                }
+              </div>
+
+              <div class="gg__color-stops-section">
+                <div class="gg__section-header">
+                  <h3 class="gg__section-title">Color stops</h3>
+                  <button type="button" class="btn btn--ghost btn--small" (click)="addColorStop()">Add stop</button>
+                </div>
+
+                <div class="gg__color-stops">
+                  @for (stop of colorStopsFormArray().controls; track $index; let i = $index) {
+                    <div class="gg__color-stop-item">
+                      <input
+                        type="color"
+                        [formControl]="stop.controls.color"
+                        class="gg__color-picker"
+                        title="Color"
+                      />
+                      <input
+                        type="text"
+                        [formControl]="stop.controls.color"
+                        class="gg__color-input"
+                        placeholder="#007bff"
+                        maxlength="7"
+                      />
+                      <input
+                        type="number"
+                        [formControl]="stop.controls.position"
+                        class="gg__position-input"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        (input)="onPositionChange(i)"
+                        title="Position (%)"
+                      />
+                      <span class="gg__position-unit">%</span>
+                      @if (colorStopsFormArray().length > 2) {
+                        <button
+                          type="button"
+                          class="btn btn--ghost btn--small gg__remove-btn"
+                          (click)="removeColorStop(i)"
+                          title="Remove color stop"
+                        >
+                          ×
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <label class="gg__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <span>Remember gradient history</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gg__workspace-secondary">
+        <div class="gg__preview-card">
+          <div class="gg__card-header">
+            <h3 class="gg__card-title">Live Preview</h3>
+          </div>
+          <div class="gg__preview-container">
+            <div class="gg__preview-box" [style.background]="getGradientStyle()"></div>
+          </div>
+          <div class="gg__preview-options">
+            <div class="gg__preview-option" [style.background]="getGradientStyle()">
+              <span>Square</span>
+            </div>
+            <div class="gg__preview-option gg__preview-option--circle" [style.background]="getGradientStyle()">
+              <span>Circle</span>
+            </div>
+            <div class="gg__preview-option gg__preview-option--wide" [style.background]="getGradientStyle()">
+              <span>Wide</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="gg__output-card">
+          <div class="gg__card-header">
+            <h3 class="gg__card-title">CSS Code</h3>
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="gg__output-list">
+              <div class="gg__output-item">
+                <div class="gg__output-header">
+                  <strong>Background property</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`background: ${current.css};`, 'CSS')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>background: {{ current.css }};</code>
+              </div>
+
+              <div class="gg__output-item">
+                <div class="gg__output-header">
+                  <strong>Background-image property</strong>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="copyToClipboard(`background-image: ${current.css};`, 'CSS')"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <code>background-image: {{ current.css }};</code>
+              </div>
+
+              <div class="gg__output-item">
+                <div class="gg__output-header">
+                  <strong>Raw CSS</strong>
+                  <button type="button" class="btn btn--ghost btn--small" (click)="copyToClipboard(current.css, 'CSS')">
+                    Copy
+                  </button>
+                </div>
+                <code>{{ current.css }}</code>
+              </div>
+            </div>
+          } @else {
+            <div class="gg__empty">Configure your gradient to see the CSS code here.</div>
           }
         </div>
-      </div>
 
-      <label class="gg__toggle">
-        <input type="checkbox" formControlName="rememberHistory" />
-        <span>Remember gradient history</span>
-      </label>
-
-      <div class="gg__actions">
-        <button type="button" class="btn btn--primary" (click)="clear()">Reset</button>
-      </div>
-    </section>
-
-    <section class="gg__panel gg__panel--preview">
-      <header class="gg__card-header">
-        <div>
-          <h2>Live preview</h2>
-          <p>See your gradient in real-time as you edit.</p>
-        </div>
-      </header>
-
-      <div class="gg__preview-container">
-        <div class="gg__preview-box" [style.background]="getGradientStyle()"></div>
-      </div>
-
-      <div class="gg__preview-options">
-        <div class="gg__preview-option" [style.background]="getGradientStyle()">
-          <span>Square</span>
-        </div>
-        <div class="gg__preview-option gg__preview-option--circle" [style.background]="getGradientStyle()">
-          <span>Circle</span>
-        </div>
-        <div class="gg__preview-option gg__preview-option--wide" [style.background]="getGradientStyle()">
-          <span>Wide</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="gg__panel gg__panel--output">
-      <header class="gg__card-header">
-        <div>
-          <h2>CSS code</h2>
-          <p>Copy the generated CSS code to use in your projects.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="gg__output-group">
-          <div class="gg__output-item">
-            <div class="gg__output-header">
-              <strong>Background property</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`background: ${current.css};`, 'CSS')"
-              >
-                Copy
-              </button>
-            </div>
-            <code>background: {{ current.css }};</code>
+        <div class="gg__insights-card">
+          <div class="gg__card-header">
+            <h3 class="gg__card-title">Gradient Insights</h3>
           </div>
-
-          <div class="gg__output-item">
-            <div class="gg__output-header">
-              <strong>Background-image property</strong>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copyToClipboard(`background-image: ${current.css};`, 'CSS')"
-              >
-                Copy
-              </button>
+          <div class="gg__insights-grid">
+            <div class="gg__insight-item">
+              <span class="gg__insight-label">Recent Gradients</span>
+              <strong class="gg__insight-value">{{ history().length }}</strong>
+              <small class="gg__insight-meta">Stored locally</small>
             </div>
-            <code>background-image: {{ current.css }};</code>
-          </div>
-
-          <div class="gg__output-item">
-            <div class="gg__output-header">
-              <strong>Raw CSS</strong>
-              <button type="button" class="btn btn--ghost btn--small" (click)="copyToClipboard(current.css, 'CSS')">
-                Copy
-              </button>
+            <div class="gg__insight-item">
+              <span class="gg__insight-label">Gradient Type</span>
+              <strong class="gg__insight-value">{{ result()?.type ?? form.controls.type.value }}</strong>
+              <small class="gg__insight-meta">{{ colorStopsFormArray().length + ' color stops' }}</small>
             </div>
-            <code>{{ current.css }}</code>
+            <div class="gg__insight-item">
+              <span class="gg__insight-label">CSS Length</span>
+              <strong class="gg__insight-value">{{ result() ? result()!.css.length + ' chars' : '—' }}</strong>
+              <small class="gg__insight-meta">{{ result() ? 'Ready to copy' : 'Not generated' }}</small>
+            </div>
           </div>
         </div>
-      } @else {
-        <div class="gg__empty">Configure your gradient to see the CSS code here.</div>
-      }
-    </section>
 
-    <section class="gg__panel gg__panel--presets">
-      <header class="gg__card-header">
-        <div>
-          <h2>Quick presets</h2>
-          <p>Start with a pre-configured gradient template.</p>
-        </div>
-      </header>
-
-      <div class="gg__preset-list">
-        @for (preset of presets; track preset.label) {
-          <button type="button" class="gg__preset-item" (click)="applyPreset(preset)">
-            <div class="gg__preset-preview" [style.background]="getPresetPreview(preset)"></div>
-            <div class="gg__preset-info">
-              <strong>{{ preset.label }}</strong>
-              <span>{{ preset.description }}</span>
-            </div>
-          </button>
-        }
-      </div>
-    </section>
-
-    <section class="gg__panel gg__panel--history">
-      <header class="gg__card-header">
-        <div>
-          <h2>Gradient history</h2>
-          <p>Quick access to recently generated gradients.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="gg__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="gg__history-item">
-                <div class="gg__history-preview" [style.background]="entry.preview"></div>
-                <div class="gg__history-details">
-                  <code>{{ entry.css.substring(0, 40) }}{{ entry.css.length > 40 ? '...' : '' }}</code>
+        <div class="gg__presets-card">
+          <div class="gg__card-header">
+            <h3 class="gg__card-title">Quick Presets</h3>
+          </div>
+          <div class="gg__preset-list">
+            @for (preset of presets; track preset.label) {
+              <button type="button" class="gg__preset-button" (click)="applyPreset(preset)">
+                <div class="gg__preset-preview" [style.background]="getPresetPreview(preset)"></div>
+                <div class="gg__preset-info">
+                  <strong>{{ preset.label }}</strong>
+                  <span>{{ preset.description }}</span>
                 </div>
               </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="gg__empty">Enable history tracking to keep a list of recent gradients.</div>
-      }
-    </section>
-  </div>
+            }
+          </div>
+        </div>
+
+        <div class="gg__history-card">
+          <div class="gg__card-header">
+            <h3 class="gg__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+              Clear
+            </button>
+          </div>
+          <div class="gg__history-list-wrapper">
+            <ul class="gg__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="gg__history-item">
+                  <button type="button" (click)="applyHistory(entry)" class="gg__history-button">
+                    <div class="gg__history-preview" [style.background]="entry.preview"></div>
+                    <div class="gg__history-details">
+                      <code>{{ entry.css.substring(0, 40) }}{{ entry.css.length > 40 ? '...' : '' }}</code>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="removeHistoryEntry(entry.timestamp)"
+                  >
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="gg__history-empty">Enable history tracking to keep a list of recent gradients.</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>

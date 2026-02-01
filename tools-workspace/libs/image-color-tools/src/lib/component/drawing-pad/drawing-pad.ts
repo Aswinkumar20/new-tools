@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, HostListener, OnDestroy, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Navigation } from '@tools-workspace/features-home';
@@ -23,8 +23,10 @@ interface DrawingState {
   imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class DrawingPadComponent {
+export class DrawingPadComponent implements AfterViewInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private resizeObserver?: ResizeObserver;
 
   @ViewChild('drawingCanvas', { static: false }) drawingCanvas!: ElementRef<HTMLCanvasElement>;
 
@@ -57,13 +59,48 @@ export class DrawingPadComponent {
   private lastX = 0;
   private lastY = 0;
   private ctx: CanvasRenderingContext2D | null = null;
+  private isInitialized = false;
 
-  constructor() {
-    // Initialize canvas after view init
+  ngAfterViewInit(): void {
+    // Initialize canvas after view is ready
     setTimeout(() => {
       this.initCanvas();
+      this.setupResizeObserver();
       this.saveState();
-    }, 0);
+      this.isInitialized = true;
+      this.cdr.markForCheck();
+    }, 100);
+  }
+
+  ngOnDestroy(): void {
+    // Clean up resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+  }
+
+  private setupResizeObserver(): void {
+    const container = this.drawingCanvas?.nativeElement?.parentElement;
+    if (!container || typeof ResizeObserver === 'undefined') {
+      // Fallback to window resize if ResizeObserver is not available
+      return;
+    }
+
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.isInitialized) {
+        this.onResize();
+      }
+    });
+
+    this.resizeObserver.observe(container);
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (this.isInitialized && !this.resizeObserver) {
+      // Only use window resize if ResizeObserver is not available
+      this.onResize();
+    }
   }
 
   initCanvas(): void {
@@ -75,16 +112,8 @@ export class DrawingPadComponent {
 
     this.ctx = ctx;
 
-    // Set canvas size
-    const container = canvas.parentElement;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      canvas.width = Math.max(rect.width - 32, 400);
-      canvas.height = Math.max(400, rect.height - 32);
-    } else {
-      canvas.width = 800;
-      canvas.height = 600;
-    }
+    // Set canvas size based on container
+    this.resizeCanvas();
 
     // Set default styles
     ctx.fillStyle = '#ffffff';
@@ -95,6 +124,32 @@ export class DrawingPadComponent {
     ctx.lineJoin = 'round';
 
     this.updateCanvasStyle();
+  }
+
+  private resizeCanvas(): void {
+    const canvas = this.drawingCanvas?.nativeElement;
+    if (!canvas || !this.ctx) return;
+
+    const container = canvas.parentElement;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const padding = 32; // Account for container padding
+      const maxWidth = Math.max(rect.width - padding, 400);
+      const maxHeight = Math.max(rect.height - padding, 400);
+      
+      // Maintain aspect ratio or use available space
+      canvas.width = maxWidth;
+      canvas.height = maxHeight;
+      
+      // Update CSS size to match container
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+      canvas.style.maxWidth = `${maxWidth}px`;
+      canvas.style.maxHeight = `${maxHeight}px`;
+    } else {
+      canvas.width = 800;
+      canvas.height = 600;
+    }
   }
 
   updateCanvasStyle(): void {
@@ -110,14 +165,25 @@ export class DrawingPadComponent {
       this.ctx.strokeStyle = 'rgba(0,0,0,1)';
     } else {
       this.ctx.globalCompositeOperation = 'source-over';
-      this.ctx.strokeStyle = color;
+      // Ensure color is valid hex color, fallback to black if invalid
+      const validColor = this.isValidHexColor(color) ? color : '#000000';
+      this.ctx.strokeStyle = validColor;
     }
 
-    this.ctx.lineWidth = size;
+    this.ctx.lineWidth = Math.max(1, Math.min(100, size)); // Clamp between 1 and 100
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+  }
+
+  private isValidHexColor(color: string): boolean {
+    if (!color) return false;
+    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
   }
 
   onMouseDown(event: MouseEvent | TouchEvent): void {
     event.preventDefault();
+    event.stopPropagation();
+    
     this.isDrawing.set(true);
 
     const point = this.getEventPoint(event);
@@ -128,12 +194,14 @@ export class DrawingPadComponent {
 
     this.updateCanvasStyle();
     this.saveState();
+    this.cdr.markForCheck();
   }
 
   onMouseMove(event: MouseEvent | TouchEvent): void {
-    event.preventDefault();
-
     if (!this.isDrawing()) return;
+    
+    event.preventDefault();
+    event.stopPropagation();
 
     const point = this.getEventPoint(event);
     if (!point || !this.ctx) return;
@@ -149,12 +217,20 @@ export class DrawingPadComponent {
 
   onMouseUp(event: MouseEvent | TouchEvent): void {
     event.preventDefault();
-    this.isDrawing.set(false);
-    this.saveState();
+    event.stopPropagation();
+    
+    if (this.isDrawing()) {
+      this.isDrawing.set(false);
+      this.saveState();
+      this.cdr.markForCheck();
+    }
   }
 
   onMouseLeave(): void {
-    this.isDrawing.set(false);
+    if (this.isDrawing()) {
+      this.isDrawing.set(false);
+      this.cdr.markForCheck();
+    }
   }
 
   getEventPoint(event: MouseEvent | TouchEvent): { x: number; y: number } | null {
@@ -162,17 +238,22 @@ export class DrawingPadComponent {
     if (!canvas) return null;
 
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
 
     if (event instanceof MouseEvent) {
       return {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
       };
-    } else if (event instanceof TouchEvent && event.touches.length > 0) {
-      return {
-        x: event.touches[0].clientX - rect.left,
-        y: event.touches[0].clientY - rect.top
-      };
+    } else if (event instanceof TouchEvent) {
+      const touch = event.touches.length > 0 ? event.touches[0] : event.changedTouches[0];
+      if (touch) {
+        return {
+          x: (touch.clientX - rect.left) * scaleX,
+          y: (touch.clientY - rect.top) * scaleY
+        };
+      }
     }
 
     return null;
@@ -184,11 +265,19 @@ export class DrawingPadComponent {
   }
 
   onColorChange(): void {
-    this.updateCanvasStyle();
+    if (this.ctx) {
+      this.updateCanvasStyle();
+      // Force update to show color change immediately
+      this.cdr.markForCheck();
+    }
   }
 
   onBrushSizeChange(): void {
-    this.updateCanvasStyle();
+    if (this.ctx) {
+      this.updateCanvasStyle();
+      // Force update to show brush size change immediately
+      this.cdr.markForCheck();
+    }
   }
 
   clearCanvas(): void {
@@ -198,6 +287,7 @@ export class DrawingPadComponent {
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, canvas.width, canvas.height);
     this.saveState();
+    this.cdr.markForCheck();
   }
 
   undo(): void {
@@ -206,6 +296,7 @@ export class DrawingPadComponent {
     const newIndex = this.historyIndex() - 1;
     this.historyIndex.set(newIndex);
     this.restoreState(this.history()[newIndex]);
+    this.cdr.markForCheck();
   }
 
   redo(): void {
@@ -214,6 +305,7 @@ export class DrawingPadComponent {
     const newIndex = this.historyIndex() + 1;
     this.historyIndex.set(newIndex);
     this.restoreState(this.history()[newIndex]);
+    this.cdr.markForCheck();
   }
 
   saveState(): void {
@@ -275,22 +367,38 @@ export class DrawingPadComponent {
     const canvas = this.drawingCanvas?.nativeElement;
     if (!canvas || !this.ctx) return;
 
-    // Save current image
-    const imageData = this.ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    // Resize canvas
-    const container = canvas.parentElement;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = Math.max(400, rect.height);
+    // Save current image if canvas has content
+    let imageData: ImageData | null = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+      try {
+        imageData = this.ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch (e) {
+        console.warn('Could not save canvas state during resize:', e);
+      }
     }
 
-    // Restore image
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillRect(0, 0, canvas.width, canvas.height);
-    this.ctx.putImageData(imageData, 0, 0);
+    // Resize canvas
+    this.resizeCanvas();
+
+    // Restore image if we had one
+    if (imageData) {
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+      try {
+        this.ctx.putImageData(imageData, 0, 0);
+      } catch (e) {
+        console.warn('Could not restore canvas state during resize:', e);
+        // If restore fails, just clear the canvas
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    } else {
+      // Clear canvas if no previous content
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     this.updateCanvasStyle();
+    this.cdr.markForCheck();
   }
 }

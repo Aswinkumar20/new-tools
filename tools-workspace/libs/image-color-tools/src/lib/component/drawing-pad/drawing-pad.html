@@ -1,124 +1,194 @@
 <div class="dp">
-  <div class="dp__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="dp__hero">
-    <div class="dp__badge">Media toolkit</div>
-    <h1>Drawing Pad</h1>
-    <p>
-      Draw freely on a digital canvas with customizable tools, colors, and brush sizes. Perfect for quick sketches,
-      annotations, or creative doodles. Supports mouse and touch input for desktop and mobile.
-    </p>
+  <section class="dp__workspace">
+    <div class="dp__hero">
+      <h1 class="dp__hero-title">Drawing Pad</h1>
+      <p class="dp__hero-subtitle">
+        Draw freely on a digital canvas with customizable tools, colors, and brush sizes. Perfect for quick sketches,
+        annotations, or creative doodles. Supports mouse and touch input for desktop and mobile.
+      </p>
+    </div>
 
-    <div class="dp__hero-meta dp__hero-meta--placeholder">
-      Choose your tool, adjust colors and brush size, then start drawing. Use undo/redo to refine your artwork.
+    <div class="dp__workspace-layout" [formGroup]="form">
+      <div class="dp__workspace-main">
+        <div class="dp__workspace-card">
+          <div class="dp__workspace-panel">
+            <div class="dp__converter-header">
+              <div class="dp__converter-header-content">
+                <h2 class="dp__converter-title">Drawing Pad</h2>
+                <p class="dp__converter-subtitle">Select tools and customize your drawing experience. Draw with mouse or touch.</p>
+              </div>
+              <div class="dp__converter-header-actions">
+                <button type="button" class="dp__btn-icon" aria-label="Clear canvas" (click)="clearCanvas()" [attr.data-tooltip]="'Clear canvas'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="dp__converter-metrics">
+              <div class="dp__metric">
+                <span class="dp__metric-label">TOOL:</span>
+                <span class="dp__metric-value">{{ currentTool() | titlecase }}</span>
+              </div>
+              <div class="dp__metric">
+                <span class="dp__metric-label">COLOR:</span>
+                <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
+              </div>
+              <div class="dp__metric">
+                <span class="dp__metric-label">SIZE:</span>
+                <span class="dp__metric-value">{{ currentBrushSize() }}px</span>
+              </div>
+              <div class="dp__metric">
+                <span class="dp__metric-label">ACTIONS:</span>
+                <span class="dp__metric-value">{{ canUndo() ? 'Undo' : '—' }} / {{ canRedo() ? 'Redo' : '—' }}</span>
+              </div>
+            </div>
+
+            <div class="dp__conversion-form">
+              <div class="dp__tool-selector">
+                <button
+                  type="button"
+                  class="dp__tool-btn"
+                  [class.dp__tool-btn--active]="currentTool() === 'pen'"
+                  (click)="onToolChange('pen')"
+                >
+                  <span class="dp__tool-icon">✏️</span>
+                  <span>Pen</span>
+                </button>
+                <button
+                  type="button"
+                  class="dp__tool-btn"
+                  [class.dp__tool-btn--active]="currentTool() === 'brush'"
+                  (click)="onToolChange('brush')"
+                >
+                  <span class="dp__tool-icon">🖌️</span>
+                  <span>Brush</span>
+                </button>
+                <button
+                  type="button"
+                  class="dp__tool-btn"
+                  [class.dp__tool-btn--active]="currentTool() === 'eraser'"
+                  (click)="onToolChange('eraser')"
+                >
+                  <span class="dp__tool-icon">🧹</span>
+                  <span>Eraser</span>
+                </button>
+              </div>
+
+              <div class="dp__form-grid">
+                <label class="dp__input" for="dp-color">
+                  <span>Color</span>
+                  <div class="dp__color-group">
+                    <input type="color" id="dp-color" formControlName="color" (input)="onColorChange()" (change)="onColorChange()" />
+                    <input type="text" formControlName="color" placeholder="#000000" maxlength="7" (input)="onColorChange()" />
+                  </div>
+                </label>
+
+                <label class="dp__input" for="dp-brush-size">
+                  <span>Brush size ({{ currentBrushSize() }})</span>
+                  <input
+                    type="range"
+                    id="dp-brush-size"
+                    min="1"
+                    max="100"
+                    formControlName="brushSize"
+                    (input)="onBrushSizeChange()"
+                  />
+                  <small>Adjust the size of your brush or eraser.</small>
+                </label>
+              </div>
+
+              <div class="dp__conversion-actions">
+                <button type="button" class="btn btn--ghost" (click)="undo()" [disabled]="!canUndo()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7v6h6"></path>
+                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+                  </svg>
+                  <span>Undo</span>
+                </button>
+                <button type="button" class="btn btn--ghost" (click)="redo()" [disabled]="!canRedo()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 7v6h-6"></path>
+                    <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path>
+                  </svg>
+                  <span>Redo</span>
+                </button>
+                <button type="button" class="btn btn--primary" (click)="downloadCanvas()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Download</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dp__workspace-secondary">
+        <div class="dp__canvas-card">
+          <div class="dp__card-header">
+            <h3 class="dp__card-title">Canvas</h3>
+          </div>
+          <div class="dp__canvas-container">
+            <canvas
+              #drawingCanvas
+              class="dp__canvas"
+              (mousedown)="onMouseDown($event)"
+              (mousemove)="onMouseMove($event)"
+              (mouseup)="onMouseUp($event)"
+              (mouseleave)="onMouseLeave()"
+              (touchstart)="onMouseDown($event)"
+              (touchmove)="onMouseMove($event)"
+              (touchend)="onMouseUp($event)"
+            ></canvas>
+          </div>
+          <div class="dp__canvas-info">
+            <div class="dp__info-item">
+              <span class="dp__info-label">Tool</span>
+              <strong>{{ currentTool() | titlecase }}</strong>
+            </div>
+            <div class="dp__info-item">
+              <span class="dp__info-label">Color</span>
+              <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
+            </div>
+            <div class="dp__info-item">
+              <span class="dp__info-label">Brush size</span>
+              <strong>{{ currentBrushSize() }}px</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="dp__insights-card">
+          <div class="dp__card-header">
+            <h3 class="dp__card-title">Drawing Insights</h3>
+          </div>
+          <div class="dp__insights-grid">
+            <div class="dp__insight-item">
+              <span class="dp__insight-label">Current Tool</span>
+              <strong class="dp__insight-value">{{ currentTool() | titlecase }}</strong>
+              <small class="dp__insight-meta">{{ currentBrushSize() }}px brush</small>
+            </div>
+            <div class="dp__insight-item">
+              <span class="dp__insight-label">Color</span>
+              <div class="dp__color-indicator-large" [style.background-color]="currentColor()"></div>
+              <small class="dp__insight-meta">{{ currentColor() }}</small>
+            </div>
+            <div class="dp__insight-item">
+              <span class="dp__insight-label">Actions</span>
+              <strong class="dp__insight-value">{{ canUndo() ? 'Undo' : '—' }} / {{ canRedo() ? 'Redo' : '—' }}</strong>
+              <small class="dp__insight-meta">{{ canUndo() || canRedo() ? 'Available' : 'No actions' }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
-
-  <div class="dp__board" [formGroup]="form">
-    <section class="dp__panel dp__panel--tools">
-      <header class="dp__card-header">
-        <div>
-          <h2>Drawing tools</h2>
-          <p>Select tools and customize your drawing experience.</p>
-        </div>
-      </header>
-
-      <div class="dp__tool-selector">
-        <button
-          type="button"
-          class="dp__tool-btn"
-          [class.dp__tool-btn--active]="currentTool() === 'pen'"
-          (click)="onToolChange('pen')"
-        >
-          <span class="dp__tool-icon">✏️</span>
-          <span>Pen</span>
-        </button>
-        <button
-          type="button"
-          class="dp__tool-btn"
-          [class.dp__tool-btn--active]="currentTool() === 'brush'"
-          (click)="onToolChange('brush')"
-        >
-          <span class="dp__tool-icon">🖌️</span>
-          <span>Brush</span>
-        </button>
-        <button
-          type="button"
-          class="dp__tool-btn"
-          [class.dp__tool-btn--active]="currentTool() === 'eraser'"
-          (click)="onToolChange('eraser')"
-        >
-          <span class="dp__tool-icon">🧹</span>
-          <span>Eraser</span>
-        </button>
-      </div>
-
-      <div class="dp__form-group">
-        <label class="dp__input" for="dp-color">
-          <span>Color</span>
-          <input type="color" id="dp-color" formControlName="color" (change)="onColorChange()" />
-        </label>
-
-        <label class="dp__input" for="dp-brush-size">
-          <span>Brush size ({{ currentBrushSize() }})</span>
-          <input
-            type="range"
-            id="dp-brush-size"
-            min="1"
-            max="100"
-            formControlName="brushSize"
-            (input)="onBrushSizeChange()"
-          />
-          <small>Adjust the size of your brush or eraser.</small>
-        </label>
-      </div>
-
-      <div class="dp__actions">
-        <button type="button" class="btn btn--ghost" (click)="undo()" [disabled]="!canUndo()">Undo</button>
-        <button type="button" class="btn btn--ghost" (click)="redo()" [disabled]="!canRedo()">Redo</button>
-        <button type="button" class="btn btn--ghost" (click)="clearCanvas()">Clear</button>
-        <button type="button" class="btn btn--primary" (click)="downloadCanvas()">Download</button>
-      </div>
-    </section>
-
-    <section class="dp__panel dp__panel--canvas">
-      <header class="dp__card-header">
-        <div>
-          <h2>Canvas</h2>
-          <p>Draw with your mouse or touch on the canvas below.</p>
-        </div>
-      </header>
-
-      <div class="dp__canvas-container">
-        <canvas
-          #drawingCanvas
-          class="dp__canvas"
-          (mousedown)="onMouseDown($event)"
-          (mousemove)="onMouseMove($event)"
-          (mouseup)="onMouseUp($event)"
-          (mouseleave)="onMouseLeave()"
-          (touchstart)="onMouseDown($event)"
-          (touchmove)="onMouseMove($event)"
-          (touchend)="onMouseUp($event)"
-        ></canvas>
-      </div>
-
-      <div class="dp__canvas-info">
-        <div class="dp__info-item">
-          <span class="dp__info-label">Tool</span>
-          <strong>{{ currentTool() }}</strong>
-        </div>
-        <div class="dp__info-item">
-          <span class="dp__info-label">Color</span>
-          <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
-        </div>
-        <div class="dp__info-item">
-          <span class="dp__info-label">Brush size</span>
-          <strong>{{ currentBrushSize() }}px</strong>
-        </div>
-      </div>
-    </section>
-  </div>
 </div>

@@ -1,249 +1,297 @@
 <div class="pg">
-  <div class="pg__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="pg__hero">
-    <div class="pg__badge">Color toolkit</div>
-    <h1>Palette Generator</h1>
-    <p>
-      Extract beautiful color palettes from images. Upload an image and get instant color schemes with HEX, RGB, and HSL
-      codes. Perfect for design inspiration and color matching.
-    </p>
+  <section class="pg__workspace">
+    <div class="pg__hero">
+      <h1 class="pg__hero-title">Palette Generator</h1>
+      <p class="pg__hero-subtitle">
+        Extract beautiful color palettes from images. Upload an image and get instant color schemes with HEX, RGB, and HSL
+        codes. Perfect for design inspiration and color matching.
+      </p>
+    </div>
 
-    @if (result()) {
-      @let info = result()!;
-      <div class="pg__hero-meta">
-        <div>
-          <span class="pg__meta-label">Colors extracted</span>
-          <strong>{{ info.colorCount }}</strong>
-        </div>
-        <div>
-          <span class="pg__meta-label">Method</span>
-          <strong>{{ info.method }}</strong>
-        </div>
-        <div>
-          <span class="pg__meta-label">Image</span>
-          <strong>{{ info.filename ?? 'Untitled' }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="pg__hero-meta pg__hero-meta--placeholder">
-        Upload an image to extract its color palette. Choose from different extraction methods to get the perfect color scheme.
-      </div>
-    }
-  </section>
+    <div class="pg__workspace-layout" [formGroup]="form">
+      <div class="pg__workspace-main">
+        <div class="pg__workspace-card">
+          <div class="pg__workspace-panel">
+            <div class="pg__converter-header">
+              <div class="pg__converter-header-content">
+                <h2 class="pg__converter-title">Palette Generator</h2>
+                <p class="pg__converter-subtitle">Select an image and configure extraction options. Color extraction starts automatically.</p>
+              </div>
+              <div class="pg__converter-header-actions">
+                <button type="button" class="pg__btn-icon" aria-label="Clear all" (click)="clear()" [disabled]="!selectedFile()" [attr.data-tooltip]="'Clear all'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-  <div class="pg__board" [formGroup]="form">
-    <section class="pg__panel pg__panel--upload">
-      <header class="pg__card-header">
-        <div>
-          <h2>Upload & settings</h2>
-          <p>Select an image and configure extraction options.</p>
-        </div>
-      </header>
+            <div class="pg__converter-metrics">
+              <div class="pg__metric">
+                <span class="pg__metric-label">FILE:</span>
+                <span class="pg__metric-value">{{ selectedFile()?.name ?? 'None selected' }}</span>
+              </div>
+              <div class="pg__metric">
+                <span class="pg__metric-label">METHOD:</span>
+                <span class="pg__metric-value">{{ currentMethodLabel() }}</span>
+              </div>
+              <div class="pg__metric">
+                <span class="pg__metric-label">COLORS:</span>
+                <span class="pg__metric-value">{{ result() ? result()!.colors.length : form.controls.colorCount.value }}</span>
+              </div>
+              <div class="pg__metric">
+                <span class="pg__metric-label">HISTORY:</span>
+                <span class="pg__metric-value">{{ history().length }}</span>
+              </div>
+            </div>
 
-      @if (errors().length) {
-        <div class="pg__alert pg__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (warnings().length) {
-        <div class="pg__alert pg__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div
-        class="pg__dropzone"
-        [class.pg__dropzone--active]="dragActive()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" class="pg__file-input" />
-        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
-        <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
-      </div>
-
-      @if (selectedFile()) {
-        <div class="pg__file-info">
-          <strong>{{ selectedFile()?.name }}</strong>
-          <span>{{ formatBytes(selectedFile()?.size ?? 0) }}</span>
-        </div>
-      }
-
-      <div class="pg__form-grid">
-        <label class="pg__input" for="pg-color-count">
-          <span>Number of colors</span>
-          <input
-            id="pg-color-count"
-            type="number"
-            min="2"
-            max="20"
-            formControlName="colorCount"
-            (change)="selectedFile() && extractPalette(selectedFile()!)"
-          />
-          <small>Extract 2-20 colors from the image</small>
-        </label>
-
-        <label class="pg__input" for="pg-method">
-          <span>Extraction method</span>
-          <select
-            id="pg-method"
-            formControlName="method"
-            (change)="selectedFile() && extractPalette(selectedFile()!)"
-          >
-            @for (method of methods; track method.value) {
-              <option [value]="method.value">{{ method.label }}</option>
-            }
-          </select>
-          <small>Choose how colors are extracted from the image</small>
-        </label>
-
-        <label class="pg__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <span>Remember palette history</span>
-        </label>
-      </div>
-
-      @if (isProcessing()) {
-        <div class="pg__progress">
-          <div class="pg__progress-bar">
-            <div class="pg__progress-fill" [style.width.%]="progress()"></div>
-          </div>
-          <span>Processing... {{ progress() }}%</span>
-        </div>
-      }
-
-      <div class="pg__actions">
-        <button type="button" class="btn btn--primary" (click)="clear()">Clear</button>
-      </div>
-    </section>
-
-    <section class="pg__panel pg__panel--preview">
-      <header class="pg__card-header">
-        <div>
-          <h2>Image preview</h2>
-          <p>Preview the uploaded image.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="pg__preview-container">
-          <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="pg__preview-image" />
-        </div>
-      } @else {
-        <div class="pg__preview-placeholder">
-          <span>Upload an image to see preview</span>
-        </div>
-      }
-    </section>
-
-    <section class="pg__panel pg__panel--palette">
-      <header class="pg__card-header">
-        <div>
-          <h2>Color palette</h2>
-          <p>Extracted colors with codes and percentages.</p>
-        </div>
-        @if (result()) {
-          <button type="button" class="btn btn--ghost btn--small" (click)="downloadPalette()">Download CSS</button>
-        }
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="pg__palette-grid">
-          @for (color of current.colors; track color.hex; let i = $index) {
-            <div class="pg__color-card">
-              <div class="pg__color-swatch" [style.background-color]="color.hex"></div>
-              <div class="pg__color-info">
-                <div class="pg__color-percentage">{{ color.percentage }}%</div>
-                <div class="pg__color-codes">
-                  <div class="pg__color-code-item">
-                    <span class="pg__code-label">HEX</span>
-                    <code class="pg__code-value" (click)="copyToClipboard(color.hex, 'HEX')">{{ color.hex }}</code>
-                  </div>
-                  <div class="pg__color-code-item">
-                    <span class="pg__code-label">RGB</span>
-                    <code
-                      class="pg__code-value"
-                      (click)="copyToClipboard(`rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})`, 'RGB')"
-                    >
-                      rgb({{ color.rgb.r }}, {{ color.rgb.g }}, {{ color.rgb.b }})
-                    </code>
-                  </div>
-                  <div class="pg__color-code-item">
-                    <span class="pg__code-label">HSL</span>
-                    <code
-                      class="pg__code-value"
-                      (click)="copyToClipboard(`hsl(${color.hsl.h}, ${color.hsl.s}%, ${color.hsl.l}%)`, 'HSL')"
-                    >
-                      hsl({{ color.hsl.h }}, {{ color.hsl.s }}%, {{ color.hsl.l }}%)
-                    </code>
-                  </div>
+            <div class="pg__conversion-form">
+              <div class="pg__upload-group">
+                <label class="pg__form-label" for="pg-file-input">Upload Image</label>
+                <div
+                  class="pg__dropzone"
+                  [class.pg__dropzone--active]="dragActive()"
+                  (dragover)="onDragOver($event)"
+                  (dragleave)="onDragLeave($event)"
+                  (drop)="onDrop($event)"
+                >
+                  <input #fileInput id="pg-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+                  <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
+                  <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
                 </div>
               </div>
+
+              @if (errors().length || warnings().length) {
+                <div class="pg__conversion-status">
+                  @if (errors().length) {
+                    <div class="pg__status-message pg__status-message--error">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <ul>
+                        @for (message of errors(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (warnings().length) {
+                    <div class="pg__status-message pg__status-message--warning">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                      <ul>
+                        @for (message of warnings(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (isProcessing()) {
+                <div class="pg__progress">
+                  <div class="pg__progress-bar">
+                    <div class="pg__progress-fill" [style.width.%]="progress()"></div>
+                  </div>
+                  <span>Processing... {{ progress() }}%</span>
+                </div>
+              }
+
+              <div class="pg__form-grid">
+                <label class="pg__input" for="pg-color-count">
+                  <span>Number of colors</span>
+                  <input
+                    id="pg-color-count"
+                    type="number"
+                    min="2"
+                    max="20"
+                    formControlName="colorCount"
+                    (change)="selectedFile() && extractPalette(selectedFile()!)"
+                  />
+                  <small>Extract 2-20 colors from the image</small>
+                </label>
+
+                <label class="pg__input" for="pg-method">
+                  <span>Extraction method</span>
+                  <select
+                    id="pg-method"
+                    formControlName="method"
+                    (change)="selectedFile() && extractPalette(selectedFile()!)"
+                  >
+                    @for (method of methods; track method.value) {
+                      <option [value]="method.value">{{ method.label }}</option>
+                    }
+                  </select>
+                  <small>Choose how colors are extracted from the image</small>
+                </label>
+
+                <label class="pg__toggle">
+                  <input type="checkbox" formControlName="rememberHistory" />
+                  <span>Remember palette history</span>
+                </label>
+              </div>
+
+              @if (result()) {
+                @let current = result()!;
+                <div class="pg__conversion-details">
+                  <div class="pg__detail-item">
+                    <span class="pg__detail-label">Colors Extracted</span>
+                    <span class="pg__detail-value">{{ current.colors.length }}</span>
+                  </div>
+                  <div class="pg__detail-item">
+                    <span class="pg__detail-label">Method</span>
+                    <span class="pg__detail-value">{{ current.method }}</span>
+                  </div>
+                  <div class="pg__detail-item">
+                    <span class="pg__detail-label">Image</span>
+                    <span class="pg__detail-value">{{ current.filename ?? 'Untitled' }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pg__workspace-secondary">
+        <div class="pg__preview-card">
+          <div class="pg__card-header">
+            <h3 class="pg__card-title">Image Preview</h3>
+          </div>
+          @if (isProcessing()) {
+            <div class="pg__status pg__status--loading">Processing image…</div>
+          } @else if (result()) {
+            @let current = result()!;
+            <div class="pg__preview-container">
+              <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="pg__preview-image" />
+            </div>
+          } @else {
+            <div class="pg__preview-placeholder">
+              <span>Upload an image to see preview</span>
             </div>
           }
         </div>
-      } @else {
-        <div class="pg__empty">Extract colors from an image to see the palette here.</div>
-      }
-    </section>
 
-    <section class="pg__panel pg__panel--history">
-      <header class="pg__card-header">
-        <div>
-          <h2>Palette history</h2>
-          <p>Quick access to recently extracted palettes.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="pg__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="pg__history-item">
-                <div class="pg__history-preview">
-                  <img [src]="entry.preview" [alt]="entry.filename ?? 'Preview'" />
+        <div class="pg__palette-card">
+          <div class="pg__card-header">
+            <h3 class="pg__card-title">Color Palette</h3>
+            @if (result()) {
+              <button type="button" class="btn btn--ghost btn--small" (click)="downloadPalette()">Download CSS</button>
+            }
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="pg__palette-grid">
+              @for (color of current.colors; track color.hex; let i = $index) {
+                <div class="pg__color-card">
+                  <div class="pg__color-swatch" [style.background-color]="color.hex"></div>
+                  <div class="pg__color-info">
+                    <div class="pg__color-percentage">{{ color.percentage }}%</div>
+                    <div class="pg__color-codes">
+                      <div class="pg__color-code-item">
+                        <span class="pg__code-label">HEX</span>
+                        <code class="pg__code-value" (click)="copyToClipboard(color.hex, 'HEX')">{{ color.hex }}</code>
+                      </div>
+                      <div class="pg__color-code-item">
+                        <span class="pg__code-label">RGB</span>
+                        <code
+                          class="pg__code-value"
+                          (click)="copyToClipboard(`rgb(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b})`, 'RGB')"
+                        >
+                          rgb({{ color.rgb.r }}, {{ color.rgb.g }}, {{ color.rgb.b }})
+                        </code>
+                      </div>
+                      <div class="pg__color-code-item">
+                        <span class="pg__code-label">HSL</span>
+                        <code
+                          class="pg__code-value"
+                          (click)="copyToClipboard(`hsl(${color.hsl.h}, ${color.hsl.s}%, ${color.hsl.l}%)`, 'HSL')"
+                        >
+                          hsl({{ color.hsl.h }}, {{ color.hsl.s }}%, {{ color.hsl.l }}%)
+                        </code>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="pg__history-colors">
-                  @for (color of entry.colors.slice(0, 5); track color.hex) {
-                    <div class="pg__history-color" [style.background-color]="color.hex"></div>
-                  }
-                </div>
-                <div class="pg__history-details">
-                  <strong>{{ entry.filename ?? 'Untitled' }}</strong>
-                  <span>{{ entry.colors.length }} colors</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
+              }
+            </div>
+          } @else {
+            <div class="pg__empty">Extract colors from an image to see the palette here.</div>
           }
-        </ul>
-      } @else {
-        <div class="pg__empty">Enable history tracking to keep a list of recent palettes.</div>
-      }
-    </section>
-  </div>
+        </div>
+
+        <div class="pg__insights-card">
+          <div class="pg__card-header">
+            <h3 class="pg__card-title">Extraction Insights</h3>
+          </div>
+          <div class="pg__insights-grid">
+            <div class="pg__insight-item">
+              <span class="pg__insight-label">Recent Palettes</span>
+              <strong class="pg__insight-value">{{ history().length }}</strong>
+              <small class="pg__insight-meta">Stored locally</small>
+            </div>
+            <div class="pg__insight-item">
+              <span class="pg__insight-label">Colors Extracted</span>
+              <strong class="pg__insight-value">{{ result() ? result()!.colors.length : '—' }}</strong>
+              <small class="pg__insight-meta">{{ result() ? result()!.method : 'No extraction' }}</small>
+            </div>
+            <div class="pg__insight-item">
+              <span class="pg__insight-label">Method</span>
+              <strong class="pg__insight-value">{{ currentMethodLabel() }}</strong>
+              <small class="pg__insight-meta">{{ result() ? (result()!.filename ?? 'Untitled') : 'Not set' }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="pg__history-card">
+          <div class="pg__card-header">
+            <h3 class="pg__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
+          </div>
+          <div class="pg__history-list-wrapper">
+            <ul class="pg__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="pg__history-item">
+                  <button type="button" (click)="applyHistory(entry)" class="pg__history-button">
+                    <div class="pg__history-preview">
+                      <img [src]="entry.preview" [alt]="entry.filename ?? 'Preview'" />
+                    </div>
+                    <div class="pg__history-colors">
+                      @for (color of entry.colors.slice(0, 5); track color.hex) {
+                        <div class="pg__history-color" [style.background-color]="color.hex"></div>
+                      }
+                    </div>
+                    <div class="pg__history-details">
+                      <strong>{{ entry.filename ?? 'Untitled' }}</strong>
+                      <span>{{ entry.colors.length }} colors</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="removeHistoryEntry(entry.timestamp)"
+                  >
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="pg__history-empty">Enable history tracking to keep a list of recent palettes.</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>

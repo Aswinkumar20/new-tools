@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { Navigation } from '@tools-workspace/features-home';
@@ -64,7 +64,7 @@ const PSM_OPTIONS = [
   imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ImageToTextComponent implements OnInit {
+export class ImageToTextComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -95,6 +95,10 @@ export class ImageToTextComponent implements OnInit {
   readonly extractedText = computed(() => this.result()?.text ?? '');
   readonly wordCount = computed(() => this.result()?.words ?? 0);
   readonly charCount = computed(() => this.result()?.characters ?? 0);
+  readonly currentLanguageName = computed(() => {
+    const lang = this.languages.find(l => l.code === this.form.controls.language.value);
+    return lang?.name ?? 'English';
+  });
 
   private tesseractWorker: any = null;
   private tesseractAvailable = false;
@@ -104,18 +108,52 @@ export class ImageToTextComponent implements OnInit {
     this.initializeTesseract();
   }
 
+  ngOnDestroy(): void {
+    // Clean up Tesseract worker to prevent memory leaks
+    this.terminateWorker();
+  }
+
+  private async terminateWorker(): Promise<void> {
+    if (this.tesseractWorker) {
+      try {
+        await this.tesseractWorker.terminate();
+        this.tesseractWorker = null;
+        this.tesseractAvailable = false;
+      } catch (error) {
+        console.warn('Error terminating Tesseract worker:', error);
+      }
+    }
+  }
+
   private async initializeTesseract(): Promise<void> {
     try {
-      // Dynamic import of Tesseract.js - wrapped in eval to avoid compile-time error
-      const tesseractModule = await (eval('import("tesseract.js")') as Promise<any>);
+      // Dynamic import of Tesseract.js
+      const tesseractModule = await import('tesseract.js');
       this.tesseractWorker = await tesseractModule.createWorker();
-      await this.tesseractWorker.loadLanguage(this.form.controls.language.value);
-      await this.tesseractWorker.initialize(this.form.controls.language.value);
+      
+      // Load and initialize with the default language
+      const language = this.form.controls.language.value;
+      await this.tesseractWorker.loadLanguage(language);
+      await this.tesseractWorker.initialize(language);
+      
+      // Set PSM and OEM parameters
+      await this.tesseractWorker.setParameters({
+        tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
+        tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
+      });
+      
       this.tesseractAvailable = true;
+      // Clear any previous warnings if initialization succeeds
+      this.warnings.set([]);
+      console.log('Tesseract.js initialized successfully');
     } catch (error) {
-      console.warn('Tesseract.js not available. Using fallback text extraction.', error);
+      console.error('Tesseract.js initialization failed:', error);
       this.tesseractAvailable = false;
-      this.warnings.set(['Tesseract.js OCR library not loaded. Install tesseract.js package for OCR functionality.']);
+      const errorMessage = (error as Error)?.message ?? 'Unknown error';
+      this.warnings.set([
+        `Tesseract.js OCR library not loaded: ${errorMessage}`,
+        'Please ensure tesseract.js is installed: npm install tesseract.js'
+      ]);
     }
   }
 
@@ -176,6 +214,12 @@ export class ImageToTextComponent implements OnInit {
     this.progress.set(0);
 
     try {
+      // If Tesseract is not available, try to initialize it again
+      if (!this.tesseractAvailable || !this.tesseractWorker) {
+        this.progress.set(5);
+        await this.initializeTesseract();
+      }
+
       const startTime = Date.now();
       const previewUrl = this.sanitizer.bypassSecurityTrustUrl(URL.createObjectURL(file));
 
@@ -184,23 +228,48 @@ export class ImageToTextComponent implements OnInit {
 
       if (this.tesseractAvailable && this.tesseractWorker) {
         try {
-          // Use Tesseract.js for OCR
-          const { data } = await this.tesseractWorker.recognize(file, {
-            logger: (m: any) => {
-              if (m.status === 'recognizing text') {
-                this.progress.set(Math.round(m.progress * 100));
-              }
-            }
+          // Update PSM and OEM parameters before recognition
+          await this.tesseractWorker.setParameters({
+            tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
+            tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
           });
-          extractedText = data.text;
-          confidence = data.confidence;
+          
+          // Set initial progress
+          this.progress.set(20);
+          
+          // Use Tesseract.js for OCR without logger to avoid DataCloneError
+          // The logger function cannot be cloned for Web Workers
+          const recognizePromise = this.tesseractWorker.recognize(file);
+          
+          // Simulate progress updates during recognition
+          // OCR can take time, so we show gradual progress
+          let currentProgress = 20;
+          const progressInterval = setInterval(() => {
+            currentProgress = Math.min(currentProgress + 3, 90);
+            this.progress.set(currentProgress);
+          }, 300);
+          
+          const { data } = await recognizePromise;
+          
+          // Clear progress interval and set to 100%
+          clearInterval(progressInterval);
+          this.progress.set(100);
+          
+          extractedText = data.text || '';
+          confidence = data.confidence || 0;
+          
+          // If no text was extracted, show a warning but don't fail
+          if (!extractedText.trim()) {
+            this.warnings.set(['No text detected in the image. Try adjusting the page segmentation mode or ensure the image contains clear text.']);
+          }
         } catch (error) {
           console.error('Tesseract OCR failed:', error);
-          this.warnings.set(['OCR processing failed. Using fallback.']);
+          const errorMessage = (error as Error)?.message ?? 'Unknown error';
+          this.warnings.set([`OCR processing failed: ${errorMessage}`]);
           extractedText = await this.basicTextExtraction(file);
         }
       } else {
-        // Fallback: Try to extract text using canvas (limited)
+        // Fallback: Show error message
         extractedText = await this.basicTextExtraction(file);
       }
 
@@ -336,8 +405,19 @@ export class ImageToTextComponent implements OnInit {
     if (this.tesseractAvailable && this.tesseractWorker && this.selectedFile()) {
       const language = this.form.controls.language.value;
       try {
+        this.isProcessing.set(true);
+        this.progress.set(0);
+        
+        // Reload language
         await this.tesseractWorker.loadLanguage(language);
         await this.tesseractWorker.initialize(language);
+        
+        // Update parameters
+        await this.tesseractWorker.setParameters({
+          tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
+          tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
+        });
+        
         // Re-extract text with new language
         const file = this.selectedFile();
         if (file) {
@@ -345,6 +425,27 @@ export class ImageToTextComponent implements OnInit {
         }
       } catch (error) {
         this.errors.set([`Failed to load language: ${(error as Error)?.message ?? 'Unknown error'}`]);
+        this.isProcessing.set(false);
+      }
+    }
+  }
+
+  async onPsmChange(): Promise<void> {
+    if (this.tesseractAvailable && this.tesseractWorker && this.selectedFile()) {
+      try {
+        // Update PSM parameter
+        await this.tesseractWorker.setParameters({
+          tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
+          tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
+        });
+        
+        // Re-extract text with new PSM setting
+        const file = this.selectedFile();
+        if (file) {
+          await this.extractText(file);
+        }
+      } catch (error) {
+        this.errors.set([`Failed to update settings: ${(error as Error)?.message ?? 'Unknown error'}`]);
       }
     }
   }

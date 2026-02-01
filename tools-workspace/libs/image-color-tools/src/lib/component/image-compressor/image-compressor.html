@@ -1,228 +1,288 @@
 <div class="ic">
-  <div class="ic__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="ic__hero">
-    <div class="ic__badge">Media toolkit</div>
-    <h1>Image Compressor</h1>
-    <p>
-      Optimise image size and format directly in your browser. Adjust quality, resize, and export with a single click.
-      Ideal for speeding up websites, sharing assets, and trimming email attachments.
-    </p>
+  <section class="ic__workspace">
+    <div class="ic__hero">
+      <h1 class="ic__hero-title">Image Compressor</h1>
+      <p class="ic__hero-subtitle">
+        Optimise image size and format directly in your browser. Adjust quality, resize, and export with a single click.
+        Ideal for speeding up websites, sharing assets, and trimming email attachments.
+      </p>
+    </div>
 
-    @if (selectedFile()) {
-      @let file = selectedFile()!;
-      <div class="ic__hero-meta">
-        <div>
-          <span class="ic__meta-label">Selected file</span>
-          <strong>{{ file.name }}</strong>
-        </div>
-        <div>
-          <span class="ic__meta-label">Size</span>
-          <strong>{{ formatBytes(file.size) }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="ic__hero-meta ic__hero-meta--placeholder">
-        Drop an image or browse to start compressing. Supports PNG, JPEG, HEIC, WebP, and RAW formats.
-      </div>
-    }
-  </section>
-
-  <div class="ic__workspace" [formGroup]="form">
-    <section class="ic__panel ic__panel--upload">
-      <header class="ic__card-header">
-        <div>
-          <h2>Upload & configure</h2>
-          <p>Pick an image, tweak quality, resize dimensions, and optional metadata controls.</p>
-        </div>
-      </header>
-
-      <div
-        class="ic__dropzone"
-        [class.ic__dropzone--active]="dragActive()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
-        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
-        <p>or drag & drop here · Max file size {{ formatBytes(45 * 1024 * 1024) }}</p>
-      </div>
-
-      <div class="ic__form-grid">
-        <label class="ic__input" for="ic-quality">
-          <span>Quality (0.1 – 1)</span>
-          <input id="ic-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
-          <small>Lower values reduce file size, higher values preserve detail.</small>
-        </label>
-
-        <label class="ic__input" for="ic-format">
-          <span>Export format</span>
-          <select id="ic-format" formControlName="format">
-            <option value="image/jpeg">JPEG (widely supported)</option>
-            <option value="image/webp">WebP (modern)</option>
-            <option value="image/png">PNG (lossless)</option>
-          </select>
-        </label>
-
-        <label class="ic__input" for="ic-width">
-          <span>Resize width</span>
-          <input id="ic-width" type="number" min="1" [max]="8000" formControlName="resizeWidth" (input)="onDimensionInput('width')" />
-        </label>
-
-        <label class="ic__input" for="ic-height">
-          <span>Resize height</span>
-          <input id="ic-height" type="number" min="1" [max]="8000" formControlName="resizeHeight" (input)="onDimensionInput('height')" />
-        </label>
-
-        <label class="ic__toggle">
-          <input type="checkbox" formControlName="keepAspect" />
-          <span>Lock aspect ratio</span>
-        </label>
-
-        <label class="ic__toggle">
-          <input type="checkbox" formControlName="stripMetadata" />
-          <span>Strip metadata (EXIF, GPS)</span>
-        </label>
-
-        <label class="ic__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <span>Remember session history</span>
-        </label>
-      </div>
-
-      <div class="ic__presets">
-        <h3>Quick presets</h3>
-        <div class="ic__preset-list">
-          @for (preset of presets; track preset.label) {
-            <button type="button" (click)="applyPreset(preset)">
-              <strong>{{ preset.label }}</strong>
-              <span>{{ preset.description }}</span>
-            </button>
-          }
-        </div>
-      </div>
-
-      <div class="ic__actions">
-        <button type="button" class="btn btn--primary" (click)="compress()" [disabled]="!canCompress() || isProcessing()">
-          {{ isProcessing() ? 'Compressing…' : 'Compress image' }}
-        </button>
-        <button type="button" class="btn btn--ghost" (click)="clear()" [disabled]="!selectedFile()">Clear</button>
-      </div>
-    </section>
-
-    <section class="ic__panel ic__panel--preview">
-      <header class="ic__card-header">
-        <div>
-          <h2>Preview & compare</h2>
-          <p>Compare before/after stats to validate your compression choices.</p>
-        </div>
-      </header>
-
-      @if (errors().length) {
-        <div class="ic__alert ic__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (warnings().length) {
-        <div class="ic__alert ic__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (previewUrl()) {
-        <figure class="ic__preview">
-          <img [src]="previewUrl()" alt="Original preview" />
-        </figure>
-      } @else {
-        <div class="ic__empty">Preview will appear once an image is loaded.</div>
-      }
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="ic__stats">
-          <div>
-            <span>Original</span>
-            <strong>{{ current.originalDimensions.width }} × {{ current.originalDimensions.height }}</strong>
-            <small>{{ formatBytes(current.originalSize) }}</small>
-          </div>
-          <div>
-            <span>Compressed</span>
-            <strong>{{ current.compressedDimensions.width }} × {{ current.compressedDimensions.height }}</strong>
-            <small>{{ formatBytes(current.compressedSize) }}</small>
-          </div>
-          <div>
-            <span>Reduction</span>
-            <strong>{{ (1 - current.reduction) * 100 | number: '1.0-0' }}% smaller</strong>
-          </div>
-        </div>
-      }
-    </section>
-
-    <section class="ic__panel ic__panel--output">
-      <header class="ic__card-header">
-        <div>
-          <h2>Download</h2>
-          <p>Save or open your optimised asset.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="ic__result-preview">
-          <img [src]="current.previewUrl" alt="Compressed preview" />
-        </div>
-
-        <div class="ic__actions">
-          <button type="button" class="btn btn--primary" (click)="download()">Download</button>
-          <a class="btn btn--ghost" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
-        </div>
-      } @else {
-        <div class="ic__empty">Compress an image to reveal the optimised output.</div>
-      }
-    </section>
-
-    <section class="ic__panel ic__panel--history">
-      <header class="ic__card-header">
-        <div>
-          <h2>Session history</h2>
-          <p>Review recent conversions completed in this session.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="ic__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <div>
-                <strong>{{ entry.name ?? 'Untitled' }}</strong>
-                <span>{{ entry.format }}</span>
-                <span>{{ entry.sizes }}</span>
-                <span>{{ entry.dimensions }}</span>
+    <div class="ic__workspace-layout" [formGroup]="form">
+      <div class="ic__workspace-main">
+        <div class="ic__workspace-card">
+          <div class="ic__workspace-panel">
+            <div class="ic__converter-header">
+              <div class="ic__converter-header-content">
+                <h2 class="ic__converter-title">Image Compressor</h2>
+                <p class="ic__converter-subtitle">Pick an image, tweak quality, resize dimensions, and optional metadata controls.</p>
               </div>
-              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
-                Remove
-              </button>
-            </li>
+              <div class="ic__converter-header-actions">
+                <button type="button" class="ic__btn-icon" aria-label="Clear all" (click)="clear()" [disabled]="!selectedFile()" [attr.data-tooltip]="'Clear all'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="ic__converter-metrics">
+              <div class="ic__metric">
+                <span class="ic__metric-label">FILE:</span>
+                <span class="ic__metric-value">{{ selectedFile()?.name ?? 'None selected' }}</span>
+              </div>
+              <div class="ic__metric">
+                <span class="ic__metric-label">FORMAT:</span>
+                <span class="ic__metric-value">{{ form.controls.format.value.split('/')[1].toUpperCase() }}</span>
+              </div>
+              <div class="ic__metric">
+                <span class="ic__metric-label">SIZE:</span>
+                <span class="ic__metric-value">{{ selectedFile() ? formatBytes(selectedFile()!.size) : '—' }}</span>
+              </div>
+              <div class="ic__metric">
+                <span class="ic__metric-label">HISTORY:</span>
+                <span class="ic__metric-value">{{ history().length }}</span>
+              </div>
+            </div>
+
+            <div class="ic__conversion-form">
+              <div class="ic__upload-group">
+                <label class="ic__form-label" for="ic-file-input">Upload Image</label>
+                <div
+                  class="ic__dropzone"
+                  [class.ic__dropzone--active]="dragActive()"
+                  (dragover)="onDragOver($event)"
+                  (dragleave)="onDragLeave($event)"
+                  (drop)="onDrop($event)"
+                >
+                  <input #fileInput id="ic-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+                  <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
+                  <p>or drag & drop here · Max file size {{ formatBytes(45 * 1024 * 1024) }}</p>
+                </div>
+              </div>
+
+              @if (errors().length || warnings().length) {
+                <div class="ic__conversion-status">
+                  @if (errors().length) {
+                    <div class="ic__status-message ic__status-message--error">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <ul>
+                        @for (message of errors(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (warnings().length) {
+                    <div class="ic__status-message ic__status-message--warning">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                      <ul>
+                        @for (message of warnings(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="ic__form-grid">
+                <label class="ic__input" for="ic-quality">
+                  <span>Quality (0.1 – 1)</span>
+                  <input id="ic-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
+                  <small>Lower values reduce file size, higher values preserve detail.</small>
+                </label>
+
+                <label class="ic__input" for="ic-format">
+                  <span>Export format</span>
+                  <select id="ic-format" formControlName="format">
+                    <option value="image/jpeg">JPEG (widely supported)</option>
+                    <option value="image/webp">WebP (modern)</option>
+                    <option value="image/png">PNG (lossless)</option>
+                  </select>
+                </label>
+
+                <label class="ic__input" for="ic-width">
+                  <span>Resize width</span>
+                  <input id="ic-width" type="number" min="1" [max]="8000" formControlName="resizeWidth" (input)="onDimensionInput('width')" />
+                </label>
+
+                <label class="ic__input" for="ic-height">
+                  <span>Resize height</span>
+                  <input id="ic-height" type="number" min="1" [max]="8000" formControlName="resizeHeight" (input)="onDimensionInput('height')" />
+                </label>
+
+                <label class="ic__toggle">
+                  <input type="checkbox" formControlName="keepAspect" />
+                  <span>Lock aspect ratio</span>
+                </label>
+
+                <label class="ic__toggle">
+                  <input type="checkbox" formControlName="stripMetadata" />
+                  <span>Strip metadata (EXIF, GPS)</span>
+                </label>
+
+                <label class="ic__toggle">
+                  <input type="checkbox" formControlName="rememberHistory" />
+                  <span>Remember session history</span>
+                </label>
+              </div>
+
+              <div class="ic__presets">
+                <h3 class="ic__presets-title">Quick presets</h3>
+                <div class="ic__preset-list">
+                  @for (preset of presets; track preset.label) {
+                    <button type="button" class="ic__preset-button" (click)="applyPreset(preset)">
+                      <strong>{{ preset.label }}</strong>
+                      <span>{{ preset.description }}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <div class="ic__conversion-actions">
+                <button type="button" class="btn btn--primary" (click)="compress()" [disabled]="!canCompress() || isProcessing()">
+                  @if (!isProcessing()) {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                  }
+                  @if (isProcessing()) {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ic__spinning">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M12 6v6l4 2"></path>
+                    </svg>
+                  }
+                  <span>{{ isProcessing() ? 'Compressing…' : 'Compress image' }}</span>
+                </button>
+              </div>
+
+              @if (result()) {
+                @let current = result()!;
+                <div class="ic__conversion-details">
+                  <div class="ic__detail-item">
+                    <span class="ic__detail-label">Original Size</span>
+                    <span class="ic__detail-value">{{ formatBytes(current.originalSize) }}</span>
+                  </div>
+                  <div class="ic__detail-item">
+                    <span class="ic__detail-label">Compressed Size</span>
+                    <span class="ic__detail-value">{{ formatBytes(current.compressedSize) }}</span>
+                  </div>
+                  <div class="ic__detail-item">
+                    <span class="ic__detail-label">Reduction</span>
+                    <span class="ic__detail-value">{{ (1 - current.reduction) * 100 | number: '1.0-0' }}% smaller</span>
+                  </div>
+                  <div class="ic__detail-item">
+                    <span class="ic__detail-label">Dimensions</span>
+                    <span class="ic__detail-value">{{ current.compressedDimensions.width }} × {{ current.compressedDimensions.height }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ic__workspace-secondary">
+        <div class="ic__preview-card">
+          <div class="ic__card-header">
+            <h3 class="ic__card-title">Image Preview</h3>
+          </div>
+          @if (isProcessing()) {
+            <div class="ic__status ic__status--loading">Processing image…</div>
+          } @else if (previewUrl()) {
+            <div class="ic__preview-container">
+              <img [src]="previewUrl()" alt="Original preview" class="ic__preview-image" />
+            </div>
+          } @else {
+            <div class="ic__preview-placeholder">
+              <span>Preview will appear once an image is loaded.</span>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="ic__empty">Enable history tracking to keep a list of recent compressions.</div>
-      }
-    </section>
-  </div>
+        </div>
+
+        <div class="ic__output-card">
+          <div class="ic__card-header">
+            <h3 class="ic__card-title">Compressed Output</h3>
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="ic__output-wrapper">
+              <div class="ic__result-preview">
+                <img [src]="current.previewUrl" alt="Compressed preview" class="ic__preview-image" />
+              </div>
+              <div class="ic__actions">
+                <button type="button" class="btn btn--primary" (click)="download()">Download</button>
+                <a class="btn btn--secondary" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
+              </div>
+            </div>
+          } @else {
+            <div class="ic__empty">Compress an image to reveal the optimised output.</div>
+          }
+        </div>
+
+        <div class="ic__insights-card">
+          <div class="ic__card-header">
+            <h3 class="ic__card-title">Compression Insights</h3>
+          </div>
+          <div class="ic__insights-grid">
+            <div class="ic__insight-item">
+              <span class="ic__insight-label">Recent Conversions</span>
+              <strong class="ic__insight-value">{{ history().length }}</strong>
+              <small class="ic__insight-meta">Stored locally</small>
+            </div>
+            <div class="ic__insight-item">
+              <span class="ic__insight-label">Original Size</span>
+              <strong class="ic__insight-value">{{ result() ? formatBytes(result()!.originalSize) : (selectedFile() ? formatBytes(selectedFile()!.size) : '—') }}</strong>
+              <small class="ic__insight-meta">{{ result() ? formatBytes(result()!.compressedSize) + ' compressed' : 'No file' }}</small>
+            </div>
+            <div class="ic__insight-item">
+              <span class="ic__insight-label">Reduction</span>
+              <strong class="ic__insight-value">{{ result() ? ((1 - result()!.reduction) * 100 | number: '1.0-0') + '%' : '—' }}</strong>
+              <small class="ic__insight-meta">{{ result() ? (result()!.compressedDimensions.width + ' × ' + result()!.compressedDimensions.height) : 'Not compressed' }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="ic__history-card">
+          <div class="ic__card-header">
+            <h3 class="ic__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
+          </div>
+          <div class="ic__history-list-wrapper">
+            <ul class="ic__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="ic__history-item">
+                  <span class="ic__history-conversion">
+                    <strong>{{ entry.name ?? 'Untitled' }}</strong>
+                    <span>{{ entry.format }} · {{ entry.sizes }} · {{ entry.dimensions }}</span>
+                  </span>
+                  <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="ic__history-empty">Enable history tracking to keep a list of recent compressions.</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>

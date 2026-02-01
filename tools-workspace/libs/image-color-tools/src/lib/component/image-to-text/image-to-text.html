@@ -1,222 +1,260 @@
 <div class="itt">
-  <div class="itt__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="itt__hero">
-    <div class="itt__badge">OCR toolkit</div>
-    <h1>Image to Text Converter</h1>
-    <p>
-      Extract text from images using OCR (Optical Character Recognition). Upload images, select language, and get
-      extracted text instantly. Perfect for digitizing documents, receipts, and printed text.
-    </p>
+  <section class="itt__workspace">
+    <div class="itt__hero">
+      <h1 class="itt__hero-title">Image to Text Converter</h1>
+      <p class="itt__hero-subtitle">
+        Extract text from images using OCR (Optical Character Recognition). Upload images, select language, and get
+        extracted text instantly. Perfect for digitizing documents, receipts, and printed text.
+      </p>
+    </div>
 
-    @if (result()) {
-      @let info = result()!;
-      <div class="itt__hero-meta">
-        <div>
-          <span class="itt__meta-label">Words</span>
-          <strong>{{ info.words }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Characters</span>
-          <strong>{{ info.characters }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Lines</span>
-          <strong>{{ info.lines }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Confidence</span>
-          <strong>{{ info.confidence }}%</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="itt__hero-meta itt__hero-meta--placeholder">
-        Upload an image to extract text using OCR. Supports multiple languages and provides confidence scores.
-      </div>
-    }
-  </section>
+    <div class="itt__workspace-layout" [formGroup]="form">
+      <div class="itt__workspace-main">
+        <div class="itt__workspace-card">
+          <div class="itt__workspace-panel">
+            <div class="itt__converter-header">
+              <div class="itt__converter-header-content">
+                <h2 class="itt__converter-title">Text Extractor</h2>
+                <p class="itt__converter-subtitle">Select an image file and configure OCR options. Text extraction starts automatically.</p>
+              </div>
+              <div class="itt__converter-header-actions">
+                <button type="button" class="itt__btn-icon" aria-label="Clear all" (click)="clear()" [disabled]="!selectedFile()" [attr.data-tooltip]="'Clear all'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
 
-  <div class="itt__board" [formGroup]="form">
-    <section class="itt__panel itt__panel--upload">
-      <header class="itt__card-header">
-        <div>
-          <h2>Upload & settings</h2>
-          <p>Select an image file and configure OCR options.</p>
-        </div>
-      </header>
+            <div class="itt__converter-metrics">
+              <div class="itt__metric">
+                <span class="itt__metric-label">FILE:</span>
+                <span class="itt__metric-value">{{ selectedFile()?.name ?? 'None selected' }}</span>
+              </div>
+              <div class="itt__metric">
+                <span class="itt__metric-label">LANGUAGE:</span>
+                <span class="itt__metric-value">{{ currentLanguageName() }}</span>
+              </div>
+              <div class="itt__metric">
+                <span class="itt__metric-label">WORDS:</span>
+                <span class="itt__metric-value">{{ result() ? result()!.words : '—' }}</span>
+              </div>
+              <div class="itt__metric">
+                <span class="itt__metric-label">HISTORY:</span>
+                <span class="itt__metric-value">{{ history().length }}</span>
+              </div>
+            </div>
 
-      @if (errors().length) {
-        <div class="itt__alert itt__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (warnings().length) {
-        <div class="itt__alert itt__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div
-        class="itt__dropzone"
-        [class.itt__dropzone--active]="dragActive()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" class="itt__file-input" />
-        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
-        <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
-      </div>
-
-      @if (selectedFile()) {
-        <div class="itt__file-info">
-          <strong>{{ selectedFile()?.name }}</strong>
-          <span>{{ formatBytes(selectedFile()?.size ?? 0) }}</span>
-        </div>
-      }
-
-      <div class="itt__form-grid">
-        <label class="itt__input" for="itt-language">
-          <span>Language</span>
-          <select id="itt-language" formControlName="language" (change)="onLanguageChange()">
-            @for (lang of languages; track lang.code) {
-              <option [value]="lang.code">{{ lang.name }}</option>
-            }
-          </select>
-        </label>
-
-        <label class="itt__input" for="itt-psm">
-          <span>Page segmentation mode</span>
-          <select id="itt-psm" formControlName="psm">
-            @for (option of psmOptions; track option.value) {
-              <option [value]="option.value">{{ option.label }}</option>
-            }
-          </select>
-          <small>Controls how the image is analyzed for text detection.</small>
-        </label>
-
-        <label class="itt__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <span>Remember extraction history</span>
-        </label>
-      </div>
-
-      @if (isProcessing()) {
-        <div class="itt__progress">
-          <div class="itt__progress-bar">
-            <div class="itt__progress-fill" [style.width.%]="progress()"></div>
-          </div>
-          <span>Processing... {{ progress() }}%</span>
-        </div>
-      }
-
-      <div class="itt__actions">
-        <button type="button" class="btn btn--primary" (click)="clear()">Clear</button>
-      </div>
-    </section>
-
-    <section class="itt__panel itt__panel--preview">
-      <header class="itt__card-header">
-        <div>
-          <h2>Image preview</h2>
-          <p>Preview the uploaded image.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="itt__preview-container">
-          <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="itt__preview-image" />
-        </div>
-      } @else {
-        <div class="itt__preview-placeholder">
-          <span>Upload an image to see preview</span>
-        </div>
-      }
-    </section>
-
-    <section class="itt__panel itt__panel--output">
-      <header class="itt__card-header">
-        <div>
-          <h2>Extracted text</h2>
-          <p>Copy or download the extracted text.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="itt__output-actions">
-          <button type="button" class="btn btn--primary" (click)="copyToClipboard()">Copy text</button>
-          <button type="button" class="btn btn--ghost" (click)="downloadText()">Download .txt</button>
-        </div>
-
-        <div class="itt__text-output">
-          <pre class="itt__text-content">{{ current.text || 'No text extracted.' }}</pre>
-        </div>
-
-        <div class="itt__stats">
-          <div class="itt__stat-item">
-            <span class="itt__stat-label">Processing time</span>
-            <strong>{{ current.processingTime }}ms</strong>
-          </div>
-          <div class="itt__stat-item">
-            <span class="itt__stat-label">Confidence</span>
-            <strong>{{ current.confidence }}%</strong>
-          </div>
-        </div>
-      } @else {
-        <div class="itt__empty">Extract text from an image to see results here.</div>
-      }
-    </section>
-
-    <section class="itt__panel itt__panel--history">
-      <header class="itt__card-header">
-        <div>
-          <h2>Extraction history</h2>
-          <p>Quick access to recently extracted text.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="itt__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="itt__history-item">
-                <div class="itt__history-preview">
-                  <img [src]="entry.preview" [alt]="entry.filename ?? 'Preview'" />
+            <div class="itt__conversion-form">
+              <div class="itt__upload-group">
+                <label class="itt__form-label" for="itt-file-input">Upload Image</label>
+                <div
+                  class="itt__dropzone"
+                  [class.itt__dropzone--active]="dragActive()"
+                  (dragover)="onDragOver($event)"
+                  (dragleave)="onDragLeave($event)"
+                  (drop)="onDrop($event)"
+                >
+                  <input #fileInput id="itt-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+                  <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
+                  <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
                 </div>
-                <div class="itt__history-details">
-                  <strong>{{ entry.filename ?? 'Untitled' }}</strong>
-                  <span>{{ entry.words }} words · {{ entry.text.substring(0, 50) }}{{ entry.text.length > 50 ? '...' : '' }}</span>
+              </div>
+
+              @if (errors().length || warnings().length) {
+                <div class="itt__conversion-status">
+                  @if (errors().length) {
+                    <div class="itt__status-message itt__status-message--error">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <ul>
+                        @for (message of errors(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
+                  @if (warnings().length) {
+                    <div class="itt__status-message itt__status-message--warning">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                      <ul>
+                        @for (message of warnings(); track message) {
+                          <li>{{ message }}</li>
+                        }
+                      </ul>
+                    </div>
+                  }
                 </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
+              }
+
+              @if (isProcessing()) {
+                <div class="itt__progress">
+                  <div class="itt__progress-bar">
+                    <div class="itt__progress-fill" [style.width.%]="progress()"></div>
+                  </div>
+                  <span>Processing... {{ progress() }}%</span>
+                </div>
+              }
+
+              <div class="itt__form-grid">
+                <label class="itt__input" for="itt-language">
+                  <span>Language</span>
+                  <select id="itt-language" formControlName="language" (change)="onLanguageChange()">
+                    @for (lang of languages; track lang.code) {
+                      <option [value]="lang.code">{{ lang.name }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label class="itt__input" for="itt-psm">
+                  <span>Page segmentation mode</span>
+                  <select id="itt-psm" formControlName="psm" (change)="onPsmChange()">
+                    @for (option of psmOptions; track option.value) {
+                      <option [value]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                  <small>Controls how the image is analyzed for text detection.</small>
+                </label>
+
+                <label class="itt__toggle">
+                  <input type="checkbox" formControlName="rememberHistory" />
+                  <span>Remember extraction history</span>
+                </label>
+              </div>
+
+              @if (result()) {
+                @let current = result()!;
+                <div class="itt__conversion-details">
+                  <div class="itt__detail-item">
+                    <span class="itt__detail-label">Words</span>
+                    <span class="itt__detail-value">{{ current.words | number }}</span>
+                  </div>
+                  <div class="itt__detail-item">
+                    <span class="itt__detail-label">Characters</span>
+                    <span class="itt__detail-value">{{ current.characters | number }}</span>
+                  </div>
+                  <div class="itt__detail-item">
+                    <span class="itt__detail-label">Lines</span>
+                    <span class="itt__detail-value">{{ current.lines | number }}</span>
+                  </div>
+                  <div class="itt__detail-item">
+                    <span class="itt__detail-label">Confidence</span>
+                    <span class="itt__detail-value">{{ current.confidence }}%</span>
+                  </div>
+                  <div class="itt__detail-item">
+                    <span class="itt__detail-label">Processing Time</span>
+                    <span class="itt__detail-value">{{ current.processingTime }}ms</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="itt__workspace-secondary">
+        <div class="itt__preview-card">
+          <div class="itt__card-header">
+            <h3 class="itt__card-title">Image Preview</h3>
+          </div>
+          @if (isProcessing()) {
+            <div class="itt__status itt__status--loading">Processing image…</div>
+          } @else if (result()) {
+            @let current = result()!;
+            <div class="itt__preview-container">
+              <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="itt__preview-image" />
+            </div>
+          } @else {
+            <div class="itt__preview-placeholder">
+              <span>Upload an image to see preview</span>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="itt__empty">Enable history tracking to keep a list of recent extractions.</div>
-      }
-    </section>
-  </div>
+        </div>
+
+        <div class="itt__output-card">
+          <div class="itt__card-header">
+            <h3 class="itt__card-title">Extracted Text</h3>
+          </div>
+          @if (result()) {
+            @let current = result()!;
+            <div class="itt__output-wrapper">
+              <div class="itt__output-actions">
+                <button type="button" class="btn btn--primary" (click)="copyToClipboard()">Copy text</button>
+                <button type="button" class="btn btn--secondary" (click)="downloadText()">Download .txt</button>
+              </div>
+              <div class="itt__text-output">
+                <pre class="itt__text-content">{{ current.text || 'No text extracted.' }}</pre>
+              </div>
+            </div>
+          } @else {
+            <div class="itt__empty">Extract text from an image to see results here.</div>
+          }
+        </div>
+
+        <div class="itt__insights-card">
+          <div class="itt__card-header">
+            <h3 class="itt__card-title">Extraction Insights</h3>
+          </div>
+          <div class="itt__insights-grid">
+            <div class="itt__insight-item">
+              <span class="itt__insight-label">Recent Extractions</span>
+              <strong class="itt__insight-value">{{ history().length }}</strong>
+              <small class="itt__insight-meta">Stored locally</small>
+            </div>
+            <div class="itt__insight-item">
+              <span class="itt__insight-label">Words Extracted</span>
+              <strong class="itt__insight-value">{{ result() ? result()!.words : '—' }}</strong>
+              <small class="itt__insight-meta">{{ result() ? result()!.characters + ' characters' : 'No extraction' }}</small>
+            </div>
+            <div class="itt__insight-item">
+              <span class="itt__insight-label">Confidence</span>
+              <strong class="itt__insight-value">{{ result() ? result()!.confidence + '%' : '—' }}</strong>
+              <small class="itt__insight-meta">{{ result() ? result()!.lines + ' lines' : 'Not extracted' }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="itt__history-card">
+          <div class="itt__card-header">
+            <h3 class="itt__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
+          </div>
+          <div class="itt__history-list-wrapper">
+            <ul class="itt__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="itt__history-item">
+                  <button type="button" (click)="applyHistory(entry)" class="itt__history-button">
+                    <div class="itt__history-preview">
+                      <img [src]="entry.preview" [alt]="entry.filename ?? 'Preview'" />
+                    </div>
+                    <div class="itt__history-details">
+                      <strong>{{ entry.filename ?? 'Untitled' }}</strong>
+                      <span>{{ entry.words }} words · {{ entry.text.substring(0, 50) }}{{ entry.text.length > 50 ? '...' : '' }}</span>
+                    </div>
+                  </button>
+                  <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="itt__history-empty">Enable history tracking to keep a list of recent extractions.</li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
