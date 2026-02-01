@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy} from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-text-case-convertor',
@@ -53,6 +53,8 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
 
   undoStack: string[] = [''];
   redoStack: string[] = [];
+  
+  readonly assetService = inject(AssetService);
 
   ngOnInit(): void {
     // Component initialization - tooltips handled by directive

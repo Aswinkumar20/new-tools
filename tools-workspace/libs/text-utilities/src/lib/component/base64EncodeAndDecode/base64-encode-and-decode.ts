@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-base64-encode-and-decode',
@@ -11,6 +11,8 @@ styleUrls: ['./base64-encode-and-decode.scss'],
   imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
 })
 export class Base64EncodeAndDecodeComponent {
+  readonly assetService = inject(AssetService);
+  
   inputText: string = '';
   outputText: string = '';
   mode: 'encode' | 'decode' = 'encode';

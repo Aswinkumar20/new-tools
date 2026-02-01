@@ -1,183 +1,218 @@
 <div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <header class="hero">
-    <div class="hero__eyebrow">Data Converter Suite</div>
-    <h1 class="hero__title">JSON Linter & Viewer</h1>
-    <p class="hero__subtitle">
-      Paste JSON, upload a file, or drop content into the editor. Validate, format, minify, and preview
-      output with quick copy/download actions and clear diagnostics.
-    </p>
-    <div class="hero__callouts">
-      <article class="callout" *ngFor="let item of heroHighlights">
-        <h3>{{ item.title }}</h3>
-        <p>{{ item.detail }}</p>
-      </article>
-    </div>
-  </header>
-
   <section class="workspace">
-    <div class="workspace__top">
-      <div class="workspace__title">
-        <h2>Configure and lint</h2>
-        <p>Configure linting options, then validate or format your JSON.</p>
-      </div>
-      <div class="workspace__metrics">
-        <div>
-          <strong>Characters</strong>
-          <span>{{ metrics.characters | number }}</span>
-        </div>
-        <div>
-          <strong>Lines</strong>
-          <span>{{ metrics.lines | number }}</span>
-        </div>
-        <div>
-          <strong>Payload size</strong>
-          <span>{{ metrics.sizeLabel }}</span>
-        </div>
-        <div>
-          <strong>Selection</strong>
-          <span>{{ metrics.selection }}</span>
-        </div>
-      </div>
+    <div class="editor-hero">
+      <h1 class="editor-hero__title">JSON Linter & Viewer</h1>
+      <p class="editor-hero__subtitle">
+        Paste JSON, upload a file, or drop content into the editor. Validate, format, minify, and preview
+        output with quick copy/download actions and clear diagnostics.
+      </p>
     </div>
 
     <div class="workspace__content">
-      <div
-        class="workspace__panel workspace__panel--editor"
-        [class.workspace__panel--dragging]="isDragOver"
-        (dragenter)="onDragEnter($event)"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <div class="card editor-card">
-          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
-            <div class="dropzone__icon" aria-hidden="true">&#128230;</div>
-            <div class="dropzone__text">
-              <strong>Drop JSON files here or paste below</strong>
-              <span>Supports .json files with optional comments or trailing commas.</span>
-            </div>
-            <div class="dropzone__actions">
-              <label class="btn btn-ghost" for="json-upload">
-                <input
-                  id="json-upload"
-                  type="file"
-                  accept="application/json,.json"
-                  (change)="onFileInputChange($event)"
-                />
-                Upload JSON
+      <div class="workspace__card workspace__card--editor">
+        <div
+          class="workspace__panel workspace__panel--editor"
+          [class.workspace__panel--dragging]="isDragOver"
+          (dragenter)="onDragEnter($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
+          <div class="editor-toolbar">
+            <div class="toolbar-group">
+              <label class="btn-upload" [attr.data-tooltip]="'Upload a JSON file or drag and drop it here'">
+                <input type="file" accept="application/json,.json" (change)="onFileInputChange($event)" />
+                <span class="btn-upload__icon">📤</span>
+                <span class="btn-upload__label">Upload</span>
               </label>
-              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
+            </div>
+
+            <div class="toolbar-group toolbar-group--actions">
+              <button class="btn-primary" type="button" (click)="validateJson()" [attr.data-tooltip]="'Validate JSON syntax and structure'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span class="btn-primary__label">Validate</span>
+              </button>
+              <button class="btn-secondary" type="button" (click)="formatJson()" [attr.data-tooltip]="'Format JSON with proper indentation'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="16 18 22 12 16 6"/>
+                  <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                <span class="btn-secondary__label">Format</span>
+              </button>
+              <span class="tooltip-wrapper" [attr.data-tooltip]="'Reset to default sample JSON'">
+                <button class="btn-icon-reset" type="button" (click)="resetWorkspace()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.9L22 6M22 12.5a10 10 0 0 1-18.8 4.9L2 18"/>
+                  </svg>
+                </button>
+              </span>
             </div>
           </div>
 
-          <textarea
-            class="editor"
-            rows="20"
-            spellcheck="false"
-            [(ngModel)]="jsonInput"
-            (ngModelChange)="onJsonInputChange($event)"
-            placeholder='{
-  "name": "Ada Lovelace",
-  "role": "Analyst"
-}'
-          ></textarea>
-
-          <div class="editor-card__controls">
-            <div class="controls">
-              <div class="controls__group">
-                <label class="controls__label" for="indentSelect">Indentation</label>
-                <select id="indentSelect" [(ngModel)]="indentSize" (ngModelChange)="onIndentChange($event)">
-                  <option *ngFor="let size of indentOptions" [value]="size">{{ size }} spaces</option>
-                </select>
-              </div>
-              <div class="controls__group">
-                <p class="controls__label controls__label--heading">Clean-up options</p>
-                <div class="toggles">
-                  <label class="toggle" for="allowCommentsToggle">
-                    <input
-                      id="allowCommentsToggle"
-                      type="checkbox"
-                      [checked]="allowComments"
-                      (change)="toggleAllowComments()"
-                    />
-                    <span>Strip // and /* */ comments before parsing</span>
-                  </label>
-                  <label class="toggle" for="allowTrailingToggle">
-                    <input
-                      id="allowTrailingToggle"
-                      type="checkbox"
-                      [checked]="allowTrailingCommas"
-                      (change)="toggleAllowTrailingCommas()"
-                    />
-                    <span>Remove trailing commas after object/array items</span>
-                  </label>
-                  <label class="toggle" for="sortKeysToggle">
-                    <input
-                      id="sortKeysToggle"
-                      type="checkbox"
-                      [checked]="sortKeys"
-                      (change)="toggleSortKeys()"
-                    />
-                    <span>Sort object keys when formatting/minifying</span>
-                  </label>
-                </div>
-              </div>
-              <div class="controls__group">
-                <p class="controls__label controls__label--heading">Preview</p>
-                <div class="preview-toggle" role="tablist" aria-label="Preview mode">
-                  <button
-                    type="button"
-                    role="tab"
-                    class="preview-toggle__option"
-                    [class.preview-toggle__option--active]="autoPreviewMode === 'formatted'"
-                    (click)="setPreviewMode('formatted')"
-                  >
-                    Formatted
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    class="preview-toggle__option"
-                    [class.preview-toggle__option--active]="autoPreviewMode === 'minified'"
-                    (click)="setPreviewMode('minified')"
-                  >
-                    Minified
-                  </button>
-                </div>
-              </div>
+          <div class="editor-metrics">
+            <div class="metric">
+              <span class="metric__label">CHARACTERS:</span>
+              <span class="metric__value">{{ metrics.characters | number }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">LINES:</span>
+              <span class="metric__value">{{ metrics.lines | number }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">PAYLOAD SIZE:</span>
+              <span class="metric__value">{{ metrics.sizeLabel }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric__label">SELECTION:</span>
+              <span class="metric__value">{{ metrics.selection }}</span>
             </div>
           </div>
 
-          <div class="editor-card__actions">
-            <button class="btn btn-primary" type="button" (click)="validateJson()">Validate JSON</button>
-            <button class="btn btn-secondary" type="button" (click)="formatJson()">Format JSON</button>
-            <button class="btn btn-ghost" type="button" (click)="minifyJson()">Minify JSON</button>
+          <div class="editor-wrapper">
+            <div class="editor-line-numbers">
+              <span *ngFor="let line of editorLines" class="line-number">{{ line }}</span>
+            </div>
+            <textarea
+              class="editor editor--json"
+              spellcheck="false"
+              [(ngModel)]="jsonInput"
+              (ngModelChange)="onJsonInputChange($event)"
+              (scroll)="onEditorScroll($event)"
+              placeholder='{&#10;  "name": "Ada Lovelace",&#10;  "role": "Analyst"&#10;}'
+              #jsonTextarea
+            ></textarea>
           </div>
-        </div>
 
-        <div class="card history-card" *ngIf="operationHistory.length">
-          <header class="card__header">
-            <h2>Recent actions</h2>
-          </header>
-          <ul>
-            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
-              <span>{{ entry.label }}</span>
-              <time>{{ entry.timestamp }}</time>
-            </li>
-          </ul>
+          <div class="editor-controls">
+            <div class="controls-section">
+              <div class="controls-grid">
+                <div class="control-group">
+                  <label for="indentSelect" class="control-label">Indentation</label>
+                  <select id="indentSelect" class="control-select" [(ngModel)]="indentSize" (ngModelChange)="onIndentChange($event)" [attr.data-tooltip]="'Number of spaces for indentation'">
+                    <option *ngFor="let size of indentOptions" [value]="size">{{ size }} spaces</option>
+                  </select>
+                </div>
+                <div class="control-group">
+                  <label for="previewModeSelect" class="control-label">Preview Mode</label>
+                  <select id="previewModeSelect" class="control-select" [(ngModel)]="autoPreviewMode" (ngModelChange)="setPreviewMode($event)" [attr.data-tooltip]="'Choose preview format'">
+                    <option value="formatted">Formatted</option>
+                    <option value="minified">Minified</option>
+                  </select>
+                </div>
+              </div>
+              <div class="toggles-grid">
+                <label class="toggle">
+                  <input type="checkbox" [checked]="allowComments" (change)="toggleAllowComments()" />
+                  <span>Strip // and /* */ comments before parsing</span>
+                </label>
+                <label class="toggle">
+                  <input type="checkbox" [checked]="allowTrailingCommas" (change)="toggleAllowTrailingCommas()" />
+                  <span>Remove trailing commas after object/array items</span>
+                </label>
+                <label class="toggle">
+                  <input type="checkbox" [checked]="sortKeys" (change)="toggleSortKeys()" />
+                  <span>Sort object keys when formatting/minifying</span>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="workspace__panel workspace__panel--results">
-        <div class="card diagnostics-card">
-          <header class="card__header">
-            <h2>Diagnostics</h2>
-          </header>
-          <p class="diagnostics-card__status">{{ conversionStatus.message }}</p>
-          <ul class="diagnostics-list" *ngIf="diagnostics.length; else noDiagnostics">
-            <li *ngFor="let diagnostic of diagnostics; trackBy: trackByDiagnostic" [class]="'diagnostic diagnostic--' + diagnostic.level">
+      <div class="workspace__card workspace__card--results">
+        <div class="workspace__panel workspace__panel--results">
+          <div class="results-header">
+            <div class="results-header__content">
+              <h2 class="results-header__title">{{ previewLabel }}</h2>
+              <p class="results-header__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="results-actions">
+              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Copy result to clipboard' : 'No result to copy'" [class.tooltip-wrapper--disabled]="!resultOutput">
+                <button
+                  class="btn-icon btn-icon--copy"
+                  type="button"
+                  [disabled]="!resultOutput"
+                  (click)="copyResult()"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </span>
+              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Download result as file' : 'No result to download'" [class.tooltip-wrapper--disabled]="!resultOutput">
+                <button
+                  class="btn-icon btn-icon--download"
+                  type="button"
+                  [disabled]="!resultOutput"
+                  (click)="downloadResult()"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <div
+            class="status-badge"
+            [class.status-badge--success]="conversionStatus.status === 'success'"
+            [class.status-badge--error]="conversionStatus.status === 'error'"
+            [class.status-badge--idle]="conversionStatus.status === 'idle'"
+            *ngIf="conversionStatus.status !== 'idle' || resultOutput"
+          >
+            <span *ngIf="conversionStatus.status === 'success'">✓ Success</span>
+            <span *ngIf="conversionStatus.status === 'error'">✗ Error</span>
+            <span *ngIf="conversionStatus.status === 'idle'">Ready</span>
+          </div>
+
+          <div class="error-message" *ngIf="conversionStatus.status === 'error' && diagnostics.length > 0">
+            <div class="error-message__icon">⚠</div>
+            <div class="error-message__content">
+              <strong class="error-message__title">Validation Failed</strong>
+              <p class="error-message__text">{{ conversionStatus.message }}</p>
+            </div>
+          </div>
+
+          <div class="results-output" *ngIf="resultOutput && conversionStatus.status !== 'error'; else emptyResult">
+            <div class="results-output__line-numbers">
+              <span *ngFor="let line of resultLines" class="line-number">{{ line }}</span>
+            </div>
+            <textarea
+              class="results-output__content"
+              readonly
+              spellcheck="false"
+              [value]="resultOutput"
+              (scroll)="onResultsScroll($event)"
+              #resultsTextarea
+            ></textarea>
+          </div>
+          <ng-template #emptyResult>
+            <div class="results-empty" *ngIf="conversionStatus.status !== 'error'">
+              <div class="results-empty__icon">📋</div>
+              <p class="results-empty__text">Run validation, format, or minify to preview the output here.</p>
+            </div>
+          </ng-template>
+        </div>
+      </div>
+
+      <div class="workspace__card workspace__card--diagnostics">
+        <div class="workspace__panel workspace__panel--diagnostics">
+          <div class="diagnostics-header">
+            <h2 class="diagnostics-header__title">Diagnostics</h2>
+            <p class="diagnostics-header__caption">{{ conversionStatus.message }}</p>
+          </div>
+
+          <div class="diagnostics-list" *ngIf="diagnostics.length; else noDiagnostics">
+            <div *ngFor="let diagnostic of diagnostics; trackBy: trackByDiagnostic" [class]="'diagnostic diagnostic--' + diagnostic.level">
               <div class="diagnostic__badge">{{ diagnostic.level }}</div>
               <div class="diagnostic__content">
                 <p class="diagnostic__message">{{ diagnostic.message }}</p>
@@ -186,37 +221,12 @@
                 </p>
                 <pre class="diagnostic__snippet" *ngIf="diagnostic.snippet">{{ diagnostic.snippet }}</pre>
               </div>
-            </li>
-          </ul>
+            </div>
+          </div>
           <ng-template #noDiagnostics>
             <div class="diagnostics-empty">
-              <p>No diagnostics yet. Validate your JSON to view errors or warnings.</p>
-            </div>
-          </ng-template>
-        </div>
-
-        <div class="card results-card">
-          <header class="card__header">
-            <div>
-              <h2>{{ previewLabel }}</h2>
-              <p class="results-card__caption">{{ conversionStatus.message }}</p>
-            </div>
-            <div class="card__actions">
-              <button type="button" class="btn btn-ghost" [disabled]="!resultOutput" (click)="copyResult()">
-                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
-              </button>
-              <button type="button" class="btn btn-ghost" [disabled]="!resultOutput" (click)="downloadResult()">
-                Download
-              </button>
-            </div>
-          </header>
-
-          <div class="results-card__preview" *ngIf="resultOutput; else emptyPreview">
-            <pre>{{ resultOutput }}</pre>
-          </div>
-          <ng-template #emptyPreview>
-            <div class="results-card__empty">
-              <p>Run validation, format, or minify to preview the output here.</p>
+              <div class="diagnostics-empty__icon">✓</div>
+              <p class="diagnostics-empty__text">No diagnostics yet. Validate your JSON to view errors or warnings.</p>
             </div>
           </ng-template>
         </div>
@@ -238,7 +248,7 @@
     <article class="info-card">
       <h2>Tips for accurate linting</h2>
       <ul>
-        <li>Enable “Strip comments” before linting JSON that contains // or /* */ comments.</li>
+        <li>Enable "Strip comments" before linting JSON that contains // or /* */ comments.</li>
         <li>Sorting keys helps produce consistent diffs for configuration files.</li>
         <li>Minified mode is great for network payloads; formatted mode is better for code reviews.</li>
         <li>Use the diagnostics list to jump to problematic lines quickly.</li>

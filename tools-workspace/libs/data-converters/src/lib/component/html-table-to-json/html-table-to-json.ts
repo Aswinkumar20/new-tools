@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -69,7 +69,9 @@ const SAMPLE_TABLE = `<table>
   styleUrls: ['./html-table-to-json.scss'],
   imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
-export class HtmlTableToJsonComponent {
+export class HtmlTableToJsonComponent implements AfterViewInit {
+  @ViewChild('htmlTextarea') htmlTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly selectionModes: Array<{ id: SelectionMode; label: string; description: string }> = [
     {
       id: 'auto',
@@ -131,9 +133,16 @@ export class HtmlTableToJsonComponent {
 
   copyStatus: 'idle' | 'success' | 'error' = 'idle';
   isDragOver = false;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get selectionDescription(): string | undefined {
@@ -141,14 +150,54 @@ export class HtmlTableToJsonComponent {
   }
 
   onSelectionModeChange(mode: SelectionMode): void {
+    if (this.selectionMode === mode) {
+      return;
+    }
+
+    // Remove focus from dropdown to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.selectionMode = mode;
+
+    // Reset custom selector when switching away from custom mode
+    if (mode !== 'custom') {
+      this.customSelector = '';
+    }
+
+    // Reset result when mode changes
+    this.resultOutput = '';
+    this.updateResultLineNumbers();
+    this.conversionStatus = {
+      status: 'idle',
+      message: 'Mode changed. Ready to convert HTML table into JSON.'
+    };
   }
 
   onHtmlInputChange(value: string): void {
     this.htmlInput = value;
     this.resultOutput = '';
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
     this.metrics = { rows: 0, columns: 0, sizeLabel: this.formatBytes(new Blob([value]).size) };
     this.conversionStatus = { status: 'idle', message: 'Ready to convert HTML table into JSON.' };
+  }
+
+  onEditorScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
   }
 
   toggleCompactArrays(): void {
@@ -172,11 +221,18 @@ export class HtmlTableToJsonComponent {
   }
 
   convert(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.htmlInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste an HTML table snippet or upload a file before converting.'
+        message: 'Paste an HTML table snippet or upload a file before converting. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -191,10 +247,33 @@ export class HtmlTableToJsonComponent {
       selectionMode: this.selectionMode
     };
 
+    // Validate custom selector if in custom mode
+    if (this.selectionMode === 'custom' && !this.customSelector.trim()) {
+      this.conversionStatus = {
+        status: 'error',
+        message: 'Custom selector mode requires a CSS selector. Please provide a selector (e.g., ".table-class" or "#table-id").'
+      };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
+      return;
+    }
+
     try {
       const extraction = this.extractTable(this.htmlInput, options);
+      
+      if (!extraction.rows.length) {
+        this.conversionStatus = {
+          status: 'error',
+          message: 'No table rows found. Please ensure your HTML contains valid table rows with data.'
+        };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
+        return;
+      }
+
       const data = this.buildJson(extraction, options);
       this.resultOutput = JSON.stringify(data, null, 2);
+      this.updateResultLineNumbers();
       this.metrics = {
         rows: extraction.rows.length,
         columns: extraction.headers.length || (extraction.rows[0]?.length ?? 0),
@@ -206,18 +285,24 @@ export class HtmlTableToJsonComponent {
       };
       this.recordHistory('Converted HTML table to JSON');
     } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Unable to parse the provided HTML table. Check the structure and try again.';
       this.conversionStatus = {
         status: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Unable to parse the provided HTML table. Check the structure and try again.'
+        message: `HTML Parse Error: ${errorMessage}. Please check your HTML structure, table tags, and selector (if using custom mode).`
       };
       this.resultOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -306,19 +391,36 @@ export class HtmlTableToJsonComponent {
   }
 
   private extractTable(html: string, options: TableParseOptions): TableExtraction {
+    if (!html || !html.trim()) {
+      throw new Error('HTML input is empty. Please provide HTML content containing a table.');
+    }
+
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
+    // Check for parsing errors
+    const parserError = doc.querySelector('parsererror');
+    if (parserError) {
+      throw new Error('Invalid HTML format. The HTML could not be parsed. Please check your HTML syntax.');
+    }
+
     let table: HTMLTableElement | null = null;
     if (options.selector) {
-      table = doc.querySelector<HTMLTableElement>(options.selector);
+      if (!options.selector.trim()) {
+        throw new Error('Custom selector cannot be empty. Please provide a valid CSS selector.');
+      }
+      try {
+        table = doc.querySelector<HTMLTableElement>(options.selector);
+      } catch (error) {
+        throw new Error(`Invalid CSS selector: "${options.selector}". Please use a valid selector (e.g., ".class", "#id", "table").`);
+      }
       if (!table) {
-        throw new Error(`No table found for selector "${options.selector}".`);
+        throw new Error(`No table found for selector "${options.selector}". Please verify the selector matches a table in your HTML.`);
       }
     } else {
       table = doc.querySelector<HTMLTableElement>('table');
       if (!table) {
-        throw new Error('No table element found. Make sure the HTML contains a <table>.');
+        throw new Error('No table element found. Make sure the HTML contains a <table> tag. If using a custom table, try custom selector mode.');
       }
     }
 
@@ -330,8 +432,16 @@ export class HtmlTableToJsonComponent {
     );
     const allHeaderRows = [...initialHeaders, ...additionalHeaders];
 
+    if (dataRows.length === 0) {
+      throw new Error('No data rows found in the table. Please ensure the table contains <tr> elements with data cells.');
+    }
+
     const headers = this.extractHeaderValues(allHeaderRows, options);
     const bodyRows = dataRows.map((row) => this.extractCellValues(row, options));
+
+    if (bodyRows.length === 0) {
+      throw new Error('No valid data rows extracted from the table. Please check your table structure and options.');
+    }
 
     return { headers, rows: bodyRows };
   }
@@ -415,24 +525,31 @@ export class HtmlTableToJsonComponent {
     if (!cells.length) {
       return [];
     }
-    return cells.map((cell, index) => {
+    return cells.map((cell) => {
       let text = this.cleanCellText(cell.textContent ?? '', options.trimCells);
+      
+      // Handle empty cells
       if (!options.includeEmptyCells && !text.length) {
-        text = '';
+        return '';
       }
-      if (options.numberDetection) {
+
+      // Try to detect and convert numbers
+      if (options.numberDetection && text.length > 0) {
         const numericValue = this.parseNumber(text);
         if (numericValue !== null) {
           return numericValue as unknown as string;
         }
       }
-      if (options.dateDetection) {
+
+      // Try to detect and convert dates
+      if (options.dateDetection && text.length > 0) {
         const date = this.parseDate(text);
         if (date) {
           return date;
         }
       }
-      return text;
+
+      return text || '';
     });
   }
 
@@ -489,8 +606,10 @@ export class HtmlTableToJsonComponent {
     if (!file.type.includes('html') && !file.name.toLowerCase().endsWith('.html')) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Only HTML files are supported for table conversion.'
+        message: `Unsupported file type: ${file.name.split('.').pop() || 'unknown'}. Only HTML files are supported for table conversion.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -498,6 +617,8 @@ export class HtmlTableToJsonComponent {
       .text()
       .then((text) => {
         this.htmlInput = text;
+        this.updateEditorLineNumbers();
+        this.updateResultLineNumbers();
         this.conversionStatus = {
           status: 'idle',
           message: `Loaded HTML file (${file.name}). Configure options and convert when ready.`
@@ -507,8 +628,10 @@ export class HtmlTableToJsonComponent {
       .catch(() => {
         this.conversionStatus = {
           status: 'error',
-          message: 'Could not read the selected file. Please try another HTML file.'
+          message: 'Could not read the selected file. Please try another HTML file or check file permissions.'
         };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
       });
   }
 
@@ -534,6 +657,9 @@ export class HtmlTableToJsonComponent {
   private loadSample(): void {
     this.htmlInput = SAMPLE_TABLE;
     this.resultOutput = '';
+    this.customSelector = '';
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
     this.metrics = { rows: 0, columns: 0, sizeLabel: this.formatBytes(this.htmlInput.length) };
     this.conversionStatus = {
       status: 'idle',
@@ -541,5 +667,15 @@ export class HtmlTableToJsonComponent {
     };
     this.operationHistory = [];
     this.copyStatus = 'idle';
+  }
+
+  private updateEditorLineNumbers(): void {
+    const lines = this.htmlInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.resultOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 }

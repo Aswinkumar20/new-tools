@@ -241,11 +241,24 @@ export class ExcelToJsonComponent {
   }
 
   convertWorkbook(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.canConvert) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Select a worksheet before converting.'
+        message: 'Select a worksheet before converting. Please upload an Excel file and select a worksheet first.'
       };
+      this.conversionResult = '';
+      this.diagnostics = [
+        {
+          id: this.createDiagnosticId(),
+          level: 'error',
+          message: 'Cannot convert: No worksheet selected. Please upload a file and select a worksheet.'
+        }
+      ];
       return;
     }
 
@@ -253,8 +266,16 @@ export class ExcelToJsonComponent {
     if (!sheet) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Unable to load the selected worksheet.'
+        message: 'Unable to load the selected worksheet. Please try selecting a different worksheet or re-upload the file.'
       };
+      this.conversionResult = '';
+      this.diagnostics = [
+        {
+          id: this.createDiagnosticId(),
+          level: 'error',
+          message: `Failed to load worksheet "${this.selectedSheet}". The worksheet may be corrupted or empty.`
+        }
+      ];
       return;
     }
 
@@ -264,7 +285,28 @@ export class ExcelToJsonComponent {
     );
 
     try {
+      if (!headers.length || !columnMapping.length) {
+        throw new Error('No columns available for conversion. Please check your header detection settings and column mappings.');
+      }
+
       const rows = this.extractRows(sheet, headers, columnMapping);
+      
+      if (!rows.length) {
+        this.conversionStatus = {
+          status: 'error',
+          message: 'No rows to convert. The selected worksheet appears to be empty or all rows were filtered out.'
+        };
+        this.conversionResult = '';
+        this.diagnostics = [
+          {
+            id: this.createDiagnosticId(),
+            level: 'warning',
+            message: 'No data rows found after applying filters. Try adjusting "Include blank rows" or check if the worksheet has data.'
+          }
+        ];
+        return;
+      }
+
       let output = '';
       if (this.outputFormat === 'csv') {
         output = this.convertRowsToCsv(rows, columnMapping);
@@ -273,20 +315,33 @@ export class ExcelToJsonComponent {
       } else {
         output = JSON.stringify(rows, null, 2);
       }
+
+      if (!output || !output.trim()) {
+        throw new Error('Conversion produced empty output. Please check your data and column mappings.');
+      }
+
       this.conversionResult = output;
       this.copyStatus = 'idle';
+      this.diagnostics = [];
       this.conversionStatus = {
         status: 'success',
-        message: `Conversion successful: ${rows.length} rows exported.`
+        message: `Conversion successful: ${rows.length} rows exported to ${this.outputFormat.toUpperCase()}.`
       };
       this.recordHistory(`Converted worksheet "${this.selectedSheet}" to ${this.outputFormat.toUpperCase()}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Conversion failed due to an unknown error.';
+      const errorMessage = error instanceof Error ? error.message : 'Conversion failed due to an unknown error.';
       this.conversionStatus = {
         status: 'error',
-        message
+        message: `Conversion Error: ${errorMessage}. Please check your settings and try again.`
       };
       this.conversionResult = '';
+      this.diagnostics = [
+        {
+          id: this.createDiagnosticId(),
+          level: 'error',
+          message: errorMessage
+        }
+      ];
     }
   }
 
@@ -301,6 +356,11 @@ export class ExcelToJsonComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -386,11 +446,46 @@ export class ExcelToJsonComponent {
   }
 
   private async loadWorkbook(file: File): Promise<void> {
+    // Validate file type
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods', '.fods'];
+    const isValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
+    
+    if (!isValidExtension && !file.type.includes('sheet') && !file.type.includes('excel') && !file.type.includes('csv')) {
+      this.conversionStatus = {
+        status: 'error',
+        message: `Unsupported file type: ${file.name.split('.').pop() || 'unknown'}. Please upload an Excel file (.xlsx, .xls, .csv, .ods, etc.).`
+      };
+      this.sheetNames = [];
+      this.selectedSheet = '';
+      this.sheetPreview = [];
+      this.columnMappings = [];
+      this.conversionResult = '';
+      this.diagnostics = [
+        {
+          id: this.createDiagnosticId(),
+          level: 'error',
+          message: `File type not supported: ${file.name}. Supported formats: .xlsx, .xls, .csv, .ods, .fods`
+        }
+      ];
+      return;
+    }
+
     try {
       const sheetjs = await this.ensureSheetJS();
       this.fileName = file.name;
+      
+      if (file.size === 0) {
+        throw new Error('The uploaded file is empty.');
+      }
+
       const buffer = new Uint8Array(await file.arrayBuffer());
       const workbook = sheetjs.read(buffer, { type: 'array', cellDates: true });
+      
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+        throw new Error('The Excel file contains no worksheets.');
+      }
+
       this.sheetNames = workbook.SheetNames;
       this.selectedSheet = this.sheetNames[0] ?? '';
       this.metrics = {
@@ -401,21 +496,29 @@ export class ExcelToJsonComponent {
       };
       this.conversionStatus = {
         status: 'idle',
-        message: 'Workbook loaded. Select a worksheet and convert.'
+        message: `Workbook loaded (${workbook.SheetNames.length} worksheet(s)). Select a worksheet and convert.`
       };
       (this as any)._workbook = workbook;
+      this.diagnostics = [];
       this.refreshPreview();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load Excel workbook.';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load Excel workbook.';
       this.conversionStatus = {
         status: 'error',
-        message
+        message: `File Load Error: ${errorMessage}. Please ensure the file is a valid Excel workbook and try again.`
       };
       this.sheetNames = [];
       this.selectedSheet = '';
       this.sheetPreview = [];
       this.columnMappings = [];
       this.conversionResult = '';
+      this.diagnostics = [
+        {
+          id: this.createDiagnosticId(),
+          level: 'error',
+          message: errorMessage
+        }
+      ];
     }
   }
 

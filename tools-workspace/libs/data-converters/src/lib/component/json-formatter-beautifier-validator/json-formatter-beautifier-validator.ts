@@ -90,6 +90,7 @@ const DEFAULT_SAMPLE = {
 })
 export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit {
   @ViewChild('editorTextarea') editorTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly resultTabs: Array<{ id: ResultTab; label: string; description: string }> = [
     {
       id: 'formatted',
@@ -157,10 +158,6 @@ export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit 
   ngAfterViewInit(): void {
     this.updateEditorLineNumbers();
     this.setupKeyboardShortcuts();
-    // Sync scroll after view init
-    if (this.editorTextarea?.nativeElement) {
-      this.editorTextarea.nativeElement.addEventListener('scroll', (e) => this.onEditorScroll(e));
-    }
   }
 
   get formattedOutputAvailable(): boolean {
@@ -300,6 +297,15 @@ export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit 
     // Sync line numbers scroll with editor scroll
     const target = event.target as HTMLTextAreaElement;
     const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    // Sync line numbers scroll with results textarea scroll
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }

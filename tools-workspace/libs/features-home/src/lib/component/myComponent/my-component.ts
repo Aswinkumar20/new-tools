@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
+import { AssetService } from '../../services/asset.service';
 
 
 @Component({
@@ -801,7 +802,7 @@ export class MyComponent implements OnInit {
   weeklyHighlights = 0;
   isDarkMode = false;
   private readonly themeStorageKey = 'easytoolhub.theme';
-  private readonly toolIconBasePath = 'assets/tool-icons';
+  private readonly assetService = inject(AssetService);
 
   constructor(private readonly router: Router) {
     this.filteredCategories = this.toolCategories;
@@ -893,7 +894,7 @@ export class MyComponent implements OnInit {
   private buildIconPath(name: string): string {
     const segments = name.toLowerCase().match(/[a-z0-9]+/g);
     const slug = segments?.join('-') ?? 'icon';
-    return `${this.toolIconBasePath}/${slug}.svg`;
+    return this.assetService.getAssetPath(`tool-icons/${slug}.svg`);
   }
 
    private estimateWeeklyHighlights(): number {

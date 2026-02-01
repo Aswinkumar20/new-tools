@@ -136,6 +136,21 @@ export class NumberToWordsComponent implements OnDestroy {
     this.notify('History cleared.');
   }
 
+  resetToDefault(): void {
+    this.form.patchValue({
+      numericInput: '123456.78',
+      locale: 'en-US',
+      format: 'cardinal',
+      currency: 'USD',
+      showCurrencySymbol: true,
+      includeCents: true,
+      caseStyle: 'sentence',
+      includeAnd: true,
+      handleNegative: true
+    }, { emitEvent: true });
+    this.notify('Reset to default values.');
+  }
+
   submitForm(): void {
     this.convert();
     this.notify('Conversion refreshed.');

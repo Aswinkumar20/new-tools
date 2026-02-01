@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -52,7 +52,9 @@ interface Diagnostic {
   styleUrls: ['./json-parser.scss'],
   imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
 })
-export class JsonParserComponent {
+export class JsonParserComponent implements AfterViewInit {
+  @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly heroHighlights = [
     {
       title: 'Visual tree viewer',
@@ -115,11 +117,18 @@ export class JsonParserComponent {
   stringLiteralOutput = '';
   stringLiteralStatus: ParseStatus;
   stringLiteralDiagnostic?: Diagnostic;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.stringifyStatus = this.createStringifyIdleStatus();
     this.stringLiteralStatus = this.createStringLiteralIdleStatus();
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get nodeCount(): number {
@@ -128,6 +137,7 @@ export class JsonParserComponent {
 
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
+    this.updateEditorLineNumbers();
     this.updateMetrics(value);
     this.parseStatus = {
       status: 'idle',
@@ -137,6 +147,15 @@ export class JsonParserComponent {
     this.treeNodes = [];
     this.filteredTree = [];
     this.formattedOutput = '';
+    this.updateResultLineNumbers();
+  }
+
+  onEditorScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
   }
 
   setPreviewMode(mode: PreviewMode): void {
@@ -144,15 +163,28 @@ export class JsonParserComponent {
     if (this.treeNodes.length) {
       this.buildFormattedOutput(this.treeNodes);
     }
+    // Remove focus from button to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   }
 
   parseJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.jsonInput.trim()) {
       this.parseStatus = {
         status: 'error',
-        message: 'Paste JSON to parse before continuing.'
+        message: 'Paste JSON to parse before continuing. The input field is empty.'
       };
       this.diagnostics = [this.createDiagnostic('No JSON content found. Paste JSON and try again.')];
+      this.treeNodes = [];
+      this.filteredTree = [];
+      this.formattedOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -161,9 +193,10 @@ export class JsonParserComponent {
       this.treeNodes = this.buildTree(parsed, '$', 0);
       this.filteredTree = this.treeNodes;
       this.buildFormattedOutput(this.treeNodes);
+      this.updateResultLineNumbers();
       this.parseStatus = {
         status: 'success',
-        message: 'JSON parsed successfully.'
+        message: `JSON parsed successfully. Found ${this.nodeCount} node(s).`
       };
       this.diagnostics = [];
       this.recordHistory('Parsed JSON successfully');
@@ -171,22 +204,28 @@ export class JsonParserComponent {
       const diagnostic = this.createErrorDiagnostic(error, this.jsonInput);
       this.parseStatus = {
         status: 'error',
-        message: diagnostic.message
+        message: `JSON Parse Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
       };
       this.diagnostics = [diagnostic];
       this.treeNodes = [];
       this.filteredTree = [];
       this.formattedOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
   formatJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     const parseAttempt = this.tryParse();
     if (!parseAttempt.success) {
       this.diagnostics = [parseAttempt.diagnostic];
       this.parseStatus = {
         status: 'error',
-        message: parseAttempt.diagnostic.message
+        message: `Format Error: ${parseAttempt.diagnostic.message}. Please fix the JSON syntax before formatting.`
       };
       return;
     }
@@ -202,12 +241,17 @@ export class JsonParserComponent {
   }
 
   minifyJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     const parseAttempt = this.tryParse();
     if (!parseAttempt.success) {
       this.diagnostics = [parseAttempt.diagnostic];
       this.parseStatus = {
         status: 'error',
-        message: parseAttempt.diagnostic.message
+        message: `Minify Error: ${parseAttempt.diagnostic.message}. Please fix the JSON syntax before minifying.`
       };
       return;
     }
@@ -223,6 +267,11 @@ export class JsonParserComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -236,10 +285,15 @@ export class JsonParserComponent {
   }
 
   stringifyJsonInput(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.stringifyInput.trim()) {
       this.stringifyStatus = {
         status: 'error',
-        message: 'Provide JSON content before stringifying.'
+        message: 'Provide JSON content before stringifying. The input field is empty.'
       };
       this.stringifyOutput = '';
       this.stringifyDiagnostic = undefined;
@@ -259,7 +313,7 @@ export class JsonParserComponent {
       const diagnostic = this.createErrorDiagnostic(error, this.stringifyInput);
       this.stringifyStatus = {
         status: 'error',
-        message: diagnostic.message
+        message: `Stringify Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
       };
       this.stringifyOutput = '';
       this.stringifyDiagnostic = diagnostic;
@@ -283,10 +337,15 @@ export class JsonParserComponent {
   }
 
   parseStringLiteral(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.stringLiteralInput.trim()) {
       this.stringLiteralStatus = {
         status: 'error',
-        message: 'Paste a stringified JSON value before converting.'
+        message: 'Paste a stringified JSON value before converting. The input field is empty.'
       };
       this.stringLiteralOutput = '';
       this.stringLiteralDiagnostic = undefined;
@@ -306,7 +365,7 @@ export class JsonParserComponent {
       const diagnostic = this.createErrorDiagnostic(error, this.stringLiteralInput);
       this.stringLiteralStatus = {
         status: 'error',
-        message: diagnostic.message
+        message: `Parse Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
       };
       this.stringLiteralOutput = '';
       this.stringLiteralDiagnostic = diagnostic;
@@ -383,6 +442,8 @@ export class JsonParserComponent {
 
   trackByNode = (_index: number, node: JsonTreeNode): string => node.id;
 
+  trackByDiagnostic = (_index: number, diagnostic: Diagnostic): string => diagnostic.id;
+
   private async copyToClipboard(text: string, message: string): Promise<void> {
     try {
       const navigatorRef = (globalThis as typeof globalThis & { navigator?: Navigator }).navigator;
@@ -429,6 +490,7 @@ export class JsonParserComponent {
     }
   ]
 }`;
+    this.updateEditorLineNumbers();
     this.onJsonInputChange(this.jsonInput);
     this.parseStatus = {
       status: 'idle',
@@ -455,12 +517,24 @@ export class JsonParserComponent {
     const parseAttempt = this.tryParse();
     if (!parseAttempt.success) {
       this.formattedOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
     const value = parseAttempt.value;
     this.formattedOutput = this.previewMode === 'formatted'
       ? JSON.stringify(value, null, 2)
       : JSON.stringify(value);
+    this.updateResultLineNumbers();
+  }
+
+  private updateEditorLineNumbers(): void {
+    const lines = this.jsonInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.formattedOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 
   private buildTree(value: unknown, path: string, level: number, key?: string): JsonTreeNode[] {

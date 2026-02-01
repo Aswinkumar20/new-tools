@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, NavigationEnd } from '@angular/router';
 import { LanguageService, Language } from '../../services/language.service';
 import { TranslationService } from '../../services/translation.service';
+import { AssetService } from '../../services/asset.service';
 import { Subscription, filter } from 'rxjs';
 
 @Component({
@@ -798,11 +799,12 @@ export class NavigationComponent implements OnInit, OnDestroy {
   constructor(
     private readonly router: Router,
     private languageService: LanguageService,
-    private translationService: TranslationService
+    private translationService: TranslationService,
+    private readonly assetService: AssetService
   ) { }
 
   ngOnInit(): void {
-    this.logoUrl = 'assets/logo_text.svg';
+    this.logoUrl = this.assetService.getAssetPath('logo_text.svg');
     this.evaluateViewport();
     this.loadThemePreference();
     this.setupThemeListener();
@@ -1037,7 +1039,7 @@ export class NavigationComponent implements OnInit, OnDestroy {
         category.subCategories.forEach((tool: any) => {
           if (
             tool.name.toLowerCase().includes(query) ||
-            (tool.description && tool.description.toLowerCase().includes(query))
+            tool.description?.toLowerCase().includes(query)
           ) {
             this.searchResults.push({
               name: tool.name,

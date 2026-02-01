@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -61,7 +61,10 @@ const SAMPLE_JSON = `[
   styleUrls: ['./csv-to-json-json-to-csv.scss'],
   imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
-export class CsvToJsonJsonToCsvComponent {
+export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
+  @ViewChild('csvTextarea') csvTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'csv-to-json',
@@ -119,9 +122,16 @@ export class CsvToJsonJsonToCsvComponent {
 
   copyStatus: 'idle' | 'success' | 'error' = 'idle';
   isDragOver = false;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get modeDescription(): string | undefined {
@@ -132,13 +142,42 @@ export class CsvToJsonJsonToCsvComponent {
     if (this.conversionMode === mode) {
       return;
     }
+
+    // Remove focus from dropdown to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // Update mode first
     this.conversionMode = mode;
+
+    // Reset all inputs
+    this.csvInput = '';
+    this.jsonInput = '';
+    this.resultOutput = '';
+
+    // Reset metrics according to new mode
+    this.metrics = {
+      rows: 0,
+      columns: 0,
+      sizeLabel: '0 B',
+      selection: mode === 'csv-to-json' ? 'CSV' : 'JSON'
+    };
+
+    // Reset operation history
+    this.operationHistory = [];
+
+    // Reset copy status
+    this.copyStatus = 'idle';
+
+    // Load sample data according to the new mode (this will set status and update line numbers)
     this.loadSample();
   }
 
   onCsvInputChange(value: string): void {
     this.csvInput = value;
     this.updateMetrics(value, 'CSV');
+    this.updateEditorLineNumbers();
     if (this.conversionMode === 'csv-to-json') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert CSV to JSON.' };
     }
@@ -147,8 +186,27 @@ export class CsvToJsonJsonToCsvComponent {
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
     this.updateMetrics(value, 'JSON');
+    this.updateEditorLineNumbers();
     if (this.conversionMode === 'json-to-csv') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert JSON to CSV.' };
+    }
+  }
+
+  onEditorScroll(event: Event): void {
+    // Sync line numbers scroll with editor scroll
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    // Sync line numbers scroll with results textarea scroll
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
     }
   }
 
@@ -177,6 +235,11 @@ export class CsvToJsonJsonToCsvComponent {
   }
 
   convert(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.conversionStatus = { status: 'idle', message: 'Converting…' };
     if (this.conversionMode === 'csv-to-json') {
       this.handleCsvToJson();
@@ -186,6 +249,11 @@ export class CsvToJsonJsonToCsvComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -279,8 +347,10 @@ export class CsvToJsonJsonToCsvComponent {
     if (!this.csvInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste or upload CSV content to convert it into JSON.'
+        message: 'Paste or upload CSV content to convert it into JSON. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -296,8 +366,10 @@ export class CsvToJsonJsonToCsvComponent {
     if ('error' in parsed) {
       this.conversionStatus = {
         status: 'error',
-        message: parsed.error
+        message: `CSV Parse Error: ${parsed.error}. Please check your CSV format, delimiter, and quote characters.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -333,6 +405,7 @@ export class CsvToJsonJsonToCsvComponent {
       replacer,
       this.jsonPrettyPrint ? 2 : undefined
     );
+    this.updateResultLineNumbers();
     this.conversionStatus = {
       status: 'success',
       message: `Converted CSV to JSON (${rows.length} rows).`
@@ -344,8 +417,10 @@ export class CsvToJsonJsonToCsvComponent {
     if (!this.jsonInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste or upload JSON content to convert it into CSV.'
+        message: 'Paste or upload JSON content to convert it into CSV. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -353,18 +428,23 @@ export class CsvToJsonJsonToCsvComponent {
     try {
       parsed = JSON.parse(this.jsonInput);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to parse JSON input.';
       this.conversionStatus = {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unable to parse JSON input.'
+        message: `JSON Parse Error: ${errorMessage}. Please check your JSON syntax and try again.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
       this.conversionStatus = {
         status: 'error',
-        message: 'JSON must be an array of objects or arrays with at least one entry.'
+        message: 'JSON must be an array of objects or arrays with at least one entry. Empty arrays cannot be converted to CSV.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -373,12 +453,15 @@ export class CsvToJsonJsonToCsvComponent {
     if ('error' in csv) {
       this.conversionStatus = {
         status: 'error',
-        message: csv.error
+        message: `CSV Generation Error: ${csv.error}. Please ensure your JSON structure is compatible with CSV format.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
     this.resultOutput = csv.value;
+    this.updateResultLineNumbers();
     this.metrics = {
       rows: csv.rows,
       columns: csv.columns,
@@ -525,6 +608,19 @@ export class CsvToJsonJsonToCsvComponent {
     }
 
     if (this.isArrayOfArrays(parsed)) {
+      // Validate that all arrays have the same length (or handle variable lengths)
+      const firstRowLength = parsed[0]?.length ?? 0;
+      if (firstRowLength === 0) {
+        return { error: 'Arrays cannot be empty. Each array should contain at least one value.' };
+      }
+
+      // Check if all rows have the same length (optional validation)
+      const allSameLength = parsed.every((arr) => arr.length === firstRowLength);
+      if (!allSameLength && this.csvIncludeHeader) {
+        // If header is included, warn but still convert
+        // For arrays of arrays, headers aren't typically meaningful
+      }
+
       parsed.forEach((rowArray) => {
         const row = rowArray.map((value) =>
           this.stringifyCsvValue(value, delimiter, quoteChar, newline)
@@ -532,10 +628,14 @@ export class CsvToJsonJsonToCsvComponent {
         rows.push(row);
       });
 
+      // If includeHeader is true, we can't generate meaningful headers for arrays of arrays
+      // So we skip the header row for this case
+      const csvValue = rows.map((row) => row.join(delimiter)).join(newline);
+
       return {
-        value: rows.map((row) => row.join(delimiter)).join(newline),
+        value: csvValue,
         rows: rows.length,
-        columns: rows[0]?.length ?? 0
+        columns: Math.max(...rows.map((r) => r.length), 0)
       };
     }
 
@@ -665,6 +765,7 @@ export class CsvToJsonJsonToCsvComponent {
           this.conversionMode = 'csv-to-json';
           this.csvInput = text;
           this.updateMetrics(text, 'CSV');
+          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded CSV file (${file.name}). Ready to convert.`
@@ -673,6 +774,7 @@ export class CsvToJsonJsonToCsvComponent {
           this.conversionMode = 'json-to-csv';
           this.jsonInput = text;
           this.updateMetrics(text, 'JSON');
+          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded JSON file (${file.name}). Ready to convert.`
@@ -693,11 +795,21 @@ export class CsvToJsonJsonToCsvComponent {
   }
 
   private isArrayOfObjects(value: unknown[]): value is Record<string, unknown>[] {
-    return value.every((entry) => !!entry && typeof entry === 'object' && !Array.isArray(entry));
+    return (
+      value.length > 0 &&
+      value.every(
+        (entry) =>
+          entry !== null &&
+          entry !== undefined &&
+          typeof entry === 'object' &&
+          !Array.isArray(entry) &&
+          entry.constructor === Object
+      )
+    );
   }
 
   private isArrayOfArrays(value: unknown[]): value is unknown[][] {
-    return value.every(Array.isArray);
+    return value.length > 0 && value.every((item) => Array.isArray(item) && item.length > 0);
   }
 
   private loadSample(): void {
@@ -706,6 +818,8 @@ export class CsvToJsonJsonToCsvComponent {
       this.jsonInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.csvInput, 'CSV');
+      this.updateEditorLineNumbers();
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample CSV loaded. Adjust options and convert when ready.'
@@ -715,6 +829,8 @@ export class CsvToJsonJsonToCsvComponent {
       this.csvInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.jsonInput, 'JSON');
+      this.updateEditorLineNumbers();
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample JSON loaded. Adjust options and convert when ready.'
@@ -722,5 +838,16 @@ export class CsvToJsonJsonToCsvComponent {
     }
     this.operationHistory = [];
     this.copyStatus = 'idle';
+  }
+
+  private updateEditorLineNumbers(): void {
+    const currentInput = this.conversionMode === 'csv-to-json' ? this.csvInput : this.jsonInput;
+    const lines = currentInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.resultOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 }

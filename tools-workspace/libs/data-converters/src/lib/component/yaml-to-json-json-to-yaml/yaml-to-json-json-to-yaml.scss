@@ -1,10 +1,1092 @@
 @use '../../../../../../apps/tools-site/src/app/generic-styles.scss' as *;
 
-// Component-specific styles
+// Main Container - Prevent horizontal scroll
+.main-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+// Tooltip Styles - Consistent across all elements
+[data-tooltip] {
+  position: relative;
+  cursor: pointer;
+
+  &::before,
+  &::after {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    z-index: 99999;
+    visibility: hidden;
+  }
+
+  &::before {
+    content: attr(data-tooltip);
+    background: #1f2937;
+    color: white;
+    padding: 0.6rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    text-align: left;
+    max-width: min(450px, calc(100vw - 2rem));
+    min-width: 150px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    // Default: show above
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    margin-bottom: 8px;
+  }
+
+  &::after {
+    content: '';
+    border: 6px solid transparent;
+    border-top-color: #1f2937;
+    // Default: arrow pointing down (for tooltip above)
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  // Show tooltip on hover only (not on focus to prevent persistence after click)
+  &:hover:not(:focus)::before,
+  &:hover:not(:focus)::after {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  // Hide tooltip when not hovering (even if focused)
+  &:not(:hover)::before,
+  &:not(:hover)::after {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  // Show tooltip for disabled buttons on hover
+  &:disabled:hover::before,
+  &:disabled:hover::after {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  // Buttons in toolbar - show tooltip below
+  &.btn-primary,
+  &.btn-icon-reset,
+  &.btn-upload,
+  &.btn-secondary {
+    &::before {
+      bottom: auto;
+      top: 100%;
+      margin-top: 8px;
+      margin-bottom: 0;
+      transform: translateX(-50%) translateY(8px);
+    }
+
+    &::after {
+      top: auto;
+      bottom: -4px;
+      border-top-color: transparent;
+      border-bottom-color: #1f2937;
+    }
+  }
+
+  // Icon buttons in results header - show tooltip below
+  &.btn-icon,
+  &.btn-icon--copy,
+  &.btn-icon--download {
+    &::before {
+      bottom: auto;
+      top: 100%;
+      left: 50%;
+      margin-top: 8px;
+      margin-bottom: 0;
+      transform: translateX(-50%) translateY(8px);
+      white-space: nowrap;
+    }
+
+    &::after {
+      top: auto;
+      bottom: -4px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-top-color: transparent;
+      border-bottom-color: #1f2937;
+    }
+
+    // Show tooltip even when disabled
+    &:disabled {
+      pointer-events: auto;
+
+      &:hover::before,
+      &:hover::after {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+    }
+  }
+
+  // Select inputs - show tooltip below
+  select[data-tooltip],
+  input[data-tooltip] {
+    &::before {
+      bottom: auto;
+      top: 100%;
+      margin-top: 8px;
+      margin-bottom: 0;
+      transform: translateX(-50%) translateY(8px);
+    }
+
+    &::after {
+      top: auto;
+      bottom: -4px;
+      border-top-color: transparent;
+      border-bottom-color: #1f2937;
+    }
+  }
+}
+
+// Editor Hero Section - Responsive hero pattern matching reference component
+.editor-hero {
+  text-align: left;
+  padding: 0 0 1rem 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  &__title {
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+    font-weight: 700;
+    color: #1e3a8a;
+    margin: 0 0 0.5rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.2;
+  }
+
+  &__subtitle {
+    font-size: clamp(0.9rem, 2vw, 1rem);
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  // Responsive adjustments
+  @media (max-width: 768px) {
+    padding: 0 0 0.75rem 0;
+    margin-bottom: 0.5rem;
+
+    &__title {
+      font-size: clamp(1.25rem, 5vw, 1.75rem);
+      margin-bottom: 0.4rem;
+    }
+
+    &__subtitle {
+      font-size: clamp(0.85rem, 2.5vw, 0.95rem);
+      line-height: 1.5;
+    }
+  }
+
+  @media (max-width: 640px) {
+    padding: 0 0 0.5rem 0;
+    margin-bottom: 0.5rem;
+
+    &__title {
+      font-size: clamp(1.125rem, 6vw, 1.5rem);
+    }
+
+    &__subtitle {
+      font-size: clamp(0.8rem, 3vw, 0.9rem);
+    }
+  }
+}
+
+// Workspace Content
+.workspace {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.workspace__content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+.workspace__card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.workspace__panel {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 1rem;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 600px;
+
+  &--editor {
+    // Editor panel specific styles - ensure full height
+    min-height: 700px;
+  }
+
+  &--results {
+    // Results panel specific styles
+    min-height: 700px;
+  }
+
+  &--dragging {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.02);
+  }
+
+  @media (max-width: 1024px) {
+    min-height: 500px;
+
+    &--editor,
+    &--results {
+      min-height: 500px;
+    }
+  }
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+
+  &__label {
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  &__value {
+    font-weight: 700;
+    color: var(--text);
+  }
+}
+
+// Editor Metrics - Below toolbar
+.editor-metrics {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(148, 163, 184, 0.05);
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    gap: 1rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    gap: 0.75rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+// Editor Toolbar - All buttons in single line
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 1024px) {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+
+  @media (max-width: 1024px) {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &--actions {
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 0.5rem;
+    display: flex;
+    align-items: center;
+
+    @media (max-width: 1024px) {
+      margin-left: 0;
+      width: 100%;
+      justify-content: flex-end;
+    }
 
 @media (max-width: 768px) {
-  .mode-toggle {
+      justify-content: stretch;
+      
+      .btn-primary {
+        flex: 1;
+      }
+      
+      .btn-icon-reset {
+        flex-shrink: 0;
+      }
+    }
+  }
+}
+
+.mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+
+  &__label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  &__select {
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 140px;
+
+    &:hover {
+      border-color: #3b82f6;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+  }
+}
+
+.btn-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.2s ease;
+  position: relative;
+  white-space: nowrap;
+
+  input[type="file"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  &:hover {
+    background: #f8fafc;
+    border-color: #3b82f6;
+  }
+
+  &__icon {
+    font-size: 0.875rem;
+  }
+
+  &__label {
+    font-size: 0.875rem;
+  }
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  min-height: 36px;
+  position: relative;
+
+  // Remove focus outline and prevent tooltip on focus
+  &:focus {
+    outline: none;
+  }
+
+  &:focus:not(:hover) {
+    outline: none;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+
+  // Blur on click to remove focus state
+  &:active {
+    outline: none;
+    transform: translateY(0);
+  }
+
+  &__label {
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+}
+
+.btn-icon-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: white;
+  color: var(--text);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+
+  // Remove focus outline and prevent tooltip on focus
+  &:focus {
+    outline: none;
+  }
+
+  &:focus:not(:hover) {
+    outline: none;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+  }
+
+  &:hover {
+    background: #f8fafc;
+    border-color: #3b82f6;
+    color: #3b82f6;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    outline: none;
+    transform: translateY(0);
+  }
+}
+
+// Editor Wrapper with Line Numbers
+.editor-wrapper {
+  position: relative;
+  display: flex;
+  background: #1e1e1e;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+  height: 500px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+}
+
+.editor-line-numbers {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.75rem;
+  background: #252526;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  user-select: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 50px;
+  flex: 0 0 auto;
+  text-align: right;
+  height: 100%;
+
+  .line-number {
+    color: #858585;
+    font-size: 0.9rem;
+    font-family: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    line-height: 1.6;
+    padding-right: 0.75rem;
+    min-height: 1.6em;
+  }
+}
+
+.editor {
+  flex: 1;
+  padding: 1rem;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border: none;
+  outline: none;
+  font-family: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+
+  &::placeholder {
+    color: #6a6a6a;
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+// Editor Controls
+.editor-controls {
+  margin-top: auto;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.controls-section {
+  &__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e3a8a;
+    margin: 0 0 1rem;
+  }
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  @media (max-width: 640px) {
     grid-template-columns: 1fr;
   }
 }
 
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.control-input,
+.control-select {
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #3b82f6;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.toggles-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #3b82f6;
+  }
+
+  span {
+    user-select: none;
+  }
+}
+
+// Results Header
+.results-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin: 0 0 0.25rem;
+    line-height: 1.3;
+  }
+
+  &__caption {
+    font-size: 0.875rem;
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+.results-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tooltip-wrapper {
+  display: inline-flex;
+  position: relative;
+
+  &--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  // Tooltip wrapper styles - use the same tooltip styles
+  &[data-tooltip] {
+    position: relative;
+    cursor: pointer;
+
+    &::before,
+    &::after {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+      z-index: 99999;
+      visibility: hidden;
+    }
+
+    &::before {
+      content: attr(data-tooltip);
+      background: #1f2937;
+      color: white;
+      padding: 0.6rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+      text-align: left;
+      max-width: min(450px, calc(100vw - 2rem));
+      min-width: 150px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      bottom: auto;
+      top: 100%;
+      left: 50%;
+      margin-top: 8px;
+      margin-bottom: 0;
+      transform: translateX(-50%) translateY(8px);
+    }
+
+    &::after {
+      content: '';
+      border: 6px solid transparent;
+      border-top-color: transparent;
+      border-bottom-color: #1f2937;
+      top: auto;
+      bottom: -4px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    // Show tooltip on hover only (not on focus to prevent persistence after click)
+    &:hover:not(:focus-within)::before,
+    &:hover:not(:focus-within)::after {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    // Hide tooltip when not hovering
+    &:not(:hover)::before,
+    &:not(:hover)::after {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+  }
+
+  // Show tooltip even when disabled - this needs to be outside the [data-tooltip] block
+  &--disabled[data-tooltip] {
+    cursor: not-allowed;
+
+    &:hover::before,
+    &:hover::after {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+  }
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.2s ease;
+  position: relative;
+
+  &:hover:not(:disabled) {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: #3b82f6;
+    color: #3b82f6;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: auto; // Allow tooltip to show on disabled buttons
+  }
+
+  // Ensure tooltip shows for disabled buttons
+  &[data-tooltip]:disabled {
+    pointer-events: auto;
+
+    &::before,
+    &::after {
+      pointer-events: auto;
+    }
+
+    &:hover::before,
+    &:hover::after {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+// Status Badge
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+
+  &--success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+  }
+
+  &--error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+
+  &--idle {
+    background: rgba(148, 163, 184, 0.1);
+    color: var(--muted);
+  }
+}
+
+// Results Output
+.results-output {
+  position: relative;
+  display: flex;
+  background: #1e1e1e;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+  height: 500px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.results-output__line-numbers {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0.75rem;
+  background: #252526;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  user-select: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 50px;
+  height: 100%;
+  text-align: right;
+  flex-shrink: 0;
+
+  .line-number {
+    color: #858585;
+    font-size: 0.9rem;
+    font-family: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    line-height: 1.6;
+    padding-right: 0.75rem;
+  }
+}
+
+.results-output__content {
+  flex: 1;
+  padding: 1rem;
+  margin: 0;
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  border: none !important;
+  outline: none !important;
+  font-family: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  white-space: pre;
+  word-break: break-word;
+  overflow-y: auto;
+  overflow-x: auto;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;
+  cursor: default;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  &:focus,
+  &:active,
+  &:focus-visible,
+  &:hover {
+    outline: none !important;
+    background: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  &::selection {
+    background: rgba(59, 130, 246, 0.3);
+    color: #d4d4d4;
+  }
+}
+
+.results-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+  text-align: center;
+
+  &__icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  &__text {
+    font-size: 1rem;
+    color: var(--muted);
+    margin: 0;
+  }
+}
+
+// Error Message Display
+.error-message {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  align-items: flex-start;
+
+  &__icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #dc2626;
+    margin: 0 0 0.5rem;
+  }
+
+  &__text {
+    font-size: 0.875rem;
+    color: #991b1b;
+    margin: 0;
+    line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+// Responsive adjustments for editor and results
+@media (max-width: 640px) {
+  .editor-wrapper {
+    height: 400px;
+  }
+
+  .results-output {
+    height: 400px;
+  }
+
+  .editor-controls {
+    padding: 0.75rem;
+  }
+
+  .results-header {
+    flex-direction: column;
+    align-items: stretch;
+
+    &__title {
+      font-size: 1.125rem;
+    }
+  }
+}

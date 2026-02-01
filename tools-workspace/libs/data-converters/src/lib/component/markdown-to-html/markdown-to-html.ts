@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -111,7 +111,10 @@ const SAMPLE_HTML = `<article>
   styleUrls: ['./markdown-to-html.scss'],
   imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
-export class MarkdownToHtmlComponent {
+export class MarkdownToHtmlComponent implements AfterViewInit {
+  @ViewChild('markdownTextarea') markdownTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('htmlTextarea') htmlTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'markdown-to-html',
@@ -192,9 +195,16 @@ export class MarkdownToHtmlComponent {
   operationHistory: HistoryEntry[] = [];
   copyStatus: CopyStatus = 'idle';
   isDragOver = false;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get selectionDescription(): string | undefined {
@@ -203,6 +213,7 @@ export class MarkdownToHtmlComponent {
 
   onMarkdownInputChange(value: string): void {
     this.markdownInput = value;
+    this.updateEditorLineNumbers();
     this.updateMetrics(value, 'Markdown');
     if (this.conversionMode === 'markdown-to-html') {
       this.conversionStatus = {
@@ -214,6 +225,7 @@ export class MarkdownToHtmlComponent {
 
   onHtmlInputChange(value: string): void {
     this.htmlInput = value;
+    this.updateEditorLineNumbers();
     this.updateMetrics(value, 'HTML');
     if (this.conversionMode === 'html-to-markdown') {
       this.conversionStatus = {
@@ -223,7 +235,28 @@ export class MarkdownToHtmlComponent {
     }
   }
 
+  onEditorScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
   convert(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (this.conversionMode === 'markdown-to-html') {
       this.convertMarkdownPipeline();
     } else {
@@ -232,6 +265,11 @@ export class MarkdownToHtmlComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -292,17 +330,41 @@ export class MarkdownToHtmlComponent {
     if (this.conversionMode === mode) {
       return;
     }
-    this.conversionMode = mode;
-    this.conversionStatus = {
-      status: 'idle',
-      message: 'Mode switched. Paste or load the relevant content before converting.'
-    };
-    this.resultOutput = '';
-    if (mode === 'markdown-to-html') {
-      this.updateMetrics(this.markdownInput, 'Markdown');
-    } else {
-      this.updateMetrics(this.htmlInput, 'HTML');
+
+    // Remove focus from dropdown to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
     }
+
+    this.conversionMode = mode;
+    this.resultOutput = '';
+    this.updateResultLineNumbers();
+
+    // Reset all options to defaults when switching modes
+    if (mode === 'markdown-to-html') {
+      this.markdownWrapParagraphs = true;
+      this.markdownConvertLineBreaks = false;
+      this.markdownEscapeHtml = true;
+      this.markdownSmartTypography = false;
+      this.updateMetrics(this.markdownInput, 'Markdown');
+      this.conversionStatus = {
+        status: 'idle',
+        message: 'Mode switched to Markdown → HTML. Paste or load Markdown content before converting.'
+      };
+    } else {
+      this.htmlBulletStyle = '-';
+      this.htmlHeadingStyle = 'atx';
+      this.htmlCollapseWhitespace = true;
+      this.htmlKeepLinks = true;
+      this.htmlCodeFence = '```';
+      this.updateMetrics(this.htmlInput, 'HTML');
+      this.conversionStatus = {
+        status: 'idle',
+        message: 'Mode switched to HTML → Markdown. Paste or load HTML content before converting.'
+      };
+    }
+
+    this.updateEditorLineNumbers();
   }
 
   toggleWrapParagraphs(): void {
@@ -368,8 +430,10 @@ export class MarkdownToHtmlComponent {
     if (!this.markdownInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste Markdown or load a sample before converting to HTML.'
+        message: 'Paste Markdown or load a sample before converting to HTML. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -382,7 +446,19 @@ export class MarkdownToHtmlComponent {
 
     try {
       const html = this.convertMarkdownToHtml(this.markdownInput, options);
+      
+      if (!html || !html.trim()) {
+        this.conversionStatus = {
+          status: 'error',
+          message: 'Conversion produced empty output. Please check your Markdown content and try again.'
+        };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
+        return;
+      }
+
       this.resultOutput = html;
+      this.updateResultLineNumbers();
       this.updateMetrics(html, 'HTML');
       this.conversionStatus = {
         status: 'success',
@@ -391,10 +467,13 @@ export class MarkdownToHtmlComponent {
       this.recordHistory('Converted Markdown to HTML');
     } catch (error) {
       console.error('Markdown conversion failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       this.conversionStatus = {
         status: 'error',
-        message: 'We could not convert the Markdown. Check the syntax and try again.'
+        message: `Markdown conversion failed: ${errorMessage}. Please check your Markdown syntax and try again.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
@@ -402,8 +481,10 @@ export class MarkdownToHtmlComponent {
     if (!this.htmlInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste HTML or load a sample before converting to Markdown.'
+        message: 'Paste HTML or load a sample before converting to Markdown. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -416,8 +497,34 @@ export class MarkdownToHtmlComponent {
     };
 
     try {
+      // Validate HTML before conversion
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(this.htmlInput, 'text/html');
+      const parserError = doc.querySelector('parsererror');
+      if (parserError) {
+        this.conversionStatus = {
+          status: 'error',
+          message: 'Invalid HTML format. The HTML could not be parsed. Please check your HTML syntax and try again.'
+        };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
+        return;
+      }
+
       const markdown = this.convertHtmlToMarkdown(this.htmlInput, options);
+      
+      if (!markdown || !markdown.trim()) {
+        this.conversionStatus = {
+          status: 'error',
+          message: 'Conversion produced empty output. Please check your HTML content and try again.'
+        };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
+        return;
+      }
+
       this.resultOutput = markdown;
+      this.updateResultLineNumbers();
       this.updateMetrics(markdown, 'Markdown');
       this.conversionStatus = {
         status: 'success',
@@ -426,10 +533,13 @@ export class MarkdownToHtmlComponent {
       this.recordHistory('Converted HTML to Markdown');
     } catch (error) {
       console.error('HTML conversion failed', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       this.conversionStatus = {
         status: 'error',
-        message: 'We could not convert the HTML. Ensure it contains valid markup.'
+        message: `HTML conversion failed: ${errorMessage}. Please ensure your HTML contains valid markup and try again.`
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
@@ -913,9 +1023,31 @@ export class MarkdownToHtmlComponent {
 
   private readFile(file: File): void {
     const name = file.name.toLowerCase();
+    
+    // Validate file type
+    if (!name.endsWith('.md') && !name.endsWith('.markdown') && !name.endsWith('.html') && !name.endsWith('.htm')) {
+      this.conversionStatus = {
+        status: 'error',
+        message: `Unsupported file type: ${file.name.split('.').pop() || 'unknown'}. Please upload .md, .markdown, .html, or .htm files.`
+      };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
+      return;
+    }
+
     file
       .text()
       .then((text) => {
+        if (!text || !text.trim()) {
+          this.conversionStatus = {
+            status: 'error',
+            message: `The file ${file.name} appears to be empty. Please upload a file with content.`
+          };
+          this.resultOutput = '';
+          this.updateResultLineNumbers();
+          return;
+        }
+
         if (name.endsWith('.md') || name.endsWith('.markdown')) {
           this.conversionMode = 'markdown-to-html';
           this.markdownInput = text;
@@ -932,18 +1064,16 @@ export class MarkdownToHtmlComponent {
             status: 'idle',
             message: `Loaded HTML file (${file.name}). Configure Markdown options and convert when ready.`
           };
-        } else {
-          this.conversionStatus = {
-            status: 'error',
-            message: 'Unsupported file type. Please upload .md, .markdown, .html, or .htm files.'
-          };
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('File read error', error);
         this.conversionStatus = {
           status: 'error',
-          message: 'We could not read the selected file. Please try again.'
+          message: `Could not read the file ${file.name}. Please check file permissions and try again.`
         };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
       });
   }
 
@@ -970,6 +1100,20 @@ export class MarkdownToHtmlComponent {
     this.htmlInput = SAMPLE_HTML;
     this.resultOutput = '';
     this.conversionMode = 'markdown-to-html';
+    
+    // Reset all options to defaults
+    this.markdownWrapParagraphs = true;
+    this.markdownConvertLineBreaks = false;
+    this.markdownEscapeHtml = true;
+    this.markdownSmartTypography = false;
+    this.htmlBulletStyle = '-';
+    this.htmlHeadingStyle = 'atx';
+    this.htmlCollapseWhitespace = true;
+    this.htmlKeepLinks = true;
+    this.htmlCodeFence = '```';
+    
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
     this.updateMetrics(this.markdownInput, 'Markdown');
     this.conversionStatus = {
       status: 'idle',
@@ -977,5 +1121,16 @@ export class MarkdownToHtmlComponent {
     };
     this.operationHistory = [];
     this.copyStatus = 'idle';
+  }
+
+  private updateEditorLineNumbers(): void {
+    const content = this.conversionMode === 'markdown-to-html' ? this.markdownInput : this.htmlInput;
+    const lines = content.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.resultOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 }

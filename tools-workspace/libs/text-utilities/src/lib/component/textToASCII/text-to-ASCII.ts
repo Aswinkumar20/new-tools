@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, ToastService } from '@tools-workspace/features-home';
+import { Navigation, ToastService, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-text-to-ascii',
@@ -25,7 +25,8 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   private convertTimer: any = null;
   private readonly DEBOUNCE_DELAY = 300; // milliseconds
 
-  constructor(private toastService: ToastService) {}
+  private readonly toastService = inject(ToastService);
+  readonly assetService = inject(AssetService);
 
 typeOptions = [
   { value: 'text', label: 'Text', description: 'Plain readable text.' },

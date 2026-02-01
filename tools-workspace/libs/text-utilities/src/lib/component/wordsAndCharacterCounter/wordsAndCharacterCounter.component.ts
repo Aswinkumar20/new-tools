@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, ToastService } from '@tools-workspace/features-home';
+import { Navigation, ToastService, AssetService } from '@tools-workspace/features-home';
 
 // Import Google Analytics Service - use optional injection to avoid errors if not available
 // In a library, we need to check if the service exists
@@ -73,7 +73,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   charLimitExceeded = false;
   
   // Toast service for notifications
-  private toastService = inject(ToastService);
+  private readonly toastService = inject(ToastService);
+  // Asset service for resolving asset paths correctly (public for template use)
+  readonly assetService = inject(AssetService);
   get charLimitLabel(): string {
     return this.charLimit === Infinity ? 'Unlimited' : String(this.charLimit);
   }

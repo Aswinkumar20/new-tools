@@ -6,9 +6,17 @@
   "sourceRoot": "apps/tools-site/src",
   "tags": [],
   "targets": {
+    "generate-sitemap": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node apps/tools-site/scripts/generate-sitemap.js",
+        "description": "Generate sitemap.xml from application routes"
+      }
+    },
     "build": {
       "executor": "@angular-devkit/build-angular:browser",
       "outputs": ["{options.outputPath}"],
+      "dependsOn": ["generate-sitemap"],
       "options": {
         "outputPath": "dist/apps/tools-site",
         "index": "apps/tools-site/src/index.html",
@@ -26,6 +34,16 @@
             "glob": "**/*",
             "input": "node_modules/monaco-editor",
             "output": "assets/monaco-editor"
+          },
+          {
+            "glob": "sitemap.xml",
+            "input": "apps/tools-site/public",
+            "output": "."
+          },
+          {
+            "glob": "robots.txt",
+            "input": "apps/tools-site/public",
+            "output": "."
           }
         ],
         "styles": ["apps/tools-site/src/styles.scss"]

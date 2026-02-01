@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-code-merge',
@@ -12,6 +12,8 @@ import { Navigation } from '@tools-workspace/features-home';
 
 })
 export class CodeMergeComponent {
+  readonly assetService = inject(AssetService);
+  
   leftBranch = '';
   rightBranch = '';
   baseLabel = 'HEAD';

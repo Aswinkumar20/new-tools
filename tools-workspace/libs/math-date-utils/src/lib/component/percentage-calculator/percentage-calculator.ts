@@ -152,6 +152,21 @@ export class PercentageCalculatorComponent implements OnDestroy {
     this.notify('History cleared.');
   }
 
+  resetToDefault(): void {
+    this.form.patchValue({
+      mode: 'percentageOf',
+      baseValue: '120',
+      percentageValue: '20',
+      resultValue: '24',
+      increaseDecreaseValue: '15',
+      decimalPlaces: 2,
+      showSteps: true,
+      roundResult: false,
+      includeDifference: true
+    }, { emitEvent: true });
+    this.notify('Reset to default values.');
+  }
+
   restoreHistory(entry: CalculationHistory): void {
     this.form.patchValue(
       {

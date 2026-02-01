@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-slug-generator',
@@ -11,6 +11,8 @@ import { Navigation } from '@tools-workspace/features-home';
   imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
 })
 export class SlugGeneratorComponent {
+  readonly assetService = inject(AssetService);
+  
   inputText: string = '';
   slug: string = '';
   separator: string = '-';

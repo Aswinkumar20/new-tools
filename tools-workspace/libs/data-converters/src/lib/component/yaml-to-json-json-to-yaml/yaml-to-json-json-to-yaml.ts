@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -54,7 +54,10 @@ const SAMPLE_JSON = `{
   styleUrls: ['./yaml-to-json-json-to-yaml.scss'],
   imports: [CommonModule, NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault, FormsModule, NavigationComponent]
 })
-export class YamlToJsonJsonToYamlComponent {
+export class YamlToJsonJsonToYamlComponent implements AfterViewInit {
+  @ViewChild('yamlTextarea') yamlTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'yaml-to-json',
@@ -100,9 +103,16 @@ export class YamlToJsonJsonToYamlComponent {
 
   copyStatus: 'idle' | 'success' | 'error' = 'idle';
   isDragOver = false;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get modeDescription(): string | undefined {
@@ -113,13 +123,41 @@ export class YamlToJsonJsonToYamlComponent {
     if (this.conversionMode === mode) {
       return;
     }
+
+    // Remove focus from dropdown to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // Update mode first
     this.conversionMode = mode;
+
+    // Reset all inputs
+    this.yamlInput = '';
+    this.jsonInput = '';
+    this.resultOutput = '';
+
+    // Reset metrics according to new mode
+    this.metrics = {
+      lines: 0,
+      sizeLabel: '0 B',
+      selection: mode === 'yaml-to-json' ? 'YAML' : 'JSON'
+    };
+
+    // Reset operation history
+    this.operationHistory = [];
+
+    // Reset copy status
+    this.copyStatus = 'idle';
+
+    // Load sample data according to the new mode (this will set status and update line numbers)
     this.loadSample();
   }
 
   onYamlInputChange(value: string): void {
     this.yamlInput = value;
     this.updateMetrics(value, 'YAML');
+    this.updateEditorLineNumbers();
     if (this.conversionMode === 'yaml-to-json') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert YAML into JSON.' };
     }
@@ -128,8 +166,25 @@ export class YamlToJsonJsonToYamlComponent {
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
     this.updateMetrics(value, 'JSON');
+    this.updateEditorLineNumbers();
     if (this.conversionMode === 'json-to-yaml') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert JSON into YAML.' };
+    }
+  }
+
+  onEditorScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
     }
   }
 
@@ -154,6 +209,11 @@ export class YamlToJsonJsonToYamlComponent {
   }
 
   convert(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.conversionStatus = { status: 'idle', message: 'Converting…' };
     if (this.conversionMode === 'yaml-to-json') {
       this.handleYamlToJson();
@@ -163,6 +223,11 @@ export class YamlToJsonJsonToYamlComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -256,8 +321,10 @@ export class YamlToJsonJsonToYamlComponent {
     if (!this.yamlInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste or upload YAML content to convert it into JSON.'
+        message: 'Paste or upload YAML content to convert it into JSON. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -265,6 +332,7 @@ export class YamlToJsonJsonToYamlComponent {
       const parsed = this.parseYaml(this.yamlInput);
       const sorted = this.jsonSortKeys ? this.sortObject(parsed) : parsed;
       this.resultOutput = JSON.stringify(sorted, null, this.jsonPrettyPrint ? 2 : undefined);
+      this.updateResultLineNumbers();
       this.metrics = {
         lines: this.resultOutput.split(/\r?\n/).length,
         sizeLabel: this.formatBytes(new Blob([this.resultOutput]).size),
@@ -276,12 +344,13 @@ export class YamlToJsonJsonToYamlComponent {
       };
       this.recordHistory('Converted YAML to JSON');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to parse YAML. Check indentation or syntax.';
       this.conversionStatus = {
         status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Unable to parse YAML. Check indentation or syntax.'
+        message: `YAML Parse Error: ${errorMessage}. Please check your YAML syntax, indentation, and try again.`
       };
       this.resultOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
@@ -289,8 +358,10 @@ export class YamlToJsonJsonToYamlComponent {
     if (!this.jsonInput.trim()) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste or upload JSON content to convert it into YAML.'
+        message: 'Paste or upload JSON content to convert it into YAML. The input field is empty.'
       };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -298,11 +369,13 @@ export class YamlToJsonJsonToYamlComponent {
     try {
       parsed = JSON.parse(this.jsonInput);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to parse JSON input.';
       this.conversionStatus = {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unable to parse JSON. Check syntax.'
+        message: `JSON Parse Error: ${errorMessage}. Please check your JSON syntax and try again.`
       };
       this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -312,6 +385,7 @@ export class YamlToJsonJsonToYamlComponent {
 
     try {
       this.resultOutput = this.stringifyToYaml(parsed, 0);
+      this.updateResultLineNumbers();
       this.metrics = {
         lines: this.resultOutput.split(/\r?\n/).length,
         sizeLabel: this.formatBytes(new Blob([this.resultOutput]).size),
@@ -323,12 +397,13 @@ export class YamlToJsonJsonToYamlComponent {
       };
       this.recordHistory('Converted JSON to YAML');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to serialize JSON into YAML.';
       this.conversionStatus = {
         status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Unable to serialize JSON into YAML.'
+        message: `YAML Generation Error: ${errorMessage}. Please ensure your JSON structure is valid.`
       };
       this.resultOutput = '';
+      this.updateResultLineNumbers();
     }
   }
 
@@ -631,6 +706,7 @@ export class YamlToJsonJsonToYamlComponent {
           this.conversionMode = 'yaml-to-json';
           this.yamlInput = text;
           this.updateMetrics(text, 'YAML');
+          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded YAML file (${file.name}). Ready to convert.`
@@ -639,6 +715,7 @@ export class YamlToJsonJsonToYamlComponent {
           this.conversionMode = 'json-to-yaml';
           this.jsonInput = text;
           this.updateMetrics(text, 'JSON');
+          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded JSON file (${file.name}). Ready to convert.`
@@ -664,6 +741,8 @@ export class YamlToJsonJsonToYamlComponent {
       this.jsonInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.yamlInput, 'YAML');
+      this.updateEditorLineNumbers();
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample YAML loaded. Adjust options and convert when ready.'
@@ -673,6 +752,8 @@ export class YamlToJsonJsonToYamlComponent {
       this.yamlInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.jsonInput, 'JSON');
+      this.updateEditorLineNumbers();
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample JSON loaded. Adjust options and convert when ready.'
@@ -680,5 +761,16 @@ export class YamlToJsonJsonToYamlComponent {
     }
     this.operationHistory = [];
     this.copyStatus = 'idle';
+  }
+
+  private updateEditorLineNumbers(): void {
+    const currentInput = this.conversionMode === 'yaml-to-json' ? this.yamlInput : this.jsonInput;
+    const lines = currentInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.resultOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 }

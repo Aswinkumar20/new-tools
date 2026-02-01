@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NavigationComponent } from '@tools-workspace/features-home';
@@ -78,7 +78,9 @@ const SAMPLE_JSON = `{
   styleUrls: ['./json-linter-viewer.scss'],
   imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
 })
-export class JsonLinterViewerComponent {
+export class JsonLinterViewerComponent implements AfterViewInit {
+  @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   readonly indentOptions = [2, 4, 6];
   readonly sampleJson = SAMPLE_JSON;
   readonly heroHighlights = [
@@ -122,9 +124,16 @@ export class JsonLinterViewerComponent {
 
   copyStatus: CopyStatus = 'idle';
   isDragOver = false;
+  editorLines: number[] = [];
+  resultLines: number[] = [];
 
   constructor() {
     this.loadSample();
+  }
+
+  ngAfterViewInit(): void {
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
   }
 
   get previewLabel(): string {
@@ -133,13 +142,31 @@ export class JsonLinterViewerComponent {
 
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
+    this.updateEditorLineNumbers();
     this.updateMetrics(value, 'JSON input');
     this.resultOutput = '';
+    this.updateResultLineNumbers();
     this.diagnostics = [];
     this.conversionStatus = {
       status: 'idle',
       message: 'Ready to lint the provided JSON.'
     };
+  }
+
+  onEditorScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  onResultsScroll(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    if (lineNumbers) {
+      lineNumbers.scrollTop = target.scrollTop;
+    }
   }
 
   onIndentChange(size: number): void {
@@ -163,17 +190,28 @@ export class JsonLinterViewerComponent {
     if (this.resultOutput) {
       this.rebuildPreviewFromLastResult();
     }
+    // Remove focus from select to prevent tooltip persistence
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   }
 
   validateJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (!this.jsonInput.trim().length) {
       this.conversionStatus = {
         status: 'error',
-        message: 'Paste JSON or load the sample before validating.'
+        message: 'Paste JSON or load the sample before validating. The input field is empty.'
       };
       this.diagnostics = [
         this.createDiagnostic('error', 'No JSON supplied. Paste content to lint it.')
       ];
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
       return;
     }
 
@@ -204,6 +242,7 @@ export class JsonLinterViewerComponent {
       const jsonValue = JSON.parse(parseSource);
       const normalized = this.prepareResult(jsonValue);
       this.resultOutput = normalized;
+      this.updateResultLineNumbers();
       this.updateMetrics(this.resultOutput, this.previewLabel);
       this.conversionStatus = {
         status: 'success',
@@ -216,29 +255,37 @@ export class JsonLinterViewerComponent {
     } catch (error) {
       const diagnostic = this.createErrorDiagnostic(error, parseSource);
       this.resultOutput = '';
+      this.updateResultLineNumbers();
       this.updateMetrics(this.jsonInput, 'JSON input');
       this.conversionStatus = {
         status: 'error',
-        message: diagnostic.message
+        message: `JSON Parse Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
       };
       this.diagnostics.unshift(diagnostic);
     }
   }
 
   formatJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     const parseResult = this.tryParseJson();
     if (!parseResult.success) {
       this.diagnostics = [parseResult.diagnostic];
       this.resultOutput = '';
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'error',
-        message: parseResult.diagnostic.message
+        message: `Format Error: ${parseResult.diagnostic.message}. Please fix the JSON syntax before formatting.`
       };
       return;
     }
 
     const normalized = this.prepareResult(parseResult.value);
     this.resultOutput = normalized;
+    this.updateResultLineNumbers();
     this.updateMetrics(this.resultOutput, this.previewLabel);
     this.conversionStatus = {
       status: 'success',
@@ -256,13 +303,19 @@ export class JsonLinterViewerComponent {
   }
 
   minifyJson(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     const parseResult = this.tryParseJson();
     if (!parseResult.success) {
       this.diagnostics = [parseResult.diagnostic];
       this.resultOutput = '';
+      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'error',
-        message: parseResult.diagnostic.message
+        message: `Minify Error: ${parseResult.diagnostic.message}. Please fix the JSON syntax before minifying.`
       };
       return;
     }
@@ -271,6 +324,7 @@ export class JsonLinterViewerComponent {
     const minified = JSON.stringify(sorted);
     this.resultOutput = minified;
     this.autoPreviewMode = 'minified';
+    this.updateResultLineNumbers();
     this.updateMetrics(this.resultOutput, 'Minified JSON');
     this.conversionStatus = {
       status: 'success',
@@ -288,6 +342,11 @@ export class JsonLinterViewerComponent {
   }
 
   resetWorkspace(): void {
+    // Remove focus from button to prevent tooltip persistence after click
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     this.loadSample();
   }
 
@@ -413,6 +472,7 @@ export class JsonLinterViewerComponent {
     }
     const rebuilt = this.prepareResult(parseAttempt.value);
     this.resultOutput = rebuilt;
+    this.updateResultLineNumbers();
     const selection = this.autoPreviewMode === 'minified' ? 'Minified JSON' : 'Formatted JSON';
     this.updateMetrics(rebuilt, selection);
   }
@@ -613,9 +673,37 @@ export class JsonLinterViewerComponent {
 
   private readFile(file: File): void {
     const fileName = file.name.toLowerCase();
+    
+    // Validate file type
+    if (!fileName.endsWith('.json') && !file.type.includes('json')) {
+      this.conversionStatus = {
+        status: 'error',
+        message: `Unsupported file type: ${file.name.split('.').pop() || 'unknown'}. Only JSON files are supported.`
+      };
+      this.resultOutput = '';
+      this.updateResultLineNumbers();
+      this.diagnostics = [
+        this.createDiagnostic('error', `Unsupported file type: ${file.name}. Please upload a .json file.`)
+      ];
+      return;
+    }
+
     file
       .text()
       .then((text) => {
+        if (!text || !text.trim()) {
+          this.conversionStatus = {
+            status: 'error',
+            message: `The file ${file.name} appears to be empty. Please upload a file with JSON content.`
+          };
+          this.resultOutput = '';
+          this.updateResultLineNumbers();
+          this.diagnostics = [
+            this.createDiagnostic('error', `File ${file.name} is empty. Please upload a file with JSON content.`)
+          ];
+          return;
+        }
+
         this.jsonInput = text;
         this.onJsonInputChange(text);
         this.conversionStatus = {
@@ -623,11 +711,17 @@ export class JsonLinterViewerComponent {
           message: `Loaded ${file.name}. Ready to lint the content.`
         };
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('File read error', error);
         this.conversionStatus = {
           status: 'error',
-          message: 'Could not read the selected file. Please try again.'
+          message: `Could not read the file ${file.name}. Please check file permissions and try again.`
         };
+        this.resultOutput = '';
+        this.updateResultLineNumbers();
+        this.diagnostics = [
+          this.createDiagnostic('error', `File read error: Could not read ${file.name}. Please check file permissions.`)
+        ];
       });
   }
 
@@ -660,11 +754,23 @@ export class JsonLinterViewerComponent {
     this.diagnostics = [];
     this.copyStatus = 'idle';
     this.operationHistory = [];
+    this.updateEditorLineNumbers();
+    this.updateResultLineNumbers();
     this.updateMetrics(this.jsonInput, 'JSON input');
     this.conversionStatus = {
       status: 'idle',
       message: 'Sample JSON loaded. Validate to view lint diagnostics.'
     };
+  }
+
+  private updateEditorLineNumbers(): void {
+    const lines = this.jsonInput.split(/\r?\n/).length;
+    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+  }
+
+  private updateResultLineNumbers(): void {
+    const lines = this.resultOutput.split(/\r?\n/).length;
+    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
   }
 
   private createDiagnosticId(): string {

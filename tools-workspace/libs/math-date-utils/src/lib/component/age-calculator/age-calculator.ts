@@ -116,6 +116,21 @@ export class AgeCalculatorComponent implements OnDestroy {
     this.notify('History cleared.');
   }
 
+  resetToDefault(): void {
+    this.form.patchValue({
+      birthDate: '1995-05-12',
+      comparisonDate: 'today',
+      anchor: 'now',
+      includeTime: false,
+      birthTime: '00:00',
+      comparisonTime: '00:00',
+      showTimeline: true,
+      includeZodiac: true,
+      includeMilestones: true
+    }, { emitEvent: true });
+    this.notify('Reset to default values.');
+  }
+
   restoreHistory(entry: AgeHistory): void {
     this.form.patchValue(
       {
