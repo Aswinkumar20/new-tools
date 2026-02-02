@@ -1,237 +1,274 @@
 <div class="hee">
-  <div class="hee__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="hee__hero">
-    <div class="hee__badge">Code toolkit</div>
-    <h1>HTML Entity Encoder</h1>
-    <p>
-      Encode and decode HTML entities instantly. Convert special characters to HTML entities for safe embedding in
-      HTML, or decode entities back to their original characters. Supports named, numeric, and hexadecimal entity formats.
-    </p>
+  <section class="hee__workspace">
+    <div class="hee__hero">
+      <h1 class="hee__hero-title">HTML Entity Encoder</h1>
+      <p class="hee__hero-subtitle">
+        Encode and decode HTML entities instantly. Convert special characters to HTML entities for safe embedding in
+        HTML, or decode entities back to their original characters. Supports named, numeric, and hexadecimal entity formats.
+      </p>
+    </div>
 
-    @if (hasOutput()) {
-      <div class="hee__hero-meta">
-        <div>
-          <span class="hee__meta-label">Input size</span>
-          <strong>{{ inputText().length }} chars</strong>
-        </div>
-        <div>
-          <span class="hee__meta-label">Output size</span>
-          <strong>{{ outputText().length }} chars</strong>
-        </div>
-        <div>
-          <span class="hee__meta-label">Mode</span>
-          <strong>{{ mode() === 'encode' ? 'Encode' : 'Decode' }}</strong>
+    <div class="hee__workspace-layout">
+      <div class="hee__workspace-main">
+        <div class="hee__workspace-card">
+          <div class="hee__workspace-panel">
+            <div class="hee__converter-header">
+              <div class="hee__converter-header-content">
+                <h2 class="hee__converter-title">HTML Entity Encoder</h2>
+                <p class="hee__converter-subtitle">Encode or decode HTML entities. Conversion happens automatically as you type.</p>
+              </div>
+              <div class="hee__converter-header-actions">
+                <button type="button" class="hee__btn-icon" aria-label="Clear all" (click)="clear()" [attr.data-tooltip]="'Clear all'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="hee__converter-metrics">
+              <div class="hee__metric">
+                <span class="hee__metric-label">INPUT:</span>
+                <span class="hee__metric-value">{{ inputText().length > 0 ? inputText().length + ' chars' : 'Empty' }}</span>
+              </div>
+              <div class="hee__metric">
+                <span class="hee__metric-label">OUTPUT:</span>
+                <span class="hee__metric-value">{{ hasOutput() ? outputText().length + ' chars' : '—' }}</span>
+              </div>
+              <div class="hee__metric">
+                <span class="hee__metric-label">MODE:</span>
+                <span class="hee__metric-value">{{ mode() === 'encode' ? 'Encode' : 'Decode' }}</span>
+              </div>
+              <div class="hee__metric">
+                <span class="hee__metric-label">HISTORY:</span>
+                <span class="hee__metric-value">{{ history().length }}</span>
+              </div>
+            </div>
+
+            <div class="hee__conversion-form">
+              <div class="hee__mode-section">
+                <label class="hee__form-label">Conversion Mode</label>
+                <div class="hee__mode-switcher" role="radiogroup" aria-label="Conversion mode">
+                  <button
+                    type="button"
+                    class="hee__mode-chip"
+                    [class.hee__mode-chip--active]="mode() === 'encode'"
+                    (click)="selectMode('encode')"
+                    [attr.aria-pressed]="mode() === 'encode'"
+                  >
+                    Encode
+                  </button>
+                  <button
+                    type="button"
+                    class="hee__mode-chip"
+                    [class.hee__mode-chip--active]="mode() === 'decode'"
+                    (click)="selectMode('decode')"
+                    [attr.aria-pressed]="mode() === 'decode'"
+                  >
+                    Decode
+                  </button>
+                </div>
+              </div>
+
+              @if (mode() === 'encode') {
+                <div class="hee__encoding-section">
+                  <label class="hee__form-label">Encoding Format</label>
+                  <div class="hee__encoding-buttons">
+                    <button
+                      type="button"
+                      class="hee__encoding-btn"
+                      [class.hee__encoding-btn--active]="encodingMode() === 'named'"
+                      (click)="selectEncodingMode('named')"
+                    >
+                      Named
+                    </button>
+                    <button
+                      type="button"
+                      class="hee__encoding-btn"
+                      [class.hee__encoding-btn--active]="encodingMode() === 'numeric'"
+                      (click)="selectEncodingMode('numeric')"
+                    >
+                      Numeric
+                    </button>
+                    <button
+                      type="button"
+                      class="hee__encoding-btn"
+                      [class.hee__encoding-btn--active]="encodingMode() === 'hex'"
+                      (click)="selectEncodingMode('hex')"
+                    >
+                      Hex
+                    </button>
+                    <button
+                      type="button"
+                      class="hee__encoding-btn"
+                      [class.hee__encoding-btn--active]="encodingMode() === 'all'"
+                      (click)="selectEncodingMode('all')"
+                    >
+                      All
+                    </button>
+                  </div>
+                  <p class="hee__encoding-hint">
+                    @if (encodingMode() === 'named') {
+                      Uses named entities like &amp;lt; and &amp;quot;
+                    } @else if (encodingMode() === 'numeric') {
+                      Uses numeric entities like &#38;#60; and &#38;#34;
+                    } @else if (encodingMode() === 'hex') {
+                      Uses hexadecimal entities like &#38;#x3C; and &#38;#x22;
+                    } @else {
+                      Uses all available entity formats
+                    }
+                  </p>
+                </div>
+              }
+
+              @if (errors().length) {
+                <div class="hee__conversion-status">
+                  <div class="hee__status-message hee__status-message--error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <ul>
+                      @for (message of errors(); track message) {
+                        <li>{{ message }}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+
+              <div class="hee__input-group">
+                <div class="hee__input-header">
+                  <label class="hee__form-label" for="hee-input">{{ mode() === 'encode' ? 'Input Text' : 'Encoded Text' }}</label>
+                  <div class="hee__input-actions">
+                    <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
+                    <button
+                      type="button"
+                      class="btn btn--primary btn--small"
+                      (click)="copyToClipboard(inputText(), 'Input')"
+                      [disabled]="!inputText()"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div class="hee__editor-container">
+                  <textarea
+                    id="hee-input"
+                    class="hee__editor"
+                    [value]="inputText()"
+                    (input)="onInputChange($any($event.target).value)"
+                    [placeholder]="mode() === 'encode' ? 'Enter text to encode...' : 'Enter HTML entities to decode...'"
+                    spellcheck="false"
+                  ></textarea>
+                </div>
+                <div class="hee__input-stats">
+                  <span>{{ inputText().length }} characters</span>
+                  <span>{{ inputText().split('\n').length }} lines</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    } @else {
-      <div class="hee__hero-meta hee__hero-meta--placeholder">
-        Enter text to encode or decode HTML entities. Switch between modes to convert in both directions.
-      </div>
-    }
-  </section>
 
-  <div class="hee__board">
-    <section class="hee__panel hee__panel--controls">
-      <header class="hee__card-header">
-        <div>
-          <h2>Conversion mode</h2>
-          <p>Select encode or decode mode.</p>
-        </div>
-      </header>
-
-      @if (errors().length) {
-        <div class="hee__alert hee__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
+      <div class="hee__workspace-secondary">
+        <div class="hee__output-card">
+          <div class="hee__card-header">
+            <h3 class="hee__card-title">{{ mode() === 'encode' ? 'Encoded Output' : 'Decoded Output' }}</h3>
+            @if (hasOutput()) {
+              <div class="hee__card-actions">
+                <button
+                  type="button"
+                  class="btn btn--primary btn--small"
+                  (click)="copyToClipboard(outputText(), 'Output')"
+                  [disabled]="!outputText()"
+                >
+                  Copy
+                </button>
+                @if (hasOutput()) {
+                  <button type="button" class="btn btn--ghost btn--small" (click)="swapInputOutput()">Swap</button>
+                }
+              </div>
             }
-          </ul>
+          </div>
+          @if (hasOutput()) {
+            <div class="hee__editor-container">
+              <textarea class="hee__editor hee__editor--output" [value]="outputText()" readonly spellcheck="false"></textarea>
+            </div>
+            <div class="hee__output-stats">
+              <span>{{ outputText().length }} characters</span>
+              <span>{{ outputText().split('\n').length }} lines</span>
+            </div>
+          } @else {
+            <div class="hee__empty">Enter text to see {{ mode() === 'encode' ? 'encoded' : 'decoded' }} output here.</div>
+          }
         </div>
-      }
 
-      <div class="hee__mode-switcher" role="radiogroup" aria-label="Conversion mode">
-        <button
-          type="button"
-          class="hee__mode-chip"
-          [class.hee__mode-chip--active]="mode() === 'encode'"
-          (click)="selectMode('encode')"
-          [attr.aria-pressed]="mode() === 'encode'"
-        >
-          Encode
-        </button>
-        <button
-          type="button"
-          class="hee__mode-chip"
-          [class.hee__mode-chip--active]="mode() === 'decode'"
-          (click)="selectMode('decode')"
-          [attr.aria-pressed]="mode() === 'decode'"
-        >
-          Decode
-        </button>
-      </div>
+        <div class="hee__insights-card">
+          <div class="hee__card-header">
+            <h3 class="hee__card-title">Conversion Insights</h3>
+          </div>
+          <div class="hee__insights-grid">
+            <div class="hee__insight-item">
+              <span class="hee__insight-label">Recent Conversions</span>
+              <strong class="hee__insight-value">{{ history().length }}</strong>
+              <small class="hee__insight-meta">Stored locally</small>
+            </div>
+            <div class="hee__insight-item">
+              <span class="hee__insight-label">Current Mode</span>
+              <strong class="hee__insight-value">{{ mode() === 'encode' ? 'Encode' : 'Decode' }}</strong>
+              <small class="hee__insight-meta">{{ mode() === 'encode' ? encodingMode() : 'Auto-detect' }}</small>
+            </div>
+            <div class="hee__insight-item">
+              <span class="hee__insight-label">Output Size</span>
+              <strong class="hee__insight-value">{{ hasOutput() ? outputText().length + ' chars' : '—' }}</strong>
+              <small class="hee__insight-meta">{{ hasOutput() ? inputText().length + ' input' : 'No output' }}</small>
+            </div>
+          </div>
+        </div>
 
-      @if (mode() === 'encode') {
-        <div class="hee__encoding-options">
-          <h3>Encoding format</h3>
-          <div class="hee__encoding-buttons">
-            <button
-              type="button"
-              class="hee__encoding-btn"
-              [class.hee__encoding-btn--active]="encodingMode() === 'named'"
-              (click)="selectEncodingMode('named')"
-            >
-              Named
-            </button>
-            <button
-              type="button"
-              class="hee__encoding-btn"
-              [class.hee__encoding-btn--active]="encodingMode() === 'numeric'"
-              (click)="selectEncodingMode('numeric')"
-            >
-              Numeric
-            </button>
-            <button
-              type="button"
-              class="hee__encoding-btn"
-              [class.hee__encoding-btn--active]="encodingMode() === 'hex'"
-              (click)="selectEncodingMode('hex')"
-            >
-              Hex
-            </button>
-            <button
-              type="button"
-              class="hee__encoding-btn"
-              [class.hee__encoding-btn--active]="encodingMode() === 'all'"
-              (click)="selectEncodingMode('all')"
-            >
-              All
+        <div class="hee__history-card">
+          <div class="hee__card-header">
+            <h3 class="hee__card-title">History & Presets</h3>
+            <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+              Clear
             </button>
           </div>
-          <p class="hee__encoding-hint">
-            @if (encodingMode() === 'named') {
-              Uses named entities like &amp;lt; and &amp;quot;
-            } @else if (encodingMode() === 'numeric') {
-              Uses numeric entities like &#38;#60; and &#38;#34;
-            } @else if (encodingMode() === 'hex') {
-              Uses hexadecimal entities like &#38;#x3C; and &#38;#x22;
-            } @else {
-              Uses all available entity formats
-            }
-          </p>
+          <div class="hee__history-list-wrapper">
+            <ul class="hee__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li class="hee__history-item">
+                  <button type="button" (click)="applyHistory(entry)" class="hee__history-button">
+                    <div class="hee__history-badge" [class.hee__history-badge--encode]="entry.mode === 'encode'">
+                      {{ entry.mode === 'encode' ? 'Encode' : 'Decode' }}
+                    </div>
+                    <div class="hee__history-info">
+                      <strong>{{ entry.input.substring(0, 40) }}{{ entry.input.length > 40 ? '...' : '' }}</strong>
+                      <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--small"
+                    (click)="removeHistoryEntry(entry.timestamp)"
+                  >
+                    Remove
+                  </button>
+                </li>
+              }
+              @if (history().length === 0) {
+                <li class="hee__history-empty">No conversion history yet. Start encoding or decoding to build history.</li>
+              }
+            </ul>
+          </div>
         </div>
-      }
-
-      <div class="hee__actions">
-        <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
-        @if (hasOutput()) {
-          <button type="button" class="btn btn--ghost btn--small" (click)="swapInputOutput()">Swap</button>
-        }
       </div>
-    </section>
-
-    <section class="hee__panel hee__panel--input">
-      <header class="hee__card-header">
-        <div>
-          <h2>{{ mode() === 'encode' ? 'Input text' : 'Encoded text' }}</h2>
-          <p>{{ mode() === 'encode' ? 'Enter text to encode' : 'Enter HTML entities to decode' }}</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--primary btn--small"
-          (click)="copyToClipboard(inputText(), 'Input')"
-          [disabled]="!inputText()"
-        >
-          Copy
-        </button>
-      </header>
-
-      <div class="hee__editor-container">
-        <textarea
-          class="hee__editor"
-          [value]="inputText()"
-          (input)="onInputChange($any($event.target).value)"
-          placeholder="{{ mode() === 'encode' ? 'Enter text to encode...' : 'Enter HTML entities to decode...' }}"
-          spellcheck="false"
-        ></textarea>
-      </div>
-
-      <div class="hee__input-stats">
-        <span>{{ inputText().length }} characters</span>
-        <span>{{ inputText().split('\n').length }} lines</span>
-      </div>
-    </section>
-
-    <section class="hee__panel hee__panel--output">
-      <header class="hee__card-header">
-        <div>
-          <h2>{{ mode() === 'encode' ? 'Encoded output' : 'Decoded output' }}</h2>
-          <p>{{ mode() === 'encode' ? 'HTML entities' : 'Decoded text' }}</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--primary btn--small"
-          (click)="copyToClipboard(outputText(), 'Output')"
-          [disabled]="!outputText()"
-        >
-          Copy
-        </button>
-      </header>
-
-      @if (hasOutput()) {
-        <div class="hee__editor-container">
-          <textarea class="hee__editor hee__editor--output" [value]="outputText()" readonly spellcheck="false"></textarea>
-        </div>
-
-        <div class="hee__output-stats">
-          <span>{{ outputText().length }} characters</span>
-          <span>{{ outputText().split('\n').length }} lines</span>
-        </div>
-      } @else {
-        <div class="hee__empty">Enter text to see {{ mode() === 'encode' ? 'encoded' : 'decoded' }} output here.</div>
-      }
-    </section>
-
-    <section class="hee__panel hee__panel--history">
-      <header class="hee__card-header">
-        <div>
-          <h2>Conversion history</h2>
-          <p>Quick access to recent conversions.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="hee__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="hee__history-item">
-                <div class="hee__history-badge" [class.hee__history-badge--encode]="entry.mode === 'encode'">
-                  {{ entry.mode === 'encode' ? 'Encode' : 'Decode' }}
-                </div>
-                <div class="hee__history-info">
-                  <strong>{{ entry.input.substring(0, 40) }}{{ entry.input.length > 40 ? '...' : '' }}</strong>
-                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="hee__empty">No conversion history yet. Start encoding or decoding to build history.</div>
-      }
-    </section>
-  </div>
+    </div>
+  </section>
 </div>

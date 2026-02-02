@@ -1,258 +1,291 @@
 <div class="cv">
-  <div class="cv__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+  <lib-navigation></lib-navigation>
 
-  <section class="cv__hero">
-    <div class="cv__badge">Utility toolkit</div>
-    <h1>Clipboard Viewer</h1>
-    <p>
-      View your clipboard contents in real-time. Automatically refresh to see the latest clipboard content, view
-      metadata, and copy or download the content. Perfect for monitoring clipboard activity.
-    </p>
+  <section class="cv__workspace">
+    <div class="cv__hero">
+      <h1 class="cv__hero-title">Clipboard Viewer</h1>
+      <p class="cv__hero-subtitle">
+        View your clipboard contents in real-time. Automatically refresh to see the latest clipboard content, view
+        metadata, and copy or download the content. Perfect for monitoring clipboard activity.
+      </p>
+    </div>
 
-    @if (hasContent()) {
-      @let content = clipboardContent()!;
-      <div class="cv__hero-meta">
-        <div>
-          <span class="cv__meta-label">Type</span>
-          <strong>{{ content.type.charAt(0).toUpperCase() + content.type.slice(1) }}</strong>
-        </div>
-        <div>
-          <span class="cv__meta-label">Size</span>
-          <strong>{{ formatBytes(content.length) }}</strong>
-        </div>
-        <div>
-          <span class="cv__meta-label">Characters</span>
-          <strong>{{ content.metadata.characters }}</strong>
-        </div>
-        @if (lastUpdate()) {
-          <div>
-            <span class="cv__meta-label">Last updated</span>
-            <strong>{{ formatTimestamp(lastUpdate()!) }}</strong>
+    <div class="cv__workspace-layout" [formGroup]="form">
+      <div class="cv__workspace-main">
+        <div class="cv__workspace-card">
+          <div class="cv__workspace-panel">
+            <div class="cv__converter-header">
+              <div class="cv__converter-header-content">
+                <h2 class="cv__converter-title">Clipboard Viewer</h2>
+                <p class="cv__converter-subtitle">View and monitor your clipboard contents in real-time.</p>
+              </div>
+              <div class="cv__converter-header-actions">
+                <button type="button" class="cv__btn-icon" aria-label="Clear" (click)="clearContent()" [attr.data-tooltip]="'Clear'">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="cv__converter-metrics">
+              <div class="cv__metric">
+                <span class="cv__metric-label">TYPE:</span>
+                <span class="cv__metric-value">{{ hasContent() ? clipboardContent()!.type.charAt(0).toUpperCase() + clipboardContent()!.type.slice(1) : '—' }}</span>
+              </div>
+              <div class="cv__metric">
+                <span class="cv__metric-label">SIZE:</span>
+                <span class="cv__metric-value">{{ hasContent() ? formatBytes(clipboardContent()!.length) : '—' }}</span>
+              </div>
+              <div class="cv__metric">
+                <span class="cv__metric-label">CHARACTERS:</span>
+                <span class="cv__metric-value">{{ hasContent() ? clipboardContent()!.metadata.characters : '—' }}</span>
+              </div>
+              <div class="cv__metric">
+                <span class="cv__metric-label">STATUS:</span>
+                <span class="cv__metric-value">{{ isRefreshing() ? 'Refreshing' : hasContent() ? 'Ready' : 'Waiting' }}</span>
+              </div>
+            </div>
+
+            <div class="cv__conversion-form">
+              @if (errors().length) {
+                <div class="cv__conversion-status">
+                  <div class="cv__status-message cv__status-message--error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <ul>
+                      @for (message of errors(); track message) {
+                        <li>{{ message }}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+
+              @if (warnings().length) {
+                <div class="cv__conversion-status">
+                  <div class="cv__status-message cv__status-message--warning">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <ul>
+                      @for (message of warnings(); track message) {
+                        <li>{{ message }}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+
+              @if (!clipboardSupported()) {
+                <div class="cv__conversion-status">
+                  <div class="cv__status-message cv__status-message--warning">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <p>Clipboard API is not available in this browser. Some features may be limited.</p>
+                  </div>
+                </div>
+              }
+
+              <div class="cv__settings-section">
+                <label class="cv__form-label">Settings</label>
+                <div class="cv__settings-grid">
+                  <label class="cv__toggle">
+                    <input type="checkbox" formControlName="autoRefresh" />
+                    <div>
+                      <strong>Auto-refresh</strong>
+                      <span>Automatically refresh clipboard content</span>
+                    </div>
+                  </label>
+
+                  <label class="cv__input">
+                    <span>Refresh interval (ms)</span>
+                    <input
+                      type="number"
+                      min="100"
+                      max="10000"
+                      step="100"
+                      formControlName="refreshInterval"
+                      [disabled]="!form.controls.autoRefresh.value"
+                    />
+                    <small>How often to check clipboard (100-10000ms)</small>
+                  </label>
+
+                  <label class="cv__toggle">
+                    <input type="checkbox" formControlName="showMetadata" />
+                    <div>
+                      <strong>Show metadata</strong>
+                      <span>Display content statistics and information</span>
+                    </div>
+                  </label>
+
+                  <label class="cv__toggle">
+                    <input type="checkbox" formControlName="wordWrap" />
+                    <div>
+                      <strong>Word wrap</strong>
+                      <span>Wrap long lines in the content viewer</span>
+                    </div>
+                  </label>
+
+                  <label class="cv__input">
+                    <span>Font size</span>
+                    <input type="number" min="10" max="24" formControlName="fontSize" />
+                    <small>Font size for content display (10-24px)</small>
+                  </label>
+                </div>
+              </div>
+
+              <div class="cv__actions">
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  (click)="readClipboard()"
+                  [disabled]="!clipboardSupported() || isRefreshing()"
+                >
+                  @if (isRefreshing()) {
+                    Refreshing...
+                  } @else {
+                    Read clipboard
+                  }
+                </button>
+              </div>
+            </div>
           </div>
-        }
-      </div>
-    } @else {
-      <div class="cv__hero-meta cv__hero-meta--placeholder">
-        @if (clipboardSupported()) {
-          Click "Read Clipboard" to view current clipboard contents, or enable auto-refresh for real-time monitoring.
-        } @else {
-          Clipboard API is not supported in this browser. Please use a modern browser.
-        }
-      </div>
-    }
-  </section>
-
-  <div class="cv__board" [formGroup]="form">
-    <section class="cv__panel cv__panel--settings">
-      <header class="cv__card-header">
-        <div>
-          <h2>Settings</h2>
-          <p>Configure clipboard viewing options.</p>
         </div>
-      </header>
+      </div>
 
-      @if (errors().length) {
-        <div class="cv__alert cv__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
+      <div class="cv__workspace-secondary">
+        <div class="cv__content-card">
+          <div class="cv__card-header">
+            <h3 class="cv__card-title">Clipboard Content</h3>
+            @if (hasContent()) {
+              <div class="cv__card-actions">
+                <button
+                  type="button"
+                  class="btn btn--primary btn--small"
+                  (click)="copyToClipboard(contentText())"
+                >
+                  Copy
+                </button>
+                <button type="button" class="btn btn--ghost btn--small" (click)="downloadContent()">Download</button>
+              </div>
             }
-          </ul>
-        </div>
-      }
+          </div>
+          @if (hasContent()) {
+            @let content = clipboardContent()!;
+            @if (content.type === 'empty') {
+              <div class="cv__empty-state">
+                <p>Clipboard is empty</p>
+                <span>Copy something to your clipboard to see it here.</span>
+              </div>
+            } @else {
+              <div class="cv__content-container">
+                <div
+                  class="cv__content-badge"
+                  [class.cv__content-badge--url]="content.type === 'url'"
+                  [class.cv__content-badge--code]="content.type === 'code'"
+                  [class.cv__content-badge--html]="content.type === 'html'"
+                >
+                  {{ content.type }}
+                </div>
+                <div
+                  class="cv__content-viewer"
+                  [class.cv__content-viewer--wrap]="form.controls.wordWrap.value"
+                  [style.font-size.px]="form.controls.fontSize.value"
+                >
+                  <pre class="cv__content-text">{{ content.text }}</pre>
+                </div>
+              </div>
 
-      @if (warnings().length) {
-        <div class="cv__alert cv__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
+              @if (form.controls.showMetadata.value) {
+                <div class="cv__metadata">
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Lines</span>
+                    <strong>{{ content.metadata.lines }}</strong>
+                  </div>
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Words</span>
+                    <strong>{{ content.metadata.words }}</strong>
+                  </div>
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Characters</span>
+                    <strong>{{ content.metadata.characters }}</strong>
+                  </div>
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Size</span>
+                    <strong>{{ formatBytes(content.length) }}</strong>
+                  </div>
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Type</span>
+                    <strong>{{ content.type }}</strong>
+                  </div>
+                  <div class="cv__metadata-item">
+                    <span class="cv__metadata-label">Updated</span>
+                    <strong>{{ formatTimestamp(content.timestamp) }}</strong>
+                  </div>
+                </div>
+              }
             }
-          </ul>
-        </div>
-      }
-
-      @if (!clipboardSupported()) {
-        <div class="cv__alert cv__alert--warning">
-          <p>Clipboard API is not available in this browser. Some features may be limited.</p>
-        </div>
-      }
-
-      <div class="cv__settings-grid">
-        <label class="cv__toggle">
-          <input type="checkbox" formControlName="autoRefresh" />
-          <div>
-            <strong>Auto-refresh</strong>
-            <span>Automatically refresh clipboard content</span>
-          </div>
-        </label>
-
-        <label class="cv__input">
-          <span>Refresh interval (ms)</span>
-          <input
-            type="number"
-            min="100"
-            max="10000"
-            step="100"
-            formControlName="refreshInterval"
-            [disabled]="!form.controls.autoRefresh.value"
-          />
-          <small>How often to check clipboard (100-10000ms)</small>
-        </label>
-
-        <label class="cv__toggle">
-          <input type="checkbox" formControlName="showMetadata" />
-          <div>
-            <strong>Show metadata</strong>
-            <span>Display content statistics and information</span>
-          </div>
-        </label>
-
-        <label class="cv__toggle">
-          <input type="checkbox" formControlName="wordWrap" />
-          <div>
-            <strong>Word wrap</strong>
-            <span>Wrap long lines in the content viewer</span>
-          </div>
-        </label>
-
-        <label class="cv__input">
-          <span>Font size</span>
-          <input type="number" min="10" max="24" formControlName="fontSize" />
-          <small>Font size for content display (10-24px)</small>
-        </label>
-      </div>
-
-      <div class="cv__actions">
-        <button
-          type="button"
-          class="btn btn--primary"
-          (click)="readClipboard()"
-          [disabled]="!clipboardSupported() || isRefreshing()"
-        >
-          @if (isRefreshing()) {
-            Refreshing...
           } @else {
-            Read clipboard
+            <div class="cv__empty">Click "Read Clipboard" to view current clipboard contents.</div>
           }
-        </button>
-        <button type="button" class="btn btn--ghost" (click)="clearContent()">Clear</button>
-      </div>
-    </section>
-
-    <section class="cv__panel cv__panel--content">
-      <header class="cv__card-header">
-        <div>
-          <h2>Clipboard content</h2>
-          <p>Current clipboard contents displayed here.</p>
         </div>
+
         @if (hasContent()) {
-          <div class="cv__header-actions">
-            <button
-              type="button"
-              class="btn btn--primary btn--small"
-              (click)="copyToClipboard(contentText())"
-            >
-              Copy
-            </button>
-            <button type="button" class="btn btn--ghost btn--small" (click)="downloadContent()">Download</button>
+          @let content = clipboardContent()!;
+          <div class="cv__preview-card">
+            <div class="cv__card-header">
+              <h3 class="cv__card-title">Content Preview</h3>
+            </div>
+            <div class="cv__preview-container">
+              @if (content.type === 'url') {
+                <a [href]="content.text" target="_blank" rel="noopener noreferrer" class="cv__preview-link">
+                  {{ content.text }}
+                </a>
+              } @else if (content.type === 'html') {
+                <div class="cv__preview-html" [innerHTML]="content.text"></div>
+              } @else if (content.type === 'code') {
+                <pre class="cv__preview-code">{{ content.preview }}</pre>
+              } @else {
+                <p class="cv__preview-text">{{ content.preview }}</p>
+              }
+            </div>
           </div>
         }
-      </header>
 
-      @if (hasContent()) {
-        @let content = clipboardContent()!;
-        @if (content.type === 'empty') {
-          <div class="cv__empty-state">
-            <p>Clipboard is empty</p>
-            <span>Copy something to your clipboard to see it here.</span>
+        <div class="cv__insights-card">
+          <div class="cv__card-header">
+            <h3 class="cv__card-title">Content Insights</h3>
           </div>
-        } @else {
-          <div class="cv__content-container">
-            <div
-              class="cv__content-badge"
-              [class.cv__content-badge--url]="content.type === 'url'"
-              [class.cv__content-badge--code]="content.type === 'code'"
-              [class.cv__content-badge--html]="content.type === 'html'"
-            >
-              {{ content.type }}
+          <div class="cv__insights-grid">
+            <div class="cv__insight-item">
+              <span class="cv__insight-label">Content Type</span>
+              <strong class="cv__insight-value">{{ hasContent() ? clipboardContent()!.type : '—' }}</strong>
+              <small class="cv__insight-meta">{{ hasContent() ? formatBytes(clipboardContent()!.length) : 'No content' }}</small>
             </div>
-            <div
-              class="cv__content-viewer"
-              [class.cv__content-viewer--wrap]="form.controls.wordWrap.value"
-              [style.font-size.px]="form.controls.fontSize.value"
-            >
-              <pre class="cv__content-text">{{ content.text }}</pre>
+            <div class="cv__insight-item">
+              <span class="cv__insight-label">Characters</span>
+              <strong class="cv__insight-value">{{ hasContent() ? clipboardContent()!.metadata.characters : '—' }}</strong>
+              <small class="cv__insight-meta">{{ hasContent() ? clipboardContent()!.metadata.words + ' words' : 'No content' }}</small>
+            </div>
+            <div class="cv__insight-item">
+              <span class="cv__insight-label">Last Updated</span>
+              <strong class="cv__insight-value">{{ lastUpdate() ? formatTimestamp(lastUpdate()!) : '—' }}</strong>
+              <small class="cv__insight-meta">{{ isRefreshing() ? 'Refreshing...' : hasContent() ? 'Ready' : 'Waiting' }}</small>
             </div>
           </div>
-
-          @if (form.controls.showMetadata.value) {
-            <div class="cv__metadata">
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Lines</span>
-                <strong>{{ content.metadata.lines }}</strong>
-              </div>
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Words</span>
-                <strong>{{ content.metadata.words }}</strong>
-              </div>
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Characters</span>
-                <strong>{{ content.metadata.characters }}</strong>
-              </div>
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Size</span>
-                <strong>{{ formatBytes(content.length) }}</strong>
-              </div>
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Type</span>
-                <strong>{{ content.type }}</strong>
-              </div>
-              <div class="cv__metadata-item">
-                <span class="cv__metadata-label">Updated</span>
-                <strong>{{ formatTimestamp(content.timestamp) }}</strong>
-              </div>
-            </div>
-          }
-        }
-      } @else {
-        <div class="cv__empty">Click "Read Clipboard" to view current clipboard contents.</div>
-      }
-    </section>
-
-    <section class="cv__panel cv__panel--preview">
-      <header class="cv__card-header">
-        <div>
-          <h2>Content preview</h2>
-          <p>Quick preview of clipboard content.</p>
         </div>
-      </header>
-
-      @if (hasContent()) {
-        @let content = clipboardContent()!;
-        @if (content.type === 'url') {
-          <div class="cv__preview-container">
-            <a [href]="content.text" target="_blank" rel="noopener noreferrer" class="cv__preview-link">
-              {{ content.text }}
-            </a>
-          </div>
-        } @else if (content.type === 'html') {
-          <div class="cv__preview-container">
-            <div class="cv__preview-html" [innerHTML]="content.text"></div>
-          </div>
-        } @else if (content.type === 'code') {
-          <div class="cv__preview-container">
-            <pre class="cv__preview-code">{{ content.preview }}</pre>
-          </div>
-        } @else {
-          <div class="cv__preview-container">
-            <p class="cv__preview-text">{{ content.preview }}</p>
-          </div>
-        }
-      } @else {
-        <div class="cv__empty">No content to preview.</div>
-      }
-    </section>
-  </div>
+      </div>
+    </div>
+  </section>
 </div>
