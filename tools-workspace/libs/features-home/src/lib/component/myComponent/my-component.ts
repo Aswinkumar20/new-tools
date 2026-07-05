@@ -12,6 +12,7 @@ import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
 import { AssetService } from '../../services/asset.service';
+import { TooltipDirective } from '../../directive/tooltip.directive';
 
 @Component({
   selector: 'lib-my-component',
@@ -23,6 +24,7 @@ import { AssetService } from '../../services/asset.service';
     FormsModule,
     Navigation,
     RouterModule,
+    TooltipDirective,
   ],
 })
 export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -894,6 +896,20 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     return `Search tools — try “${this.currentSuggestion}”…`;
   }
 
+  get catalogMode(): 'browse' | 'category' | 'search' {
+    if (this.searchQuery.trim()) {
+      return 'search';
+    }
+    if (this.activeCategoryName) {
+      return 'category';
+    }
+    return 'browse';
+  }
+
+  get hasActiveCatalogFilter(): boolean {
+    return !!this.searchQuery.trim() || !!this.activeCategoryName;
+  }
+
   navigateTo(path: string) {
     const normalized = path.startsWith('/') ? path : `/${path}`;
     this.router.navigateByUrl(normalized);
@@ -993,11 +1009,20 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     return !!this.expandedCategories[categoryName];
   }
 
-  toggleCategoryTools(categoryName: string): void {
+  toggleCategoryTools(categoryName: string, event?: Event): void {
+    const wasExpanded = this.isCategoryExpanded(categoryName);
     this.expandedCategories = {
       ...this.expandedCategories,
-      [categoryName]: !this.expandedCategories[categoryName],
+      [categoryName]: !wasExpanded,
     };
+    if (wasExpanded && event) {
+      queueMicrotask(() => {
+        const toolsList = (event.currentTarget as HTMLElement | null)
+          ?.closest('.home-card')
+          ?.querySelector('.home-card__tools');
+        toolsList?.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
   }
 
   getRemainingToolCount(category: { subCategories?: unknown[] }): number {
@@ -1012,17 +1037,45 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
-  getSearchResults(): Array<{ name: string; path: string; category: string }> {
+  getSearchResults(): Array<{ name: string; path: string; category: string; description?: string }> {
     if (!this.searchQuery.trim()) {
       return [];
     }
     return this.filteredCategories.flatMap(category =>
-      (category.subCategories ?? []).map((tool: { name: string; path: string }) => ({
+      (category.subCategories ?? []).map((tool: { name: string; path: string; description?: string }) => ({
         name: tool.name,
         path: tool.path,
-        category: category.name
+        category: category.name,
+        description: tool.description,
       }))
     );
+  }
+
+  getCatalogListTools(): Array<{ name: string; path: string; category: string; description?: string }> {
+    if (this.catalogMode === 'search') {
+      return this.getSearchResults();
+    }
+    if (this.catalogMode === 'category') {
+      const category = this.filteredCategories[0];
+      if (!category) {
+        return [];
+      }
+      return (category.subCategories ?? []).map((tool: { name: string; path: string; description?: string }) => ({
+        name: tool.name,
+        path: tool.path,
+        category: category.name,
+        description: tool.description,
+      }));
+    }
+    return [];
+  }
+
+  clearAllCatalogFilters(): void {
+    this.clearSearch();
+  }
+
+  toolInitial(name: string): string {
+    return this.shortToolName(name).charAt(0).toUpperCase();
   }
 
   shortToolName(name: string): string {

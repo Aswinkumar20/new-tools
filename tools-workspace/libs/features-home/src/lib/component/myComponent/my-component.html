@@ -237,8 +237,10 @@
 
     <section
       class="home-catalog"
-      [class.home-catalog--searching]="!!searchQuery.trim()"
       [class.home-catalog--filtered]="!!activeCategoryName"
+      [class.home-catalog--mode-browse]="catalogMode === 'browse'"
+      [class.home-catalog--mode-category]="catalogMode === 'category'"
+      [class.home-catalog--mode-search]="catalogMode === 'search'"
       aria-labelledby="catalog-title">
       <div class="home-catalog__stage">
         <div
@@ -274,80 +276,167 @@
 
         <div class="home-catalog__live" [attr.aria-hidden]="!pageReady">
           <div class="home-catalog__header">
-        <h2 id="catalog-title">
-          @if (activeCategoryName) {
-            {{ activeCategoryName }}
-          } @else {
-            All Tools
-          }
-        </h2>
-        @if (searchQuery) {
-          <p>{{ getVisibleToolCount() }} results for “{{ searchQuery }}”</p>
-        } @else if (activeCategoryName) {
-          <p>
-            {{ getVisibleToolCount() }} tools
-            <button type="button" class="home-catalog__clear" (click)="clearCategoryFilter()">Show all</button>
-          </p>
-        } @else {
-          <p>{{ totalTools }} tools available</p>
-        }
+            <h2 id="catalog-title">
+              @switch (catalogMode) {
+                @case ('search') {
+                  Search results
+                }
+                @case ('category') {
+                  {{ activeCategoryName }}
+                }
+                @default {
+                  All Tools
+                }
+              }
+            </h2>
+            <p class="home-catalog__meta" aria-live="polite">
+              @if (searchQuery) {
+                {{ getVisibleToolCount() }} results for “{{ searchQuery }}”
+              } @else if (activeCategoryName) {
+                {{ getVisibleToolCount() }} tools in this category
+              } @else {
+                {{ totalTools }} tools available
+              }
+            </p>
           </div>
 
-          @if (filteredCategories.length > 0) {
-            <div class="home-grid">
-          @for (category of filteredCategories; track category.name; let i = $index) {
-            <article
-              class="home-card home-anim home-anim--card"
-              [class.home-card--expanded]="isCategoryExpanded(category.name)"
-              [style.--stagger]="i * 50 + 'ms'">
-              <header class="home-card__header">
-                <div class="home-card__icon">
-                  <img [src]="category.iconUrl" [alt]="''" width="20" height="20" loading="lazy" />
-                </div>
-                <div class="home-card__meta">
-                  <h3>{{ category.name }}</h3>
-                  <p>{{ category.description }}</p>
-                </div>
-                <span class="home-card__count">{{ category.subCategories?.length || 0 }}</span>
-              </header>
-
-              @if (category.subCategories?.length) {
-                <div class="home-card__body">
-                  <ul
-                    class="home-card__tools"
-                    [class.home-card__tools--scrollable]="isCategoryExpanded(category.name)">
-                    @for (tool of getDisplayTools(category); track tool.path) {
-                      <li>
-                        <button type="button" (click)="navigateTo(tool.path)" [title]="tool.description || tool.name">
-                          {{ shortToolName(tool.name) }}
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                  @if (getRemainingToolCount(category) > 0) {
-                    <button
-                      type="button"
-                      class="home-card__more"
-                      (click)="toggleCategoryTools(category.name)"
-                      [attr.aria-expanded]="isCategoryExpanded(category.name)">
-                      @if (isCategoryExpanded(category.name)) {
-                        Show less
-                      } @else {
-                        +{{ getRemainingToolCount(category) }} more
-                      }
-                    </button>
+          <div class="home-catalog__toolbar home-catalog__toolbar--sticky">
+            <nav class="home-catalog__filters" aria-label="Filter by category">
+              @for (category of featuredCategories; track category.name; let i = $index) {
+                <button
+                  type="button"
+                  class="home-catalog__filter"
+                  [class.home-catalog__filter--active]="activeCategoryName === category.name"
+                  [attr.data-tint]="i % 6"
+                  [attr.aria-pressed]="activeCategoryName === category.name"
+                  (click)="exploreCategory(category)"
+                  [title]="category.name">
+                  @if (category.iconUrl) {
+                    <img [src]="category.iconUrl" alt="" width="14" height="14" loading="lazy" />
                   }
-                </div>
-              } @else {
-                <p class="home-card__empty">Coming soon</p>
+                  <span>{{ shortCategoryName(category.name) }}</span>
+                </button>
               }
-            </article>
-          }
+            </nav>
+            <button
+              type="button"
+              class="home-catalog__clear-all"
+              [class.home-catalog__clear-all--hidden]="!hasActiveCatalogFilter"
+              [attr.tabindex]="hasActiveCatalogFilter ? 0 : -1"
+              [attr.aria-hidden]="!hasActiveCatalogFilter"
+              (click)="clearAllCatalogFilters()">
+              Clear filters
+            </button>
+          </div>
+
+          @if (catalogMode === 'browse' && filteredCategories.length > 0) {
+            <div class="home-catalog__panel home-grid" [attr.data-mode]="catalogMode">
+              @for (category of filteredCategories; track category.name; let i = $index) {
+                <article
+                  class="home-card home-anim home-anim--card"
+                  [class.home-card--expanded]="isCategoryExpanded(category.name)"
+                  [class.home-card--active]="activeCategoryName === category.name"
+                  [style.--stagger]="i * 50 + 'ms'">
+                  <button
+                    type="button"
+                    class="home-card__header"
+                    (click)="exploreCategory(category)"
+                    [attr.aria-pressed]="activeCategoryName === category.name"
+                    [title]="'Browse ' + category.name">
+                    <span class="home-card__icon" aria-hidden="true">
+                      <img [src]="category.iconUrl" [alt]="''" width="20" height="20" loading="lazy" />
+                    </span>
+                    <span class="home-card__meta">
+                      <span class="home-card__title">{{ category.name }}</span>
+                      <span class="home-card__desc">{{ category.description }}</span>
+                    </span>
+                    <span class="home-card__count">{{ category.subCategories?.length || 0 }}</span>
+                  </button>
+
+                  @if (category.subCategories?.length) {
+                    <div class="home-card__body">
+                      <ul
+                        class="home-card__tools"
+                        [class.home-card__tools--expanded]="isCategoryExpanded(category.name)">
+                        @for (tool of getDisplayTools(category); track tool.path) {
+                          <li>
+                            <button
+                              type="button"
+                              class="home-card__tool"
+                              (click)="navigateTo(tool.path)"
+                              [appTooltip]="tool.description || ''"
+                              [tooltipMultiline]="!!tool.description"
+                              tooltipPosition="top"
+                              [tooltipDelay]="250">
+                              <span class="home-card__tool-name">{{ shortToolName(tool.name) }}</span>
+                              <span class="home-card__tool-go" aria-hidden="true">→</span>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                      <div class="home-card__footer">
+                        @if (getRemainingToolCount(category) > 0 || isCategoryExpanded(category.name)) {
+                          <button
+                            type="button"
+                            class="home-card__more"
+                            (click)="toggleCategoryTools(category.name, $event)"
+                            [attr.aria-expanded]="isCategoryExpanded(category.name)">
+                            @if (isCategoryExpanded(category.name)) {
+                              View less tools
+                            } @else {
+                              View all {{ category.subCategories?.length }} tools
+                            }
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  } @else {
+                    <p class="home-card__empty">Coming soon</p>
+                  }
+                </article>
+              }
             </div>
+          } @else if (getCatalogListTools().length > 0) {
+            <ul
+              class="home-catalog__panel home-tool-list home-anim home-anim--card"
+              [attr.data-mode]="catalogMode"
+              aria-label="Tool results">
+              @for (tool of getCatalogListTools(); track tool.path; let i = $index) {
+                <li [style.--stagger]="i * 35 + 'ms'">
+                  <button
+                    type="button"
+                    class="home-tool-row"
+                    (click)="navigateTo(tool.path)"
+                    [appTooltip]="tool.description || ''"
+                    [tooltipMultiline]="!!tool.description"
+                    tooltipPosition="top"
+                    [tooltipDelay]="250">
+                    <span class="home-tool-row__avatar" aria-hidden="true">{{ toolInitial(tool.name) }}</span>
+                    <span class="home-tool-row__text">
+                      <span class="home-tool-row__name">{{ shortToolName(tool.name) }}</span>
+                      @if (catalogMode === 'search') {
+                        <span class="home-tool-row__meta">{{ shortCategoryName(tool.category) }}</span>
+                      }
+                    </span>
+                    <span class="home-tool-row__go" aria-hidden="true">→</span>
+                  </button>
+                </li>
+              }
+            </ul>
           } @else {
-            <div class="home-empty">
+            <div class="home-catalog__panel home-empty" [attr.data-mode]="catalogMode">
               <p>No tools found for “{{ searchQuery }}”.</p>
-              <button type="button" (click)="clearSearch()">Clear search</button>
+              <div class="home-empty__actions">
+                <button type="button" (click)="clearSearch()">Clear search</button>
+              </div>
+              <div class="home-empty__suggestions" aria-label="Try searching for">
+                <span class="home-empty__suggestions-label">Try</span>
+                @for (suggestion of searchSuggestions.slice(0, 3); track suggestion) {
+                  <button type="button" class="home-empty__suggestion" (click)="applySuggestion(suggestion)">
+                    {{ suggestion }}
+                  </button>
+                }
+              </div>
             </div>
           }
         </div>
