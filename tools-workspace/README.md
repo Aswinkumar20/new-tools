@@ -199,9 +199,10 @@ This command:
 **Output directory:**
 
 ```
-dist/apps/tools-site/browser/    ← Deploy this folder (static SPA)
-dist/apps/tools-site/            ← Root build output
+dist/apps/tools-site/    ← Deploy this folder (static SPA)
 ```
+
+Wait until the terminal shows `Successfully ran target build` (~2 minutes after sitemap generation).
 
 ### Development build (faster, for local testing)
 
@@ -221,7 +222,7 @@ After building, preview the production output:
 npx nx serve-static tools-site
 ```
 
-Opens [http://localhost:4200](http://localhost:4200) serving files from `dist/apps/tools-site/browser/`.
+Opens [http://localhost:4200](http://localhost:4200) serving files from `dist/apps/tools-site/`.
 
 ### SSR server build
 
@@ -276,7 +277,7 @@ Regenerates `apps/tools-site/public/sitemap.xml` from routes defined in `app.rou
 
 | Target | Command | Output |
 |--------|---------|--------|
-| SPA (production) | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site/browser/` |
+| SPA (production) | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site/` |
 | SPA (development) | `npx nx build tools-site` | `dist/apps/tools-site/` |
 | SSR server | `npx nx server tools-site` | `dist/apps/tools-site/server/` |
 | Sitemap | `npx nx run tools-site:generate-sitemap` | `apps/tools-site/public/sitemap.xml` |
@@ -417,33 +418,42 @@ Then add the path alias to `tsconfig.base.json`.
 
 ## Deployment
 
-### Build for production
+### Step 1: Build for production
+
+From the workspace root (`tools-workspace/`):
 
 ```sh
 npx nx build tools-site --configuration=production
 ```
 
-Deploy the contents of **`dist/apps/tools-site/browser/`** to your hosting provider.
+This generates the deployable static files in **`dist/apps/tools-site/`** (includes `index.html`, JS/CSS bundles, `assets/`, `sitemap.xml`, `robots.txt`, and `.htaccess`).
 
-### VPS deployment (Apache / shared hosting)
+Wait until the terminal shows `Successfully ran target build` (~2 minutes after sitemap generation).
 
-Copy built files to the server:
+### Step 2: Deploy to Hostinger (VPS)
 
-```sh
-# From dist/apps/tools-site/browser/ on your local machine:
-scp -r * root@72.60.220.37:/var/www/easytoolhub.com/html/
+Upload the build output to the server web root. From the workspace root on **Windows (PowerShell)**:
+
+```powershell
+scp -r .\dist\apps\tools-site\* root@72.60.220.37:/var/www/easytoolhub.com/html/
 ```
 
-Ensure `.htaccess` from `apps/tools-site/public/` is included for SPA routing and SVG MIME types.
+On **macOS / Linux**:
 
-### Platform-specific settings
+```sh
+scp -r dist/apps/tools-site/* root@72.60.220.37:/var/www/easytoolhub.com/html/
+```
+
+You will be prompted for the server password (or use SSH keys if configured). Ensure `.htaccess` from the build is uploaded for SPA routing and SVG MIME types.
+
+### Other platforms
 
 | Platform | Build command | Publish directory |
 |----------|---------------|-------------------|
-| Vercel | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site/browser` |
-| Netlify | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site/browser` |
-| Cloudflare Pages | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site/browser` |
-| Apache / VPS | Build locally, upload `browser/` contents | `/var/www/easytoolhub.com/html/` |
+| Hostinger VPS | `npx nx build tools-site --configuration=production` | Upload `dist/apps/tools-site/*` → `/var/www/easytoolhub.com/html/` |
+| Vercel | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site` |
+| Netlify | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site` |
+| Cloudflare Pages | `npx nx build tools-site --configuration=production` | `dist/apps/tools-site` |
 
 Deploy configs are in `apps/tools-site/public/`:
 
@@ -454,6 +464,13 @@ Deploy configs are in `apps/tools-site/public/`:
 See `apps/tools-site/DEPLOYMENT_CHECKLIST.md` for a full pre/post-deployment checklist.
 
 ### Post-deployment verification
+
+How to avoid it next time
+Run this after every deploy:
+
+chown -R www-data:www-data /var/www/easytoolhub.com/html
+chmod -R 755 /var/www/easytoolhub.com/html
+Or add it to a small deploy script on your machine so you don’t forget.
 
 - [ ] Home page loads at `/tools/home`
 - [ ] Individual tools load (e.g. `/text-utilities/character-counter`)
