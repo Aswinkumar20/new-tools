@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 // PPTX parsing library types
 interface PptxSlide {
@@ -95,9 +95,10 @@ interface PresentationFile {
   standalone: true,
   templateUrl: './powerpoint-viewer.html',
   styleUrls: ['./powerpoint-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('slideContainer') slideContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;

@@ -1,10 +1,17 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
 import { AssetService } from '../../services/asset.service';
-
 
 @Component({
   selector: 'lib-my-component',
@@ -12,13 +19,13 @@ import { AssetService } from '../../services/asset.service';
   templateUrl: './my-component.html',
   styleUrl: './my-component.scss',
   imports: [
-    CommonModule, 
-    FormsModule, 
-    Navigation, 
-    RouterModule
-  ]
+    CommonModule,
+    FormsModule,
+    Navigation,
+    RouterModule,
+  ],
 })
-export class MyComponent implements OnInit {
+export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   title = 'My Component';
   toolCategories = [
     {
@@ -801,28 +808,260 @@ export class MyComponent implements OnInit {
   totalTools = 0;
   weeklyHighlights = 0;
   isDarkMode = false;
+  searchIconUrl = '';
+  featuredCategories: Array<{
+    name: string;
+    description?: string;
+    iconUrl?: string;
+    path: string;
+    subCategories?: Array<{ path: string }>;
+  }> = [];
+  activeCategoryName: string | null = null;
+  pageReady = false;
+  readonly skeletonChipSlots = [0, 1, 2, 3, 4, 5];
+  readonly skeletonCategorySlots = [0, 1, 2, 3, 4, 5];
+  readonly skeletonPopularSlots = [0, 1, 2, 3, 4];
+  readonly skeletonStatSlots = [0, 1, 2, 3];
+  readonly skeletonCardSlots = [0, 1, 2, 3, 4, 5, 6, 7];
+  readonly skeletonToolLineSlots = [0, 1, 2, 3, 4];
+  readonly maxToolsPreview = 6;
+  expandedCategories: Record<string, boolean> = {};
+  @ViewChild('homepageSearch') homepageSearch?: ElementRef<HTMLInputElement>;
+  readonly searchSuggestions = [
+    'PDF merge',
+    'JSON formatter',
+    'password generator',
+    'image to PDF',
+    'text case converter',
+    'QR code',
+    'UUID generator',
+    'color picker',
+  ];
+  suggestionIndex = 0;
+  private suggestionTimer: ReturnType<typeof setInterval> | null = null;
   private readonly themeStorageKey = 'easytoolhub.theme';
   private readonly assetService = inject(AssetService);
+
+  /** Maps category names to SVG filenames in assets/icons/categories/ */
+  private readonly categoryIconFiles: Record<string, string> = {
+    'Text & Utilities': 'text-utilities.svg',
+    'File Viewers': 'file-viewers.svg',
+    'JSON / Data Converters': 'json-data-converters.svg',
+    'Number & Date Tools': 'number-date-tools.svg',
+    'PDF Tools': 'pdf-tools.svg',
+    'Image & Color Tools': 'image-color-tools.svg',
+    'File & Code Tools': 'file-code-tools.svg',
+    'Design & Web Dev Tools': 'dev-design-tools.svg',
+    'Validation & Testing Tools': 'validation-testing-tools.svg',
+    'Security & Crypto Tools': 'security-crypto-tools.svg',
+    'Media & Audio Tools': 'media-audio-tools.svg',
+    'System / Browser Utilities': 'system-browser-utilities.svg',
+    'Fun & Productivity Tools': 'fun-productivity-tools.svg',
+  };
 
   constructor(private readonly router: Router) {
     this.filteredCategories = this.toolCategories;
   }
 
   ngOnInit(): void {
+    this.searchIconUrl = this.assetService.getAssetPath('icons/search.svg');
     this.attachIconPaths();
+    this.featuredCategories = this.toolCategories;
     this.totalTools = this.computeTotalToolCount();
-    this.popularTools = this.computePopularTools();
+    this.popularTools = this.computePopularTools(5);
     this.weeklyHighlights = this.estimateWeeklyHighlights();
     this.hydrateThemePreference();
+    this.startSuggestionRotation();
+  }
+
+  ngAfterViewInit(): void {
+    this.focusSearchOnDesktop();
+    // Defer so entrance animations run after first paint
+    requestAnimationFrame(() => {
+      this.pageReady = true;
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.stopSuggestionRotation();
+  }
+
+  get currentSuggestion(): string {
+    return this.searchSuggestions[this.suggestionIndex] ?? this.searchSuggestions[0];
+  }
+
+  get searchPlaceholder(): string {
+    return `Search tools — try “${this.currentSuggestion}”…`;
   }
 
   navigateTo(path: string) {
-    this.router.navigate([path]);
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    this.router.navigateByUrl(normalized);
+  }
+
+  navigateToCategory(category: { path: string; subCategories?: Array<{ path: string }> }) {
+    const first = category.subCategories?.[0];
+    if (first?.path) {
+      this.navigateTo(first.path);
+      return;
+    }
+    this.router.navigateByUrl(`/${category.path}`);
+  }
+
+  exploreCategory(category: { name: string }) {
+    if (this.activeCategoryName === category.name) {
+      this.clearCategoryFilter();
+      return;
+    }
+    this.activeCategoryName = category.name;
+    this.searchQuery = '';
+    this.filterCategories();
+    this.scrollToCatalog();
+  }
+
+  applySuggestion(term?: string) {
+    this.activeCategoryName = null;
+    this.searchQuery = term?.trim() || this.currentSuggestion;
+    this.filterCategories();
+  }
+
+  onSearchInput() {
+    if (this.searchQuery.trim()) {
+      this.activeCategoryName = null;
+    }
+    this.filterCategories();
+  }
+
+  scrollToCatalog() {
+    const catalog = document.getElementById('catalog-title');
+    catalog?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  clearSearch() {
+    this.searchQuery = '';
+    this.activeCategoryName = null;
+    this.expandedCategories = {};
+    this.filterCategories();
+  }
+
+  clearCategoryFilter() {
+    this.activeCategoryName = null;
+    this.expandedCategories = {};
+    this.filterCategories();
+  }
+
+  private focusSearchOnDesktop() {
+    if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
+      return;
+    }
+    const isDesktop = globalThis.matchMedia('(min-width: 768px)').matches;
+    if (!isDesktop) {
+      return;
+    }
+    queueMicrotask(() => this.homepageSearch?.nativeElement?.focus({ preventScroll: true }));
+  }
+
+  private startSuggestionRotation() {
+    this.stopSuggestionRotation();
+    if (typeof globalThis === 'undefined' || typeof globalThis.setInterval !== 'function') {
+      return;
+    }
+    this.suggestionTimer = globalThis.setInterval(() => {
+      if (this.searchQuery.trim()) {
+        return;
+      }
+      this.suggestionIndex = (this.suggestionIndex + 1) % this.searchSuggestions.length;
+    }, 2800);
+  }
+
+  private stopSuggestionRotation() {
+    if (this.suggestionTimer != null) {
+      globalThis.clearInterval(this.suggestionTimer);
+      this.suggestionTimer = null;
+    }
+  }
+
+  getDisplayTools(category: { name: string; subCategories?: Array<{ name: string; path: string; description?: string }> }) {
+    const tools = category.subCategories ?? [];
+    if (this.isCategoryExpanded(category.name)) {
+      return tools;
+    }
+    return tools.slice(0, this.maxToolsPreview);
+  }
+
+  isCategoryExpanded(categoryName: string): boolean {
+    return !!this.expandedCategories[categoryName];
+  }
+
+  toggleCategoryTools(categoryName: string): void {
+    this.expandedCategories = {
+      ...this.expandedCategories,
+      [categoryName]: !this.expandedCategories[categoryName],
+    };
+  }
+
+  getRemainingToolCount(category: { subCategories?: unknown[] }): number {
+    const total = category.subCategories?.length ?? 0;
+    return Math.max(0, total - this.maxToolsPreview);
+  }
+
+  getVisibleToolCount(): number {
+    return this.filteredCategories.reduce(
+      (total, category) => total + (category.subCategories?.length ?? 0),
+      0
+    );
+  }
+
+  getSearchResults(): Array<{ name: string; path: string; category: string }> {
+    if (!this.searchQuery.trim()) {
+      return [];
+    }
+    return this.filteredCategories.flatMap(category =>
+      (category.subCategories ?? []).map((tool: { name: string; path: string }) => ({
+        name: tool.name,
+        path: tool.path,
+        category: category.name
+      }))
+    );
+  }
+
+  shortToolName(name: string): string {
+    const parenIndex = name.indexOf('(');
+    const trimmed = parenIndex > 0 ? name.slice(0, parenIndex).trim() : name;
+    return trimmed.length > 36 ? `${trimmed.slice(0, 33)}…` : trimmed;
+  }
+
+  shortCategoryName(name: string): string {
+    const shortNames: Record<string, string> = {
+      'Text & Utilities': 'Text',
+      'File Viewers': 'Files',
+      'JSON / Data Converters': 'Data',
+      'Number & Date Tools': 'Numbers',
+      'PDF Tools': 'PDF',
+      'Image & Color Tools': 'Image',
+      'File & Code Tools': 'Code',
+      'Design & Web Dev Tools': 'Dev',
+      'Validation & Testing Tools': 'Validate',
+      'Security & Crypto Tools': 'Security',
+      'Media & Audio Tools': 'Media',
+      'System / Browser Utilities': 'Browser',
+      'Fun & Productivity Tools': 'Fun',
+    };
+    return shortNames[name] ?? (name.length > 12 ? `${name.slice(0, 10)}…` : name);
   }
 
   filterCategories() {
-    const query = this.searchQuery.toLowerCase();
-    if (!query.trim()) {
+    const query = this.searchQuery.toLowerCase().trim();
+    this.expandedCategories = {};
+
+    if (!query && this.activeCategoryName) {
+      this.filteredCategories = this.toolCategories.filter(
+        category => category.name === this.activeCategoryName
+      );
+      return;
+    }
+
+    if (!query) {
       this.filteredCategories = this.toolCategories;
       return;
     }
@@ -847,6 +1086,10 @@ export class MyComponent implements OnInit {
   onSearch(event: Event) {
     event.preventDefault();
     this.filterCategories();
+    const first = this.getSearchResults()[0];
+    if (first?.path) {
+      this.navigateTo(first.path);
+    }
   }
 
   toggleTheme() {
@@ -892,9 +1135,13 @@ export class MyComponent implements OnInit {
   }
 
   private buildIconPath(name: string): string {
+    const categoryFile = this.categoryIconFiles[name];
+    if (categoryFile) {
+      return this.assetService.getAssetPath(`icons/categories/${categoryFile}`);
+    }
     const segments = name.toLowerCase().match(/[a-z0-9]+/g);
     const slug = segments?.join('-') ?? 'icon';
-    return this.assetService.getAssetPath(`tool-icons/${slug}.svg`);
+    return this.assetService.getAssetPath(`icons/categories/${slug}.svg`);
   }
 
    private estimateWeeklyHighlights(): number {

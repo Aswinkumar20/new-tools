@@ -12,11 +12,12 @@ import {
   ChangeDetectionStrategy,
   HostListener,
   PLATFORM_ID,
-  Inject
+  Inject,
+  inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { Subject, combineLatest, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { LogEntry, LogLevel, LogFilter, LogStats } from './log-entry.model';
 import { LogViewerService } from './log-viewer.service';
@@ -56,11 +57,13 @@ async function loadChartJs(): Promise<typeof Chart> {
   standalone: true,
   templateUrl: './log-viewer.html',
   styleUrls: ['./log-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation],
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [LogViewerService]
 })
 export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
+  readonly LogLevel = LogLevel;
   @Input() logs: string[] | LogEntry[] = [];
   @Input() title?: string;
   @Input() autoScroll: boolean = true;
@@ -297,6 +300,24 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.filter.dateTo = undefined;
     }
     this.applyFilters();
+  }
+
+  clearAll(): void {
+    this.allLogEntries = [];
+    this.filteredLogEntries = [];
+    this.displayedLogEntries = [];
+    this.logs = [];
+    this.stats = null;
+    this.searchText = '';
+    this.searchText$.next('');
+    this.selectedLevels.clear();
+    this.errorMessage = '';
+    this.loading = false;
+    if (this.chartInstance) {
+      this.chartInstance.destroy();
+      this.chartInstance = null;
+    }
+    this.cdr.markForCheck();
   }
 
   calculateStats(): void {

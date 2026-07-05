@@ -1,7 +1,7 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { Component, computed, EffectRef, inject, OnDestroy, signal, WritableSignal, effect } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 
 type LoanType = 'reducing' | 'flat';
@@ -92,10 +92,11 @@ const MAX_SCHEDULE_PREVIEW = 24;
   standalone: true,
   templateUrl: './loan-emi-calculator.html',
   styleUrls: ['./loan-emi-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, DatePipe]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, DatePipe, TooltipDirective]
 })
 export class LoanEmiCalculatorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly calculationSub: Subscription;
   private readonly effectRefs: EffectRef[] = [];
 
@@ -185,6 +186,18 @@ export class LoanEmiCalculatorComponent implements OnDestroy {
   clearHistory(): void {
     this.history.set([]);
     this.notify('History cleared.');
+  }
+
+  copyResult(): void {
+    const s = this.summary();
+    if (!s) return;
+    const text = [
+      `EMI: ${this.formatCurrency(s.emi)}`,
+      `Total payment: ${this.formatCurrency(s.totalPayments)}`,
+      `Total interest: ${this.formatCurrency(s.totalInterest)}`,
+      `Duration: ${s.durationMonths} months`,
+    ].join('\n');
+    navigator.clipboard.writeText(text).then(() => this.notify('Result copied to clipboard.'));
   }
 
   restoreHistory(entry: LoanHistoryEntry): void {

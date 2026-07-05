@@ -1,264 +1,138 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <section class="workspace">
-    <div class="editor-hero">
-      <h1 class="editor-hero__title">HTML Table → JSON Converter</h1>
-      <p class="editor-hero__subtitle">
-        Paste an HTML snippet or upload a file containing tables, and turn it into clean JSON for APIs,
-        dashboards, or spreadsheets. Control delimiters, header rows, and data types with ease.
-      </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>HTML Table → JSON</h1>
+        <p>Paste or upload HTML tables and export clean JSON for APIs and dashboards.</p>
+      </header>
+
+      <div class="ctl__stats" aria-label="Conversion statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ metrics.rows | number }}</span>
+          <span class="ctl__stat-label">Rows</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ metrics.columns | number }}</span>
+          <span class="ctl__stat-label">Cols</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ metrics.sizeLabel }}</span>
+          <span class="ctl__stat-label">Size</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ selectionMode }}</span>
+          <span class="ctl__stat-label">Detect</span>
+        </div>
+      </div>
     </div>
 
-    <div class="workspace__content">
-      <div class="workspace__card workspace__card--editor">
-        <div
-          class="workspace__panel workspace__panel--editor"
-          [class.workspace__panel--dragging]="isDragOver"
-          (dragenter)="onDragEnter($event)"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)"
-        >
-          <div class="editor-toolbar">
-            <div class="toolbar-group">
-              <div class="mode-selector">
-                <label for="selectionMode" class="mode-selector__label">Mode:</label>
-                <select id="selectionMode" class="mode-selector__select" [(ngModel)]="selectionMode" (ngModelChange)="onSelectionModeChange($event)" [attr.data-tooltip]="'Choose table detection mode'">
-                  <option *ngFor="let mode of selectionModes" [value]="mode.id">{{ mode.label }}</option>
-                </select>
-              </div>
+    <div class="ctl__toolbar" aria-label="Conversion actions">
+      <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload file" tooltipPosition="bottom" aria-label="Upload file">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Upload</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="convert()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Convert</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="downloadResult()" [disabled]="!resultOutput" appTooltip="Download result" tooltipPosition="bottom" aria-label="Download result">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Reset</span>
+      </button>
+    </div>
 
-              <label class="btn-upload" [attr.data-tooltip]="'Upload an HTML file or drag and drop it here'">
-                <input type="file" accept=".html,text/html" (change)="onFileInputChange($event)" />
-                <span class="btn-upload__icon">📤</span>
-                <span class="btn-upload__label">Upload</span>
-              </label>
-            </div>
-
-            <div class="toolbar-group toolbar-group--actions">
-              <button class="btn-primary" type="button" (click)="convert()" [attr.data-tooltip]="'Convert HTML table to JSON'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-                <span class="btn-primary__label">Convert</span>
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          <header class="ctl__editor-head">
+            <span>HTML input</span>
+            <div class="ctl__editor-actions">
+              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!htmlInput" appTooltip="Copy input" tooltipPosition="bottom" aria-label="Copy input">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
-              <span class="tooltip-wrapper" [attr.data-tooltip]="'Reset to default sample data'">
-                <button class="btn-icon-reset" type="button" (click)="resetWorkspace()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.9L22 6M22 12.5a10 10 0 0 1-18.8 4.9L2 18"/>
-                  </svg>
-                </button>
-              </span>
             </div>
+          </header>
+          <div class="ctl__editor-wrap">
+            <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
+              <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
+            </div>
+            <textarea class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="htmlInput" (ngModelChange)="onHtmlInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder="&lt;table&gt;…&lt;/table&gt;" #htmlTextarea></textarea>
           </div>
+        </section>
 
-          <div class="editor-metrics">
-            <div class="metric">
-              <span class="metric__label">ROWS:</span>
-              <span class="metric__value">{{ metrics.rows | number }}</span>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>JSON output</span>
+            <div class="ctl__editor-actions">
+              @if (resultOutput && conversionStatus.status === 'success') {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!resultOutput" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-            <div class="metric">
-              <span class="metric__label">COLUMNS:</span>
-              <span class="metric__value">{{ metrics.columns | number }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric__label">PAYLOAD SIZE:</span>
-              <span class="metric__value">{{ metrics.sizeLabel }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric__label">ACTIVE INPUT:</span>
-              <span class="metric__value">HTML</span>
-            </div>
-          </div>
-
-          <div class="editor-wrapper">
-            <div class="editor-line-numbers">
-              <span *ngFor="let line of editorLines" class="line-number">{{ line }}</span>
-            </div>
-            <textarea
-              class="editor editor--html"
-              spellcheck="false"
-              [(ngModel)]="htmlInput"
-              (ngModelChange)="onHtmlInputChange($event)"
-              (scroll)="onEditorScroll($event)"
-              placeholder="&lt;table&gt;&#10;  &lt;thead&gt;&#10;    &lt;tr&gt;&#10;      &lt;th&gt;id&lt;/th&gt;&#10;      &lt;th&gt;name&lt;/th&gt;&#10;    &lt;/tr&gt;&#10;  &lt;/thead&gt;&#10;  &lt;tbody&gt;&#10;    &lt;tr&gt;&#10;      &lt;td&gt;1&lt;/td&gt;&#10;      &lt;td&gt;Ada&lt;/td&gt;&#10;    &lt;/tr&gt;&#10;  &lt;/tbody&gt;&#10;&lt;/table&gt;"
-              #htmlTextarea
-            ></textarea>
-          </div>
-
-          <div class="editor-controls">
-            <div class="controls-section">
-              <div class="controls-grid">
-                <div class="control-group" *ngIf="selectionMode === 'custom'">
-                  <label for="selectorInput" class="control-label">CSS Selector</label>
-                  <input
-                    id="selectorInput"
-                    type="text"
-                    class="control-input"
-                    [(ngModel)]="customSelector"
-                    placeholder=".pricing-table"
-                    [attr.data-tooltip]="'CSS selector to target specific table'"
-                  />
-                </div>
-                <div class="control-group" *ngIf="selectionMode !== 'body'">
-                  <label for="headerRows" class="control-label">Header Rows</label>
-                  <input
-                    id="headerRows"
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="1"
-                    class="control-input"
-                    [(ngModel)]="headerRows"
-                    [attr.data-tooltip]="'Number of rows to treat as headers'"
-                  />
-                </div>
+          </header>
+          @if (conversionStatus.status === 'error') {
+            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+          }
+          @if (resultOutput && conversionStatus.status !== 'error') {
+            <div class="ctl__editor-wrap">
+              <div class="ctl__line-numbers" #outputLineNumbers aria-hidden="true">
+                <span *ngFor="let line of resultLines" class="ctl__line-number">{{ line }}</span>
               </div>
-              <div class="toggles-grid">
-                <label class="toggle">
-                  <input type="checkbox" [checked]="trimCells" (change)="toggleTrimCells()" />
-                  <span>Trim whitespace in cells</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" [checked]="includeEmptyCells" (change)="toggleIncludeEmptyCells()" />
-                  <span>Keep empty cells</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" [checked]="compactArrays" (change)="toggleCompactArrays()" />
-                  <span>Return arrays when headers are missing</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" [checked]="detectNumbers" (change)="toggleDetectNumbers()" />
-                  <span>Convert numbers automatically</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" [checked]="detectDates" (change)="toggleDetectDates()" />
-                  <span>Convert dates (ISO format)</span>
-                </label>
-              </div>
+              <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="resultOutput" (scroll)="onResultsScroll($event)" rows="1" #resultsTextarea></textarea>
             </div>
-          </div>
-        </div>
+          } @else if (conversionStatus.status !== 'error') {
+            <div class="ctl__empty"><p>Run a conversion to inspect the JSON output here.</p></div>
+          }
+        </section>
       </div>
 
-      <div class="workspace__card workspace__card--results">
-        <div class="workspace__panel workspace__panel--results">
-          <div class="results-header">
-            <div class="results-header__content">
-              <h2 class="results-header__title">Conversion Result</h2>
-              <p class="results-header__caption">{{ conversionStatus.message }}</p>
-            </div>
-            <div class="results-actions">
-              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Copy result to clipboard' : 'No result to copy'" [class.tooltip-wrapper--disabled]="!resultOutput">
-                <button
-                  class="btn-icon btn-icon--copy"
-                  type="button"
-                  [disabled]="!resultOutput"
-                  (click)="copyResult()"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
-                </button>
-              </span>
-              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Download result as file' : 'No result to download'" [class.tooltip-wrapper--disabled]="!resultOutput">
-                <button
-                  class="btn-icon btn-icon--download"
-                  type="button"
-                  [disabled]="!resultOutput"
-                  (click)="downloadResult()"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </button>
-              </span>
-            </div>
+      <aside class="ctl__sidebar" aria-label="Table options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Detection</header>
+          <div class="ctl__settings">
+            <label class="ctl__field" for="selectionMode">
+              <span>Table mode</span>
+              <select id="selectionMode" [(ngModel)]="selectionMode" (ngModelChange)="onSelectionModeChange($event)">
+                <option *ngFor="let mode of selectionModes" [value]="mode.id">{{ mode.label }}</option>
+              </select>
+            </label>
+            @if (selectionMode === 'custom') {
+              <label class="ctl__field" for="selectorInput">
+                <span>CSS selector</span>
+                <input id="selectorInput" type="text" [(ngModel)]="customSelector" placeholder=".pricing-table" />
+              </label>
+            }
+            @if (selectionMode !== 'body') {
+              <label class="ctl__field" for="headerRows">
+                <span>Header rows</span>
+                <input id="headerRows" type="number" min="0" max="10" step="1" [(ngModel)]="headerRows" />
+              </label>
+            }
+            <label class="ctl__toggle"><input type="checkbox" [checked]="trimCells" (change)="toggleTrimCells()" /><div><strong>Trim cells</strong><span>Strip whitespace in cells.</span></div></label>
+            <label class="ctl__toggle"><input type="checkbox" [checked]="includeEmptyCells" (change)="toggleIncludeEmptyCells()" /><div><strong>Empty cells</strong><span>Keep empty cell values.</span></div></label>
+            <label class="ctl__toggle"><input type="checkbox" [checked]="compactArrays" (change)="toggleCompactArrays()" /><div><strong>Compact arrays</strong><span>Use arrays when headers missing.</span></div></label>
+            <label class="ctl__toggle"><input type="checkbox" [checked]="detectNumbers" (change)="toggleDetectNumbers()" /><div><strong>Detect numbers</strong><span>Coerce numeric strings.</span></div></label>
+            <label class="ctl__toggle"><input type="checkbox" [checked]="detectDates" (change)="toggleDetectDates()" /><div><strong>Detect dates</strong><span>Parse ISO date strings.</span></div></label>
           </div>
-
-          <div
-            class="status-badge"
-            [class.status-badge--success]="conversionStatus.status === 'success'"
-            [class.status-badge--error]="conversionStatus.status === 'error'"
-            [class.status-badge--idle]="conversionStatus.status === 'idle'"
-            *ngIf="conversionStatus.status !== 'idle' || resultOutput"
-          >
-            <span *ngIf="conversionStatus.status === 'success'">✓ Success</span>
-            <span *ngIf="conversionStatus.status === 'error'">✗ Error</span>
-            <span *ngIf="conversionStatus.status === 'idle'">Ready</span>
-          </div>
-
-          <div class="error-message" *ngIf="conversionStatus.status === 'error'">
-            <div class="error-message__icon">⚠</div>
-            <div class="error-message__content">
-              <strong class="error-message__title">Conversion Failed</strong>
-              <p class="error-message__text">{{ conversionStatus.message }}</p>
-            </div>
-          </div>
-
-          <div class="results-output" *ngIf="resultOutput && conversionStatus.status !== 'error'; else emptyResult">
-            <div class="results-output__line-numbers">
-              <span *ngFor="let line of resultLines" class="line-number">{{ line }}</span>
-            </div>
-            <textarea
-              class="results-output__content"
-              readonly
-              spellcheck="false"
-              [value]="resultOutput"
-              (scroll)="onResultsScroll($event)"
-              #resultsTextarea
-            ></textarea>
-          </div>
-          <ng-template #emptyResult>
-            <div class="results-empty" *ngIf="conversionStatus.status !== 'error'">
-              <div class="results-empty__icon">📋</div>
-              <p class="results-empty__text">Run a conversion to inspect the output here.</p>
-            </div>
-          </ng-template>
         </div>
-      </div>
+      </aside>
     </div>
-  </section>
 
-  <section class="info-grid">
-    <article class="info-card info-card--usage">
-      <h2>How to use</h2>
-      <ol>
-        <li *ngFor="let step of usageSteps">{{ step }}</li>
-      </ol>
-      <p class="info-card__tip">Use mode switching to jump between auto-detect and CSS selectors instantly.</p>
-    </article>
-
-    <article class="info-card">
-      <h2>Best practices</h2>
+    <details class="ctl__help">
+      <summary>How to use</summary>
       <ul>
-        <li>Ensure each row in the HTML table has consistent cell counts.</li>
-        <li>Include &lt;thead&gt; headers for cleaner JSON keys.</li>
-        <li>Use custom selectors for nested or specific tables within a page.</li>
-        <li>Toggle type detection to keep numbers as strings when needed.</li>
+        <li>Paste HTML containing a &lt;table&gt; or upload an .html file.</li>
+        <li>Configure detection mode and parsing options in the sidebar.</li>
+        <li>Click <strong>Convert</strong> and copy or download the JSON.</li>
       </ul>
-    </article>
-
-    <article class="info-card">
-      <h2>Format insights</h2>
-      <ul>
-        <li>Compact arrays help when header rows are missing or inconsistent.</li>
-        <li>Trim whitespace to remove stray spaces introduced by copy-paste.</li>
-        <li>Auto-detect numbers and dates for better data type handling.</li>
-      </ul>
-    </article>
-  </section>
-
-  <section class="next-steps">
-    <h2>Next steps</h2>
-    <ul>
-      <li>Send the generated JSON to APIs or dashboards with confidence.</li>
-      <li>Share conversion results via the copy button for team review.</li>
-      <li>Explore the JSON formatter to beautify the output before exporting.</li>
-    </ul>
-  </section>
+    </details>
+  </main>
 </div>

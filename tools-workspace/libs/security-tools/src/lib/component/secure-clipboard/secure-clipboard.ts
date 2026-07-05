@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ClipboardState {
   stored: string | null;
@@ -19,12 +19,13 @@ type SecureClipboardFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './secure-clipboard.html',
   styleUrls: ['./secure-clipboard.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SecureClipboardComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private intervalId: number | null = null;
+  readonly assetService = inject(AssetService);
 
   readonly form: SecureClipboardFormGroup = this.fb.group({
     text: this.fb.control('', { nonNullable: true }),
@@ -49,6 +50,10 @@ export class SecureClipboardComponent implements OnDestroy {
     return Math.floor(diff / 1000);
   });
 
+  readonly canStore = computed(() => {
+    return !!this.form.controls.text.value.trim() && !!this.form.controls.password.value;
+  });
+
   constructor() {
     this.startTimer();
   }
@@ -57,6 +62,11 @@ export class SecureClipboardComponent implements OnDestroy {
     if (this.intervalId !== null) {
       window.clearInterval(this.intervalId);
     }
+  }
+
+  statusLabel(): string {
+    if (!this.hasStored()) return 'Empty';
+    return this.isExpired() ? 'Expired' : 'Active';
   }
 
   async copyToSecureClipboard(): Promise<void> {
@@ -85,7 +95,7 @@ export class SecureClipboardComponent implements OnDestroy {
 
       await navigator.clipboard.writeText(text);
       this.warnings.set([
-        'Text copied to system clipboard and encrypted in memory. It will be cleared automatically when the timer ends.'
+        'Text copied to system clipboard and encrypted in memory. It will clear when the timer ends.'
       ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error while copying or encrypting.';
@@ -99,11 +109,22 @@ export class SecureClipboardComponent implements OnDestroy {
     this.warnings.set([]);
   }
 
+  clearText(): void {
+    this.form.controls.text.setValue('');
+  }
+
+  copyText(): void {
+    const text = this.form.controls.text.value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Text copied to clipboard!');
+    });
+  }
+
   formatExpiresAt(): string {
     const expiresAt = this.state().expiresAt;
     if (!expiresAt) return 'N/A';
-    const date = new Date(expiresAt);
-    return date.toLocaleTimeString();
+    return new Date(expiresAt).toLocaleTimeString();
   }
 
   private startTimer(): void {

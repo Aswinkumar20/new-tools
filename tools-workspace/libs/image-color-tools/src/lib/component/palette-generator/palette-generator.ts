@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 
 interface ColorInfo {
@@ -46,12 +46,13 @@ const EXTRACTION_METHODS = [
   standalone: true,
   templateUrl: './palette-generator.html',
   styleUrls: ['./palette-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PaletteGeneratorComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly assetService = inject(AssetService);
 
   @ViewChild('fileInput', { static: false }) fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('imageCanvas', { static: false }) imageCanvas!: ElementRef<HTMLCanvasElement>;

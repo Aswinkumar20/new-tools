@@ -1,121 +1,194 @@
-<div class="dol">
-  <div class="dol__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="dol__hero">
-    <div class="dol__badge">Browser utilities</div>
-    <h1>Device Orientation Logger</h1>
-    <p>
-      Monitor device orientation events (alpha, beta, gamma) in real-time. Useful for debugging motion-based
-      interactions on mobile devices.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Device Orientation Logger</h1>
+        <p>Monitor alpha, beta, and gamma orientation events in real time on supported devices.</p>
+      </header>
 
-    <div class="dol__hero-meta">
-      <div>
-        <span class="dol__meta-label">Support</span>
-        <strong>{{ supported ? 'Available' : 'Not available' }}</strong>
-      </div>
-      <div>
-        <span class="dol__meta-label">Listening</span>
-        <strong>{{ listening() ? 'Active' : 'Stopped' }}</strong>
-      </div>
-      <div>
-        <span class="dol__meta-label">Samples</span>
-        <strong>{{ samples().length }}</strong>
+      <div class="ctl__stats" aria-label="Orientation statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ supported ? 'Yes' : 'No' }}</span>
+          <span class="ctl__stat-label">Support</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ listening() ? 'Active' : 'Stopped' }}</span>
+          <span class="ctl__stat-label">Listening</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ samples().length }}</span>
+          <span class="ctl__stat-label">Samples</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ latestSample()?.absolute ? 'Abs' : 'Rel' }}</span>
+          <span class="ctl__stat-label">Frame</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="dol__board">
-    <section class="dol__panel dol__panel--controls">
-      <header class="dol__card-header">
-        <div>
-          <h2>Controls</h2>
-          <p>Start or stop orientation logging.</p>
-        </div>
-      </header>
+    <div class="ctl__toolbar" aria-label="Orientation actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="start()"
+        [disabled]="!supported || listening()"
+        aria-label="Start logging"
+        appTooltip="Start logging"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Start</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="stop()"
+        [disabled]="!listening()"
+        aria-label="Stop logging"
+        appTooltip="Stop logging"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Stop</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyLatest()"
+        [disabled]="!samples().length"
+        aria-label="Copy latest sample"
+        appTooltip="Copy latest sample"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clear()"
+        [disabled]="!samples().length"
+        aria-label="Clear samples"
+        appTooltip="Clear samples"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
 
-      @if (errors().length) {
-        <div class="dol__alert dol__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="dol__button-row">
-        <button
-          type="button"
-          class="btn btn--primary"
-          (click)="start()"
-          [disabled]="!supported || listening()"
-        >
-          Start logging
-        </button>
-        <button
-          type="button"
-          class="btn btn--ghost"
-          (click)="stop()"
-          [disabled]="!listening()"
-        >
-          Stop
-        </button>
-        <button
-          type="button"
-          class="btn btn--ghost"
-          (click)="clear()"
-          [disabled]="!samples().length"
-        >
-          Clear samples
-        </button>
-      </div>
-
-      <p class="dol__hint">
-        On some devices (especially iOS), you may be prompted to grant permission for motion and orientation access.
-      </p>
-    </section>
-
-    <section class="dol__panel dol__panel--stream">
-      <header class="dol__card-header">
-        <div>
-          <h2>Orientation stream</h2>
-          <p>Latest device orientation samples (up to 50).</p>
-        </div>
-      </header>
-
-      @if (samples().length) {
-        <ul class="dol__list">
-          @for (sample of samples(); track sample.timestamp) {
-            <li class="dol__item">
-              <div class="dol__item-header">
-                <span class="dol__item-time">{{ formatTimestamp(sample.timestamp) }}</span>
-                <span class="dol__item-absolute">{{ sample.absolute ? 'Absolute' : 'Relative' }}</span>
-              </div>
-              <div class="dol__item-values">
-                <div class="dol__value">
-                  <span class="dol__value-label">Alpha (Z)</span>
-                  <strong>{{ sample.alpha !== null ? (sample.alpha | number: '1.0-1') + '°' : 'N/A' }}</strong>
-                </div>
-                <div class="dol__value">
-                  <span class="dol__value-label">Beta (X)</span>
-                  <strong>{{ sample.beta !== null ? (sample.beta | number: '1.0-1') + '°' : 'N/A' }}</strong>
-                </div>
-                <div class="dol__value">
-                  <span class="dol__value-label">Gamma (Y)</span>
-                  <strong>{{ sample.gamma !== null ? (sample.gamma | number: '1.0-1') + '°' : 'N/A' }}</strong>
-                </div>
-              </div>
-            </li>
+    <div class="ctl__workspace">
+      <section class="ctl__editor">
+        <header class="ctl__editor-head">
+          <span>Latest reading</span>
+          @if (listening()) {
+            <span class="ctl__editor-badge">Live</span>
           }
-        </ul>
-      } @else {
-        <div class="dol__empty">
-          <p>No orientation samples yet. Click \"Start logging\" on a supported mobile device and move it around.</p>
+        </header>
+
+        @if (errors().length) {
+          <div class="ctl__alert ctl__alert--error">
+            <ul>
+              @for (message of errors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (latestSample(); as sample) {
+          <div class="ctl__editor-body dol__latest">
+            <div class="dol__value-grid">
+              <div class="dol__value">
+                <span class="dol__value-label">Alpha (Z)</span>
+                <strong>{{ formatAngle(sample.alpha) }}</strong>
+              </div>
+              <div class="dol__value">
+                <span class="dol__value-label">Beta (X)</span>
+                <strong>{{ formatAngle(sample.beta) }}</strong>
+              </div>
+              <div class="dol__value">
+                <span class="dol__value-label">Gamma (Y)</span>
+                <strong>{{ formatAngle(sample.gamma) }}</strong>
+              </div>
+            </div>
+            <p class="dol__meta">
+              {{ formatTimestamp(sample.timestamp) }} · {{ sample.absolute ? 'Absolute' : 'Relative' }}
+            </p>
+          </div>
+        } @else {
+          <div class="ctl__empty">
+            <p>No samples yet. Tap Start on a supported mobile device and move it around.</p>
+          </div>
+        }
+      </section>
+
+      <aside class="ctl__sidebar" aria-label="Orientation stream">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">
+            <span>Stream ({{ samples().length }})</span>
+            @if (samples().length) {
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyAllSamples()"
+                aria-label="Copy all samples"
+                appTooltip="Copy all samples"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            }
+          </header>
+
+          @if (samples().length) {
+            <div class="ctl__panel-body dol__stream">
+              <ul class="dol__list">
+                @for (sample of samples(); track sample.timestamp) {
+                  <li class="dol__item">
+                    <div class="dol__item-header">
+                      <span>{{ formatTimestamp(sample.timestamp) }}</span>
+                      <span class="dol__item-absolute">{{ sample.absolute ? 'Absolute' : 'Relative' }}</span>
+                    </div>
+                    <div class="dol__value-grid dol__value-grid--compact">
+                      <div class="dol__value">
+                        <span class="dol__value-label">α</span>
+                        <strong>{{ formatAngle(sample.alpha) }}</strong>
+                      </div>
+                      <div class="dol__value">
+                        <span class="dol__value-label">β</span>
+                        <strong>{{ formatAngle(sample.beta) }}</strong>
+                      </div>
+                      <div class="dol__value">
+                        <span class="dol__value-label">γ</span>
+                        <strong>{{ formatAngle(sample.gamma) }}</strong>
+                      </div>
+                    </div>
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else {
+            <div class="ctl__panel-empty">
+              <p>Orientation samples will appear here (up to 50).</p>
+            </div>
+          }
         </div>
-      }
-    </section>
-  </div>
+
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>iOS may prompt for <strong>motion permission</strong> before logging starts.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Use a mobile device with orientation:orientation support for best results.</li>
+        <li>Tap <strong>Start</strong> and grant permission if prompted.</li>
+        <li>Rotate or tilt the device to generate alpha, beta, and gamma readings.</li>
+        <li>Copy the latest sample or the full stream for debugging.</li>
+      </ul>
+    </details>
+  </main>
 </div>

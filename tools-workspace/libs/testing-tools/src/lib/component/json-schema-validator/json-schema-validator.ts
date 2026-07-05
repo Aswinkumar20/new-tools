@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type SchemaDraft = 'draft7' | 'draft2019-09' | 'draft2020-12';
 
@@ -29,11 +29,12 @@ type JsonSchemaFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './json-schema-validator.html',
   styleUrls: ['./json-schema-validator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class JsonSchemaValidatorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: JsonSchemaFormGroup = this.fb.group({
     schema: this.fb.control(
@@ -61,6 +62,12 @@ export class JsonSchemaValidatorComponent {
     strictTypes: this.fb.control(true, { nonNullable: true })
   });
 
+  constructor() {
+    if (this.form.controls.schema.value.trim() && this.form.controls.data.value.trim()) {
+      this.validate();
+    }
+  }
+
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly result = signal<ValidationResult | null>(null);
@@ -68,6 +75,48 @@ export class JsonSchemaValidatorComponent {
   readonly hasResult = computed(() => this.result() !== null);
   readonly isValid = computed(() => !!this.result() && this.result()!.valid);
   readonly issues = computed(() => this.result()?.issues ?? []);
+
+  readonly hasInput = computed(
+    () => !!this.form.controls.schema.value.trim() || !!this.form.controls.data.value.trim()
+  );
+
+  onInputChange(): void {
+    if (this.form.controls.schema.value.trim() && this.form.controls.data.value.trim()) {
+      this.validate();
+    } else {
+      this.result.set(null);
+      this.errors.set([]);
+    }
+  }
+
+  onOptionChange(): void {
+    if (this.form.controls.schema.value.trim() && this.form.controls.data.value.trim()) {
+      this.validate();
+    }
+  }
+
+  clear(): void {
+    this.form.controls.schema.setValue('');
+    this.form.controls.data.setValue('');
+    this.result.set(null);
+    this.errors.set([]);
+    this.warnings.set([]);
+  }
+
+  copySchema(): void {
+    this.copyText(this.form.controls.schema.value, 'Schema');
+  }
+
+  copyData(): void {
+    this.copyText(this.form.controls.data.value, 'Data');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
 
   validate(): void {
     this.errors.set([]);

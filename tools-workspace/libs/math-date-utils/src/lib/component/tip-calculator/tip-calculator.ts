@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, EffectRef, inject, OnDestroy, signal, WritableSignal, effect } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 
 type SplitMode = 'equal' | 'custom';
@@ -63,10 +63,11 @@ const DEFAULT_CUSTOM_SHARES = Array.from({ length: 4 }, () => 1);
   standalone: true,
   templateUrl: './tip-calculator.html',
   styleUrls: ['./tip-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class TipCalculatorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly calculationSub: Subscription;
   private readonly effectRefs: EffectRef[] = [];
 
@@ -149,6 +150,19 @@ export class TipCalculatorComponent implements OnDestroy {
   clearHistory(): void {
     this.history.set([]);
     this.notify('History cleared.');
+  }
+
+  copyResult(): void {
+    const s = this.summary();
+    if (!s) return;
+    const lines = [
+      `Grand total: ${this.formatCurrency(s.grandTotal)}`,
+      `Bill: ${this.formatCurrency(s.totalBill)}`,
+      `Tip: ${this.formatCurrency(s.totalTip)}`,
+      `Tax: ${this.formatCurrency(s.totalTax)}`,
+      ...s.perPerson.map((amt, i) => `${s.perPersonLabels[i]}: ${this.formatCurrency(amt)}`),
+    ];
+    navigator.clipboard.writeText(lines.join('\n')).then(() => this.notify('Result copied to clipboard.'));
   }
 
   restoreHistory(entry: TipHistoryEntry): void {

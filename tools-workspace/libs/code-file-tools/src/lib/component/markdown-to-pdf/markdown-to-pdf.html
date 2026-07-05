@@ -1,247 +1,140 @@
-<div class="mtp">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <section class="mtp__workspace">
-    <div class="mtp__hero">
-      <h1 class="mtp__hero-title">Markdown to PDF</h1>
-      <p class="mtp__hero-subtitle">
-        Convert your Markdown documents to PDF format. Write in Markdown, preview the rendered HTML, and export to PDF
-        with customizable page settings. Perfect for documentation, reports, and printable documents.
-      </p>
-    </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Markdown to PDF</h1>
+        <p>Write Markdown, preview HTML, and export to PDF with customizable page settings.</p>
+      </header>
 
-    <div class="mtp__workspace-layout">
-      <div class="mtp__workspace-main">
-        <div class="mtp__workspace-card">
-          <div class="mtp__workspace-panel">
-            <div class="mtp__converter-header">
-              <div class="mtp__converter-header-content">
-                <h2 class="mtp__converter-title">Markdown to PDF</h2>
-                <p class="mtp__converter-subtitle">Write Markdown, preview HTML, and export to PDF. Conversion happens automatically.</p>
-              </div>
-              <div class="mtp__converter-header-actions">
-                <button type="button" class="mtp__btn-icon" aria-label="Clear all" (click)="clear()" [attr.data-tooltip]="'Clear all'">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 6h18"></path>
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div class="mtp__converter-metrics">
-              <div class="mtp__metric">
-                <span class="mtp__metric-label">INPUT:</span>
-                <span class="mtp__metric-value">{{ markdownInput().length > 0 ? markdownInput().length + ' chars' : 'Empty' }}</span>
-              </div>
-              <div class="mtp__metric">
-                <span class="mtp__metric-label">LINES:</span>
-                <span class="mtp__metric-value">{{ markdownInput().split('\n').length }}</span>
-              </div>
-              <div class="mtp__metric">
-                <span class="mtp__metric-label">STATUS:</span>
-                <span class="mtp__metric-value">{{ hasHtmlOutput() ? 'Ready' : 'Processing' }}</span>
-              </div>
-              <div class="mtp__metric">
-                <span class="mtp__metric-label">PAGE:</span>
-                <span class="mtp__metric-value">{{ pdfOptions().pageSize.toUpperCase() }}</span>
-              </div>
-            </div>
-
-            <div class="mtp__conversion-form">
-              <div class="mtp__input-group">
-                <div class="mtp__input-header">
-                  <label class="mtp__form-label" for="mtp-markdown-input">Markdown Input</label>
-                  <div class="mtp__input-actions">
-                    <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
-                  </div>
-                </div>
-                <div class="mtp__editor-container">
-                  <textarea
-                    id="mtp-markdown-input"
-                    class="mtp__editor"
-                    [value]="markdownInput()"
-                    (input)="onInputChange($any($event.target).value)"
-                    placeholder="# Your Markdown Document&#10;&#10;Write your content here...&#10;&#10;## Features&#10;&#10;- Lists&#10;- **Bold** and *italic* text&#10;- Code blocks&#10;- And more!"
-                    spellcheck="false"
-                  ></textarea>
-                </div>
-                <div class="mtp__input-stats">
-                  <span>{{ markdownInput().length }} characters</span>
-                  <span>{{ markdownInput().split('\n').length }} lines</span>
-                </div>
-              </div>
-
-              @if (errors().length) {
-                <div class="mtp__conversion-status">
-                  <div class="mtp__status-message mtp__status-message--error">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <ul>
-                      @for (message of errors(); track message) {
-                        <li>{{ message }}</li>
-                      }
-                    </ul>
-                  </div>
-                </div>
-              }
-
-              <div class="mtp__options-section">
-                <label class="mtp__form-label">PDF Options</label>
-                <div class="mtp__options-grid">
-                  <div class="mtp__option-group">
-                    <label for="pageSize" class="mtp__label">Page size</label>
-                    <select
-                      id="pageSize"
-                      class="mtp__select"
-                      [value]="pdfOptions().pageSize"
-                      (change)="updateOption('pageSize', $any($event.target).value)"
-                    >
-                      <option value="a4">A4</option>
-                      <option value="letter">Letter</option>
-                      <option value="legal">Legal</option>
-                    </select>
-                  </div>
-
-                  <div class="mtp__option-group">
-                    <label for="orientation" class="mtp__label">Orientation</label>
-                    <select
-                      id="orientation"
-                      class="mtp__select"
-                      [value]="pdfOptions().orientation"
-                      (change)="updateOption('orientation', $any($event.target).value)"
-                    >
-                      <option value="portrait">Portrait</option>
-                      <option value="landscape">Landscape</option>
-                    </select>
-                  </div>
-
-                  <div class="mtp__option-group">
-                    <label for="margin" class="mtp__label">Margin (mm)</label>
-                    <input
-                      id="margin"
-                      type="number"
-                      class="mtp__input"
-                      min="10"
-                      max="50"
-                      [value]="pdfOptions().margin"
-                      (change)="updateOption('margin', Number($any($event.target).value))"
-                    />
-                  </div>
-
-                  <div class="mtp__option-group">
-                    <label for="fontSize" class="mtp__label">Font size (pt)</label>
-                    <input
-                      id="fontSize"
-                      type="number"
-                      class="mtp__input"
-                      min="8"
-                      max="24"
-                      [value]="pdfOptions().fontSize"
-                      (change)="updateOption('fontSize', Number($any($event.target).value))"
-                    />
-                  </div>
-
-                  <label class="mtp__toggle">
-                    <input
-                      type="checkbox"
-                      [checked]="pdfOptions().includeHeader"
-                      (change)="updateOption('includeHeader', $any($event.target).checked)"
-                    />
-                    <div>
-                      <strong>Include header</strong>
-                      <span>Add header to each page</span>
-                    </div>
-                  </label>
-
-                  <label class="mtp__toggle">
-                    <input
-                      type="checkbox"
-                      [checked]="pdfOptions().includeFooter"
-                      (change)="updateOption('includeFooter', $any($event.target).checked)"
-                    />
-                    <div>
-                      <strong>Include footer</strong>
-                      <span>Add page numbers to footer</span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              <div class="mtp__export-section">
-                <button
-                  type="button"
-                  class="btn btn--primary"
-                  (click)="generatePdf()"
-                  [disabled]="!hasHtmlOutput() || isGenerating()"
-                >
-                  @if (isGenerating()) {
-                    Generating PDF...
-                  } @else {
-                    Generate PDF
-                  }
-                </button>
-                <p class="mtp__export-hint">
-                  @if (!hasHtmlOutput()) {
-                    Convert Markdown to HTML first to enable PDF generation.
-                  } @else if (isGenerating()) {
-                    Please wait while the PDF is being generated...
-                  } @else {
-                    Click the button above to generate and download your PDF document.
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
+      <div class="ctl__stats" aria-label="Document statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ markdownInput().length }}</span>
+          <span class="ctl__stat-label">Input</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ markdownInput().split('\n').length }}</span>
+          <span class="ctl__stat-label">Lines</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasHtmlOutput() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ pdfOptions().pageSize.toUpperCase() }}</span>
+          <span class="ctl__stat-label">Page</span>
         </div>
       </div>
+    </div>
 
-      <div class="mtp__workspace-secondary">
-        <div class="mtp__preview-card">
-          <div class="mtp__card-header">
-            <h3 class="mtp__card-title">HTML Preview</h3>
-            @if (hasHtmlOutput()) {
-              <div class="mtp__card-actions">
-                <button type="button" class="btn btn--ghost btn--small" (click)="copyHtml()">Copy HTML</button>
-              </div>
-            }
-          </div>
-          @if (hasHtmlOutput()) {
-            <div class="mtp__preview-container">
-              <div class="mtp__preview-content" [innerHTML]="htmlOutput()"></div>
+    <div class="ctl__toolbar" aria-label="PDF actions">
+      <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Sample</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="generatePdf()" [disabled]="!hasHtmlOutput() || isGenerating()" aria-label="Generate PDF" appTooltip="Generate PDF" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">{{ isGenerating() ? 'Generating…' : 'PDF' }}</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!markdownInput()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>Markdown input</span>
+            <div class="ctl__editor-actions">
+              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!markdownInput()" aria-label="Copy markdown" appTooltip="Copy markdown" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-          } @else {
-            <div class="mtp__empty">Enter Markdown to see HTML preview here.</div>
+          </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
+            </div>
           }
-        </div>
+          <label class="sr-only" for="mtp-markdown-input">Markdown input</label>
+          <textarea id="mtp-markdown-input" class="ctl__textarea ctl__textarea--mono" [value]="markdownInput()" (input)="onInputChange($any($event.target).value)" rows="1" spellcheck="false" placeholder="# Your document…"></textarea>
+        </section>
 
-        <div class="mtp__insights-card">
-          <div class="mtp__card-header">
-            <h3 class="mtp__card-title">Document Insights</h3>
-          </div>
-          <div class="mtp__insights-grid">
-            <div class="mtp__insight-item">
-              <span class="mtp__insight-label">Characters</span>
-              <strong class="mtp__insight-value">{{ markdownInput().length }}</strong>
-              <small class="mtp__insight-meta">{{ markdownInput().split('\n').length }} lines</small>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>HTML preview</span>
+            <div class="ctl__editor-actions">
+              @if (hasHtmlOutput()) { <span class="ctl__editor-badge">Ready</span> }
+              <button type="button" class="ctl__icon-btn" (click)="copyHtml()" [disabled]="!hasHtmlOutput()" aria-label="Copy HTML" appTooltip="Copy HTML" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-            <div class="mtp__insight-item">
-              <span class="mtp__insight-label">Page Size</span>
-              <strong class="mtp__insight-value">{{ pdfOptions().pageSize.toUpperCase() }}</strong>
-              <small class="mtp__insight-meta">{{ pdfOptions().orientation }}</small>
-            </div>
-            <div class="mtp__insight-item">
-              <span class="mtp__insight-label">Status</span>
-              <strong class="mtp__insight-value">{{ hasHtmlOutput() ? 'Ready' : 'Processing' }}</strong>
-              <small class="mtp__insight-meta">{{ isGenerating() ? 'Generating...' : 'Idle' }}</small>
-            </div>
+          </header>
+          @if (hasHtmlOutput()) {
+            <div class="ctl__editor-body mtp-preview" [innerHTML]="htmlOutput()"></div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite"><p>HTML preview appears here as you type Markdown.</p></div>
+          }
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="PDF options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">PDF options</header>
+          <div class="ctl__settings">
+            <label class="ctl__field">
+              <span>Page size</span>
+              <select [value]="pdfOptions().pageSize" (change)="updateOption('pageSize', $any($event.target).value)">
+                <option value="a4">A4</option>
+                <option value="letter">Letter</option>
+                <option value="legal">Legal</option>
+              </select>
+            </label>
+            <label class="ctl__field">
+              <span>Orientation</span>
+              <select [value]="pdfOptions().orientation" (change)="updateOption('orientation', $any($event.target).value)">
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </label>
+            <label class="ctl__field">
+              <span>Margin (mm)</span>
+              <input type="number" min="10" max="50" [value]="pdfOptions().margin" (change)="updateOption('margin', Number($any($event.target).value))" />
+            </label>
+            <label class="ctl__field">
+              <span>Font size (pt)</span>
+              <input type="number" min="8" max="24" [value]="pdfOptions().fontSize" (change)="updateOption('fontSize', Number($any($event.target).value))" />
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" [checked]="pdfOptions().includeHeader" (change)="updateOption('includeHeader', $any($event.target).checked)" />
+              <div><strong>Include header</strong><span>Add header to each page.</span></div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" [checked]="pdfOptions().includeFooter" (change)="updateOption('includeFooter', $any($event.target).checked)" />
+              <div><strong>Include footer</strong><span>Add page numbers to footer.</span></div>
+            </label>
           </div>
         </div>
-      </div>
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>PDF generation runs <strong>locally</strong> in your browser.</p>
+          </div>
+        </div>
+      </aside>
     </div>
-  </section>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Write Markdown in the input editor — HTML preview updates automatically.</li>
+        <li>Configure page size and margins in the sidebar.</li>
+        <li>Click <strong>PDF</strong> in the toolbar to generate and download.</li>
+        <li>Use the copy icon to grab rendered HTML source.</li>
+      </ul>
+    </details>
+  </main>
 </div>

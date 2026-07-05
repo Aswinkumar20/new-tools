@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface Quote {
   text: string;
@@ -61,10 +61,12 @@ const MOTIVATIONAL_QUOTES: Quote[] = [
   standalone: true,
   templateUrl: './motivational-quote-generator.html',
   styleUrls: ['./motivational-quote-generator.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MotivationalQuoteGeneratorComponent {
+  readonly assetService = inject(AssetService);
+
   readonly currentQuote = signal<Quote | null>(null);
   readonly quoteHistory = signal<QuoteHistory[]>([]);
   readonly favorites = signal<string[]>([]);
@@ -74,6 +76,11 @@ export class MotivationalQuoteGeneratorComponent {
   readonly isFavorite = computed(() => {
     const quote = this.currentQuote();
     return quote ? this.favorites().includes(quote.id) : false;
+  });
+
+  readonly quoteText = computed(() => {
+    const quote = this.currentQuote();
+    return quote ? `"${quote.text}" - ${quote.author}` : '';
   });
 
   readonly stats = computed(() => {
@@ -87,14 +94,12 @@ export class MotivationalQuoteGeneratorComponent {
   });
 
   constructor() {
-    // Generate initial quote
     this.generateQuote();
   }
 
   generateQuote(): void {
     const randomIndex = Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length);
     const quote = MOTIVATIONAL_QUOTES[randomIndex];
-
     this.currentQuote.set(quote);
     this.quoteHistory.update((history) => [
       { quote, timestamp: Date.now() },
@@ -104,34 +109,14 @@ export class MotivationalQuoteGeneratorComponent {
 
   toggleFavorite(): void {
     const quote = this.currentQuote();
-    if (!quote) {
-      return;
-    }
-
-    this.favorites.update((favs) => {
-      if (favs.includes(quote.id)) {
-        return favs.filter((id) => id !== quote.id);
-      } else {
-        return [...favs, quote.id];
-      }
-    });
+    if (!quote) return;
+    this.favorites.update((favs) =>
+      favs.includes(quote.id) ? favs.filter((id) => id !== quote.id) : [...favs, quote.id]
+    );
   }
 
   copyQuote(): void {
-    const quote = this.currentQuote();
-    if (!quote) {
-      return;
-    }
-
-    const text = `"${quote.text}" - ${quote.author}`;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success - could show a toast notification
-      })
-      .catch(() => {
-        // Error handling
-      });
+    this.copyText(this.quoteText(), 'Quote');
   }
 
   clearHistory(): void {
@@ -139,7 +124,13 @@ export class MotivationalQuoteGeneratorComponent {
   }
 
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
+    return new Date(timestamp).toLocaleTimeString();
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

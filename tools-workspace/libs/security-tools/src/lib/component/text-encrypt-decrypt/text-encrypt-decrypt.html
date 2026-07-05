@@ -1,139 +1,222 @@
-<div class="ted">
-  <div class="ted__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="ted__hero">
-    <div class="ted__badge">Security toolkit</div>
-    <h1>Text Encrypt / Decrypt</h1>
-    <p>
-      Encrypt and decrypt text locally using a password-based key. Useful for sharing snippets securely or storing
-      secrets temporarily.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Text Encrypt / Decrypt</h1>
+        <p>Encrypt and decrypt text locally using AES-GCM with a password-derived key.</p>
+      </header>
 
-    <div class="ted__hero-meta">
-      <div>
-        <span class="ted__meta-label">Mode</span>
-        <strong>{{ isEncryptMode() ? 'Encrypt' : 'Decrypt' }}</strong>
-      </div>
-      <div>
-        <span class="ted__meta-label">Has output</span>
-        <strong>{{ hasOutput() ? 'Yes' : 'No' }}</strong>
+      <div class="ctl__stats" aria-label="Crypto statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ isEncryptMode() ? 'Encrypt' : 'Decrypt' }}</span>
+          <span class="ctl__stat-label">Mode</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ inputLength() }}</span>
+          <span class="ctl__stat-label">Input</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ state().output.length }}</span>
+          <span class="ctl__stat-label">Output</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasOutput() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="ted__board" [formGroup]="form">
-    <section class="ted__panel ted__panel--input">
-      <header class="ted__card-header">
-        <div>
-          <h2>Input</h2>
-          <p>Plaintext or ciphertext depending on mode.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="swapMode()">
-          Switch to {{ isEncryptMode() ? 'Decrypt' : 'Encrypt' }}
-        </button>
-      </header>
+    <div class="ctl__toolbar" aria-label="Crypto actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="run()"
+        [disabled]="!canRun()"
+        [attr.aria-label]="isEncryptMode() ? 'Encrypt' : 'Decrypt'"
+        [appTooltip]="isEncryptMode() ? 'Encrypt text' : 'Decrypt text'"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">{{ isEncryptMode() ? 'Encrypt' : 'Decrypt' }}</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="swapMode()"
+        aria-label="Switch mode"
+        appTooltip="Switch mode"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Switch</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clearAll()"
+        aria-label="Clear all"
+        appTooltip="Clear all"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
 
-      @if (errors().length) {
-        <div class="ted__alert ted__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>{{ isEncryptMode() ? 'Plaintext' : 'Ciphertext' }}</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyInput()"
+                [disabled]="!inputLength()"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (warnings().length) {
+            <div class="ctl__alert ctl__alert--warning">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (isEncryptMode()) {
+            <label class="sr-only" for="plaintext">Plaintext</label>
+            <textarea
+              id="plaintext"
+              class="ctl__textarea"
+              formControlName="plaintext"
+              rows="1"
+              spellcheck="false"
+              placeholder="Enter text to encrypt"></textarea>
+          } @else {
+            <label class="sr-only" for="ciphertext">Ciphertext</label>
+            <textarea
+              id="ciphertext"
+              class="ctl__textarea ctl__textarea--mono"
+              formControlName="ciphertext"
+              rows="1"
+              spellcheck="false"
+              placeholder="Paste base64 ciphertext from this tool"></textarea>
+          }
+        </section>
 
-      @if (warnings().length) {
-        <div class="ted__alert ted__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="ted__mode-info">
-        <p *ngIf="isEncryptMode(); else decryptInfo">
-          In <strong>Encrypt</strong> mode, enter plaintext and a password. The encrypted text will appear on the right.
-        </p>
-        <ng-template #decryptInfo>
-          <p>
-            In <strong>Decrypt</strong> mode, enter ciphertext (base64 from this tool) and the password used to encrypt
-            it.
-          </p>
-        </ng-template>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>{{ isEncryptMode() ? 'Ciphertext' : 'Plaintext' }}</span>
+            <div class="ctl__editor-actions">
+              @if (hasOutput()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasOutput()"
+                aria-label="Copy output"
+                appTooltip="Copy output"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasOutput()) {
+            <textarea
+              class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
+              readonly
+              [value]="state().output"
+              rows="1"
+              spellcheck="false"></textarea>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Output will appear here after you {{ isEncryptMode() ? 'encrypt' : 'decrypt' }}.</p>
+            </div>
+          }
+        </section>
       </div>
 
-      <div class="ted__field" *ngIf="isEncryptMode(); else decryptInput">
-        <label for="plaintext" class="ted__label">Plaintext</label>
-        <textarea
-          id="plaintext"
-          class="ted__textarea"
-          formControlName="plaintext"
-          rows="7"
-          spellcheck="false"
-          placeholder="Enter text to encrypt"
-        ></textarea>
-      </div>
-
-      <ng-template #decryptInput>
-        <div class="ted__field">
-          <label for="ciphertext" class="ted__label">Ciphertext (base64)</label>
-          <textarea
-            id="ciphertext"
-            class="ted__textarea"
-            formControlName="ciphertext"
-            rows="7"
-            spellcheck="false"
-            placeholder="Paste text encrypted by this tool"
-          ></textarea>
+      <aside class="ctl__sidebar" aria-label="Encryption settings">
+        <div class="ctl__tabs" role="tablist">
+          <button
+            type="button"
+            class="ctl__tab"
+            [class.ctl__tab--active]="isEncryptMode()"
+            (click)="setMode('encrypt')"
+            role="tab"
+            [attr.aria-selected]="isEncryptMode()">
+            Encrypt
+          </button>
+          <button
+            type="button"
+            class="ctl__tab"
+            [class.ctl__tab--active]="!isEncryptMode()"
+            (click)="setMode('decrypt')"
+            role="tab"
+            [attr.aria-selected]="!isEncryptMode()">
+            Decrypt
+          </button>
         </div>
-      </ng-template>
-
-      <div class="ted__field">
-        <label for="password" class="ted__label">Password</label>
-        <input
-          id="password"
-          type="password"
-          class="ted__input"
-          formControlName="password"
-          autocomplete="new-password"
-          placeholder="Password for encryption/decryption"
-        />
-        <p class="ted__hint">
-          Use a strong password and remember it. If you forget it, encrypted text cannot be decrypted.
-        </p>
-      </div>
-
-      <div class="ted__button-row">
-        <button type="button" class="btn btn--primary btn--small" (click)="run()">
-          {{ isEncryptMode() ? 'Encrypt' : 'Decrypt' }}
-        </button>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearAll()">Clear all</button>
-      </div>
-    </section>
-
-    <section class="ted__panel ted__panel--output">
-      <header class="ted__card-header">
-        <div>
-          <h2>Output</h2>
-          <p>{{ isEncryptMode() ? 'Encrypted ciphertext' : 'Decrypted plaintext' }}</p>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Password</header>
+          <div class="ctl__settings">
+            <label class="ctl__field">
+              <span>Password</span>
+              <input
+                id="password"
+                type="password"
+                formControlName="password"
+                autocomplete="new-password"
+                placeholder="Encryption password" />
+            </label>
+            <p class="ted-hint">Use a strong password. Lost passwords cannot be recovered.</p>
+          </div>
         </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="copyOutput()" [disabled]="!hasOutput()">
-          Copy
-        </button>
-      </header>
-
-      @if (hasOutput()) {
-        <div class="ted__output">
-          <pre class="ted__code">{{ state().output }}</pre>
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>Uses <strong>AES-GCM + PBKDF2</strong> — all processing is local.</p>
+          </div>
+          @if (isEncryptMode()) {
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Encrypted output is base64-encoded for easy sharing.</p>
+            </div>
+          } @else {
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Paste ciphertext produced by this tool's encrypt mode.</p>
+            </div>
+          }
         </div>
-      } @else {
-        <div class="ted__empty">Output will appear here after you {{ isEncryptMode() ? 'encrypt' : 'decrypt' }}.</div>
-      }
-    </section>
-  </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose <strong>Encrypt</strong> or <strong>Decrypt</strong> via tabs or the Switch button.</li>
+        <li>Enter text and a password, then click Encrypt or Decrypt.</li>
+        <li>Copy input or output using the editor copy icons.</li>
+        <li>Ciphertext is base64 and includes salt + IV prefix.</li>
+      </ul>
+    </details>
+  </main>
 </div>

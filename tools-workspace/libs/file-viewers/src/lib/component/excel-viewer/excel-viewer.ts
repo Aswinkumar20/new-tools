@@ -8,11 +8,12 @@ import {
   ChangeDetectorRef,
   HostListener,
   PLATFORM_ID,
-  Inject
+  Inject,
+  inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 // SheetJS types
 interface XLSX {
@@ -100,9 +101,10 @@ interface CellData {
   standalone: true,
   templateUrl: './excel-viewer.html',
   styleUrls: ['./excel-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class ExcelViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('tableContainer') tableContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('excelTable') excelTable!: ElementRef<HTMLTableElement>;
@@ -697,6 +699,23 @@ export class ExcelViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       
       this.cdr.markForCheck();
     }
+  }
+
+  clearAll(): void {
+    if (this.isFullscreen) {
+      this.isFullscreen = false;
+    }
+    this.excelFiles = [];
+    this.currentFileIndex = -1;
+    this.currentSheetIndex = 0;
+    this.sheetData = [];
+    this.sheetHeaders = [];
+    this.maxRows = 0;
+    this.maxCols = 0;
+    this.searchText = '';
+    this.searchResults = [];
+    this.errorMessage = '';
+    this.cdr.markForCheck();
   }
 
   formatFileSize(bytes: number): string {

@@ -1,211 +1,264 @@
-<div class="ptr">
-  <div class="ptr__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="ptr__hero">
-    <div class="ptr__badge">Design toolkit</div>
-    <h1>Pixel to REM Converter</h1>
-    <p>
-      Convert between pixels and rem units. Configure the base font size and convert values instantly. Perfect for
-      responsive design and CSS development.
-    </p>
-
-    @if (hasResult() && conversionResult()) {
-      <div class="ptr__hero-meta">
-        <div>
-          <span class="ptr__meta-label">Input</span>
-          <strong>{{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}</strong>
-        </div>
-        <div>
-          <span class="ptr__meta-label">Output</span>
-          <strong>{{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}</strong>
-        </div>
-        <div>
-          <span class="ptr__meta-label">Base size</span>
-          <strong>{{ form.controls.baseSize.value }}px</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="ptr__hero-meta ptr__hero-meta--placeholder">
-        Enter a value and select conversion direction to see the result.
-      </div>
-    }
-  </section>
-
-  <div class="ptr__board" [formGroup]="form">
-    <section class="ptr__panel ptr__panel--converter">
-      <header class="ptr__card-header">
-        <div>
-          <h2>Converter</h2>
-          <p>Convert between pixels and rem units.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="swapDirection()">Swap direction</button>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Pixel to REM Converter</h1>
+        <p>Convert between pixels and rem units using a configurable base font size.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="ptr__alert ptr__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="ptr__settings-grid">
-        <div class="ptr__setting-group">
-          <label for="direction" class="ptr__label">Conversion direction</label>
-          <select id="direction" class="ptr__select" formControlName="direction">
-            <option value="px-to-rem">Pixels to REM</option>
-            <option value="rem-to-px">REM to Pixels</option>
-          </select>
-        </div>
-
-        <div class="ptr__setting-group">
-          <label for="inputValue" class="ptr__label">
-            {{ form.controls.direction.value === 'px-to-rem' ? 'Pixels' : 'REM' }}
-          </label>
-          <input
-            id="inputValue"
-            type="number"
-            class="ptr__input"
-            min="0"
-            step="0.01"
-            formControlName="inputValue"
-          />
-          <small>Enter the value to convert</small>
-        </div>
-
-        <div class="ptr__setting-group">
-          <label for="baseSize" class="ptr__label">Base font size (px)</label>
-          <input
-            id="baseSize"
-            type="number"
-            class="ptr__input"
-            min="1"
-            max="100"
-            formControlName="baseSize"
-          />
-          <small>Default browser font size (typically 16px)</small>
-        </div>
-      </div>
-
-      @if (hasResult() && conversionResult()) {
-        <div class="ptr__result-container">
-          <div class="ptr__result-display">
-            <div class="ptr__result-input">
-              <span class="ptr__result-label">Input:</span>
-              <strong class="ptr__result-value">
-                {{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}
-              </strong>
-            </div>
-            <div class="ptr__result-arrow">→</div>
-            <div class="ptr__result-output">
-              <span class="ptr__result-label">Output:</span>
-              <strong class="ptr__result-value ptr__result-value--output">
-                {{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}
-              </strong>
-            </div>
+      <div class="ctl__stats" aria-label="Conversion statistics">
+        @if (hasResult() && conversionResult()) {
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}</span>
+            <span class="ctl__stat-label">Input</span>
           </div>
-
-          <div class="ptr__formula">
-            <strong>Formula:</strong>
-            <code>{{ conversionResult()!.formula }}</code>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}</span>
+            <span class="ctl__stat-label">Output</span>
           </div>
-
-          <div class="ptr__result-actions">
-            <button
-              type="button"
-              class="btn btn--primary btn--small"
-              (click)="copyToClipboard(formatOutput(conversionResult()!.output) + (form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px'), 'Result')"
-            >
-              Copy result
-            </button>
-            <button
-              type="button"
-              class="btn btn--ghost btn--small"
-              (click)="copyToClipboard(conversionResult()!.formula, 'Formula')"
-            >
-              Copy formula
-            </button>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ form.controls.baseSize.value }}px</span>
+            <span class="ctl__stat-label">Base</span>
           </div>
-        </div>
-      }
-
-      <label class="ptr__toggle">
-        <input type="checkbox" formControlName="rememberHistory" />
-        <div>
-          <strong>Remember history</strong>
-          <span>Keep track of recent conversions</span>
-        </div>
-      </label>
-
-      <div class="ptr__actions">
-        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
-      </div>
-    </section>
-
-    <section class="ptr__panel ptr__panel--presets">
-      <header class="ptr__card-header">
-        <div>
-          <h2>Common sizes</h2>
-          <p>Quick access to commonly used pixel and rem values.</p>
-        </div>
-      </header>
-
-      <div class="ptr__presets-grid">
-        @for (size of commonSizes; track size.px) {
-          <button type="button" class="ptr__preset-item" (click)="applyCommonSize(size)">
-            <div class="ptr__preset-values">
-              <div class="ptr__preset-value">
-                <strong>{{ size.px }}px</strong>
-                <span>=</span>
-                <strong>{{ size.rem }}rem</strong>
-              </div>
-            </div>
-          </button>
+          <div class="ctl__stat ctl__stat--mode">
+            <span class="ctl__stat-value">{{ form.controls.direction.value === 'px-to-rem' ? 'px→rem' : 'rem→px' }}</span>
+            <span class="ctl__stat-label">Mode</span>
+          </div>
+        } @else {
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">—</span>
+            <span class="ctl__stat-label">Input</span>
+          </div>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">—</span>
+            <span class="ctl__stat-label">Output</span>
+          </div>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ form.controls.baseSize.value }}px</span>
+            <span class="ctl__stat-label">Base</span>
+          </div>
+          <div class="ctl__stat ctl__stat--mode">
+            <span class="ctl__stat-value">{{ form.controls.direction.value === 'px-to-rem' ? 'px→rem' : 'rem→px' }}</span>
+            <span class="ctl__stat-label">Mode</span>
+          </div>
         }
       </div>
-    </section>
+    </div>
 
-    <section class="ptr__panel ptr__panel--history">
-      <header class="ptr__card-header">
-        <div>
-          <h2>Conversion history</h2>
-          <p>Quick access to recently converted values.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
+    <div class="ctl__toolbar" aria-label="Conversion actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clear()"
+        aria-label="Reset values"
+        appTooltip="Reset values"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Reset</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="swapDirection()"
+        aria-label="Swap direction"
+        appTooltip="Swap direction"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Swap</span>
+      </button>
+      @if (hasResult() && conversionResult()) {
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyToClipboard(formatOutput(conversionResult()!.output) + (form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px'), 'Result')"
+          aria-label="Copy result"
+          appTooltip="Copy result"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy result</span>
         </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="ptr__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="ptr__history-item">
-                <div class="ptr__history-info">
-                  <strong>
-                    {{ entry.input }}{{ entry.direction === 'px-to-rem' ? 'px' : 'rem' }} →
-                    {{ formatOutput(entry.output) }}{{ entry.direction === 'px-to-rem' ? 'rem' : 'px' }}
-                  </strong>
-                  <span>Base: {{ entry.baseSize }}px • {{ formatTimestamp(entry.timestamp) }}</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="ptr__empty">Enable history tracking to keep a list of recent conversions.</div>
       }
-    </section>
-  </div>
+    </div>
+
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>Conversion result</span>
+            @if (hasResult()) {
+              <span class="ctl__editor-badge">Live</span>
+            }
+          </header>
+          @if (hasResult() && conversionResult()) {
+            <div class="ctl__editor-body ptr__result-wrap">
+              <div class="ptr__result-display">
+                <div class="ptr__result-input">
+                  <span class="ptr__result-label">Input</span>
+                  <strong class="ptr__result-value">
+                    {{ conversionResult()!.input }}{{ form.controls.direction.value === 'px-to-rem' ? 'px' : 'rem' }}
+                  </strong>
+                </div>
+                <div class="ptr__result-arrow">→</div>
+                <div class="ptr__result-output">
+                  <span class="ptr__result-label">Output</span>
+                  <strong class="ptr__result-value ptr__result-value--output">
+                    {{ formatOutput(conversionResult()!.output) }}{{ form.controls.direction.value === 'px-to-rem' ? 'rem' : 'px' }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <div class="ctl__empty">
+              <p>Enter a value and select conversion direction to see the result.</p>
+            </div>
+          }
+        </section>
+
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>Formula</span>
+            <div class="ctl__editor-actions">
+              @if (hasResult() && conversionResult()) {
+                <button
+                  type="button"
+                  class="ctl__icon-btn"
+                  (click)="copyToClipboard(conversionResult()!.formula, 'Formula')"
+                  aria-label="Copy formula"
+                  appTooltip="Copy formula"
+                  tooltipPosition="bottom">
+                  <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                </button>
+              }
+            </div>
+          </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (hasResult() && conversionResult()) {
+            <pre class="ctl__code">{{ conversionResult()!.formula }}</pre>
+          } @else {
+            <div class="ctl__empty">
+              <p>The conversion formula appears here once you enter a value.</p>
+            </div>
+          }
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="Converter options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Settings</header>
+          <div class="ctl__settings">
+            <label class="ctl__field" for="direction">
+              <span>Conversion direction</span>
+              <select id="direction" formControlName="direction">
+                <option value="px-to-rem">Pixels to REM</option>
+                <option value="rem-to-px">REM to Pixels</option>
+              </select>
+            </label>
+
+            <label class="ctl__field" for="inputValue">
+              <span>{{ form.controls.direction.value === 'px-to-rem' ? 'Pixels' : 'REM' }}</span>
+              <input id="inputValue" type="number" min="0" step="0.01" formControlName="inputValue" />
+            </label>
+
+            <label class="ctl__field" for="baseSize">
+              <span>Base font size (px)</span>
+              <input id="baseSize" type="number" min="1" max="100" formControlName="baseSize" />
+            </label>
+
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="rememberHistory" />
+              <div>
+                <strong>Remember history</strong>
+                <span>Keep track of recent conversions</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Common sizes</header>
+          <div class="ctl__panel-body">
+            <div class="ptr__presets-grid">
+              @for (size of commonSizes; track size.px) {
+                <button type="button" class="ptr__preset-item" (click)="applyCommonSize(size)">
+                  <div class="ptr__preset-value">
+                    <strong>{{ size.px }}px</strong>
+                    <span>=</span>
+                    <strong>{{ size.rem }}rem</strong>
+                  </div>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">
+            <span>History</span>
+            <button
+              type="button"
+              class="ctl__icon-btn"
+              (click)="clearHistory()"
+              [disabled]="!hasHistory()"
+              aria-label="Clear history"
+              appTooltip="Clear history"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+            </button>
+          </header>
+          <div class="ctl__panel-body">
+            @if (hasHistory()) {
+              <ul class="ptr__history-list">
+                @for (entry of history(); track entry.timestamp) {
+                  <li>
+                    <button type="button" (click)="applyHistory(entry)" class="ptr__history-item">
+                      <div class="ptr__history-info">
+                        <strong>
+                          {{ entry.input }}{{ entry.direction === 'px-to-rem' ? 'px' : 'rem' }} →
+                          {{ formatOutput(entry.output) }}{{ entry.direction === 'px-to-rem' ? 'rem' : 'px' }}
+                        </strong>
+                        <span>Base: {{ entry.baseSize }}px • {{ formatTimestamp(entry.timestamp) }}</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="ctl__icon-btn"
+                      (click)="removeHistoryEntry(entry.timestamp)"
+                      aria-label="Remove entry"
+                      appTooltip="Remove entry"
+                      tooltipPosition="bottom">
+                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__panel-empty">
+                <p>Enable history tracking to keep a list of recent conversions.</p>
+              </div>
+            }
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Set the base font size (typically 16px) for accurate rem calculations.</li>
+        <li>Choose conversion direction and enter a pixel or rem value.</li>
+        <li>Click common size presets for standard typography values.</li>
+        <li>Copy the result or formula from the toolbar or output panel.</li>
+      </ul>
+    </details>
+  </main>
 </div>

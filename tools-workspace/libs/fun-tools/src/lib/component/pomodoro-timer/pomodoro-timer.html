@@ -1,169 +1,107 @@
-<div class="pt">
-  <div class="pt__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="pt__hero">
-    <div class="pt__badge">Fun tools</div>
-    <h1>Pomodoro Timer</h1>
-    <p>
-      Boost productivity with the Pomodoro Technique. Work in focused 25-minute intervals with short breaks. Track your
-      completed sessions and maintain your flow.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Pomodoro Timer</h1>
+        <p>Work in focused intervals with short breaks — track completed sessions.</p>
+      </header>
 
-    <div class="pt__hero-meta">
-      <div>
-        <span class="pt__meta-label">Completed</span>
-        <strong>{{ completedPomodoros() }}</strong>
-      </div>
-      <div>
-        <span class="pt__meta-label">Current session</span>
-        <strong>{{ currentSession() }}</strong>
-      </div>
-      <div>
-        <span class="pt__meta-label">Mode</span>
-        <strong>{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long Break' : 'Break' }}</strong>
-      </div>
-      <div>
-        <span class="pt__meta-label">Status</span>
-        <strong>{{ isRunning() ? 'Running' : 'Paused' }}</strong>
+      <div class="ctl__stats" aria-label="Pomodoro statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ completedPomodoros() }}</span>
+          <span class="ctl__stat-label">Done</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ currentSession() }}</span>
+          <span class="ctl__stat-label">Session</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long' : 'Break' }}</span>
+          <span class="ctl__stat-label">Mode</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ isRunning() ? 'On' : 'Off' }}</span>
+          <span class="ctl__stat-label">Timer</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="pt__board" [formGroup]="form">
-    <section class="pt__panel pt__panel--timer">
-      <header class="pt__card-header">
-        <div>
-          <h2>Timer</h2>
-          <p>{{ mode() === 'work' ? 'Focus time' : mode() === 'longBreak' ? 'Long break time' : 'Break time' }}.</p>
-        </div>
-      </header>
-
-      <div class="pt__timer-container">
-        <div class="pt__timer-circle" [class.pt__timer-circle--work]="isWorkMode()"
-             [class.pt__timer-circle--break]="isBreakMode()">
-          <svg class="pt__timer-svg" viewBox="0 0 100 100">
-            <circle class="pt__timer-bg" cx="50" cy="50" r="45" />
-            <circle
-              class="pt__timer-progress"
-              cx="50"
-              cy="50"
-              r="45"
-              [attr.stroke-dasharray]="getCircleCircumference()"
-              [attr.stroke-dashoffset]="getCircleDashOffset()"
-            />
-          </svg>
-          <div class="pt__timer-content">
-            <div class="pt__timer-time">{{ formatTimeDisplay() }}</div>
-            <div class="pt__timer-mode">{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long Break' : 'Break' }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="pt__timer-controls">
-        @if (isRunning()) {
-          <button type="button" class="btn btn--primary btn--large" (click)="pauseTimer()">Pause</button>
-        } @else {
-          <button type="button" class="btn btn--primary btn--large" (click)="startTimer()">Start</button>
-        }
-        <button type="button" class="btn btn--ghost" (click)="resetTimer()">Reset</button>
-        <button type="button" class="btn btn--ghost" (click)="skipTimer()">Skip</button>
-      </div>
-    </section>
-
-    <section class="pt__panel pt__panel--settings">
-      <header class="pt__card-header">
-        <div>
-          <h2>Settings</h2>
-          <p>Customize timer durations.</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          (click)="resetStats()"
-          [disabled]="completedPomodoros() === 0 && currentSession() === 0"
-        >
-          Reset Stats
+    <div class="ctl__toolbar" aria-label="Timer controls">
+      @if (isRunning()) {
+        <button type="button" class="ctl__tool-btn" (click)="pauseTimer()" appTooltip="Pause" tooltipPosition="bottom" aria-label="Pause">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Pause</span>
         </button>
-      </header>
+      } @else {
+        <button type="button" class="ctl__tool-btn" (click)="startTimer()" appTooltip="Start" tooltipPosition="bottom" aria-label="Start">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Start</span>
+        </button>
+      }
+      <button type="button" class="ctl__tool-btn" (click)="resetTimer()" appTooltip="Reset timer" tooltipPosition="bottom" aria-label="Reset timer">
+        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Reset</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="skipTimer()" appTooltip="Skip interval" tooltipPosition="bottom" aria-label="Skip interval">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Skip</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="resetStats()" [disabled]="completedPomodoros() === 0 && currentSession() === 0" appTooltip="Reset stats" tooltipPosition="bottom" aria-label="Reset stats">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Stats</span>
+      </button>
+    </div>
 
-      <div class="pt__settings-form">
-        <div class="pt__field">
-          <label for="workMinutes" class="pt__label">Work Duration (minutes)</label>
-          <input
-            id="workMinutes"
-            type="number"
-            class="pt__input"
-            formControlName="workMinutes"
-            min="1"
-            max="60"
-            (change)="onSettingsChange()"
-          />
-          <small class="pt__hint">Duration of work sessions (1-60 minutes).</small>
-        </div>
-
-        <div class="pt__field">
-          <label for="breakMinutes" class="pt__label">Break Duration (minutes)</label>
-          <input
-            id="breakMinutes"
-            type="number"
-            class="pt__input"
-            formControlName="breakMinutes"
-            min="1"
-            max="30"
-            (change)="onSettingsChange()"
-          />
-          <small class="pt__hint">Duration of short breaks (1-30 minutes).</small>
-        </div>
-
-        <div class="pt__field">
-          <label for="longBreakMinutes" class="pt__label">Long Break Duration (minutes)</label>
-          <input
-            id="longBreakMinutes"
-            type="number"
-            class="pt__input"
-            formControlName="longBreakMinutes"
-            min="1"
-            max="60"
-            (change)="onSettingsChange()"
-          />
-          <small class="pt__hint">Duration of long breaks (1-60 minutes).</small>
-        </div>
-
-        <div class="pt__field">
-          <label for="longBreakInterval" class="pt__label">Long Break Interval</label>
-          <input
-            id="longBreakInterval"
-            type="number"
-            class="pt__input"
-            formControlName="longBreakInterval"
-            min="2"
-            max="10"
-            (change)="onSettingsChange()"
-          />
-          <small class="pt__hint">Number of work sessions before a long break (2-10).</small>
-        </div>
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor ctl__editor--merged">
+          <header class="ctl__editor-head">
+            <span>{{ mode() === 'work' ? 'Focus time' : mode() === 'longBreak' ? 'Long break' : 'Break' }}</span>
+            <span class="ctl__editor-badge">{{ progressRounded() }}%</span>
+          </header>
+          <div class="ctl__editor-body pt-timer" [class.pt-timer--work]="isWorkMode()" [class.pt-timer--break]="isBreakMode()">
+            <svg class="pt-timer__svg" viewBox="0 0 100 100" aria-hidden="true">
+              <circle class="pt-timer__bg" cx="50" cy="50" r="45" />
+              <circle class="pt-timer__progress" cx="50" cy="50" r="45" [attr.stroke-dasharray]="getCircleCircumference()" [attr.stroke-dashoffset]="getCircleDashOffset()" />
+            </svg>
+            <div class="pt-timer__display">
+              <span class="pt-timer__time">{{ formatTimeDisplay() }}</span>
+              <span class="pt-timer__mode">{{ mode() === 'work' ? 'Work' : mode() === 'longBreak' ? 'Long Break' : 'Break' }}</span>
+            </div>
+          </div>
+        </section>
       </div>
 
-      <div class="pt__stats">
-        <div class="pt__stat-item">
-          <span class="pt__stat-label">Completed Pomodoros</span>
-          <strong class="pt__stat-value">{{ completedPomodoros() }}</strong>
-        </div>
-        <div class="pt__stat-item">
-          <span class="pt__stat-label">Current Session</span>
-          <strong class="pt__stat-value">{{ currentSession() }}</strong>
+      <aside class="ctl__sidebar" aria-label="Timer settings">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Settings</header>
+          <div class="ctl__settings">
+            <label class="ctl__field" for="workMinutes"><span>Work (min)</span><input id="workMinutes" type="number" formControlName="workMinutes" min="1" max="60" (change)="onSettingsChange()" /></label>
+            <label class="ctl__field" for="breakMinutes"><span>Break (min)</span><input id="breakMinutes" type="number" formControlName="breakMinutes" min="1" max="30" (change)="onSettingsChange()" /></label>
+            <label class="ctl__field" for="longBreakMinutes"><span>Long break (min)</span><input id="longBreakMinutes" type="number" formControlName="longBreakMinutes" min="1" max="60" (change)="onSettingsChange()" /></label>
+            <label class="ctl__field" for="longBreakInterval"><span>Long break every</span><input id="longBreakInterval" type="number" formControlName="longBreakInterval" min="2" max="10" (change)="onSettingsChange()" /></label>
+          </div>
         </div>
         @if (completedPomodoros() > 0) {
-          <div class="pt__stat-item">
-            <span class="pt__stat-label">Next Long Break</span>
-            <strong class="pt__stat-value">
-              {{ form.controls.longBreakInterval.value - (currentSession() % form.controls.longBreakInterval.value) }}
-            </strong>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Next long break in <strong>{{ form.controls.longBreakInterval.value - (currentSession() % form.controls.longBreakInterval.value) }}</strong> sessions.</p>
+            </div>
           </div>
         }
-      </div>
-    </section>
-  </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Start a work session, then take breaks when the timer ends.</li>
+        <li>Skip advances to the next interval; Reset restarts the current one.</li>
+        <li>Customize durations in the sidebar — changes apply when paused.</li>
+      </ul>
+    </details>
+  </main>
 </div>

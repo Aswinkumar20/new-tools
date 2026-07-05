@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface CompressionPreset {
@@ -65,13 +65,14 @@ const MAX_FILE_SIZE = 45 * 1024 * 1024;
   standalone: true,
   templateUrl: './image-compressor.html',
   styleUrls: ['./image-compressor.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageCompressorComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly assetService = inject(AssetService);
 
   readonly form: CompressorFormGroup = this.fb.group({
     quality: this.fb.control<number>(0.8, { nonNullable: true, validators: [Validators.min(0.1), Validators.max(1)] }),

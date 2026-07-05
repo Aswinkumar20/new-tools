@@ -1,7 +1,7 @@
-import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { PDFDocument } from 'pdf-lib';
 
 interface PdfFile {
@@ -22,9 +22,10 @@ interface PdfFile {
   standalone: true,
   templateUrl: './merge-pdfs.html',
   styleUrls: ['./merge-pdfs.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class MergePdfsComponent implements OnInit {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewCanvas') previewCanvas?: ElementRef<HTMLCanvasElement>;
 

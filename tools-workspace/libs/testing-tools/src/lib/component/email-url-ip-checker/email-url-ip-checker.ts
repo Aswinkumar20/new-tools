@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type CheckMode = 'auto' | 'email' | 'url' | 'ip';
 
@@ -29,11 +29,12 @@ type EmailUrlIpFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './email-url-ip-checker.html',
   styleUrls: ['./email-url-ip-checker.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class EmailUrlIpCheckerComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: EmailUrlIpFormGroup = this.fb.group({
     input: this.fb.control('', { nonNullable: true }),
@@ -60,6 +61,64 @@ export class EmailUrlIpCheckerComponent {
   });
 
   readonly Object = Object;
+
+  readonly hasInput = computed(() => !!this.form.controls.input.value.trim());
+
+  readonly modeLabel = computed(() => {
+    const mode = this.form.controls.mode.value;
+    switch (mode) {
+      case 'email':
+        return 'Email';
+      case 'url':
+        return 'URL';
+      case 'ip':
+        return 'IP';
+      default:
+        return 'Auto';
+    }
+  });
+
+  onInputChange(): void {
+    if (this.hasInput()) {
+      this.analyze();
+    } else {
+      this.results.set([]);
+      this.errors.set([]);
+    }
+  }
+
+  onOptionChange(): void {
+    if (this.hasInput()) {
+      this.analyze();
+    }
+  }
+
+  clear(): void {
+    this.form.controls.input.setValue('');
+    this.results.set([]);
+    this.errors.set([]);
+    this.warnings.set([]);
+  }
+
+  copyInput(): void {
+    this.copyText(this.form.controls.input.value, 'Input');
+  }
+
+  copyOutput(): void {
+    const lines = this.results().map((r, i) => {
+      const status = r.valid ? 'Valid' : 'Invalid';
+      const issues = r.issues.length ? ` — ${r.issues.join('; ')}` : '';
+      return `#${i + 1} [${r.type}] ${status}: ${r.value}${issues}`;
+    });
+    this.copyText(lines.join('\n'), 'Results');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
 
   analyze(): void {
     this.errors.set([]);

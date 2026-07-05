@@ -1,309 +1,65 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
-
-  <section class="workspace">
-    <div class="editor-hero">
-      <h1 class="editor-hero__title">Smart Unit Converter</h1>
-      <p class="editor-hero__subtitle">
-        Convert anything from length and temperature to advanced electrical measurements with live insights and reusable presets.
-      </p>
-    </div>
-
-    <div class="workspace__layout">
-      <aside class="sidebar" aria-label="Conversion categories">
-        <div class="sidebar__section">
-          <label class="form-label" for="category-search">Find a unit type</label>
-          <div class="search-field">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-field__icon">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
-            <input
-              id="category-search"
-              #categorySearch
-              type="search"
-              [value]="searchTerm()"
-              (input)="onCategorySearch(categorySearch.value)"
-              placeholder="Search length, mass, energy..."
-              aria-describedby="category-search-hint"
-            />
-          </div>
-          <p id="category-search-hint" class="hint">Instant suggestions as you type.</p>
-        </div>
-
-        <ng-container *ngIf="filteredCategories().length; else noCategoryResults">
-          <div class="sidebar__section sidebar__section--with-scroll">
-            <h2 class="sidebar__title">Categories</h2>
-            <div class="sidebar__scrollable">
-              <ul class="category-list">
-                <li
-                  class="category-list__item"
-                  *ngFor="let category of filteredCategories(); trackBy: trackCategory"
-                  [class.category-list__item--active]="category.id === selectedCategory()"
-                >
-                  <button type="button" class="category-list__button" (click)="setCategory(category.id)">
-                    <span>{{ category.title }}</span>
-                    <small>{{ category.description }}</small>
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </ng-container>
-
-        <div class="sidebar__section sidebar__section--muted" *ngIf="quickPresetChips().length">
-          <h2 class="sidebar__title">Quick Presets</h2>
-          <div class="preset-chips">
-            <button
-              type="button"
-              class="chip"
-              *ngFor="let preset of quickPresetChips(); trackBy: trackPreset"
-              (click)="onPresetChipClick(preset)"
-            >
-              {{ preset.name }}
-            </button>
-          </div>
-        </div>
-
-        <ng-template #noCategoryResults>
-          <div class="sidebar__section sidebar__section--muted">
-            <p class="hint">No categories match your search.</p>
-            <button type="button" class="btn btn--ghost btn--small" (click)="onCategorySearch('')">Reset search</button>
-          </div>
-        </ng-template>
-      </aside>
-
-      <div class="workspace__main">
-        <div class="workspace__card">
-          <div class="workspace__panel">
-            <div class="converter-header">
-              <div class="converter-header__content">
-                <h2 class="converter-header__title">{{ selectedCategoryDetails().title }} Converter</h2>
-                <p class="converter-header__subtitle">{{ selectedCategoryDetails().description }}</p>
-              </div>
-              <div class="converter-header__actions">
-                <button type="button" class="btn-icon" aria-label="Swap input and output units" (click)="swapUnits()" [attr.data-tooltip]="'Swap input and output units'">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2"></path>
-                    <polyline points="7 16 12 11 17 16"></polyline>
-                    <line x1="12" y1="11" x2="12" y2="23"></line>
-                    <path d="M3 7v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7"></path>
-                    <polyline points="17 8 12 13 7 8"></polyline>
-                    <line x1="12" y1="13" x2="12" y2="1"></line>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div class="converter-metrics">
-              <div class="metric">
-                <span class="metric__label">CATEGORY:</span>
-                <span class="metric__value">{{ selectedCategoryDetails().title }}</span>
-              </div>
-              <div class="metric">
-                <span class="metric__label">UNITS:</span>
-                <span class="metric__value">{{ selectedUnitsCount() }}</span>
-              </div>
-              <div class="metric">
-                <span class="metric__label">PRECISION:</span>
-                <span class="metric__value">{{ conversionResult()?.precision ?? 6 }} decimals</span>
-              </div>
-              <div class="metric">
-                <span class="metric__label">HISTORY:</span>
-                <span class="metric__value">{{ historyCount() }}</span>
-              </div>
-            </div>
-
-            <form class="conversion-form" [formGroup]="conversionForm" (ngSubmit)="onConversionSubmit()">
-              <div class="conversion-input-group">
-                <label class="form-label" for="input-value">Enter Value</label>
-                <div class="input-select-group">
-                  <input
-                    #inputField
-                    id="input-value"
-                    type="number"
-                    inputmode="decimal"
-                    class="input-number"
-                    formControlName="inputValue"
-                    [attr.aria-invalid]="conversionError() ? true : null"
-                    placeholder="0"
-                  />
-                  <select class="unit-select" formControlName="inputUnit" aria-label="Select input unit">
-                    <option *ngFor="let unit of categoryMeta().units; trackBy: trackUnit" [value]="unit.id">
-                      {{ formatUnitLabel(unit) }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="conversion-arrow">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </div>
-
-              <div class="conversion-output-group">
-                <label class="form-label" for="output-value">Result</label>
-                <div class="input-select-group">
-                  <input
-                    id="output-value"
-                    type="text"
-                    class="input-number input-number--readonly"
-                    [value]="formattedOutputValue()"
-                    readonly
-                    placeholder="—"
-                  />
-                  <select id="output-unit" class="unit-select" formControlName="outputUnit" aria-label="Select output unit">
-                    <option *ngFor="let unit of categoryMeta().units; trackBy: trackUnit" [value]="unit.id">
-                      {{ formatUnitLabel(unit) }}
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="conversion-status" *ngIf="conversionError() || conversionSummary()">
-                <div class="status-message status-message--error" *ngIf="conversionError()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                  </svg>
-                  <span>{{ conversionError() }}</span>
-                </div>
-                <div class="status-message status-message--success" *ngIf="conversionSummary() && !conversionError()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span>{{ conversionSummary() }}</span>
-                </div>
-              </div>
-
-              <div class="conversion-actions">
-                <button type="submit" class="btn btn--primary" [disabled]="isConverting()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" *ngIf="!isConverting()">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                  </svg>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" *ngIf="isConverting()" class="spinning">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 6v6l4 2"></path>
-                  </svg>
-                  <span>{{ isConverting() ? 'Converting…' : 'Convert' }}</span>
-                </button>
-                <button type="button" class="btn btn--secondary" (click)="promptSavePreset()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                    <polyline points="7 3 7 8 15 8"></polyline>
-                  </svg>
-                  <span>Save Preset</span>
-                </button>
-              </div>
-            </form>
-
-            <div class="conversion-details" *ngIf="conversionResult()">
-              <div class="detail-item">
-                <span class="detail-label">Formula</span>
-                <span class="detail-value">{{ conversionResult()?.formula ?? 'Pending…' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Precision</span>
-                <span class="detail-value">{{ conversionResult()?.precision ?? 6 }} decimal places</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Units Available</span>
-                <span class="detail-value">{{ selectedUnitsCount() }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="workspace__secondary">
-          <div class="insights-card">
-            <div class="card-header">
-              <h3 class="card-title">Conversion Insights</h3>
-              <button type="button" class="btn-icon btn-icon--small" aria-label="View options" (click)="customizeQuickActions()" [attr.data-tooltip]="'Customize quick actions'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="1"></circle>
-                  <circle cx="19" cy="12" r="1"></circle>
-                  <circle cx="5" cy="12" r="1"></circle>
-                </svg>
-              </button>
-            </div>
-            <div class="insights-grid">
-              <div class="insight-item">
-                <span class="insight-label">Recent Conversions</span>
-                <strong class="insight-value">{{ historyCount() }}</strong>
-                <small class="insight-meta">Stored locally</small>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Presets Saved</span>
-                <strong class="insight-value">{{ presetCount() }}</strong>
-                <small class="insight-meta">Across categories</small>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Active Category</span>
-                <strong class="insight-value">{{ selectedCategoryDetails().title }}</strong>
-                <small class="insight-meta">{{ selectedUnitsCount() }} units available</small>
-              </div>
-            </div>
-          </div>
-
-          <div class="history-card" #historySection>
-            <div class="card-header">
-              <h3 class="card-title">History & Presets</h3>
-              <button type="button" class="btn btn--ghost btn--small" (click)="manageHistory()">Manage</button>
-            </div>
-            <div class="history-list-wrapper">
-              <ul class="history-list">
-                <li *ngFor="let entry of historyEntries(); trackBy: trackHistory" class="history-item">
-                  <span class="history-conversion">
-                    {{ formatNumber(entry.inputValue, entry.precision) }}
-                    {{ entry.inputUnit.symbol ?? entry.inputUnit.label }}
-                    →
-                    {{ formatNumber(entry.outputValue, entry.precision) }}
-                    {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}
-                  </span>
-                  <span class="history-meta">{{ formatHistoryMeta(entry) }}</span>
-                </li>
-                <li *ngIf="historyEntries().length === 0" class="history-empty">
-                  No conversions yet. Try converting something!
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="quick-actions-card">
-            <div class="card-header">
-              <h3 class="card-title">Quick Convert</h3>
-              <button type="button" class="btn btn--ghost btn--small" (click)="customizeQuickActions()">Customize</button>
-            </div>
-            <div class="quick-shortcuts">
-              <button
-                type="button"
-                class="shortcut-button"
-                *ngFor="let shortcut of quickShortcuts; trackBy: trackShortcut"
-                (click)="applyQuickConversion(shortcut)"
-              >
-                <span class="shortcut-label">{{ shortcut.label }}</span>
-                <small class="shortcut-detail">{{ shortcut.detail }}</small>
-              </button>
-            </div>
-          </div>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header"><h1>Unit Converter</h1><p>Convert length, mass, temperature, and more with presets and history.</p></header>
+      <div class="ctl__stats" aria-label="Converter statistics">
+        <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ selectedCategoryDetails().title }}</span><span class="ctl__stat-label">Category</span></div>
+        <div class="ctl__stat"><span class="ctl__stat-value">{{ formattedOutputValue() || '—' }}</span><span class="ctl__stat-label">Result</span></div>
+        <div class="ctl__stat"><span class="ctl__stat-value">{{ historyCount() }}</span><span class="ctl__stat-label">History</span></div>
+        <div class="ctl__stat"><span class="ctl__stat-value">{{ selectedUnitsCount() }}</span><span class="ctl__stat-label">Units</span></div>
       </div>
     </div>
-  </section>
-
-  <section class="info-grid" *ngIf="false">
-    <article class="info-card">
-      <h2>How to use</h2>
-      <ol>
-        <li>Select a unit category from the sidebar.</li>
-        <li>Enter a value and choose input/output units.</li>
-        <li>Click "Convert" to see the result instantly.</li>
-        <li>Save frequently used conversions as presets.</li>
-      </ol>
-    </article>
-  </section>
+    <div class="ctl__toolbar" aria-label="Converter actions">
+      <button type="button" class="ctl__tool-btn" (click)="onConversionSubmit()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Convert</span></button>
+      <button type="button" class="ctl__tool-btn" (click)="swapUnits()" appTooltip="Swap units" tooltipPosition="bottom" aria-label="Swap units"><img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Swap</span></button>
+      <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
+    </div>
+    <div class="ctl__workspace" [formGroup]="conversionForm">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head"><span>{{ selectedCategoryDetails().title }}</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <label class="ctl__field" for="input-value"><span>Value</span><input #inputField id="input-value" type="number" inputmode="decimal" formControlName="inputValue" placeholder="0" /></label>
+            <label class="ctl__field" for="input-unit"><span>From</span>
+              <select id="input-unit" formControlName="inputUnit">@for (unit of categoryMeta().units; track trackUnit($index, unit)) { <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option> }</select>
+            </label>
+            <label class="ctl__field" for="output-unit"><span>To</span>
+              <select id="output-unit" formControlName="outputUnit">@for (unit of categoryMeta().units; track trackUnit($index, unit)) { <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option> }</select>
+            </label>
+            @if (conversionError()) { <div class="ctl__alert ctl__alert--error">{{ conversionError() }}</div> }
+          </div>
+        </section>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head"><span>Result</span>
+            <div class="ctl__editor-actions">@if (conversionResult()) { <span class="ctl__editor-badge">Live</span> }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
+            </div>
+          </header>
+          @if (conversionSummary()) {
+            <div class="ctl__editor-body"><p class="uc__summary">{{ conversionSummary() }}</p></div>
+          } @else { <div class="ctl__empty"><p>Enter a value to convert.</p></div> }
+        </section>
+      </div>
+      <aside class="ctl__sidebar" aria-label="Categories and history">
+        <div class="ctl__panel"><header class="ctl__panel-head">Categories</header><div class="ctl__panel-body">
+          <label class="ctl__field" for="category-search"><span>Search</span><input id="category-search" type="search" [value]="searchTerm()" (input)="onCategorySearch($any($event.target).value)" placeholder="Search categories…" /></label>
+          <div class="uc__categories">@for (category of filteredCategories(); track trackCategory($index, category)) {
+            <button type="button" class="uc__category" [class.uc__category--active]="category.id === selectedCategory()" (click)="setCategory(category.id)"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></button>
+          }</div>
+        </div></div>
+        @if (quickPresetChips().length) {
+          <div class="ctl__panel"><header class="ctl__panel-head">Presets</header><div class="ctl__panel-body"><div class="uc__presets">@for (preset of quickPresetChips(); track trackPreset($index, preset)) {
+            <button type="button" class="uc__preset" (click)="onPresetChipClick(preset)">{{ preset.name }}</button>
+          }</div></div></div>
+        }
+        <div class="ctl__panel" #historySection><header class="ctl__panel-head">History</header><div class="ctl__panel-body">
+          @if (historyEntries().length) { <ul class="uc__history">@for (entry of historyEntries(); track trackHistory($index, entry)) {
+            <li><span class="uc__history-item">{{ formatNumber(entry.inputValue, entry.precision ?? 6) }} {{ entry.inputUnit.symbol ?? entry.inputUnit.label }} → {{ formatNumber(entry.outputValue, entry.precision ?? 6) }} {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}</span><small>{{ formatHistoryMeta(entry) }}</small></li>
+          }</ul> } @else { <div class="ctl__panel-empty"><p>Recent conversions appear here.</p></div> }
+        </div></div>
+      </aside>
+    </div>
+    <details class="ctl__help"><summary>How to use</summary><ul><li>Pick a category and enter a value with from/to units.</li><li>Results update live — swap units or use presets.</li><li>Copy the conversion summary from the toolbar.</li></ul></details>
+  </main>
 </div>

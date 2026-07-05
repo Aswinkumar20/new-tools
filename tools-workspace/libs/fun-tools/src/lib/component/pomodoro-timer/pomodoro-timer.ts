@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type TimerMode = 'work' | 'break' | 'longBreak';
 
@@ -17,11 +17,12 @@ type PomodoroFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './pomodoro-timer.html',
   styleUrls: ['./pomodoro-timer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PomodoroTimerComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: PomodoroFormGroup = this.fb.group({
     workMinutes: this.fb.control(25, { nonNullable: true }),
@@ -49,6 +50,7 @@ export class PomodoroTimerComponent implements OnDestroy {
   });
   readonly isWorkMode = computed(() => this.mode() === 'work');
   readonly isBreakMode = computed(() => this.mode() === 'break' || this.mode() === 'longBreak');
+  readonly progressRounded = computed(() => Math.round(this.progress()));
 
   constructor() {
     this.resetTimer();

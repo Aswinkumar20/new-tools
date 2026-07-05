@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface HistoryEntry {
   timestamp: number;
@@ -19,10 +19,12 @@ This is a sample text with special characters: ©, ®, ™, €, £, ¥`;
   standalone: true,
   templateUrl: './html-entity-encoder.html',
   styleUrls: ['./html-entity-encoder.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HtmlEntityEncoderComponent {
+  readonly assetService = inject(AssetService);
+
   readonly mode = signal<'encode' | 'decode'>('encode');
   readonly encodingMode = signal<EncodingMode>('named');
   readonly inputText = signal<string>(SAMPLE_TEXT);
@@ -210,6 +212,14 @@ export class HtmlEntityEncoderComponent {
 
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  copyInput(): void {
+    this.copyToClipboard(this.inputText(), 'Input');
+  }
+
+  copyOutput(): void {
+    this.copyToClipboard(this.outputText(), 'Output');
   }
 
   copyToClipboard(text: string, label: string): void {

@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, compute
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime } from 'rxjs';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ZodiacSign {
   name: string;
@@ -293,11 +293,12 @@ const NUMEROLOGY_KEYWORDS: Record<number, string[]> = {
   standalone: true,
   templateUrl: './zodiac-finder.html',
   styleUrls: ['./zodiac-finder.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ZodiacFinderComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly timezones = TIMEZONES;
@@ -354,6 +355,19 @@ export class ZodiacFinderComponent {
 
   clearHistory(): void {
     this.history.set([]);
+  }
+
+  copyResult(): void {
+    const r = this.result();
+    if (!r) return;
+    const text = [
+      `${r.sunSign.symbol} ${r.sunSign.name}`,
+      `Chinese: ${r.chineseAnimal.animal}`,
+      `Life path: ${r.lifePathNumber}`,
+      `Season: ${r.season} · Moon: ${r.lunarPhase}`,
+      ...r.summary,
+    ].join('\n');
+    navigator.clipboard.writeText(text);
   }
 
   private calculate(): void {

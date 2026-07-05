@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type StrengthLevel = 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
 
@@ -24,11 +24,12 @@ type RandomPasswordFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './random-password-generator.html',
   styleUrls: ['./random-password-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RandomPasswordGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: RandomPasswordFormGroup = this.fb.group({
     length: this.fb.control(16, { nonNullable: true }),
@@ -44,16 +45,21 @@ export class RandomPasswordGeneratorComponent {
 
   readonly hasPassword = computed(() => this.password() !== null);
 
+  readonly passwordLength = computed(() => {
+    const p = this.password();
+    return p ? p.value.length : this.form.controls.length.value;
+  });
+
   readonly strengthLevel = computed<StrengthLevel>(() => {
     const pwd = this.password()?.value ?? '';
     if (!pwd) return 'very-weak';
-    const lengthScore = Math.min(pwd.length / 4, 4); // 0–4
+    const lengthScore = Math.min(pwd.length / 4, 4);
     let varietyScore = 0;
     if (/[a-z]/.test(pwd)) varietyScore++;
     if (/[A-Z]/.test(pwd)) varietyScore++;
     if (/[0-9]/.test(pwd)) varietyScore++;
     if (/[^A-Za-z0-9]/.test(pwd)) varietyScore++;
-    const score = lengthScore + varietyScore; // 0–8
+    const score = lengthScore + varietyScore;
     if (score >= 7) return 'very-strong';
     if (score >= 6) return 'strong';
     if (score >= 4) return 'medium';
@@ -81,6 +87,12 @@ export class RandomPasswordGeneratorComponent {
     const index = levels.indexOf(this.strengthLevel());
     return ((index + 1) / levels.length) * 100;
   });
+
+  generatedTimeLabel(): string {
+    const p = this.password();
+    if (!p) return '—';
+    return new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
   generate(): void {
     this.errors.set([]);
@@ -143,16 +155,20 @@ export class RandomPasswordGeneratorComponent {
 
   copyToClipboard(): void {
     const value = this.password()?.value;
-    if (!value) {
-      return;
-    }
-    navigator.clipboard.writeText(value).catch(() => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+      alert('Password copied to clipboard!');
+    }).catch(() => {
       this.errors.set(['Failed to copy password to clipboard.']);
     });
   }
 
+  clear(): void {
+    this.password.set(null);
+    this.errors.set([]);
+  }
+
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+    return new Date(timestamp).toLocaleString();
   }
 }

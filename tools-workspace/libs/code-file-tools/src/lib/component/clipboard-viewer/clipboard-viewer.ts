@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ClipboardContent {
   text: string;
@@ -36,11 +36,12 @@ const MAX_REFRESH_INTERVAL = 10000; // 10 seconds
   standalone: true,
   templateUrl: './clipboard-viewer.html',
   styleUrls: ['./clipboard-viewer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ClipboardViewerComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private refreshInterval: any = null;
 
   readonly form: ViewerFormGroup = this.fb.group({
@@ -197,6 +198,13 @@ export class ClipboardViewerComponent implements OnInit, OnDestroy {
         isHtml: type === 'html'
       }
     };
+  }
+
+  copyOutput(): void {
+    const text = this.contentText();
+    if (text) {
+      this.copyToClipboard(text);
+    }
   }
 
   async copyToClipboard(text: string): Promise<void> {

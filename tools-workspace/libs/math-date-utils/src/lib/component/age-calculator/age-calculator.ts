@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, EffectRef, inject, OnDestroy, signal, Signal, WritableSignal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 
 @Component({
@@ -9,10 +9,11 @@ import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
   standalone: true,
   templateUrl: './age-calculator.html',
   styleUrls: ['./age-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class AgeCalculatorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly calculationSubscription: Subscription;
   private readonly effectRefs: EffectRef[] = [];
 
@@ -114,6 +115,20 @@ export class AgeCalculatorComponent implements OnDestroy {
   clearHistory(): void {
     this.history.set([]);
     this.notify('History cleared.');
+  }
+
+  copyResult(): void {
+    const s = this.summary();
+    if (!s) return;
+    const lines = [
+      `Age: ${s.exactAge}`,
+      `Years: ${s.years}, Months: ${s.months}, Days: ${s.days}`,
+      `Next birthday: ${s.nextBirthday}`,
+      `Countdown: ${s.nextBirthdayCountdown.months} months, ${s.nextBirthdayCountdown.days} days`,
+    ];
+    const z = this.zodiac();
+    if (z) lines.push(`Western: ${z.western}`, `Chinese: ${z.chinese}`);
+    navigator.clipboard.writeText(lines.join('\n')).then(() => this.notify('Result copied to clipboard.'));
   }
 
   resetToDefault(): void {

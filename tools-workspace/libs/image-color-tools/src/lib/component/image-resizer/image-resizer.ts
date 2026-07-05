@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface ResizePreset {
@@ -72,13 +72,14 @@ const MAX_FILE_SIZE = 35 * 1024 * 1024;
   standalone: true,
   templateUrl: './image-resizer.html',
   styleUrls: ['./image-resizer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageResizerComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly assetService = inject(AssetService);
 
   readonly form: ResizeFormGroup = this.fb.group({
     width: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(MAX_DIMENSION)]),

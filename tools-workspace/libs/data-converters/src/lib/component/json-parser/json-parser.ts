@@ -1,7 +1,7 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type CopyStatus = 'idle' | 'success' | 'error';
 type ParseState = 'idle' | 'success' | 'error';
@@ -50,11 +50,14 @@ interface Diagnostic {
   standalone: true,
   templateUrl: './json-parser.html',
   styleUrls: ['./json-parser.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, Navigation, TooltipDirective]
 })
 export class JsonParserComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
   readonly heroHighlights = [
     {
       title: 'Visual tree viewer',
@@ -152,10 +155,14 @@ export class JsonParserComponent implements AfterViewInit {
 
   onEditorScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
+  }
+
+  copyInput(): void {
+    void this.copyToClipboard(this.jsonInput, 'Input copied');
   }
 
   setPreviewMode(mode: PreviewMode): void {

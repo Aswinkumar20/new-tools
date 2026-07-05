@@ -1,37 +1,35 @@
 import { Component, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, AssetService } from '@tools-workspace/features-home';
-
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-remove-duplicate-lines',
   standalone: true,
   templateUrl: './remove-duplicate-lines.html',
   styleUrls: ['./remove-duplicate-lines.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
-
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class RemoveDuplicateLinesComponent {
   readonly assetService = inject(AssetService);
-  
+
   inputText = '';
   outputText = '';
-  highlightedInput = ''; // HTML string with duplicates highlighted
+  highlightedInput = '';
   duplicateCount = 0;
-  copied = false;
 
-
-  get wordCount(): number {
-  return this.inputText
-    ? this.inputText.trim().split(/\s+/).filter(w => w).length
-    : 0;
+  get hasInput(): boolean {
+    return !!this.inputText.trim();
   }
 
+  get wordCount(): number {
+    return this.inputText
+      ? this.inputText.trim().split(/\s+/).filter(w => w).length
+      : 0;
+  }
 
-  // Process the current inputText to compute output, highlights and counts
-  private processInput() {
-    if (!this.inputText || !this.inputText.trim()) {
+  private processInput(): void {
+    if (!this.hasInput) {
       this.outputText = '';
       this.highlightedInput = '';
       this.duplicateCount = 0;
@@ -60,29 +58,34 @@ export class RemoveDuplicateLinesComponent {
       .join(' ');
   }
 
-  // Called when the user clicks the button — still supported
-  removeDuplicates() {
+  removeDuplicates(): void {
     this.processInput();
-    this.copied = false;
   }
 
-  // Called live as the user types or pastes
-  onInputChange(value: string) {
+  onInputChange(value: string): void {
     this.inputText = value;
     this.processInput();
   }
 
-copyOutput() {
-  navigator.clipboard.writeText(this.outputText);
-  this.copied = true;
-  setTimeout(() => (this.copied = false), 2000);
-}
+  copyInput(): void {
+    this.copyText(this.inputText, 'Source');
+  }
 
-  clear() {
+  copyOutput(): void {
+    this.copyText(this.outputText, 'Clean output');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
+
+  clear(): void {
     this.inputText = '';
     this.outputText = '';
     this.highlightedInput = '';
     this.duplicateCount = 0;
-    this.copied = false;
   }
 }

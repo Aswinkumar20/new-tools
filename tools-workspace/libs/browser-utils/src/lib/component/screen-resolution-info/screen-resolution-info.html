@@ -1,102 +1,131 @@
-<div class="sri">
-  <div class="sri__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="sri__hero">
-    <div class="sri__badge">Browser utilities</div>
-    <h1>Screen & Viewport Info</h1>
-    <p>
-      Inspect your current viewport and screen resolution, device pixel ratio, color depth, and orientation in real-time.
-      Resize the window to see updates instantly.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Screen &amp; Viewport Info</h1>
+        <p>Inspect viewport, screen resolution, pixel ratio, and orientation in real time.</p>
+      </header>
 
-    <div class="sri__hero-meta">
-      <div>
-        <span class="sri__meta-label">Viewport</span>
-        <strong>{{ info().viewportWidth }} × {{ info().viewportHeight }} px</strong>
-      </div>
-      <div>
-        <span class="sri__meta-label">Screen</span>
-        <strong>{{ info().screenWidth }} × {{ info().screenHeight }} px</strong>
-      </div>
-      <div>
-        <span class="sri__meta-label">Device Pixel Ratio</span>
-        <strong>{{ info().devicePixelRatio }}x {{ isRetina() ? '(Retina)' : '' }}</strong>
+      <div class="ctl__stats" aria-label="Display statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ info().viewportWidth }}×{{ info().viewportHeight }}</span>
+          <span class="ctl__stat-label">Viewport</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ info().screenWidth }}×{{ info().screenHeight }}</span>
+          <span class="ctl__stat-label">Screen</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ info().devicePixelRatio }}x</span>
+          <span class="ctl__stat-label">DPR</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ info().orientationType | titlecase }}</span>
+          <span class="ctl__stat-label">Orient</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="sri__board">
-    <section class="sri__panel sri__panel--metrics">
-      <header class="sri__card-header">
-        <div>
-          <h2>Detailed metrics</h2>
-          <p>Technical details about your display and viewport.</p>
-        </div>
-      </header>
+    <div class="ctl__toolbar" aria-label="Display actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyMetrics()"
+        aria-label="Copy all metrics"
+        appTooltip="Copy all metrics"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyJson()"
+        aria-label="Copy as JSON"
+        appTooltip="Copy as JSON"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">JSON</span>
+      </button>
+    </div>
 
-      <div class="sri__info-grid">
-        <div class="sri__info-item">
-          <span class="sri__info-label">Viewport Width</span>
-          <strong>{{ info().viewportWidth }} px</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Viewport Height</span>
-          <strong>{{ info().viewportHeight }} px</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Aspect Ratio</span>
-          <strong>{{ info().aspectRatio | number: '1.2-2' }}:1</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Screen Width</span>
-          <strong>{{ info().screenWidth }} px</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Screen Height</span>
-          <strong>{{ info().screenHeight }} px</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Color Depth</span>
-          <strong>{{ info().colorDepth ?? 'N/A' }}-bit</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Orientation</span>
-          <strong>{{ info().orientationType | titlecase }}</strong>
-        </div>
-        <div class="sri__info-item">
-          <span class="sri__info-label">Orientation Angle</span>
-          <strong>{{ info().orientationAngle ?? 0 }}°</strong>
-        </div>
-      </div>
-    </section>
+    <div class="ctl__workspace">
+      <section class="ctl__editor">
+        <header class="ctl__editor-head">
+          <span>Detailed metrics</span>
+          @if (isRetina()) {
+            <span class="ctl__editor-badge">Retina</span>
+          }
+        </header>
 
-    <section class="sri__panel sri__panel--preview">
-      <header class="sri__card-header">
-        <div>
-          <h2>Viewport preview</h2>
-          <p>Visual representation of your current viewport.</p>
-        </div>
-      </header>
-
-      <div class="sri__preview-wrapper">
-        <div class="sri__preview-screen">
-          <div class="sri__preview-viewport">
-            <div class="sri__preview-label sri__preview-label--top">
-              {{ info().viewportWidth }} × {{ info().viewportHeight }} px
-            </div>
-            <div class="sri__preview-label sri__preview-label--side">
-              {{ info().aspectRatio | number: '1.2-2' }}:1
-            </div>
+        <div class="ctl__editor-body sri__info-grid">
+          <div class="sri__info-item">
+            <span class="sri__info-label">Viewport width</span>
+            <strong>{{ info().viewportWidth }} px</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Viewport height</span>
+            <strong>{{ info().viewportHeight }} px</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Aspect ratio</span>
+            <strong>{{ info().aspectRatio | number: '1.2-2' }}:1</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Screen width</span>
+            <strong>{{ info().screenWidth }} px</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Screen height</span>
+            <strong>{{ info().screenHeight }} px</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Color depth</span>
+            <strong>{{ info().colorDepth ?? 'N/A' }}-bit</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Orientation</span>
+            <strong>{{ info().orientationType | titlecase }}</strong>
+          </div>
+          <div class="sri__info-item">
+            <span class="sri__info-label">Orientation angle</span>
+            <strong>{{ info().orientationAngle ?? 0 }}°</strong>
           </div>
         </div>
-      </div>
+      </section>
 
-      <p class="sri__note">
-        Values are read from your browser APIs and may differ from physical display characteristics (e.g., scaling or
-        zoom).
-      </p>
-    </section>
-  </div>
+      <aside class="ctl__sidebar" aria-label="Viewport preview">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Viewport preview</header>
+          <div class="ctl__panel-body sri__preview-wrap">
+            <div class="sri__preview-screen">
+              <div class="sri__preview-viewport">
+                <div class="sri__preview-label sri__preview-label--top">
+                  {{ info().viewportWidth }} × {{ info().viewportHeight }} px
+                </div>
+                <div class="sri__preview-label sri__preview-label--side">
+                  {{ info().aspectRatio | number: '1.2-2' }}:1
+                </div>
+              </div>
+            </div>
+            <p class="sri__note">
+              Values come from browser APIs and may differ from physical display characteristics due to zoom or scaling.
+            </p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Resize the browser window to see viewport metrics update instantly.</li>
+        <li>Compare viewport size (CSS pixels) with screen resolution.</li>
+        <li>Copy metrics as plain text or JSON for bug reports.</li>
+        <li>Device pixel ratio above 1 indicates a high-DPI (Retina) display.</li>
+      </ul>
+    </details>
+  </main>
 </div>

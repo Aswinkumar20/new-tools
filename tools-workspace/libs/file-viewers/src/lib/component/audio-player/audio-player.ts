@@ -8,11 +8,12 @@ import {
   ChangeDetectorRef,
   HostListener,
   PLATFORM_ID,
-  Inject
+  Inject,
+  inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface AudioFile {
   name: string;
@@ -31,9 +32,10 @@ interface AudioFile {
   standalone: true,
   templateUrl: './audio-player.html',
   styleUrls: ['./audio-player.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('audioElement') audioElement!: ElementRef<HTMLAudioElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('waveformCanvas') waveformCanvas!: ElementRef<HTMLCanvasElement>;
@@ -651,6 +653,21 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     link.href = track.url;
     link.download = track.name;
     link.click();
+  }
+
+  clearAll(): void {
+    this.stop();
+    this.stopVisualization();
+    for (const audioFile of this.audioFiles) {
+      URL.revokeObjectURL(audioFile.url);
+    }
+    this.audioFiles = [];
+    this.currentTrackIndex = -1;
+    this.currentTrack = null;
+    this.currentTime = 0;
+    this.duration = 0;
+    this.errorMessage = '';
+    this.cdr.markForCheck();
   }
 
   toggleAbout(): void {

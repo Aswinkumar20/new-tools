@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ScreenInfo {
   viewportWidth: number;
@@ -19,10 +19,11 @@ interface ScreenInfo {
   standalone: true,
   templateUrl: './screen-resolution-info.html',
   styleUrls: ['./screen-resolution-info.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ScreenResolutionInfoComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   readonly info = signal<ScreenInfo>(this.getInfo());
 
   private readonly onResize = () => {
@@ -74,5 +75,29 @@ export class ScreenResolutionInfoComponent implements OnDestroy {
       orientationAngle,
       aspectRatio
     };
+  }
+
+  copyMetrics(): void {
+    const i = this.info();
+    const lines = [
+      `Viewport: ${i.viewportWidth} × ${i.viewportHeight} px`,
+      `Screen: ${i.screenWidth} × ${i.screenHeight} px`,
+      `Aspect ratio: ${i.aspectRatio.toFixed(2)}:1`,
+      `Device pixel ratio: ${i.devicePixelRatio}x`,
+      `Color depth: ${i.colorDepth ?? 'N/A'}-bit`,
+      `Orientation: ${i.orientationType}`,
+      `Orientation angle: ${i.orientationAngle ?? 0}°`,
+    ];
+    this.copyText(lines.join('\n'), 'Display metrics');
+  }
+
+  copyJson(): void {
+    this.copyText(JSON.stringify(this.info(), null, 2), 'Display metrics JSON');
+  }
+
+  private copyText(text: string, label: string): void {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

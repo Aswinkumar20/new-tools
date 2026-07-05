@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { Subject } from 'rxjs';
 
@@ -10,9 +10,10 @@ import { Subject } from 'rxjs';
   standalone: true,
   templateUrl: './text-difference.html',
   styleUrls: ['./text-difference.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, MonacoEditorModule],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, MonacoEditorModule, TooltipDirective],
 })
 export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   themes = ['vs-dark', 'vs-light', 'hc-black'];
   languages = [
     'typescript', 
@@ -475,16 +476,31 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     this.clearModified();
   }
 
-  getDiffStats() {
+  get diffStats() {
     const original = this.originalModel.code || '';
     const modified = this.modifiedModel.code || '';
-    
+
     return {
-      originalLines: original.split('\n').length,
-      modifiedLines: modified.split('\n').length,
+      originalLines: original ? original.split('\n').length : 0,
+      modifiedLines: modified ? modified.split('\n').length : 0,
       originalChars: original.length,
       modifiedChars: modified.length,
-      hasContent: original.length > 0 || modified.length > 0
+      hasContent: original.length > 0 || modified.length > 0,
     };
+  }
+
+  copyOriginal(): void {
+    this.copyText(this.originalModel.code, 'Original');
+  }
+
+  copyModified(): void {
+    this.copyText(this.modifiedModel.code, 'Modified');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

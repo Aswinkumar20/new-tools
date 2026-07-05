@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface CookieEntry {
   name: string;
@@ -29,11 +29,12 @@ type CookieFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './cookie-editor.html',
   styleUrls: ['./cookie-editor.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CookieEditorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: CookieFormGroup = this.fb.group({
     name: this.fb.control('', { nonNullable: true }),
@@ -210,5 +211,23 @@ export class CookieEditorComponent {
   onFilterChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.filterQuery.set(target.value);
+  }
+
+  copyCookieValue(cookie: CookieEntry): void {
+    this.copyText(`${cookie.name}=${cookie.value}`, cookie.name);
+  }
+
+  copyAllCookies(): void {
+    const text = this.cookies()
+      .map((c) => `${c.name}=${c.value}`)
+      .join('\n');
+    this.copyText(text, 'All cookies');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

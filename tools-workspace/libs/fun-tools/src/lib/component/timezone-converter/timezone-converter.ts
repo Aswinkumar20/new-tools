@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface Timezone {
   value: string;
@@ -20,11 +20,12 @@ type TimezoneFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './timezone-converter.html',
   styleUrls: ['./timezone-converter.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TimezoneConverterComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: TimezoneFormGroup = this.fb.group({
     dateTime: this.fb.control('', { nonNullable: true }),
@@ -69,38 +70,20 @@ export class TimezoneConverterComponent {
 
   readonly convertedTime = computed(() => {
     const { dateTime, sourceTimezone, targetTimezone } = this.form.getRawValue();
-
-    if (!dateTime || !sourceTimezone || !targetTimezone) {
-      return null;
-    }
-
+    if (!dateTime || !sourceTimezone || !targetTimezone) return null;
     try {
-      // Parse the input datetime (assumes local time)
       const inputDate = new Date(dateTime);
-      if (isNaN(inputDate.getTime())) {
-        return null;
-      }
-
-      // Format time in source timezone
-      const sourceTimeString = this.formatTimeInTimezone(inputDate, sourceTimezone);
-
-      // Format time in target timezone (same moment, different timezone)
-      const targetTimeString = this.formatTimeInTimezone(inputDate, targetTimezone);
-
-      // Get UTC offset for both timezones
-      const sourceOffset = this.getTimezoneOffset(inputDate, sourceTimezone);
-      const targetOffset = this.getTimezoneOffset(inputDate, targetTimezone);
-
+      if (isNaN(inputDate.getTime())) return null;
       return {
         source: {
-          time: sourceTimeString,
+          time: this.formatTimeInTimezone(inputDate, sourceTimezone),
           timezone: this.getTimezoneLabel(sourceTimezone),
-          offset: sourceOffset
+          offset: this.getTimezoneOffset(inputDate, sourceTimezone)
         },
         target: {
-          time: targetTimeString,
+          time: this.formatTimeInTimezone(inputDate, targetTimezone),
           timezone: this.getTimezoneLabel(targetTimezone),
-          offset: targetOffset
+          offset: this.getTimezoneOffset(inputDate, targetTimezone)
         },
         difference: this.getTimeDifference(inputDate, sourceTimezone, targetTimezone)
       };
@@ -110,14 +93,19 @@ export class TimezoneConverterComponent {
   });
 
   readonly hasConversion = computed(() => this.convertedTime() !== null);
+  readonly outputText = computed(() => {
+    const c = this.convertedTime();
+    if (!c) return '';
+    return [
+      `Source: ${c.source.time} (${c.source.timezone}, ${c.source.offset})`,
+      `Target: ${c.target.time} (${c.target.timezone}, ${c.target.offset})`,
+      `Difference: ${c.difference}`
+    ].join('\n');
+  });
 
   constructor() {
-    // Set default values
     const now = new Date();
-    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 16);
-
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     this.form.patchValue({
       dateTime: localDateTime,
       sourceTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -125,16 +113,41 @@ export class TimezoneConverterComponent {
     });
   }
 
+  useCurrentTime(): void {
+    const now = new Date();
+    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    this.form.patchValue({ dateTime: localDateTime });
+  }
+
+  swapTimezones(): void {
+    const { sourceTimezone, targetTimezone } = this.form.getRawValue();
+    this.form.patchValue({ sourceTimezone: targetTimezone, targetTimezone: sourceTimezone });
+  }
+
+  copyOutput(): void {
+    this.copyText(this.outputText(), 'Conversion');
+  }
+
+  copyTargetTime(): void {
+    const c = this.convertedTime();
+    if (!c) return;
+    this.copyText(c.target.time, 'Target time');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    }).catch(() => {
+      this.errors.set(['Failed to copy to clipboard.']);
+    });
+  }
+
   private formatTimeInTimezone(date: Date, timezone: string): string {
     return new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     }).format(date);
   }
 
@@ -150,25 +163,17 @@ export class TimezoneConverterComponent {
   }
 
   private getTimezoneLabel(value: string): string {
-    const tz = this.timezones.find((t) => t.value === value);
-    return tz ? tz.label : value;
+    return this.timezones.find((t) => t.value === value)?.label ?? value;
   }
 
   private getTimeDifference(date: Date, sourceTimezone: string, targetTimezone: string): string {
-    const sourceOffset = this.getTimezoneOffsetMs(date, sourceTimezone);
-    const targetOffset = this.getTimezoneOffsetMs(date, targetTimezone);
-    const diffMs = targetOffset - sourceOffset;
+    const diffMs = this.getTimezoneOffsetMs(date, targetTimezone) - this.getTimezoneOffsetMs(date, sourceTimezone);
     const diffHours = Math.abs(diffMs / (1000 * 60 * 60));
     const hours = Math.floor(diffHours);
     const minutes = Math.floor((diffHours % 1) * 60);
-
     const sign = diffMs >= 0 ? '+' : '-';
-    if (hours === 0) {
-      return `${sign}${minutes} minutes`;
-    }
-    if (minutes === 0) {
-      return `${sign}${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-    }
+    if (hours === 0) return `${sign}${minutes} minutes`;
+    if (minutes === 0) return `${sign}${hours} ${hours === 1 ? 'hour' : 'hours'}`;
     return `${sign}${hours}h ${minutes}m`;
   }
 
@@ -176,24 +181,5 @@ export class TimezoneConverterComponent {
     const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
     const tzDate = new Date(date.toLocaleString('en-US', { timeZone: timezone }));
     return tzDate.getTime() - utcDate.getTime();
-  }
-
-  useCurrentTime(): void {
-    const now = new Date();
-    const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 16);
-
-    this.form.patchValue({
-      dateTime: localDateTime
-    });
-  }
-
-  swapTimezones(): void {
-    const { sourceTimezone, targetTimezone } = this.form.getRawValue();
-    this.form.patchValue({
-      sourceTimezone: targetTimezone,
-      targetTimezone: sourceTimezone
-    });
   }
 }

@@ -1,265 +1,66 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
-
-  <section class="workspace">
-    <div class="editor-hero">
-      <h1 class="editor-hero__title">Number to Words Studio</h1>
-      <p class="editor-hero__subtitle">
-        Transform any number into beautifully formatted words, switch locales instantly, and output currencies, ordinals,
-        or custom sentence cases in one unified workspace.
-      </p>
-    </div>
-
-    <div class="workspace__content">
-      <div class="workspace__card workspace__card--editor">
-        <div class="workspace__panel workspace__panel--editor">
-          <div class="editor-toolbar">
-            <div class="toolbar-group">
-              <button class="btn-primary" type="button" (click)="submitForm()" [attr.data-tooltip]="'Convert number to words'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-                <span class="btn-primary__label">Convert</span>
-              </button>
-              <span class="tooltip-wrapper" [attr.data-tooltip]="'Reset to default'">
-                <button class="btn-icon-reset" type="button" (click)="resetToDefault()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="1 4 1 10 7 10"></polyline>
-                    <polyline points="23 20 23 14 17 14"></polyline>
-                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
-                  </svg>
-                </button>
-              </span>
-            </div>
-          </div>
-
-          <div class="editor-metrics">
-            <div class="metric">
-              <span class="metric__label">LOCALE:</span>
-              <span class="metric__value">{{ badgeMeta().locale }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric__label">FORMAT:</span>
-              <span class="metric__value">{{ badgeMeta().format }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric__label">HISTORY:</span>
-              <span class="metric__value">{{ badgeMeta().historyCount }}</span>
-            </div>
-          </div>
-
-          <div class="editor-controls">
-            <form class="ntw__form" [formGroup]="form" (ngSubmit)="submitForm()">
-              <div class="ntw__form-row">
-                <label for="numericInput">Enter number</label>
-                <div class="ntw__input-wrap">
-                  <input
-                    id="numericInput"
-                    type="text"
-                    placeholder="Paste or type a number..."
-                    formControlName="numericInput"
-                    [attr.aria-invalid]="form.get('numericInput')!.invalid || null"
-                  />
-                </div>
-                <p class="ntw__helper">
-                  Supports negatives and up to 6 decimal places. Max safe integer range enforced.
-                </p>
-                @if (errorMessage()) {
-                  <div class="error-message">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="error-message__icon">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <div class="error-message__content">
-                      <div class="error-message__title">Conversion Error</div>
-                      <div class="error-message__text">{{ errorMessage() }}</div>
-                    </div>
-                  </div>
-                }
-              </div>
-
-              <div class="ntw__grid ntw__grid--cols">
-                <div class="ntw__form-row">
-                  <label for="localeSelect">Locale</label>
-                  <select id="localeSelect" formControlName="locale">
-                    @for (locale of locales; track trackLocale($index, locale)) {
-                      <option [value]="locale.id">
-                        {{ locale.label }}
-                      </option>
-                    }
-                  </select>
-                  <p class="ntw__helper">Example: {{ selectedLocale().sample }}</p>
-                </div>
-
-                <div class="ntw__form-row">
-                  <label for="caseSelect">Case style</label>
-                  <select id="caseSelect" formControlName="caseStyle">
-                    @for (style of caseStyles; track trackCaseStyle($index, style)) {
-                      <option [value]="style.id">
-                        {{ style.label }}
-                      </option>
-                    }
-                  </select>
-                  <p class="ntw__helper">{{ selectedCaseDescription() }}</p>
-                </div>
-              </div>
-
-              <div class="ntw__form-row">
-                <span class="ntw__label">Output format</span>
-                <div class="ntw__format-group">
-                  @for (option of formats; track trackFormat($index, option)) {
-                    <button
-                      type="button"
-                      class="ntw__format-tile"
-                      [class.is-active]="form.get('format')!.value === option.id"
-                      (click)="setFormat(option.id)"
-                    >
-                      <span class="ntw__format-icon">{{ option.icon }}</span>
-                      <span class="ntw__format-title">{{ option.label }}</span>
-                      <small>{{ option.description }}</small>
-                    </button>
-                  }
-                </div>
-              </div>
-
-              @if (isCurrencyFormat()) {
-                <div class="ntw__currency-panel">
-                  <div class="ntw__grid ntw__grid--cols">
-                    <div class="ntw__form-row">
-                      <label for="currencySelect">Currency</label>
-                      <select id="currencySelect" formControlName="currency">
-                        @for (currency of availableCurrencies(); track trackCurrency($index, currency)) {
-                          <option [value]="currency.code">
-                            {{ currency.label }} ({{ currency.symbol }})
-                          </option>
-                        }
-                      </select>
-                    </div>
-
-                    <div class="ntw__form-row ntw__toggle">
-                      <label>
-                        <input type="checkbox" formControlName="showCurrencySymbol" />
-                        <span>Include currency symbol</span>
-                      </label>
-                      <label>
-                        <input type="checkbox" formControlName="includeCents" />
-                        <span>Convert minor units</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              }
-
-              <div class="ntw__toggle-group">
-                <label>
-                  <input type="checkbox" formControlName="includeAnd" />
-                  <span>Use "and" between large segments</span>
-                </label>
-                <label>
-                  <input type="checkbox" formControlName="handleNegative" />
-                  <span>Prefix negative numbers</span>
-                </label>
-              </div>
-            </form>
-          </div>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header"><h1>Number to Words</h1><p>Transform numbers into formatted words across locales and styles.</p></header>
+      <div class="ctl__stats" aria-label="Conversion statistics">
+        <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ badgeMeta().locale }}</span><span class="ctl__stat-label">Locale</span></div>
+        <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ badgeMeta().format }}</span><span class="ctl__stat-label">Format</span></div>
+        <div class="ctl__stat"><span class="ctl__stat-value">{{ badgeMeta().historyCount }}</span><span class="ctl__stat-label">History</span></div>
+        <div class="ctl__stat"><span class="ctl__stat-value">{{ formattedOutput() ? 'Ready' : '—' }}</span><span class="ctl__stat-label">Status</span></div>
       </div>
-
-      <div class="workspace__card workspace__card--results">
-        <div class="workspace__panel workspace__panel--results">
-          <div class="results-toolbar">
-            <div class="results-header">
-              <h2 class="results-header__title">Output Preview</h2>
-              <div class="status-badge">{{ formatLabel() }}</div>
-            </div>
-            <div class="results-actions">
-              <span class="tooltip-wrapper" [attr.data-tooltip]="formattedOutput() ? 'Copy output to clipboard' : 'No output to copy'" [class.tooltip-wrapper--disabled]="!formattedOutput()">
-                <button class="btn-icon btn-icon--copy" type="button" (click)="copyToClipboard()" [disabled]="!formattedOutput()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
-                </button>
-              </span>
-            </div>
-          </div>
-
-          <div class="results-output">
-            <textarea
-              readonly
-              [value]="formattedOutput()"
-              placeholder="Converted words will appear here..."
-              class="results-output__content"
-              #outputTextarea
-            ></textarea>
-            @if (!formattedOutput()) {
-              <div class="results-empty">Start by entering a number to generate wording.</div>
+    </div>
+    <div class="ctl__toolbar" aria-label="Conversion actions">
+      <button type="button" class="ctl__tool-btn" (click)="submitForm()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Convert</span></button>
+      <button type="button" class="ctl__tool-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
+      <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" appTooltip="Reset" tooltipPosition="bottom" aria-label="Reset"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Reset</span></button>
+    </div>
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head"><span>Input</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <label class="ctl__field" for="numericInput"><span>Number</span><input id="numericInput" type="text" formControlName="numericInput" placeholder="Paste or type a number…" /></label>
+            <label class="ctl__field" for="localeSelect"><span>Locale</span>
+              <select id="localeSelect" formControlName="locale">@for (locale of locales; track trackLocale($index, locale)) { <option [value]="locale.id">{{ locale.label }}</option> }</select>
+            </label>
+            <label class="ctl__field" for="caseSelect"><span>Case style</span>
+              <select id="caseSelect" formControlName="caseStyle">@for (style of caseStyles; track trackCaseStyle($index, style)) { <option [value]="style.id">{{ style.label }}</option> }</select>
+            </label>
+            <div class="ntw__formats">@for (option of formats; track trackFormat($index, option)) {
+              <button type="button" class="ntw__format" [class.ntw__format--active]="form.get('format')!.value === option.id" (click)="setFormat(option.id)">{{ option.icon }} {{ option.label }}</button>
+            }</div>
+            @if (isCurrencyFormat()) {
+              <label class="ctl__field" for="currencySelect"><span>Currency</span>
+                <select id="currencySelect" formControlName="currency">@for (currency of availableCurrencies(); track trackCurrency($index, currency)) { <option [value]="currency.code">{{ currency.label }}</option> }</select>
+              </label>
             }
+            <label class="ctl__toggle"><input type="checkbox" formControlName="includeAnd" /><div><strong>Use "and"</strong><span>Between large segments.</span></div></label>
+            @if (errorMessage()) { <div class="ctl__alert ctl__alert--error">{{ errorMessage() }}</div> }
           </div>
-
-          <div class="ntw__samples">
-            <span class="ntw__samples-label">Quick samples</span>
-            <div class="ntw__samples-wrap">
-              @for (sample of sampleNumbers; track trackSample($index, sample)) {
-                <button type="button" class="chip" (click)="applySample(sample)">
-                  {{ sample.label }}
-                </button>
-              }
+        </section>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head"><span>Output</span>
+            <div class="ctl__editor-actions">@if (formattedOutput()) { <span class="ctl__editor-badge">{{ formatLabel() }}</span> }
+              <button type="button" class="ctl__icon-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
             </div>
-          </div>
-        </div>
+          </header>
+          @if (formattedOutput()) {
+            <div class="ctl__editor-body"><p class="ntw__output">{{ formattedOutput() }}</p></div>
+          } @else { <div class="ctl__empty"><p>Enter a number to convert to words.</p></div> }
+        </section>
       </div>
-
-      <div class="workspace__card workspace__card--history">
-        <div class="workspace__panel workspace__panel--history">
-          <div class="results-toolbar">
-            <div class="results-header">
-              <h2 class="results-header__title">Recent Conversions</h2>
-              <div class="status-badge">{{ historyEntries().length }}</div>
-            </div>
-            <div class="results-actions">
-              <span class="tooltip-wrapper" [attr.data-tooltip]="'Clear history'">
-                <button class="btn-icon" type="button" (click)="clearHistory()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  </svg>
-                </button>
-              </span>
-            </div>
-          </div>
-
-          <div class="results-output results-output--history">
-            <ul class="ntw__history-list">
-              @for (entry of historyEntries(); track trackHistory($index, entry)) {
-                <li class="ntw__history-item">
-                  <div class="ntw__history-meta">
-                    <span class="ntw__history-input">{{ entry.input }}</span>
-                    <span class="ntw__history-tags">
-                      {{ entry.locale }} · {{ entry.format }} · {{ entry.caseStyle }}
-                    </span>
-                  </div>
-                  <p class="ntw__history-preview">{{ entry.text }}</p>
-                  <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
-                    Restore
-                  </button>
-                </li>
-              }
-              @if (historyEntries().length === 0) {
-                <li class="ntw__history-empty">
-                  Conversions will be stored here for quick reuse.
-                </li>
-              }
-            </ul>
-          </div>
-        </div>
-      </div>
+      <aside class="ctl__sidebar" aria-label="Samples and history">
+        <div class="ctl__panel"><header class="ctl__panel-head">Samples</header><div class="ctl__panel-body"><div class="ntw__samples">@for (sample of sampleNumbers; track trackSample($index, sample)) {
+          <button type="button" class="ntw__sample" (click)="applySample(sample)"><strong>{{ sample.label }}</strong><small>{{ sample.value }}</small></button>
+        }</div></div></div>
+        <div class="ctl__panel"><header class="ctl__panel-head"><span>History</span>
+          <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!historyEntries().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" /></button>
+        </header><div class="ctl__panel-body">@if (historyEntries().length > 0) { <ul class="ntw__history">@for (entry of historyEntries(); track trackHistory($index, entry)) {
+          <li><button type="button" class="ntw__history-item" (click)="restoreHistory(entry)"><strong>{{ entry.text }}</strong><span>{{ entry.input }} · {{ entry.locale }}</span></button></li>
+        }</ul> } @else { <div class="ctl__panel-empty"><p>Conversions appear here.</p></div> }</div></div>
+      </aside>
     </div>
-  </section>
-
-  @if (statusMessage()) {
-    <div class="status-toast">{{ statusMessage() }}</div>
-  }
+    <details class="ctl__help"><summary>How to use</summary><ul><li>Enter a number and pick locale, case, and format.</li><li>Output updates automatically — copy from toolbar or output panel.</li><li>Use samples or restore from history.</li></ul></details>
+  </main>
 </div>

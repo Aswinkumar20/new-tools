@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface QRCodeOptions {
   text: string;
@@ -29,11 +29,12 @@ declare const QRCode: any;
   standalone: true,
   templateUrl: './qr-code-generator.html',
   styleUrls: ['./qr-code-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class QrCodeGeneratorComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private formSubscription?: Subscription;
 
   readonly form: QRCodeFormGroup = this.fb.group({
@@ -158,6 +159,17 @@ export class QrCodeGeneratorComponent implements OnInit, OnDestroy {
     } catch (e) {
       this.errors.set([e instanceof Error ? e.message : 'Failed to download QR code.']);
     }
+  }
+
+  copyContent(): void {
+    this.copyText(this.form.controls.text.value.trim(), 'QR content');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   copyQRCode(): void {

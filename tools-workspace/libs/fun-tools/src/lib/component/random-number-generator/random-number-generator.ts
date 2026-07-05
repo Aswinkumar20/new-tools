@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface GeneratedNumber {
   value: number;
@@ -21,11 +21,12 @@ type RandomFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './random-number-generator.html',
   styleUrls: ['./random-number-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RandomNumberGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: RandomFormGroup = this.fb.group({
     min: this.fb.control(1, { nonNullable: true }),
@@ -44,7 +45,6 @@ export class RandomNumberGeneratorComponent {
     if (numbers.length === 0) {
       return { count: 0, min: 0, max: 0, average: 0, sum: 0 };
     }
-
     const values = numbers.map((n) => n.value);
     const sum = values.reduce((acc, val) => acc + val, 0);
     return {
@@ -61,8 +61,11 @@ export class RandomNumberGeneratorComponent {
     return this.generatedNumbers().slice(0, count);
   });
 
+  readonly resultsText = computed(() =>
+    this.latestResults().map((n) => this.formatNumber(n.value)).join(', ')
+  );
+
   constructor() {
-    // Subscribe to integerOnly changes to update decimals
     this.form.controls.integerOnly.valueChanges.subscribe((isInteger) => {
       if (isInteger) {
         this.form.controls.decimals.setValue(0);
@@ -78,12 +81,10 @@ export class RandomNumberGeneratorComponent {
       this.errors.set(['Minimum value must be less than maximum value.']);
       return;
     }
-
     if (count < 1 || count > 1000) {
       this.errors.set(['Count must be between 1 and 1000.']);
       return;
     }
-
     if (!integerOnly && (decimals < 0 || decimals > 10)) {
       this.errors.set(['Decimal places must be between 0 and 10.']);
       return;
@@ -91,10 +92,8 @@ export class RandomNumberGeneratorComponent {
 
     const numbers: GeneratedNumber[] = [];
     const timestamp = Date.now();
-
     for (let i = 0; i < count; i++) {
       let value: number;
-
       if (integerOnly) {
         value = Math.floor(Math.random() * (max - min + 1)) + min;
       } else {
@@ -102,10 +101,8 @@ export class RandomNumberGeneratorComponent {
         const multiplier = Math.pow(10, decimals);
         value = Math.round(random * multiplier) / multiplier;
       }
-
       numbers.push({ value, timestamp: timestamp + i });
     }
-
     this.generatedNumbers.update((current) => [...numbers, ...current].slice(0, 100));
   }
 
@@ -115,43 +112,24 @@ export class RandomNumberGeneratorComponent {
   }
 
   copyResults(): void {
-    const numbers = this.latestResults();
-    if (numbers.length === 0) {
-      return;
-    }
-
-    const text = numbers.map((n) => n.value.toString()).join(', ');
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success - could show a toast notification
-      })
-      .catch(() => {
-        this.errors.set(['Failed to copy to clipboard.']);
-      });
+    this.copyText(this.resultsText(), 'Results');
   }
 
   copySingle(value: number): void {
-    navigator.clipboard
-      .writeText(value.toString())
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set(['Failed to copy to clipboard.']);
-      });
+    this.copyText(this.formatNumber(value), 'Number');
   }
 
   formatNumber(value: number): string {
     const { integerOnly, decimals } = this.form.getRawValue();
-    if (integerOnly) {
-      return value.toString();
-    }
-    return value.toFixed(decimals);
+    return integerOnly ? value.toString() : value.toFixed(decimals);
   }
 
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    }).catch(() => {
+      this.errors.set(['Failed to copy to clipboard.']);
+    });
   }
 }

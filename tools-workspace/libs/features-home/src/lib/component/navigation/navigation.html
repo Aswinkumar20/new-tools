@@ -1,17 +1,23 @@
+@if (reserveSpace) {
+  <div class="nav-spacer" aria-hidden="true"></div>
+}
 <header class="nav" [class.nav--open]="isMobileMenuOpen">
   <div class="nav__bar">
-    <div class="nav__brand">
-      <button
-        type="button"
-        class="nav__toggle"
-        aria-label="Toggle navigation menu"
-        [attr.aria-expanded]="isMobileMenuOpen"
-        (click)="toggleMobileMenu()">
-        <span class="nav__toggle-lines"><span></span></span>
-      </button>
-      <button type="button" class="nav__logo" (click)="navigateTo('home', 'home')">
-        <img [src]="logoUrl" alt="EasyToolHub logo" />
-      </button>
+    <div class="nav__inner">
+      <div class="nav__start">
+        <button
+          type="button"
+          class="nav__toggle"
+          aria-label="Toggle navigation menu"
+          [attr.aria-expanded]="isMobileMenuOpen"
+          (click)="toggleMobileMenu()">
+          <span class="nav__toggle-lines"><span></span></span>
+        </button>
+        <button type="button" class="nav__logo" (click)="navigateTo('home', 'home')">
+          <img [src]="iconUrl" alt="" aria-hidden="true" class="nav__logo-icon" />
+          <span class="nav__logo-text">Easy<span class="nav__logo-accent">Tool</span>Hub</span>
+        </button>
+      </div>
 
       <nav class="nav__links" aria-label="Primary navigation">
         <button
@@ -24,152 +30,84 @@
   
         <div
           class="nav__item nav__item--dropdown"
-          (mouseenter)="onDropdownEnter()"
-          (mouseleave)="onDropdownLeave()">
+          (mouseenter)="onDropdownEnter($event)"
+          (mouseleave)="onDropdownLeave($event)">
           <button
+            #categoriesTrigger
             type="button"
             class="nav__link"
-            [class.nav__link--active]="activeLink === 'categories'"
-            (focus)="onDropdownEnter()"
+            [class.nav__link--active]="activeLink === 'categories' || isDropdownOpen"
+            (focus)="onDropdownEnter($event)"
             (click)="toggleCategoriesDropdown()"
             [attr.aria-expanded]="isDropdownOpen">
             Categories
           </button>
-  
-          @if (isDropdownOpen) {
-            <div class="nav__mega">
-              <div class="nav__mega-categories-section">
-                <h2 class="nav__mega-section-title">Categories</h2>
-                <div class="nav__mega-categories">
-                  @for (category of categoriesList; track category.name) {
+
+          <div
+            class="nav__mega"
+            [class.nav__mega--open]="isDropdownOpen"
+            [ngStyle]="megaMenuStyle"
+            role="dialog"
+            aria-label="Browse categories and tools"
+            [attr.aria-hidden]="!isDropdownOpen">
+            <aside class="nav__mega-aside">
+              <p class="nav__mega-label">Categories</p>
+              <ul class="nav__mega-cats">
+                @for (category of categoriesList; track category.name; let i = $index) {
+                  <li
+                    (mouseenter)="hoverMegaCategory(category)"
+                    (focusin)="hoverMegaCategory(category)">
                     <button
                       type="button"
-                      class="nav__mega-category"
-                      [class.nav__mega-category--active]="hoveredCategory?.name === category.name"
+                      class="nav__mega-cat"
+                      [attr.data-tint]="i % 6"
+                      [class.nav__mega-cat--active]="hoveredCategory?.name === category.name"
                       (mouseenter)="hoverMegaCategory(category)"
                       (focus)="hoverMegaCategory(category)">
-                      <span class="nav__mega-category-icon">
-                        @if (category.icon === 'text_fields') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 20h16"></path>
-                            <path d="M6 16h6"></path>
-                            <path d="M6 12h12"></path>
-                            <path d="M6 8h4"></path>
-                          </svg>
-                        } @else if (category.icon === 'insert_drive_file') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                          </svg>
-                        } @else if (category.icon === 'data_object') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M8 3v3a2 2 0 0 1-2 2H4"></path>
-                            <path d="M21 8V5a2 2 0 0 0-2-2h-2"></path>
-                            <path d="M3 16v3a2 2 0 0 0 2 2h2"></path>
-                            <path d="M16 21h3a2 2 0 0 0 2-2v-2"></path>
-                            <rect x="3" y="3" width="20" height="20" rx="2" ry="2"></rect>
-                          </svg>
-                        } @else if (category.icon === 'calculate') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
-                            <line x1="8" y1="6" x2="16" y2="6"></line>
-                            <line x1="8" y1="10" x2="16" y2="10"></line>
-                            <line x1="8" y1="14" x2="16" y2="14"></line>
-                            <line x1="8" y1="18" x2="16" y2="18"></line>
-                          </svg>
-                        } @else if (category.icon === 'picture_as_pdf') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                          </svg>
-                        } @else if (category.icon === 'palette') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
-                            <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
-                            <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
-                            <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
-                            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.434-.652-.434-1.125 0-.874.546-1.374 1.374-1.374H16c3.5 0 6.5-3 6.5-6.5C22.5 6.5 18.5 2 12 2z"></path>
-                          </svg>
-                        } @else if (category.icon === 'code') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="16 18 22 12 16 6"></polyline>
-                            <polyline points="8 6 2 12 8 18"></polyline>
-                          </svg>
-                        } @else if (category.icon === 'web') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="2" y1="12" x2="22" y2="12"></line>
-                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                          </svg>
-                        } @else if (category.icon === 'rule') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-                            <path d="M15 2v4"></path>
-                            <path d="M9 2v4"></path>
-                            <path d="M9 16h6"></path>
-                            <path d="M9 12h6"></path>
-                          </svg>
-                        } @else if (category.icon === 'lock') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                          </svg>
-                        } @else if (category.icon === 'music_note') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M9 18V5l12-2v13"></path>
-                            <circle cx="6" cy="18" r="3"></circle>
-                            <circle cx="18" cy="16" r="3"></circle>
-                          </svg>
-                        } @else if (category.icon === 'devices') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                          </svg>
-                        } @else if (category.icon === 'emoji_emotions') {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
-                            <line x1="9" y1="9" x2="9.01" y2="9"></line>
-                            <line x1="15" y1="9" x2="15.01" y2="9"></line>
-                          </svg>
-                        } @else {
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="20" height="20" rx="2" ry="2"></rect>
-                            <line x1="9" y1="3" x2="9" y2="21"></line>
-                          </svg>
-                        }
+                      <span class="nav__mega-cat-avatar" aria-hidden="true">
+                        {{ shortCategoryName(category.name).charAt(0) }}
                       </span>
-                      <span class="nav__mega-category-name">{{ category.name }}</span>
+                      <span class="nav__mega-cat-name">{{ shortCategoryName(category.name) }}</span>
+                      <span class="nav__mega-cat-count">{{ category.subCategories?.length || 0 }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </aside>
+
+            <div class="nav__mega-panel">
+              @if (hoveredCategory?.subCategories?.length) {
+                <div class="nav__mega-panel-head">
+                  <h2 class="nav__mega-panel-title">{{ shortCategoryName(hoveredCategory.name) }}</h2>
+                  <span class="nav__mega-panel-meta">
+                    {{ hoveredCategory.subCategories.length }} tools
+                  </span>
+                </div>
+                <p class="nav__mega-panel-desc">{{ hoveredCategory.description }}</p>
+                <div class="nav__mega-tools">
+                  @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
+                    <button
+                      type="button"
+                      class="nav__mega-tool"
+                      (click)="navigateTo(sub.path, 'categories')">
+                      <span class="nav__mega-tool-avatar" aria-hidden="true">
+                        {{ shortToolName(sub.name).charAt(0) }}
+                      </span>
+                      <span class="nav__mega-tool-text">
+                        <span class="nav__mega-tool-name">{{ shortToolName(sub.name) }}</span>
+                        <span class="nav__mega-tool-desc">{{ sub.description }}</span>
+                      </span>
+                      <span class="nav__mega-tool-go" aria-hidden="true">→</span>
                     </button>
                   }
                 </div>
-              </div>
-  
-              @if (hoveredCategory?.subCategories?.length) {
-                <div class="nav__mega-tools-section">
-                  <h2 class="nav__mega-section-title">{{ hoveredCategory.name }} Tools</h2>
-                  <div class="nav__mega-tools-grid">
-                    @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
-                      <button
-                        type="button"
-                        class="nav__mega-tool"
-                        (click)="navigateTo(sub.path, 'categories')">
-                        <span class="nav__mega-tool-name">{{ sub.name }}</span>
-                        <span class="nav__mega-tool-description">{{ sub.description }}</span>
-                      </button>
-                    }
-                  </div>
-                </div>
               } @else {
                 <div class="nav__mega-empty">
-                  <p>Hover over a category to explore its tools</p>
+                  <p>Select a category to explore tools</p>
                 </div>
               }
             </div>
-          }
+          </div>
         </div>
   
         <button
@@ -188,7 +126,6 @@
           Contact
         </button>
       </nav>
-    </div>
 
     <!-- Search Bar - Only show when not on home page -->
     @if (!isHomePage) {
@@ -342,6 +279,7 @@
         Sign Up
       </button>
     </div>
+    </div>
   </div>
 
   @if (isMobileMenuOpen) {
@@ -358,7 +296,8 @@
     aria-label="Mobile navigation">
     <div class="nav__drawer-header">
       <button type="button" class="nav__logo nav__logo--drawer" (click)="navigateTo('home', 'home')">
-        <img [src]="logoUrl" alt="EasyToolHub logo" />
+        <img [src]="iconUrl" alt="" aria-hidden="true" class="nav__logo-icon" />
+        <span class="nav__logo-text">Easy<span class="nav__logo-accent">Tool</span>Hub</span>
       </button>
       <button type="button" class="nav__close" aria-label="Close navigation menu" (click)="closeMobileMenu()">
         <span></span>

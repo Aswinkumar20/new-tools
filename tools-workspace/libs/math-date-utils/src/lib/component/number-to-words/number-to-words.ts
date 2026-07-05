@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, EffectRef, inject, OnDestroy, signal, Signal, WritableSignal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 
 @Component({
@@ -9,10 +9,11 @@ import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
   standalone: true,
   templateUrl: './number-to-words.html',
   styleUrls: ['./number-to-words.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class NumberToWordsComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   private readonly maxHistoryEntries = 12;
   private readonly conversionSubscription: Subscription;

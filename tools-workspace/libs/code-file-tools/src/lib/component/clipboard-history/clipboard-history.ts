@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ClipboardEntry {
   id: string;
@@ -30,11 +30,12 @@ const POLL_INTERVAL = 1000; // Check clipboard every second
   standalone: true,
   templateUrl: './clipboard-history.html',
   styleUrls: ['./clipboard-history.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ClipboardHistoryComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private pollInterval: any = null;
   private lastClipboardText = '';
 
@@ -177,6 +178,13 @@ export class ClipboardHistoryComponent implements OnInit, OnDestroy {
       return 'code';
     }
     return 'text';
+  }
+
+  copySelected(): void {
+    const entry = this.selectedEntry();
+    if (entry) {
+      this.copyToClipboard(entry);
+    }
   }
 
   async copyToClipboard(entry: ClipboardEntry): Promise<void> {

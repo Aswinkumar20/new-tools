@@ -1,7 +1,7 @@
-import { Component, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnDestroy, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface FontMetadata {
   fileName: string;
@@ -29,9 +29,10 @@ interface PreviewTemplate {
   standalone: true,
   templateUrl: './font-viewer.html',
   styleUrls: ['./font-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class FontViewerComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
   get fontApiSupported(): boolean {
@@ -221,6 +222,17 @@ export class FontViewerComponent implements OnDestroy {
     this.enableSmoothPreview = true;
     this.selectedWeight = '400';
     this.selectedStyle = 'normal';
+  }
+
+  clearFont(): void {
+    this.cleanupFont();
+    this.fontLoaded = false;
+    this.fontMetadata = undefined;
+    this.loadError = null;
+    this.uploadedFontFamily = "'Inter', 'Helvetica Neue', Arial, sans-serif";
+    if (this.fileInput?.nativeElement) {
+      this.fileInput.nativeElement.value = '';
+    }
   }
 
   toggleAbout(): void {

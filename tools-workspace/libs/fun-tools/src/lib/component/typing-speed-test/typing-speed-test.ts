@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface TestResult {
   wpm: number;
@@ -30,10 +30,11 @@ const SAMPLE_TEXTS = [
   standalone: true,
   templateUrl: './typing-speed-test.html',
   styleUrls: ['./typing-speed-test.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TypingSpeedTestComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   readonly SAMPLE_TEXTS = SAMPLE_TEXTS;
   
   readonly currentText = signal<string>('');
@@ -87,6 +88,12 @@ export class TypingSpeedTestComponent implements OnDestroy {
       ? Math.round(results.reduce((sum, r) => sum + r.wpm, 0) / results.length)
       : 0;
   });
+
+  readonly resultsSummary = computed(() =>
+    this.testResults().map((r) =>
+      `${r.wpm} WPM · ${r.accuracy}% · ${this.formatTime(r.time)}`
+    ).join('\n')
+  );
 
   constructor() {
     this.loadText(0);
@@ -170,16 +177,16 @@ export class TypingSpeedTestComponent implements OnDestroy {
   getCharacterClass(index: number): string {
     const typed = this.typedText();
     const text = this.currentText();
-
-    if (index >= typed.length) {
-      return '';
+    const classes = ['tst-char'];
+    if (index === typed.length) classes.push('tst-char--current');
+    if (index < typed.length) {
+      if (index >= text.length || typed[index] !== text[index]) {
+        classes.push('tst-char--incorrect');
+      } else {
+        classes.push('tst-char--correct');
+      }
     }
-
-    if (index >= text.length) {
-      return 'tst__char--incorrect';
-    }
-
-    return typed[index] === text[index] ? 'tst__char--correct' : 'tst__char--incorrect';
+    return classes.join(' ');
   }
 
   formatTime(seconds: number): string {
@@ -190,5 +197,17 @@ export class TypingSpeedTestComponent implements OnDestroy {
 
   clearResults(): void {
     this.testResults.set([]);
+  }
+
+  copyTypedText(): void {
+    const text = this.typedText();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => alert('Typed text copied!'));
+  }
+
+  copyResults(): void {
+    const text = this.resultsSummary();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => alert('Results copied!'));
   }
 }

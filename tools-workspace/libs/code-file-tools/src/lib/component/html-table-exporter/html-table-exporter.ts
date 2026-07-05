@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface TableData {
   headers: string[];
@@ -50,10 +50,12 @@ const SAMPLE_TABLE = `<table>
   standalone: true,
   templateUrl: './html-table-exporter.html',
   styleUrls: ['./html-table-exporter.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HtmlTableExporterComponent {
+  readonly assetService = inject(AssetService);
+
   readonly htmlInput = signal<string>(SAMPLE_TABLE);
   readonly exportFormat = signal<'csv' | 'json' | 'tsv' | 'xml' | 'markdown'>('csv');
   readonly includeHeaders = signal<boolean>(true);
@@ -319,6 +321,17 @@ export class HtmlTableExporterComponent {
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .replace(/^[0-9]/, '_$&')
       .substring(0, 50);
+  }
+
+  copyInput(): void {
+    this.copyToClipboard(this.htmlInput(), 'Input');
+  }
+
+  copyOutput(): void {
+    const result = this.exportResult();
+    if (result) {
+      this.copyToClipboard(result.content, 'Output');
+    }
   }
 
   copyToClipboard(text: string, label: string): void {

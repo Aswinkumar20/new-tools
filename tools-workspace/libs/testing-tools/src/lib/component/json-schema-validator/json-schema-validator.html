@@ -1,155 +1,198 @@
-<div class="jsv">
-  <div class="jsv__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="jsv__hero">
-    <div class="jsv__badge">Testing toolkit</div>
-    <h1>JSON Schema Validator</h1>
-    <p>
-      Validate JSON data against a JSON Schema. Get a quick summary and detailed path-based error messages to help debug
-      your API contracts and configurations.
-    </p>
-
-    @if (hasResult() && result(); as r) {
-      <div class="jsv__hero-meta">
-        <div>
-          <span class="jsv__meta-label">Status</span>
-          <strong [class.jsv__meta-value--ok]="r.valid" [class.jsv__meta-value--error]="!r.valid">
-            {{ r.valid ? 'Valid' : 'Invalid' }}
-          </strong>
-        </div>
-        <div>
-          <span class="jsv__meta-label">Issues</span>
-          <strong>{{ r.issues.length }}</strong>
-        </div>
-        <div>
-          <span class="jsv__meta-label">Data type</span>
-          <strong>{{ r.instanceType }}</strong>
-        </div>
-        <div>
-          <span class="jsv__meta-label">Schema type</span>
-          <strong>{{ r.schemaType }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="jsv__hero-meta jsv__hero-meta--placeholder">
-        Paste a JSON Schema and JSON data below, then click "Validate" to see the results.
-      </div>
-    }
-  </section>
-
-  <div class="jsv__board" [formGroup]="form">
-    <section class="jsv__panel jsv__panel--schema">
-      <header class="jsv__card-header">
-        <div>
-          <h2>Schema</h2>
-          <p>JSON Schema (Draft 7+ structure)</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>JSON Schema Validator</h1>
+        <p>Validate JSON data against a schema — get path-based error messages for API contracts.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="jsv__alert jsv__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Validation statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasResult() ? (isValid() ? 'Valid' : 'Invalid') : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
         </div>
-      }
-
-      <div class="jsv__schema-controls">
-        <div class="jsv__field-group">
-          <label for="draft" class="jsv__label">Draft version (informational)</label>
-          <select id="draft" class="jsv__select" formControlName="draft">
-            <option value="draft7">Draft 7</option>
-            <option value="draft2019-09">Draft 2019-09</option>
-            <option value="draft2020-12">Draft 2020-12</option>
-          </select>
-          <small class="jsv__hint">This demo performs basic structural validation, not full draft-specific behavior.</small>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ issues().length }}</span>
+          <span class="ctl__stat-label">Issues</span>
         </div>
-
-        <label class="jsv__toggle">
-          <input type="checkbox" formControlName="strictTypes" />
-          <div>
-            <strong>Strict type checking</strong>
-            <span>Stop at first type mismatch per path.</span>
-          </div>
-        </label>
-      </div>
-
-      <div class="jsv__editor">
-        <label for="schema" class="jsv__label">JSON Schema</label>
-        <textarea
-          id="schema"
-          class="jsv__textarea"
-          formControlName="schema"
-          rows="14"
-          spellcheck="false"
-        ></textarea>
-      </div>
-    </section>
-
-    <section class="jsv__panel jsv__panel--data">
-      <header class="jsv__card-header">
-        <div>
-          <h2>Data</h2>
-          <p>JSON instance to validate.</p>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ result()?.instanceType ?? '—' }}</span>
+          <span class="ctl__stat-label">Data</span>
         </div>
-        <button type="button" class="btn btn--primary btn--small" (click)="validate()">Validate</button>
-      </header>
-
-      <div class="jsv__editor">
-        <label for="data" class="jsv__label">JSON Data</label>
-        <textarea
-          id="data"
-          class="jsv__textarea jsv__textarea--data"
-          formControlName="data"
-          rows="14"
-          spellcheck="false"
-        ></textarea>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ result()?.schemaType ?? '—' }}</span>
+          <span class="ctl__stat-label">Schema</span>
+        </div>
       </div>
+    </div>
 
-      @if (hasResult() && result(); as r) {
-        <section class="jsv__result">
-          <header class="jsv__result-header">
-            <h3>Validation result</h3>
-            <span class="jsv__status-pill" [class.jsv__status-pill--ok]="r.valid" [class.jsv__status-pill--error]="!r.valid">
-              {{ r.valid ? 'Valid' : 'Invalid' }}
-            </span>
+    <div class="ctl__toolbar" aria-label="Validator actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="validate()"
+        [disabled]="!hasInput()"
+        aria-label="Validate JSON"
+        appTooltip="Validate JSON"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Validate</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clear()"
+        [disabled]="!hasInput() && !hasResult()"
+        aria-label="Clear all"
+        appTooltip="Clear all"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>JSON Schema</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copySchema()"
+                [disabled]="!form.controls.schema.value"
+                aria-label="Copy schema"
+                appTooltip="Copy schema"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
           </header>
-
-          <div class="jsv__summary">
-            <div class="jsv__summary-item">
-              <span class="jsv__summary-label">Issues</span>
-              <strong>{{ r.issues.length }}</strong>
-            </div>
-            <div class="jsv__summary-item">
-              <span class="jsv__summary-label">Data type</span>
-              <strong>{{ r.instanceType }}</strong>
-            </div>
-            <div class="jsv__summary-item">
-              <span class="jsv__summary-label">Schema type</span>
-              <strong>{{ r.schemaType }}</strong>
-            </div>
-          </div>
-
-          @if (r.issues.length) {
-            <ul class="jsv__issues-list">
-              @for (issue of r.issues; track issue.path + issue.message) {
-                <li>
-                  <code class="jsv__issue-path">{{ issue.path || '(root)' }}</code>
-                  <span class="jsv__issue-message">{{ issue.message }}</span>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="jsv__issues-empty">
-              All checks passed. The JSON appears valid against the provided schema with the current rules.
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
             </div>
           }
+          <label class="sr-only" for="schema">JSON Schema</label>
+          <textarea
+            id="schema"
+            class="ctl__textarea ctl__textarea--mono"
+            formControlName="schema"
+            (input)="onInputChange()"
+            rows="1"
+            spellcheck="false"
+            placeholder="{ &quot;type&quot;: &quot;object&quot;, ... }"></textarea>
         </section>
-      }
-    </section>
-  </div>
+
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>JSON Data</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyData()"
+                [disabled]="!form.controls.data.value"
+                aria-label="Copy data"
+                appTooltip="Copy data"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          <label class="sr-only" for="data">JSON Data</label>
+          <textarea
+            id="data"
+            class="ctl__textarea ctl__textarea--mono"
+            formControlName="data"
+            (input)="onInputChange()"
+            rows="1"
+            spellcheck="false"
+            placeholder="{ &quot;name&quot;: &quot;value&quot; }"></textarea>
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="Validator options and results">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">
+            Options
+            @if (hasResult()) {
+              <span class="ctl__panel-badge">{{ isValid() ? 'Pass' : 'Fail' }}</span>
+            }
+          </header>
+          <div class="ctl__settings">
+            <label class="ctl__field" for="draft">
+              <span>Draft version</span>
+              <select id="draft" formControlName="draft" (change)="onOptionChange()">
+                <option value="draft7">Draft 7</option>
+                <option value="draft2019-09">Draft 2019-09</option>
+                <option value="draft2020-12">Draft 2020-12</option>
+              </select>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="strictTypes" (change)="onOptionChange()" />
+              <div>
+                <strong>Strict type checking</strong>
+                <span>Stop at first type mismatch per path.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Validation issues</header>
+          @if (hasResult() && result(); as r) {
+            @if (r.issues.length) {
+              <div class="ctl__panel-body jsv-issues">
+                <ul>
+                  @for (issue of r.issues; track issue.path + issue.message) {
+                    <li>
+                      <code>{{ issue.path || '(root)' }}</code>
+                      <span>{{ issue.message }}</span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <div class="ctl__panel-empty">
+                <p>All checks passed — JSON is valid against the schema.</p>
+              </div>
+            }
+          } @else {
+            <div class="ctl__panel-empty">
+              <p>Validation issues appear here after running validate.</p>
+            </div>
+          }
+        </div>
+
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>Validation runs <strong>locally</strong> — data never leaves your browser.</p>
+          </div>
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot"></span>
+            <p>Performs <strong>structural</strong> checks, not full draft-specific behavior.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste a JSON Schema in the left editor and JSON data in the right editor.</li>
+        <li>Validation runs automatically as you edit — or click Validate explicitly.</li>
+        <li>Review path-based issues in the sidebar panel.</li>
+        <li>Use copy icons to grab schema or data independently.</li>
+      </ul>
+    </details>
+  </main>
 </div>

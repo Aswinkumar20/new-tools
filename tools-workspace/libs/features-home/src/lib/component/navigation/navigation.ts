@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  Input,
+  OnInit,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, NavigationEnd } from '@angular/router';
 import { LanguageService, Language } from '../../services/language.service';
@@ -15,6 +23,9 @@ import { Subscription, filter } from 'rxjs';
   styleUrls: ['./navigation.scss'],
 })
 export class NavigationComponent implements OnInit, OnDestroy {
+  /** When false, no in-flow spacer (use for full-bleed home hero under fixed nav). */
+  @Input() reserveSpace = true;
+
   title = 'My Component';
   categoriesList: any = [
     {
@@ -772,15 +783,19 @@ export class NavigationComponent implements OnInit, OnDestroy {
       ]
     }
   ];
-  logoUrl:any= '';
+  iconUrl = '';
 
   isDropdownOpen = false;
   hoveredCategory: any = null;
+  megaMenuStyle: Record<string, string> = {};
+  private dropdownCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly megaMenuWidth = 560;
   activeLink: string = 'home';
   isMobileMenuOpen = false;
   expandedMobileCategory: string | null = null;
   private isDesktop = false;
   isDarkMode = false;
+  @ViewChild('categoriesTrigger') categoriesTrigger?: ElementRef<HTMLButtonElement>;
 
   // Language dropdown properties
   isLanguageDropdownOpen = false;
@@ -804,7 +819,7 @@ export class NavigationComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    this.logoUrl = this.assetService.getAssetPath('logo_text.svg');
+    this.iconUrl = this.assetService.getAssetPath('logo-icon.svg');
     this.evaluateViewport();
     this.loadThemePreference();
     this.setupThemeListener();
@@ -817,6 +832,7 @@ export class NavigationComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.clearDropdownCloseTimer();
     if (this.languageSubscription) {
       this.languageSubscription.unsubscribe();
     }
@@ -903,6 +919,16 @@ export class NavigationComponent implements OnInit, OnDestroy {
   @HostListener('window:resize')
   onResize(): void {
     this.evaluateViewport();
+    if (this.isDropdownOpen) {
+      this.positionMegaMenu();
+    }
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll(): void {
+    if (this.isDropdownOpen) {
+      this.positionMegaMenu();
+    }
   }
   
   navigateTo(path: string, activeKey: string = path) {
@@ -920,33 +946,109 @@ export class NavigationComponent implements OnInit, OnDestroy {
     this.router.navigate([path]);
   }
 
-  onDropdownEnter(): void {
+  onDropdownEnter(_event?: Event): void {
     if (!this.isDesktop) {
       return;
     }
+    this.clearDropdownCloseTimer();
     this.isDropdownOpen = true;
-    this.hoveredCategory = this.categoriesList?.[0] ?? null;
+    if (!this.hoveredCategory) {
+      this.hoveredCategory = this.categoriesList?.[0] ?? null;
+    }
+    // Position after open class applies so layout is correct
+    requestAnimationFrame(() => this.positionMegaMenu());
   }
 
-  onDropdownLeave(): void {
+  onDropdownLeave(event?: MouseEvent): void {
     if (!this.isDesktop) {
       return;
     }
-    this.isDropdownOpen = false;
+
+    // Stay open when moving between the trigger and the panel (or their children)
+    const next = event?.relatedTarget as Node | null;
+    const current = event?.currentTarget as HTMLElement | null;
+    if (next && current?.contains(next)) {
+      return;
+    }
+
+    this.clearDropdownCloseTimer();
+    this.dropdownCloseTimer = setTimeout(() => {
+      this.isDropdownOpen = false;
+      this.dropdownCloseTimer = null;
+    }, 280);
   }
 
   toggleCategoriesDropdown(): void {
     if (!this.isDesktop) {
       return;
     }
+    this.clearDropdownCloseTimer();
     this.isDropdownOpen = !this.isDropdownOpen;
     if (this.isDropdownOpen) {
       this.hoveredCategory = this.categoriesList?.[0] ?? null;
+      requestAnimationFrame(() => this.positionMegaMenu());
+    }
+  }
+
+  /** Align the mega card to the Categories button and keep it in the viewport. */
+  positionMegaMenu(): void {
+    const trigger = this.categoriesTrigger?.nativeElement;
+    if (!trigger || typeof window === 'undefined') {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.min(this.megaMenuWidth, window.innerWidth - 24);
+    const maxLeft = window.innerWidth - width - 12;
+    // Prefer left-align to the trigger; shift left if it would overflow the viewport
+    const left = Math.max(12, Math.min(rect.left, maxLeft));
+    // Sit fully below the Categories button (bridge handles hover transfer)
+    const top = Math.max(8, rect.bottom + 8);
+
+    this.megaMenuStyle = {
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+    };
+  }
+
+  private clearDropdownCloseTimer(): void {
+    if (this.dropdownCloseTimer != null) {
+      clearTimeout(this.dropdownCloseTimer);
+      this.dropdownCloseTimer = null;
     }
   }
 
   hoverMegaCategory(category: any): void {
+    if (!category || this.hoveredCategory?.name === category.name) {
+      return;
+    }
     this.hoveredCategory = category;
+  }
+
+  shortCategoryName(name: string): string {
+    const shortNames: Record<string, string> = {
+      'Text & Utilities': 'Text',
+      'File Viewers': 'Files',
+      'JSON / Data Converters': 'Data',
+      'Number & Date Tools': 'Numbers',
+      'PDF Tools': 'PDF',
+      'Image & Color Tools': 'Image',
+      'File & Code Tools': 'Code',
+      'Design & Web Dev Tools': 'Dev',
+      'Validation & Testing Tools': 'Validate',
+      'Security & Crypto Tools': 'Security',
+      'Media & Audio Tools': 'Media',
+      'System / Browser Utilities': 'Browser',
+      'Fun & Productivity Tools': 'Fun',
+    };
+    return shortNames[name] ?? (name.length > 14 ? `${name.slice(0, 12)}…` : name);
+  }
+
+  shortToolName(name: string): string {
+    const parenIndex = name.indexOf('(');
+    const trimmed = parenIndex > 0 ? name.slice(0, parenIndex).trim() : name;
+    return trimmed.length > 40 ? `${trimmed.slice(0, 37)}…` : trimmed;
   }
 
   toggleMobileMenu(): void {

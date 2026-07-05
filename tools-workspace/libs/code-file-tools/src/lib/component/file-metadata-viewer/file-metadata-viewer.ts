@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface FileMetadata {
   file: File;
@@ -25,10 +25,12 @@ interface FileMetadata {
   standalone: true,
   templateUrl: './file-metadata-viewer.html',
   styleUrls: ['./file-metadata-viewer.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FileMetadataViewerComponent {
+  readonly assetService = inject(AssetService);
+
   readonly files = signal<FileMetadata[]>([]);
   readonly selectedFile = signal<FileMetadata | null>(null);
   readonly errors = signal<string[]>([]);
@@ -38,6 +40,30 @@ export class FileMetadataViewerComponent {
   readonly totalSize = computed(() => 
     this.files().reduce((sum, file) => sum + file.size, 0)
   );
+
+  readonly metadataText = computed(() => {
+    const file = this.selectedFile();
+    if (!file) {
+      return '';
+    }
+    const lines = [
+      `Name: ${file.name}`,
+      `Size: ${this.formatFileSize(file.size)}`,
+      `Type: ${this.getFileTypeLabel(file.mimeType)}`,
+      `MIME: ${file.mimeType}`,
+      `Extension: ${file.extension || 'None'}`,
+      `Last modified: ${this.formatDate(file.lastModified)}`
+    ];
+    if (file.dimensions) {
+      lines.push(`Dimensions: ${file.dimensions.width} × ${file.dimensions.height} px`);
+    }
+    if (file.additionalInfo) {
+      for (const item of this.getAdditionalInfoItems(file.additionalInfo)) {
+        lines.push(`${item.label}: ${item.value}`);
+      }
+    }
+    return lines.join('\n');
+  });
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -215,6 +241,15 @@ export class FileMetadataViewerComponent {
     anchor.download = metadata.name;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  copyMetadata(): void {
+    const text = this.metadataText();
+    if (text) {
+      navigator.clipboard.writeText(text).catch(() => {
+        this.errors.set(['Unable to copy metadata to clipboard.']);
+      });
+    }
   }
 
   formatFileSize(bytes: number): string {

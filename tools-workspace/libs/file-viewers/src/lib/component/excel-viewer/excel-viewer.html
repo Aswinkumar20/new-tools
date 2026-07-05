@@ -1,284 +1,93 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Excel viewer</p>
-          <h1>View, analyze, and explore spreadsheets with crisp rendering</h1>
-          <p class="strapline">
-            Advanced controls, multi-sheet navigation, powerful search, and zoom options for precision viewing.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">XLSX, XLS, CSV, ODS</span>
-          <span class="meta-pill">Multi-sheet</span>
-          <span class="meta-pill">Advanced search</span>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Excel Viewer</h1>
+        <p>View and analyze spreadsheets with multi-sheet navigation, search, and zoom controls.</p>
       </header>
 
-      <section class="insight-card upload-card">
-        <header class="insight-header">
-          <h2>Load workbooks</h2>
-          <p>Drop spreadsheets or browse to start exploring them instantly.</p>
-        </header>
-        <div class="insight-body">
-          <input
-            #fileInput
-            type="file"
-            accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.fods"
-            (change)="onFileSelected($event)"
-            class="file-input"
-            multiple
-            hidden>
-
-          <button
-            type="button"
-            class="drop-zone"
-            [class.active]="showDropZone"
-            (dragenter)="onDragEnter()"
-            (dragleave)="onDragLeave()"
-            (drop)="onDrop($event)"
-            (click)="openFileDialog()"
-            aria-label="Upload spreadsheet files">
-            <div class="drop-zone-content">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              <p class="drop-zone-text">Click to browse or drag and drop spreadsheet files here</p>
-              <p class="drop-zone-formats">Supports XLSX, XLS, CSV, ODS, XLSM, XLSB, FODS</p>
-            </div>
-          </button>
-
-          <div class="upload-actions">
-            <button class="btn-primary" (click)="openFileDialog()">
-              <span>Select Excel Files</span>
-            </button>
-            <p class="upload-hint">Load multiple workbooks • Auto-detects format and encoding</p>
-          </div>
+      <div class="ctl__stats" aria-label="Spreadsheet statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ excelFiles.length }}</span>
+          <span class="ctl__stat-label">Workbooks</span>
         </div>
-      </section>
-    </section>
-
-    <aside class="workspace-secondary">
-      <div class="editor-toolbar excel-toolbar" aria-label="Excel viewer controls">
-        <div class="toolbar-stats" aria-label="Excel statistics">
-          <div class="stat-chip">
-            <span class="stat-label">Loaded workbooks</span>
-            <span class="stat-value">{{ excelFiles.length }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Active sheet</span>
-            <span class="stat-value">
-              {{ excelFiles.length > 0 ? (getCurrentSheets()[currentSheetIndex] || 'Sheet') : '—' }}
-            </span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Zoom level</span>
-            <span class="stat-value">{{ zoomLevel }}%</span>
-          </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ excelFiles.length > 0 ? (getCurrentSheets()[currentSheetIndex] || 'Sheet') : '—' }}</span>
+          <span class="ctl__stat-label">Sheet</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ maxRows > 0 ? maxRows + '×' + maxCols : '—' }}</span>
+          <span class="ctl__stat-label">Cells</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ zoomLevel }}%</span>
+          <span class="ctl__stat-label">Zoom</span>
         </div>
       </div>
+    </div>
 
-      <div class="viewer-shell excel-shell">
-        <section class="panel panel-viewer">
-          <header class="panel-header">
-            <div>
-              <h2>Spreadsheet preview</h2>
-              <p *ngIf="currentFileIndex >= 0">
-                {{ excelFiles[currentFileIndex]?.name }} • 
-                {{ getCurrentSheets().length }} sheet{{ getCurrentSheets().length !== 1 ? 's' : '' }} • 
-                {{ maxRows }} rows × {{ maxCols }} columns
-              </p>
-              <p *ngIf="currentFileIndex < 0">Upload spreadsheet files to start viewing and analyzing them.</p>
-            </div>
-            <div class="panel-actions viewer-controls" *ngIf="currentFileIndex >= 0">
-              <div class="viewer-zoom-controls-inline">
-                <button
-                  class="btn-icon"
-                  (click)="zoomOut()"
-                  [disabled]="zoomLevel <= 50"
-                  title="Zoom Out">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    <line x1="8" y1="11" x2="14" y2="11"></line>
-                  </svg>
-                </button>
-                <span class="zoom-level-display">{{ zoomLevel }}%</span>
-                <button
-                  class="btn-icon"
-                  (click)="zoomIn()"
-                  [disabled]="zoomLevel >= 200"
-                  title="Zoom In">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    <line x1="11" y1="8" x2="11" y2="14"></line>
-                    <line x1="8" y1="11" x2="14" y2="11"></line>
-                  </svg>
-                </button>
-                <button
-                  class="btn-icon"
-                  (click)="resetZoom()"
-                  title="Reset Zoom">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                    <path d="M21 3v5h-5"></path>
-                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                    <path d="M3 21v-5h5"></path>
-                  </svg>
-                </button>
-                <button
-                  class="btn-icon"
-                  (click)="toggleFullscreen()"
-                  [title]="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'">
-                  <svg *ngIf="!isFullscreen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                  </svg>
-                  <svg *ngIf="isFullscreen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                  </svg>
-                </button>
-              </div>
-              <div class="viewer-actions">
-                <button
-                  class="clear-btn-sm"
-                  (click)="downloadExcel()"
-                  [disabled]="currentFileIndex < 0">
-                  Download
-                </button>
-                <button
-                  class="clear-btn-sm"
-                  (click)="printExcel()"
-                  [disabled]="currentFileIndex < 0">
-                  Print
-                </button>
-              </div>
+    <div class="ctl__toolbar" aria-label="Spreadsheet actions">
+      <label class="ctl__tool-btn" aria-label="Upload spreadsheets" appTooltip="Upload files" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Upload</span>
+        <input #fileInput type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.fods" (change)="onFileSelected($event)" />
+      </label>
+      <button type="button" class="ctl__tool-btn" (click)="downloadExcel()" [disabled]="currentFileIndex < 0" aria-label="Download" appTooltip="Download" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="printExcel()" [disabled]="currentFileIndex < 0" aria-label="Print" appTooltip="Print" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Print</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="excelFiles.length === 0" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor ctl__editor--merged excel-viewer-panel">
+          <header class="ctl__editor-head">
+            <span>Spreadsheet preview</span>
+            <div class="ctl__editor-actions fv-viewer-controls" *ngIf="currentFileIndex >= 0">
+              <button class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <span class="ctl__editor-badge">{{ zoomLevel }}%</span>
+              <button class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 200" title="Zoom in"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <button class="fv-icon-btn" (click)="resetZoom()" title="Reset zoom"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+              <button class="fv-icon-btn" (click)="toggleFullscreen()" title="Fullscreen"><svg *ngIf="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg><svg *ngIf="isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg></button>
             </div>
           </header>
 
-          <div class="loading" *ngIf="loading">
-            <div class="spinner"></div>
-            <p>Loading Excel file...</p>
-          </div>
+          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner"></div><p>Loading spreadsheet…</p></div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage"><p>{{ errorMessage }}</p></div>
 
-          <div class="error-message" *ngIf="errorMessage">
-            <p>{{ errorMessage }}</p>
-          </div>
-
-          <div class="viewer-content" *ngIf="excelFiles.length > 0">
-            <!-- File List -->
-            <div class="file-list" *ngIf="excelFiles.length > 1">
-              <div
-                class="file-item"
-                *ngFor="let file of excelFiles; let i = index"
-                [class.active]="i === currentFileIndex"
-                (click)="selectFile(i)">
-                <div class="file-item-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                  </svg>
-                </div>
-                <div class="file-item-info">
-                  <span class="file-item-name">{{ file.name }}</span>
-                  <span class="file-item-details">{{ formatFileSize(file.size) }}</span>
-                </div>
-                <button
-                  class="file-item-remove"
-                  (click)="removeFile(i); $event.stopPropagation()"
-                  title="Remove">
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <!-- Sheet Navigation -->
-            <div class="sheet-navigation" *ngIf="currentFileIndex >= 0 && getCurrentSheets().length > 1">
-              <label>Sheet:</label>
-              <div class="sheet-tabs">
-                <button
-                  *ngFor="let sheetName of getCurrentSheets(); let i = index"
-                  class="sheet-tab"
-                  [class.active]="i === currentSheetIndex"
-                  (click)="selectSheet(i)"
-                  [title]="sheetName">
-                  {{ sheetName }}
-                </button>
-              </div>
-            </div>
-
-            <!-- Search Box -->
+          <div class="fv-viewer-body" *ngIf="excelFiles.length > 0">
             <div class="search-toolbar" *ngIf="currentFileIndex >= 0">
               <div class="search-box">
-                <input
-                  type="text"
-                  [(ngModel)]="searchText"
-                  (ngModelChange)="onSearchChange()"
-                  placeholder="Search in sheet..."
-                  class="search-input">
-                <div class="search-results" *ngIf="searchText && searchResults.length > 0">
-                  {{ currentSearchIndex + 1 }} / {{ searchResults.length }}
-                </div>
-                <button
-                  class="btn-icon"
-                  *ngIf="searchText && searchResults.length > 0"
-                  (click)="previousSearchResult()"
-                  title="Previous result">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                  </svg>
-                </button>
-                <button
-                  class="btn-icon"
-                  *ngIf="searchText && searchResults.length > 0"
-                  (click)="nextSearchResult()"
-                  title="Next result">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </button>
+                <input type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Search in sheet…" class="search-input">
+                <div class="search-results" *ngIf="searchText && searchResults.length > 0">{{ currentSearchIndex + 1 }} / {{ searchResults.length }}</div>
+                <button class="fv-icon-btn" *ngIf="searchText && searchResults.length > 0" (click)="previousSearchResult()" title="Previous"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                <button class="fv-icon-btn" *ngIf="searchText && searchResults.length > 0" (click)="nextSearchResult()" title="Next"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
               </div>
             </div>
 
-            <!-- Table Container -->
-            <div
-              class="table-container"
-              #tableContainer
-              [class.fullscreen]="isFullscreen">
+            <div class="table-container" #tableContainer [class.fullscreen]="isFullscreen">
               <div class="table-wrapper">
-                <table
-                  class="excel-table"
-                  #excelTable>
+                <table class="excel-table" #excelTable>
                   <thead>
                     <tr>
                       <th class="row-header">#</th>
-                      <th
-                        *ngFor="let header of sheetHeaders; let i = index"
-                        class="column-header"
-                        [attr.data-col]="i">
-                        {{ header }}
-                      </th>
+                      <th *ngFor="let header of sheetHeaders; let i = index" class="column-header" [attr.data-col]="i">{{ header }}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr
-                      *ngFor="let row of sheetData; let rowIndex = index"
-                      [attr.data-row]="rowIndex">
+                    <tr *ngFor="let row of sheetData; let rowIndex = index" [attr.data-row]="rowIndex">
                       <td class="row-number"><strong>{{ rowIndex + 1 }}</strong></td>
-                      <td
-                        *ngFor="let cell of row; let colIndex = index"
-                        class="cell"
-                        [class.search-match]="searchText && getCellValue(rowIndex, colIndex).toLowerCase().includes(searchText.toLowerCase())"
-                        [attr.data-row]="rowIndex"
-                        [attr.data-col]="colIndex">
-                        {{ cell.displayValue || '' }}
-                      </td>
+                      <td *ngFor="let cell of row; let colIndex = index" class="cell" [class.search-match]="searchText && getCellValue(rowIndex, colIndex).toLowerCase().includes(searchText.toLowerCase())" [attr.data-row]="rowIndex" [attr.data-col]="colIndex">{{ cell.displayValue || '' }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -286,67 +95,46 @@
             </div>
           </div>
 
-          <div class="empty-gallery" *ngIf="excelFiles.length === 0 && !loading">
-            <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-            <p>No workbook loaded</p>
-            <p class="hint">Upload spreadsheet files using the panel above or drag and drop them anywhere on the page</p>
+          <div class="ctl__empty fv-dropzone" *ngIf="excelFiles.length === 0 && !loading" [class.fv-dropzone--active]="showDropZone" (click)="openFileDialog()" aria-live="polite">
+            <p>Drop spreadsheets here or use <strong>Upload</strong> in the toolbar.</p>
+            <p>XLSX, XLS, CSV, ODS · multi-sheet support</p>
           </div>
         </section>
       </div>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Pro tips</h2>
-          <p>Work faster with your spreadsheets.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Use sheet tabs to compare worksheets side-by-side.</li>
-            <li>Search results highlight every occurrence across the sheet.</li>
-            <li>Fullscreen plus 150% zoom is great for presenting tables.</li>
-            <li>Navigate search results with arrow buttons for quick scanning.</li>
-            <li>Download or print spreadsheets for offline sharing.</li>
-          </ul>
+      <aside class="ctl__sidebar" aria-label="Files and sheets">
+        <div class="ctl__panel" *ngIf="excelFiles.length > 0">
+          <header class="ctl__panel-head">Workbooks ({{ excelFiles.length }})</header>
+          <div class="ctl__panel-body">
+            <ul class="fv-files">
+              <li *ngFor="let file of excelFiles; let i = index">
+                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentFileIndex" (click)="selectFile(i)">
+                  <span class="fv-file__info"><strong>{{ file.name }}</strong><span>{{ formatFileSize(file.size) }}</span></span>
+                </button>
+                <button type="button" class="fv-file-remove" (click)="removeFile(i); $event.stopPropagation()" aria-label="Remove">×</button>
+              </li>
+            </ul>
+          </div>
         </div>
-      </section>
-
-      <section class="insight-card" *ngIf="showAbout">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our Excel viewer.</p>
-        </header>
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              Excel Viewer renders spreadsheets in the browser with SheetJS, preserving formatting, formulas, and multiple 
-              sheets—no desktop software required.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Multi-sheet navigation</strong>
-                <p>Navigate between worksheets with instant context switching.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Powerful search</strong>
-                <p>Search across cells with keyboard navigation and highlighting.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Zoom controls</strong>
-                <p>Zoom from 50% to 200% and fullscreen mode for detailed viewing.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Export-ready</strong>
-                <p>Download and print spreadsheets directly from the browser.</p>
-              </div>
+        <div class="ctl__panel" *ngIf="currentFileIndex >= 0 && getCurrentSheets().length > 1">
+          <header class="ctl__panel-head">Sheets</header>
+          <div class="ctl__panel-body">
+            <div class="sheet-tabs">
+              <button *ngFor="let sheetName of getCurrentSheets(); let i = index" type="button" class="sheet-tab" [class.active]="i === currentSheetIndex" (click)="selectSheet(i)" [title]="sheetName">{{ sheetName }}</button>
             </div>
           </div>
         </div>
-      </section>
-    </aside>
-  </div>
+        <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Spreadsheets are parsed <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Upload workbooks and switch sheets in the sidebar.</li>
+        <li>Search highlights matching cells; use arrows to jump between results.</li>
+        <li>Fullscreen plus zoom is great for presenting tables.</li>
+      </ul>
+    </details>
+  </main>
 </div>

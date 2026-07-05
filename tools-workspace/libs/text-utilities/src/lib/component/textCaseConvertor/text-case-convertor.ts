@@ -1,7 +1,43 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+
+type CaseId =
+  | 'upper'
+  | 'lower'
+  | 'title'
+  | 'sentence'
+  | 'toggle'
+  | 'camel'
+  | 'pascal'
+  | 'snake'
+  | 'upperSnake'
+  | 'kebab'
+  | 'train'
+  | 'dot'
+  | 'path'
+  | 'constant'
+  | 'macro'
+  | 'camelSnake'
+  | 'pascalSnake'
+  | 'dotPascal'
+  | 'alternating'
+  | 'studly'
+  | 'reversed'
+  | 'vowelUpper'
+  | 'consonantUpper'
+  | 'leet'
+  | 'fullwidth'
+  | 'smallCaps'
+  | 'upsideDown'
+  | 'mixed'
+  | 'bracketed';
+
+interface CasePreset {
+  id: CaseId;
+  label: string;
+}
 
 @Component({
   selector: 'lib-text-case-convertor',
@@ -14,50 +50,110 @@ import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/fea
 export class TextCaseConvertorComponent implements OnInit, OnDestroy {
   inputText = '';
   convertedText = '';
-  selectedCase:
-    // Standard Cases
-    | 'upper'
-    | 'lower'
-    | 'title'
-    | 'sentence'
-    | 'toggle'
-    // Programming Cases
-    | 'camel'
-    | 'pascal'
-    | 'snake'
-    | 'upperSnake'
-    | 'kebab'
-    | 'train'
-    | 'dot'
-    | 'path'
-    | 'constant'
-    | 'macro'
-    | 'camelSnake'
-    | 'pascalSnake'
-    | 'dotPascal'
-    // Fun & Stylistic Cases
-    | 'alternating'
-    | 'studly'
-    | 'reversed'
-    | 'vowelUpper'
-    | 'consonantUpper'
-    | 'leet'
-    | 'fullwidth'
-    | 'smallCaps'
-    | 'upsideDown'
-    | 'mixed'
-    | 'bracketed' = 'upper';
+  selectedCase: CaseId = 'upper';
 
   charCount = 0;
   wordCount = 0;
 
   undoStack: string[] = [''];
   redoStack: string[] = [];
-  
+
+  activePresetTab: 'standard' | 'programming' | 'fun' = 'standard';
+
+  readonly standardPresets: CasePreset[] = [
+    { id: 'lower', label: 'lowercase' },
+    { id: 'upper', label: 'UPPERCASE' },
+    { id: 'sentence', label: 'Sentence case' },
+    { id: 'title', label: 'Title Case' },
+    { id: 'toggle', label: 'Toggle Case' },
+  ];
+
+  readonly programmingPresets: CasePreset[] = [
+    { id: 'camel', label: 'camelCase' },
+    { id: 'pascal', label: 'PascalCase' },
+    { id: 'snake', label: 'snake_case' },
+    { id: 'upperSnake', label: 'UPPER_SNAKE' },
+    { id: 'kebab', label: 'kebab-case' },
+    { id: 'train', label: 'Train-Case' },
+    { id: 'dot', label: 'dot.case' },
+    { id: 'path', label: 'path/case' },
+    { id: 'constant', label: 'CONSTANT' },
+    { id: 'macro', label: 'MACRO_CASE' },
+    { id: 'camelSnake', label: 'camel_Snake' },
+    { id: 'pascalSnake', label: 'Pascal_Snake' },
+    { id: 'dotPascal', label: 'Dot.Pascal' },
+  ];
+
+  readonly funPresets: CasePreset[] = [
+    { id: 'alternating', label: 'aLtErNaTiNg' },
+    { id: 'studly', label: 'StUdLy CaPs' },
+    { id: 'reversed', label: 'Reversed' },
+    { id: 'vowelUpper', label: 'vOwEl UppEr' },
+    { id: 'consonantUpper', label: 'CoNSoNaNT' },
+    { id: 'leet', label: '1337 5P34K' },
+    { id: 'fullwidth', label: 'Ｆｕｌｌｗｉｄｔｈ' },
+    { id: 'smallCaps', label: 'sᴍᴀʟʟ ᴄᴀᴘs' },
+    { id: 'upsideDown', label: 'uʍop ǝpᴉsd∩' },
+    { id: 'mixed', label: 'MiXeD cAsE' },
+    { id: 'bracketed', label: '[bracketed]' },
+  ];
+
   readonly assetService = inject(AssetService);
 
+  get canUndo(): boolean {
+    return this.undoStack.length > 1;
+  }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  get hasContent(): boolean {
+    return this.inputText.trim().length > 0;
+  }
+
+  get selectedCaseLabel(): string {
+    const all = [...this.standardPresets, ...this.programmingPresets, ...this.funPresets];
+    return all.find((p) => p.id === this.selectedCase)?.label ?? this.selectedCase;
+  }
+
+  get activePresets(): CasePreset[] {
+    switch (this.activePresetTab) {
+      case 'programming':
+        return this.programmingPresets;
+      case 'fun':
+        return this.funPresets;
+      default:
+        return this.standardPresets;
+    }
+  }
+
+  setPresetTab(tab: 'standard' | 'programming' | 'fun'): void {
+    this.activePresetTab = tab;
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboard(evt: KeyboardEvent): void {
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const undoKey = isMac ? evt.metaKey && evt.key === 'z' && !evt.shiftKey : evt.ctrlKey && evt.key === 'z' && !evt.shiftKey;
+    const redoKey = isMac
+      ? evt.metaKey && (evt.key === 'y' || (evt.shiftKey && evt.key === 'z'))
+      : evt.ctrlKey && (evt.key === 'y' || (evt.shiftKey && evt.key === 'z'));
+    if (undoKey) {
+      evt.preventDefault();
+      this.undo();
+    } else if (redoKey) {
+      evt.preventDefault();
+      this.redo();
+    }
+  }
+
   ngOnInit(): void {
-    // Component initialization - tooltips handled by directive
+    this.loadFromLocalStorage();
+    if (this.inputText) {
+      this.convertedText = this.convertText(this.inputText);
+    }
+    this.syncPresetTab();
   }
 
   ngOnDestroy(): void {
@@ -71,9 +167,20 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     this.updateCounts(value);
   }
 
-  onCaseChange(caseType: typeof this.selectedCase) {
+  onCaseChange(caseType: CaseId) {
     this.selectedCase = caseType;
     this.convertedText = this.convertText(this.inputText);
+    this.syncPresetTab();
+  }
+
+  private syncPresetTab(): void {
+    if (this.programmingPresets.some((p) => p.id === this.selectedCase)) {
+      this.activePresetTab = 'programming';
+    } else if (this.funPresets.some((p) => p.id === this.selectedCase)) {
+      this.activePresetTab = 'fun';
+    } else {
+      this.activePresetTab = 'standard';
+    }
   }
 
   convertText(value: string): string {
@@ -358,9 +465,18 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     this.saveToLocalStorage();
   }
 
-  copyToClipboard() {
-    navigator.clipboard.writeText(this.convertedText).then(() => {
-      alert('Copied to clipboard!');
+  copyInput(): void {
+    this.copyText(this.inputText, 'Source');
+  }
+
+  copyOutput(): void {
+    this.copyText(this.convertedText, 'Output');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
     });
   }
 

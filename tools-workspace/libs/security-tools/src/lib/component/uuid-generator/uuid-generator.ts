@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface UuidEntry {
   value: string;
@@ -20,11 +20,12 @@ type UuidFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './uuid-generator.html',
   styleUrls: ['./uuid-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UuidGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: UuidFormGroup = this.fb.group({
     uppercase: this.fb.control(false, { nonNullable: true }),
@@ -38,6 +39,23 @@ export class UuidGeneratorComponent {
 
   readonly hasUuids = computed(() => this.uuids().length > 0);
   readonly lastUuid = computed(() => (this.uuids().length ? this.uuids()[0].value : ''));
+
+  readonly allUuidsText = computed(() => this.uuids().map((u) => u.value).join('\n'));
+
+  formatLabel(): string {
+    const { uppercase, withHyphens, withBraces } = this.form.getRawValue();
+    const parts: string[] = [];
+    if (withHyphens) parts.push('hyphen');
+    if (uppercase) parts.push('upper');
+    if (withBraces) parts.push('brace');
+    return parts.length ? parts.join('+') : 'plain';
+  }
+
+  lastUuidShort(): string {
+    const uuid = this.lastUuid();
+    if (!uuid) return '—';
+    return uuid.length > 12 ? `${uuid.slice(0, 8)}…` : uuid;
+  }
 
   generate(): void {
     this.errors.set([]);
@@ -69,8 +87,21 @@ export class UuidGeneratorComponent {
   }
 
   copy(value: string): void {
-    navigator.clipboard.writeText(value).catch(() => {
+    if (!value) return;
+    navigator.clipboard.writeText(value).then(() => {
+      alert('UUID copied to clipboard!');
+    }).catch(() => {
       this.errors.set(['Failed to copy UUID to clipboard.']);
+    });
+  }
+
+  copyAll(): void {
+    const text = this.allUuidsText();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert('All UUIDs copied to clipboard!');
+    }).catch(() => {
+      this.errors.set(['Failed to copy UUIDs to clipboard.']);
     });
   }
 
@@ -80,8 +111,7 @@ export class UuidGeneratorComponent {
   }
 
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+    return new Date(timestamp).toLocaleString();
   }
 
   private createUuid(): string {
@@ -90,9 +120,8 @@ export class UuidGeneratorComponent {
     }
 
     const bytes = new Uint8Array(16);
-    (crypto as any).getRandomValues(bytes);
+    globalThis.crypto.getRandomValues(bytes);
 
-    // Per RFC 4122 v4
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
 

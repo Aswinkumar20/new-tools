@@ -1,8 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-import { FlexLayoutModule } from '@angular/flex-layout';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 // Mammoth.js types - for DOCX files
 interface MammothResult {
@@ -95,9 +94,10 @@ interface WordFile {
   standalone: true,
   templateUrl: './word-viewer.html',
   styleUrls: ['./word-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, FlexLayoutModule]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('documentContainer') documentContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
@@ -724,6 +724,20 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     }
     
     this.cdr.detectChanges();
+  }
+
+  async copyTextContent(): Promise<void> {
+    if (!this.currentWord?.textContent) return;
+    try {
+      await navigator.clipboard.writeText(this.currentWord.textContent);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = this.currentWord.textContent;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
   }
 
   formatFileSize(bytes: number): string {

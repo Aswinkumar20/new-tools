@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 type OutputFormat = 'base64' | 'base64url' | 'text';
@@ -100,13 +100,14 @@ function chunkString(value: string, size: number): string[] {
   standalone: true,
   templateUrl: './image-to-base64.html',
   styleUrls: ['./image-to-base64.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageToBase64Component {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
+  readonly assetService = inject(AssetService);
   readonly maxFileSize = MAX_FILE_SIZE;
 
   readonly form: ImageFormGroup = this.fb.group({

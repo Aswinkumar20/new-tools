@@ -1,8 +1,7 @@
-import { Component, HostListener, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, HostListener, ViewChild, ElementRef, AfterViewInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-import { FlexLayoutModule } from '@angular/flex-layout';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type ResultTab = 'formatted' | 'tree' | 'validation';
 
@@ -86,11 +85,17 @@ const DEFAULT_SAMPLE = {
   standalone: true,
   templateUrl: './json-formatter-beautifier-validator.html',
   styleUrls: ['./json-formatter-beautifier-validator.scss'],
-  imports: [CommonModule, FormsModule, Navigation, FlexLayoutModule]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('editorTextarea') editorTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
+  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+
+  private fileInput: HTMLInputElement | null = null;
   readonly resultTabs: Array<{ id: ResultTab; label: string; description: string }> = [
     {
       id: 'formatted',
@@ -294,20 +299,49 @@ export class JsonFormatterBeautifierValidatorComponent implements AfterViewInit 
   }
 
   onEditorScroll(event: Event): void {
-    // Sync line numbers scroll with editor scroll
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
   }
 
   onResultsScroll(event: Event): void {
-    // Sync line numbers scroll with results textarea scroll
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    const lineNumbers = this.outputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  copyInput(): void {
+    void this.copyText(this.rawInput);
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.readFile(file);
+        }
+      };
+    }
+    this.fileInput.accept = 'application/json,.json';
+    this.fileInput.click();
+  }
+
+  private async copyText(text: string): Promise<void> {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn('Unable to copy to clipboard.', error);
     }
   }
 

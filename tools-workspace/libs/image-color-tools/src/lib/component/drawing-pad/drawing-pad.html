@@ -1,194 +1,100 @@
-<div class="dp">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <section class="dp__workspace">
-    <div class="dp__hero">
-      <h1 class="dp__hero-title">Drawing Pad</h1>
-      <p class="dp__hero-subtitle">
-        Draw freely on a digital canvas with customizable tools, colors, and brush sizes. Perfect for quick sketches,
-        annotations, or creative doodles. Supports mouse and touch input for desktop and mobile.
-      </p>
-    </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Drawing Pad</h1>
+        <p>Draw freely with customizable tools, colors, and brush sizes — mouse and touch supported.</p>
+      </header>
 
-    <div class="dp__workspace-layout" [formGroup]="form">
-      <div class="dp__workspace-main">
-        <div class="dp__workspace-card">
-          <div class="dp__workspace-panel">
-            <div class="dp__converter-header">
-              <div class="dp__converter-header-content">
-                <h2 class="dp__converter-title">Drawing Pad</h2>
-                <p class="dp__converter-subtitle">Select tools and customize your drawing experience. Draw with mouse or touch.</p>
-              </div>
-              <div class="dp__converter-header-actions">
-                <button type="button" class="dp__btn-icon" aria-label="Clear canvas" (click)="clearCanvas()" [attr.data-tooltip]="'Clear canvas'">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 6h18"></path>
-                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div class="dp__converter-metrics">
-              <div class="dp__metric">
-                <span class="dp__metric-label">TOOL:</span>
-                <span class="dp__metric-value">{{ currentTool() | titlecase }}</span>
-              </div>
-              <div class="dp__metric">
-                <span class="dp__metric-label">COLOR:</span>
-                <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
-              </div>
-              <div class="dp__metric">
-                <span class="dp__metric-label">SIZE:</span>
-                <span class="dp__metric-value">{{ currentBrushSize() }}px</span>
-              </div>
-              <div class="dp__metric">
-                <span class="dp__metric-label">ACTIONS:</span>
-                <span class="dp__metric-value">{{ canUndo() ? 'Undo' : '—' }} / {{ canRedo() ? 'Redo' : '—' }}</span>
-              </div>
-            </div>
-
-            <div class="dp__conversion-form">
-              <div class="dp__tool-selector">
-                <button
-                  type="button"
-                  class="dp__tool-btn"
-                  [class.dp__tool-btn--active]="currentTool() === 'pen'"
-                  (click)="onToolChange('pen')"
-                >
-                  <span class="dp__tool-icon">✏️</span>
-                  <span>Pen</span>
-                </button>
-                <button
-                  type="button"
-                  class="dp__tool-btn"
-                  [class.dp__tool-btn--active]="currentTool() === 'brush'"
-                  (click)="onToolChange('brush')"
-                >
-                  <span class="dp__tool-icon">🖌️</span>
-                  <span>Brush</span>
-                </button>
-                <button
-                  type="button"
-                  class="dp__tool-btn"
-                  [class.dp__tool-btn--active]="currentTool() === 'eraser'"
-                  (click)="onToolChange('eraser')"
-                >
-                  <span class="dp__tool-icon">🧹</span>
-                  <span>Eraser</span>
-                </button>
-              </div>
-
-              <div class="dp__form-grid">
-                <label class="dp__input" for="dp-color">
-                  <span>Color</span>
-                  <div class="dp__color-group">
-                    <input type="color" id="dp-color" formControlName="color" (input)="onColorChange()" (change)="onColorChange()" />
-                    <input type="text" formControlName="color" placeholder="#000000" maxlength="7" (input)="onColorChange()" />
-                  </div>
-                </label>
-
-                <label class="dp__input" for="dp-brush-size">
-                  <span>Brush size ({{ currentBrushSize() }})</span>
-                  <input
-                    type="range"
-                    id="dp-brush-size"
-                    min="1"
-                    max="100"
-                    formControlName="brushSize"
-                    (input)="onBrushSizeChange()"
-                  />
-                  <small>Adjust the size of your brush or eraser.</small>
-                </label>
-              </div>
-
-              <div class="dp__conversion-actions">
-                <button type="button" class="btn btn--ghost" (click)="undo()" [disabled]="!canUndo()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 7v6h6"></path>
-                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
-                  </svg>
-                  <span>Undo</span>
-                </button>
-                <button type="button" class="btn btn--ghost" (click)="redo()" [disabled]="!canRedo()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 7v6h-6"></path>
-                    <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path>
-                  </svg>
-                  <span>Redo</span>
-                </button>
-                <button type="button" class="btn btn--primary" (click)="downloadCanvas()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                  <span>Download</span>
-                </button>
-              </div>
-            </div>
-          </div>
+      <div class="ctl__stats" aria-label="Drawing statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ currentTool() | titlecase }}</span>
+          <span class="ctl__stat-label">Tool</span>
         </div>
-      </div>
-
-      <div class="dp__workspace-secondary">
-        <div class="dp__canvas-card">
-          <div class="dp__card-header">
-            <h3 class="dp__card-title">Canvas</h3>
-          </div>
-          <div class="dp__canvas-container">
-            <canvas
-              #drawingCanvas
-              class="dp__canvas"
-              (mousedown)="onMouseDown($event)"
-              (mousemove)="onMouseMove($event)"
-              (mouseup)="onMouseUp($event)"
-              (mouseleave)="onMouseLeave()"
-              (touchstart)="onMouseDown($event)"
-              (touchmove)="onMouseMove($event)"
-              (touchend)="onMouseUp($event)"
-            ></canvas>
-          </div>
-          <div class="dp__canvas-info">
-            <div class="dp__info-item">
-              <span class="dp__info-label">Tool</span>
-              <strong>{{ currentTool() | titlecase }}</strong>
-            </div>
-            <div class="dp__info-item">
-              <span class="dp__info-label">Color</span>
-              <div class="dp__color-indicator" [style.background-color]="currentColor()"></div>
-            </div>
-            <div class="dp__info-item">
-              <span class="dp__info-label">Brush size</span>
-              <strong>{{ currentBrushSize() }}px</strong>
-            </div>
-          </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ currentBrushSize() }}px</span>
+          <span class="ctl__stat-label">Size</span>
         </div>
-
-        <div class="dp__insights-card">
-          <div class="dp__card-header">
-            <h3 class="dp__card-title">Drawing Insights</h3>
-          </div>
-          <div class="dp__insights-grid">
-            <div class="dp__insight-item">
-              <span class="dp__insight-label">Current Tool</span>
-              <strong class="dp__insight-value">{{ currentTool() | titlecase }}</strong>
-              <small class="dp__insight-meta">{{ currentBrushSize() }}px brush</small>
-            </div>
-            <div class="dp__insight-item">
-              <span class="dp__insight-label">Color</span>
-              <div class="dp__color-indicator-large" [style.background-color]="currentColor()"></div>
-              <small class="dp__insight-meta">{{ currentColor() }}</small>
-            </div>
-            <div class="dp__insight-item">
-              <span class="dp__insight-label">Actions</span>
-              <strong class="dp__insight-value">{{ canUndo() ? 'Undo' : '—' }} / {{ canRedo() ? 'Redo' : '—' }}</strong>
-              <small class="dp__insight-meta">{{ canUndo() || canRedo() ? 'Available' : 'No actions' }}</small>
-            </div>
-          </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ currentColor() }}</span>
+          <span class="ctl__stat-label">Color</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ canUndo() ? 'Yes' : '—' }} / {{ canRedo() ? 'Yes' : '—' }}</span>
+          <span class="ctl__stat-label">Undo/Redo</span>
         </div>
       </div>
     </div>
-  </section>
+
+    <div class="ctl__toolbar" aria-label="Drawing actions">
+      <button type="button" class="ctl__tool-btn" (click)="undo()" [disabled]="!canUndo()" aria-label="Undo" appTooltip="Undo" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Undo</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="redo()" [disabled]="!canRedo()" aria-label="Redo" appTooltip="Redo" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Redo</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="downloadCanvas()" aria-label="Download" appTooltip="Download PNG" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="clearCanvas()" aria-label="Clear canvas" appTooltip="Clear canvas" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors ict-editors--single">
+        <section class="ctl__editor ict-editor--canvas ict-editor--single">
+          <header class="ctl__editor-head"><span>Canvas</span></header>
+          <div class="ict-canvas-wrap">
+            <canvas #drawingCanvas (mousedown)="onMouseDown($event)" (mousemove)="onMouseMove($event)" (mouseup)="onMouseUp($event)"
+              (mouseleave)="onMouseLeave()" (touchstart)="onMouseDown($event)" (touchmove)="onMouseMove($event)" (touchend)="onMouseUp($event)"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="Drawing options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Tools</header>
+          <div class="ctl__settings">
+            <div class="ict-tool-tabs">
+              <button type="button" class="ict-tool-tab" [class.ict-tool-tab--active]="currentTool() === 'pen'" (click)="onToolChange('pen')" appTooltip="Pen" tooltipPosition="bottom">✏️ Pen</button>
+              <button type="button" class="ict-tool-tab" [class.ict-tool-tab--active]="currentTool() === 'brush'" (click)="onToolChange('brush')" appTooltip="Brush" tooltipPosition="bottom">🖌️ Brush</button>
+              <button type="button" class="ict-tool-tab" [class.ict-tool-tab--active]="currentTool() === 'eraser'" (click)="onToolChange('eraser')" appTooltip="Eraser" tooltipPosition="bottom">🧹 Eraser</button>
+            </div>
+            <label class="ctl__field" for="dp-color"><span>Color</span>
+              <div class="ict-color-input-row">
+                <input type="color" id="dp-color" formControlName="color" (input)="onColorChange()" (change)="onColorChange()" />
+                <input type="text" formControlName="color" placeholder="#000000" maxlength="7" (input)="onColorChange()" />
+              </div>
+            </label>
+            <label class="ctl__field" for="dp-brush-size">
+              <span>Brush size ({{ currentBrushSize() }}px)</span>
+              <input type="range" id="dp-brush-size" min="1" max="100" formControlName="brushSize" (input)="onBrushSizeChange()" />
+            </label>
+          </div>
+        </div>
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>Drawing runs <strong>locally</strong> — nothing is uploaded.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose a tool and color in the sidebar, then draw on the canvas.</li>
+        <li>Use undo/redo from the toolbar to step through changes.</li>
+        <li>Download your drawing as a PNG when finished.</li>
+      </ul>
+    </details>
+  </main>
 </div>

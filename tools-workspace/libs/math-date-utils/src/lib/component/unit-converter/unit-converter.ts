@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, effect, ElementRef, inject, OnDestroy, signal, Signal, ViewChild, WritableSignal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { catchError, debounceTime, defer, distinctUntilChanged, map, Observable, of, shareReplay, startWith, Subscription, switchMap, tap } from 'rxjs';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type UnitType =
   | 'length'
@@ -1962,10 +1962,11 @@ class CurrencyRateService {
   standalone: true,
   templateUrl: './unit-converter.html',
   styleUrls: ['./unit-converter.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class UnitConverterComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly engine = new ConversionEngine(UNIT_INDEXES);
   private readonly historyStore = new ConversionHistoryStore();
   private readonly presetStore = new PresetStore([
@@ -2311,6 +2312,12 @@ export class UnitConverterComponent implements OnDestroy {
     );
 
     this.notify('Units swapped.');
+  }
+
+  copyResult(): void {
+    const summary = this.conversionSummary();
+    if (!summary) return;
+    navigator.clipboard.writeText(summary);
   }
 
   convertNow(): void {

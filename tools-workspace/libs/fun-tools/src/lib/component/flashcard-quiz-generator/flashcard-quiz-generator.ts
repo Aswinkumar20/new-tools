@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface Flashcard {
   id: string;
@@ -26,11 +26,12 @@ type FlashcardFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './flashcard-quiz-generator.html',
   styleUrls: ['./flashcard-quiz-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FlashcardQuizGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: FlashcardFormGroup = this.fb.group({
     front: this.fb.control('', { nonNullable: true }),
@@ -61,50 +62,29 @@ export class FlashcardQuizGeneratorComponent {
     const answers = this.quizAnswers();
     const correct = answers.filter((a) => a.correct).length;
     const total = answers.length;
-    return {
-      total,
-      correct,
-      incorrect: total - correct,
-      accuracy: total > 0 ? Math.round((correct / total) * 100) : 0
-    };
+    return { total, correct, incorrect: total - correct, accuracy: total > 0 ? Math.round((correct / total) * 100) : 0 };
   });
 
   readonly hasFlashcards = computed(() => this.flashcards().length > 0);
   readonly canStartQuiz = computed(() => this.flashcards().length >= 2);
-  readonly isQuizComplete = computed(() => {
-    return this.quizMode() && this.quizAnswers().length >= this.flashcards().length;
-  });
+  readonly isQuizComplete = computed(() => this.quizMode() && this.quizAnswers().length >= this.flashcards().length);
 
   addFlashcard(): void {
     this.errors.set([]);
     const { front, back } = this.form.getRawValue();
-
-    if (!front.trim()) {
-      this.errors.set(['Front side cannot be empty.']);
-      return;
-    }
-    if (!back.trim()) {
-      this.errors.set(['Back side cannot be empty.']);
-      return;
-    }
-
+    if (!front.trim()) { this.errors.set(['Front side cannot be empty.']); return; }
+    if (!back.trim()) { this.errors.set(['Back side cannot be empty.']); return; }
     const flashcard: Flashcard = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      front: front.trim(),
-      back: back.trim(),
-      createdAt: Date.now()
+      front: front.trim(), back: back.trim(), createdAt: Date.now()
     };
-
     this.flashcards.update((current) => [...current, flashcard]);
     this.form.reset({ front: '', back: '' });
     this.editingFlashcard.set(null);
   }
 
   editFlashcard(flashcard: Flashcard): void {
-    this.form.patchValue({
-      front: flashcard.front,
-      back: flashcard.back
-    });
+    this.form.patchValue({ front: flashcard.front, back: flashcard.back });
     this.editingFlashcard.set(flashcard.id);
     this.errors.set([]);
   }
@@ -113,28 +93,12 @@ export class FlashcardQuizGeneratorComponent {
     this.errors.set([]);
     const { front, back } = this.form.getRawValue();
     const id = this.editingFlashcard();
-
-    if (!id) {
-      return;
-    }
-
-    if (!front.trim()) {
-      this.errors.set(['Front side cannot be empty.']);
-      return;
-    }
-    if (!back.trim()) {
-      this.errors.set(['Back side cannot be empty.']);
-      return;
-    }
-
+    if (!id) return;
+    if (!front.trim()) { this.errors.set(['Front side cannot be empty.']); return; }
+    if (!back.trim()) { this.errors.set(['Back side cannot be empty.']); return; }
     this.flashcards.update((current) =>
-      current.map((card) =>
-        card.id === id
-          ? { ...card, front: front.trim(), back: back.trim() }
-          : card
-      )
+      current.map((card) => card.id === id ? { ...card, front: front.trim(), back: back.trim() } : card)
     );
-
     this.form.reset({ front: '', back: '' });
     this.editingFlashcard.set(null);
   }
@@ -148,10 +112,7 @@ export class FlashcardQuizGeneratorComponent {
   }
 
   startQuiz(): void {
-    if (!this.canStartQuiz()) {
-      return;
-    }
-
+    if (!this.canStartQuiz()) return;
     this.quizMode.set(true);
     this.currentQuizIndex.set(0);
     this.quizAnswers.set([]);
@@ -167,40 +128,21 @@ export class FlashcardQuizGeneratorComponent {
 
   nextCard(): void {
     const current = this.currentQuizIndex();
-    if (current === null) {
-      return;
-    }
-
+    if (current === null) return;
     const next = current + 1;
-    if (next >= this.flashcards().length) {
-      this.endQuiz();
-    } else {
-      this.currentQuizIndex.set(next);
-      this.showAnswer.set(false);
-    }
+    if (next >= this.flashcards().length) this.endQuiz();
+    else { this.currentQuizIndex.set(next); this.showAnswer.set(false); }
   }
 
   submitAnswer(correct: boolean): void {
-    const current = this.currentQuizIndex();
     const card = this.currentFlashcard();
-    if (current === null || !card) {
-      return;
-    }
-
-    this.quizAnswers.update((answers) => [
-      ...answers,
-      { flashcardId: card.id, correct, timestamp: Date.now() }
-    ]);
-
+    if (!card) return;
+    this.quizAnswers.update((answers) => [...answers, { flashcardId: card.id, correct, timestamp: Date.now() }]);
     this.showAnswer.set(false);
-    setTimeout(() => {
-      this.nextCard();
-    }, 500);
+    setTimeout(() => this.nextCard(), 500);
   }
 
-  toggleAnswer(): void {
-    this.showAnswer.update((show) => !show);
-  }
+  toggleAnswer(): void { this.showAnswer.update((show) => !show); }
 
   cancelEdit(): void {
     this.form.reset({ front: '', back: '' });
@@ -215,8 +157,16 @@ export class FlashcardQuizGeneratorComponent {
     this.cancelEdit();
   }
 
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString();
+  copyFront(): void { this.copyText(this.form.controls.front.value, 'Front'); }
+  copyBack(): void { this.copyText(this.form.controls.back.value, 'Back'); }
+  copyCurrentAnswer(): void {
+    const card = this.currentFlashcard();
+    if (!card) return;
+    this.copyText(card.back, 'Answer');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text.trim()) return;
+    navigator.clipboard.writeText(text).then(() => alert(`${label} copied to clipboard!`));
   }
 }

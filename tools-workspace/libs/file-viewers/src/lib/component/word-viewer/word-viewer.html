@@ -1,391 +1,146 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Word document viewer</p>
-          <h1>Upload, view, and read Word documents and related formats</h1>
-          <p class="strapline">
-            Drag and drop documents, view with preserved formatting, zoom for readability, and manage multiple files with responsive controls.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Multiple formats</span>
-          <span class="meta-pill">Browser-based</span>
-          <span class="meta-pill">Format preservation</span>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Word Document Viewer</h1>
+        <p>View and read Word documents and related formats with preserved formatting and zoom controls.</p>
       </header>
 
-      <section class="insight-card upload-card">
-        <header class="insight-header">
-          <h2>Load documents</h2>
-          <p>Drop files or browse to start reading instantly.</p>
-        </header>
-        <div class="insight-body">
-          <input 
-            #fileInput 
-            type="file" 
-            multiple 
-            accept=".doc,.docx,.rtf,.odt,.txt,.html,.htm,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.oasis.opendocument.text,text/plain,text/html"
-            (change)="onFileSelected($event)"
-            class="file-input"
-            hidden>
-          
-          <button 
-            type="button"
-            class="drop-zone" 
-            [class.active]="showDropZone"
-            (dragenter)="onDragEnter()"
-            (dragleave)="onDragLeave()"
-            (drop)="onDrop($event)"
-            (click)="openFileDialog()"
-            aria-label="Upload documents">
-            <div class="drop-zone-content">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              <p class="drop-zone-text">Click to browse or drag and drop document files here</p>
-              <p class="drop-zone-formats">Supported: DOCX, DOC, RTF, ODT, TXT, HTML (Max 50MB)</p>
-            </div>
-          </button>
-
-          <div class="upload-actions">
-            <button class="btn-primary" (click)="openFileDialog()">
-              <span>Select Document Files</span>
-            </button>
-            <p class="upload-hint">Supports DOCX, DOC, RTF, ODT, TXT, HTML · 50MB max per file</p>
-          </div>
+      <div class="ctl__stats" aria-label="Document statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ wordFiles.length }}</span>
+          <span class="ctl__stat-label">Documents</span>
         </div>
-      </section>
-    </section>
-
-    <aside class="workspace-secondary">
-      <div class="editor-toolbar word-toolbar" aria-label="Word viewer controls">
-        <div class="toolbar-stats" aria-label="Document statistics">
-          <div class="stat-chip">
-            <span class="stat-label">Open documents</span>
-            <span class="stat-value">{{ wordFiles.length }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Active document</span>
-            <span class="stat-value">
-              {{ wordFiles.length > 0 ? (currentWordIndex + 1) + ' / ' + wordFiles.length : '0 / 0' }}
-            </span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Current zoom</span>
-            <span class="stat-value">{{ zoomLevel }}%</span>
-          </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ wordFiles.length > 0 ? (currentWordIndex + 1) + '/' + wordFiles.length : '—' }}</span>
+          <span class="ctl__stat-label">Active</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ zoomLevel }}%</span>
+          <span class="ctl__stat-label">Zoom</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ currentWord ? getDocumentTypeLabel(currentWord.documentType) : '—' }}</span>
+          <span class="ctl__stat-label">Format</span>
         </div>
       </div>
+    </div>
 
-      <div class="viewer-shell word-shell">
-        <section class="panel panel-viewer">
-          <header class="panel-header">
-            <div>
-              <h2>Document preview</h2>
-              <p *ngIf="currentWord">{{ currentWord.name }} • {{ formatFileSize(currentWord.size) }} • {{ getDocumentTypeLabel(currentWord.documentType) }}</p>
-              <p *ngIf="!currentWord">Upload document files to start viewing and reading them.</p>
-            </div>
-            <div class="panel-actions viewer-controls" *ngIf="currentWord">
-              <div class="viewer-zoom-controls-inline">
-                <button 
-                  class="btn-icon" 
-                  (click)="zoomOut()" 
-                  [disabled]="zoomLevel <= 50"
-                  title="Zoom Out"
-                  aria-label="Zoom Out">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    <line x1="8" y1="11" x2="14" y2="11"></line>
-                  </svg>
-                </button>
-                <span class="zoom-level-display">{{ zoomLevel }}%</span>
-                <button 
-                  class="btn-icon" 
-                  (click)="zoomIn()" 
-                  [disabled]="zoomLevel >= 200"
-                  title="Zoom In"
-                  aria-label="Zoom In">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    <line x1="11" y1="8" x2="11" y2="14"></line>
-                    <line x1="8" y1="11" x2="14" y2="11"></line>
-                  </svg>
-                </button>
-                <button 
-                  class="btn-icon" 
-                  (click)="fitToWidth()" 
-                  title="Fit to Width"
-                  aria-label="Fit to Width">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                  </svg>
-                </button>
-                <button 
-                  class="btn-icon" 
-                  (click)="resetZoom()" 
-                  [disabled]="zoomLevel === 100"
-                  title="Reset Zoom"
-                  aria-label="Reset Zoom">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="16"></line>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                  </svg>
-                </button>
-                <button 
-                  class="btn-icon" 
-                  (click)="toggleFullscreenView()"
-                  title="Fullscreen"
-                  aria-label="Toggle Fullscreen">
-                  <svg *ngIf="!isFullscreenView" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                  </svg>
-                  <svg *ngIf="isFullscreenView" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                  </svg>
-                </button>
-              </div>
-              <div class="viewer-actions">
-                <button
-                  class="clear-btn-sm"
-                  (click)="downloadWord()"
-                  [disabled]="!currentWord">
-                  Download
-                </button>
-                <button
-                  class="clear-btn-sm"
-                  (click)="printWord()"
-                  [disabled]="!currentWord">
-                  Print
-                </button>
-                <button
-                  class="clear-btn-sm danger"
-                  (click)="clearAll()"
-                  [disabled]="wordFiles.length === 0">
-                  Clear All
-                </button>
-              </div>
+    <div class="ctl__toolbar" aria-label="Document actions">
+      <label class="ctl__tool-btn" aria-label="Upload documents" appTooltip="Upload files" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Upload</span>
+        <input #fileInput type="file" multiple accept=".doc,.docx,.rtf,.odt,.txt,.html,.htm,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.oasis.opendocument.text,text/plain,text/html" (change)="onFileSelected($event)" />
+      </label>
+      <button type="button" class="ctl__tool-btn" (click)="downloadWord()" [disabled]="!currentWord" aria-label="Download" appTooltip="Download" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="printWord()" [disabled]="!currentWord" aria-label="Print" appTooltip="Print" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Print</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="wordFiles.length === 0" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor ctl__editor--merged word-viewer-panel">
+          <header class="ctl__editor-head">
+            <span>Document preview</span>
+            <div class="ctl__editor-actions fv-viewer-controls" *ngIf="currentWord">
+              <button class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <span class="ctl__editor-badge">{{ zoomLevel }}%</span>
+              <button class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 200" title="Zoom in"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <button class="fv-icon-btn" (click)="fitToWidth()" title="Fit to width"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+              <button class="fv-icon-btn" (click)="resetZoom()" [disabled]="zoomLevel === 100" title="Reset zoom"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+              <button class="fv-icon-btn" (click)="toggleFullscreenView()" title="Fullscreen"><svg *ngIf="!isFullscreenView" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg><svg *ngIf="isFullscreenView" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg></button>
             </div>
           </header>
 
-          <div class="loading" *ngIf="loading">
-            <div class="spinner"></div>
-            <p>Loading document...</p>
+          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner"></div><p>Loading document…</p></div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage">
+            <p>{{ errorMessage }}</p>
+            <button type="button" class="ctl__icon-btn" (click)="closeError()" aria-label="Dismiss">×</button>
           </div>
 
-          <div class="error-message" *ngIf="errorMessage">
-            <div class="error-message-content">
-              <p>{{ errorMessage }}</p>
-              <button 
-                type="button" 
-                class="error-dismiss" 
-                (click)="closeError()" 
-                aria-label="Dismiss error message">
-                ×
+          <div class="fv-viewer-body" *ngIf="wordFiles.length > 0">
+            <div class="document-content-container">
+              <div class="document-content-wrapper" #documentContainer></div>
+            </div>
+          </div>
+
+          <div class="ctl__empty fv-dropzone" *ngIf="wordFiles.length === 0 && !loading" [class.fv-dropzone--active]="showDropZone" (click)="openFileDialog()" aria-live="polite">
+            <p>Drop documents here or use <strong>Upload</strong> in the toolbar.</p>
+            <p>DOCX, DOC, RTF, ODT, TXT, HTML · 50MB max</p>
+          </div>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output" *ngIf="currentWord">
+          <header class="ctl__editor-head">
+            <span>Extracted text</span>
+            <div class="ctl__editor-actions">
+              <span class="ctl__editor-badge">Ready</span>
+              <button type="button" class="ctl__icon-btn" (click)="copyTextContent()" [disabled]="!currentWord.textContent" aria-label="Copy text" appTooltip="Copy text" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
-          </div>
-
-          <div class="viewer-content" *ngIf="wordFiles.length > 0">
-            <!-- Document List -->
-            <div class="document-list" *ngIf="wordFiles.length > 1" aria-label="Loaded documents">
-              <div 
-                class="document-item" 
-                *ngFor="let word of wordFiles; let i = index"
-                [class.active]="i === currentWordIndex">
-                <button 
-                  type="button"
-                  class="document-item-trigger"
-                  (click)="selectWord(i)"
-                  [attr.aria-label]="'Open ' + word.name">
-                  <div class="document-item-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                    </svg>
-                  </div>
-                  <div class="document-item-info">
-                    <span class="document-item-name">{{ word.name }}</span>
-                    <span class="document-item-details">
-                      {{ formatFileSize(word.size) }} • {{ getDocumentTypeLabel(word.documentType) }}
-                    </span>
-                  </div>
-                </button>
-                <button 
-                  type="button"
-                  class="document-item-remove" 
-                  (click)="removeWord(i); $event.stopPropagation()" 
-                  title="Remove">
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <!-- Document Content Container -->
-            <div class="document-content-container">
-              <div class="document-content-wrapper" #documentContainer>
-                <!-- Document content will be rendered here -->
-              </div>
-            </div>
-          </div>
-
-          <div class="empty-gallery" *ngIf="wordFiles.length === 0 && !loading">
-            <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-              <line x1="16" y1="13" x2="8" y2="13"></line>
-              <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10 9 9 9 8 9"></polyline>
-            </svg>
-            <p>No documents loaded yet</p>
-            <p class="hint">Upload document files using the panel above or drag and drop them anywhere on the page</p>
-          </div>
+          </header>
+          <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly rows="1" [value]="currentWord.textContent || ''" aria-label="Extracted text content"></textarea>
         </section>
       </div>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Pro tips</h2>
-          <p>Level up your document reading workflow.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Use zoom controls to fine tune readability.</li>
-            <li>Fit to width for wide layouts, tables, and graphics.</li>
-            <li>Print or download to keep a copy offline.</li>
-            <li>Switch between multiple documents using the document list.</li>
-            <li>Press Escape to exit fullscreen mode at any time.</li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our Word document viewer.</p>
-        </header>
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              The Word Document Viewer is a powerful, browser-based tool that allows you to view and read Word documents 
-              and related text formats directly in your web browser. No Microsoft Office or additional software required—everything 
-              runs client-side for your privacy and security.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Multiple format support</strong>
-                <p>View DOCX, DOC, RTF, ODT, TXT, and HTML files.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Format preservation</strong>
-                <p>DOCX files maintain formatting, headings, and styles.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Multiple document support</strong>
-                <p>Open and manage multiple documents simultaneously.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Zoom controls</strong>
-                <p>Zoom from 50% to 200% for comfortable reading.</p>
-              </div>
-            </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>Document review and reading</li>
-                <li>Multi-format text file viewing</li>
-                <li>Format validation and testing</li>
-                <li>Privacy-focused document viewing</li>
-                <li>Offline document management</li>
-              </ul>
-            </div>
+      <aside class="ctl__sidebar" aria-label="Files and settings">
+        <div class="ctl__panel" *ngIf="wordFiles.length > 0">
+          <header class="ctl__panel-head">Documents ({{ wordFiles.length }})</header>
+          <div class="ctl__panel-body">
+            <ul class="fv-files">
+              <li *ngFor="let word of wordFiles; let i = index">
+                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentWordIndex" (click)="selectWord(i)">
+                  <span class="fv-file__info"><strong>{{ word.name }}</strong><span>{{ formatFileSize(word.size) }} · {{ getDocumentTypeLabel(word.documentType) }}</span></span>
+                </button>
+                <button type="button" class="fv-file-remove" (click)="removeWord(i); $event.stopPropagation()" aria-label="Remove">×</button>
+              </li>
+            </ul>
           </div>
         </div>
-      </section>
-    </aside>
-  </div>
+        <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Documents are processed <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Upload Word documents and switch between them in the sidebar.</li>
+        <li>Use zoom and fit-to-width for comfortable reading.</li>
+        <li>Copy extracted plain text from the output panel.</li>
+      </ul>
+    </details>
+  </main>
 </div>
 
-<!-- Fullscreen Overlay -->
-<div
-  class="fullscreen-overlay"
-  *ngIf="isFullscreenView"
-  #fullscreenContainer
-  [class.fullscreen-active]="isFullscreenView">
-  <button
-    class="fullscreen-close-btn"
-    (click)="exitFullscreenView()"
-    title="Exit Fullscreen (Esc)"
-    aria-label="Exit Fullscreen">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <line x1="18" y1="6" x2="6" y2="18"></line>
-      <line x1="6" y1="6" x2="18" y2="18"></line>
-    </svg>
+<div class="fullscreen-overlay" *ngIf="isFullscreenView" #fullscreenContainer [class.fullscreen-active]="isFullscreenView">
+  <button class="fullscreen-close-btn" (click)="exitFullscreenView()" title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
   </button>
-
   <div class="fullscreen-document-container">
-    <div class="fullscreen-document-wrapper" #fullscreenDocumentContainer>
-      <!-- Document content will be rendered here in fullscreen -->
-    </div>
+    <div class="fullscreen-document-wrapper" #fullscreenDocumentContainer></div>
   </div>
-
-  <!-- Fullscreen Controls -->
-  <div class="fullscreen-controls-bar">
+  <div class="fullscreen-controls-bar" *ngIf="currentWord">
     <div class="fullscreen-info">
-      <span class="fullscreen-doc-name" *ngIf="currentWord">{{ currentWord.name }}</span>
-      <span class="fullscreen-doc-type" *ngIf="currentWord">{{ getDocumentTypeLabel(currentWord.documentType) }}</span>
+      <span class="fullscreen-doc-name">{{ currentWord.name }}</span>
+      <span class="fullscreen-doc-type">{{ getDocumentTypeLabel(currentWord.documentType) }}</span>
     </div>
-
     <div class="fullscreen-zoom-controls">
-      <button
-        class="btn-icon"
-        (click)="zoomOut()"
-        [disabled]="zoomLevel <= 50"
-        title="Zoom Out"
-        aria-label="Zoom Out">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          <line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
-      <span class="zoom-level" aria-label="Zoom level">{{ zoomLevel }}%</span>
-      <button
-        class="btn-icon"
-        (click)="zoomIn()"
-        [disabled]="zoomLevel >= 200"
-        title="Zoom In"
-        aria-label="Zoom In">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          <line x1="11" y1="8" x2="11" y2="14"></line>
-          <line x1="8" y1="11" x2="14" y2="11"></line>
-        </svg>
-      </button>
-      <button
-        class="btn-icon"
-        (click)="fitToWidth()"
-        title="Fit to Width"
-        aria-label="Fit to Width">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-          <line x1="8" y1="12" x2="16" y2="12"></line>
-        </svg>
-      </button>
+      <button class="btn-icon" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+      <span class="zoom-level">{{ zoomLevel }}%</span>
+      <button class="btn-icon" (click)="zoomIn()" [disabled]="zoomLevel >= 200" title="Zoom in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+      <button class="btn-icon" (click)="fitToWidth()" title="Fit to width"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
     </div>
   </div>
 </div>

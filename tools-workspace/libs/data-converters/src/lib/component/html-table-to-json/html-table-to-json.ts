@@ -1,7 +1,7 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule, NgFor, NgIf } from '@angular/common';
+import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
+import { CommonModule, NgFor } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type SelectionMode = 'auto' | 'body' | 'custom';
 
@@ -67,11 +67,17 @@ const SAMPLE_TABLE = `<table>
   standalone: true,
   templateUrl: './html-table-to-json.html',
   styleUrls: ['./html-table-to-json.scss'],
-  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgFor, FormsModule, Navigation, TooltipDirective]
 })
 export class HtmlTableToJsonComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('htmlTextarea') htmlTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
+  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+
+  private fileInput: HTMLInputElement | null = null;
   readonly selectionModes: Array<{ id: SelectionMode; label: string; description: string }> = [
     {
       id: 'auto',
@@ -186,7 +192,7 @@ export class HtmlTableToJsonComponent implements AfterViewInit {
 
   onEditorScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
@@ -194,9 +200,40 @@ export class HtmlTableToJsonComponent implements AfterViewInit {
 
   onResultsScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    const lineNumbers = this.outputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  copyInput(): void {
+    void this.copyText(this.htmlInput);
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.readFile(file);
+        }
+      };
+    }
+    this.fileInput.accept = '.html,text/html';
+    this.fileInput.click();
+  }
+
+  private async copyText(text: string): Promise<void> {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn('Unable to copy to clipboard.', error);
     }
   }
 

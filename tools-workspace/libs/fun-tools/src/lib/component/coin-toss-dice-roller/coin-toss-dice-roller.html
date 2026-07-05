@@ -1,228 +1,168 @@
-<div class="ctdr">
-  <div class="ctdr__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="ctdr__hero">
-    <div class="ctdr__badge">Fun tools</div>
-    <h1>Coin Toss & Dice Roller</h1>
-    <p>
-      Flip a coin or roll dice for random results. Perfect for games, decision-making, or just having fun. Track your
-      results and view statistics.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Coin Toss &amp; Dice Roller</h1>
+        <p>Flip a coin or roll dice — track results and view statistics.</p>
+      </header>
 
-    <div class="ctdr__hero-meta">
-      <div>
-        <span class="ctdr__meta-label">Coin tosses</span>
-        <strong>{{ coinStats().total }}</strong>
-      </div>
-      <div>
-        <span class="ctdr__meta-label">Dice rolls</span>
-        <strong>{{ diceStats().total }}</strong>
-      </div>
-      @if (coinStats().total > 0) {
-        <div>
-          <span class="ctdr__meta-label">Heads / Tails</span>
-          <strong>{{ coinStats().heads }} / {{ coinStats().tails }}</strong>
+      <div class="ctl__stats" aria-label="Game statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ coinStats().total }}</span>
+          <span class="ctl__stat-label">Tosses</span>
         </div>
-      }
-      @if (diceStats().total > 0) {
-        <div>
-          <span class="ctdr__meta-label">Average roll</span>
-          <strong>{{ diceStats().average }}</strong>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ diceStats().total }}</span>
+          <span class="ctl__stat-label">Rolls</span>
         </div>
-      }
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ coinStats().total > 0 ? coinStats().heads + '/' + coinStats().tails : '—' }}</span>
+          <span class="ctl__stat-label">H/T</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ diceStats().total > 0 ? diceStats().average : '—' }}</span>
+          <span class="ctl__stat-label">Avg</span>
+        </div>
+      </div>
     </div>
-  </section>
 
-  <div class="ctdr__board">
-    <section class="ctdr__panel ctdr__panel--coin">
-      <header class="ctdr__card-header">
-        <div>
-          <h2>Coin Toss</h2>
-          <p>Flip a coin for heads or tails.</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearCoinHistory()"
-          [disabled]="!hasCoinHistory()"
-        >
-          Clear
+    <div class="ctl__tabs" role="tablist" aria-label="Mode">
+      <button type="button" class="ctl__tab" [class.ctl__tab--active]="activeTab() === 'coin'" (click)="setTab('coin')">Coin</button>
+      <button type="button" class="ctl__tab" [class.ctl__tab--active]="activeTab() === 'dice'" (click)="setTab('dice')">Dice</button>
+    </div>
+
+    <div class="ctl__toolbar" aria-label="Roller actions">
+      @if (activeTab() === 'coin') {
+        <button type="button" class="ctl__tool-btn" (click)="tossCoin()" [disabled]="isFlipping()" appTooltip="Toss coin" tooltipPosition="bottom" aria-label="Toss coin">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">{{ isFlipping() ? 'Flipping…' : 'Toss' }}</span>
         </button>
-      </header>
-
-      <div class="ctdr__coin-section">
-        <button
-          type="button"
-          class="ctdr__coin-button"
-          (click)="tossCoin()"
-          [disabled]="isFlipping()"
-          [class.ctdr__coin-button--flipping]="isFlipping()"
-        >
-          <div class="ctdr__coin" [class.ctdr__coin--heads]="lastCoinResult()?.result === 'heads' && !isFlipping()"
-               [class.ctdr__coin--tails]="lastCoinResult()?.result === 'tails' && !isFlipping()"
-               [class.ctdr__coin--spinning]="isFlipping()">
-            <div class="ctdr__coin-face ctdr__coin-face--heads">H</div>
-            <div class="ctdr__coin-face ctdr__coin-face--tails">T</div>
-          </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearCoinHistory()" [disabled]="!hasCoinHistory()" appTooltip="Clear coin history" tooltipPosition="bottom" aria-label="Clear coin history">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
         </button>
-
-        @if (lastCoinResult(); as result) {
-          <div class="ctdr__result-display">
-            <strong class="ctdr__result-text">{{ result.result === 'heads' ? 'Heads' : 'Tails' }}</strong>
-            <span class="ctdr__result-time">{{ formatTimestamp(result.timestamp) }}</span>
-          </div>
-        } @else {
-          <div class="ctdr__result-display ctdr__result-display--placeholder">
-            Click the coin to flip
-          </div>
-        }
-      </div>
-
-      @if (hasCoinHistory()) {
-        <div class="ctdr__stats">
-          <div class="ctdr__stat-item">
-            <span class="ctdr__stat-label">Heads</span>
-            <strong>{{ coinStats().heads }} ({{ coinStats().headsPercent }}%)</strong>
-          </div>
-          <div class="ctdr__stat-item">
-            <span class="ctdr__stat-label">Tails</span>
-            <strong>{{ coinStats().tails }} ({{ coinStats().tailsPercent }}%)</strong>
-          </div>
-        </div>
-
-        <div class="ctdr__history">
-          <h3 class="ctdr__history-title">Recent tosses</h3>
-          <ul class="ctdr__history-list">
-            @for (result of coinResults().slice(0, 10); track result.timestamp) {
-              <li class="ctdr__history-item" [class.ctdr__history-item--heads]="result.result === 'heads'">
-                <span class="ctdr__history-result">{{ result.result === 'heads' ? 'Heads' : 'Tails' }}</span>
-                <span class="ctdr__history-time">{{ formatTimestamp(result.timestamp) }}</span>
-              </li>
-            }
-          </ul>
-        </div>
+      } @else {
+        <button type="button" class="ctl__tool-btn" (click)="rollDice()" [disabled]="isRolling()" appTooltip="Roll dice" tooltipPosition="bottom" aria-label="Roll dice">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">{{ isRolling() ? 'Rolling…' : 'Roll' }}</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clearDiceHistory()" [disabled]="!hasDiceHistory()" appTooltip="Clear dice history" tooltipPosition="bottom" aria-label="Clear dice history">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       }
-    </section>
+      <button type="button" class="ctl__tool-btn" (click)="copyLastResult()" [disabled]="!lastResultText()" appTooltip="Copy last result" tooltipPosition="bottom" aria-label="Copy last result">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy</span>
+      </button>
+    </div>
 
-    <section class="ctdr__panel ctdr__panel--dice">
-      <header class="ctdr__card-header">
-        <div>
-          <h2>Dice Roller</h2>
-          <p>Roll dice with customizable sides and count.</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearDiceHistory()"
-          [disabled]="!hasDiceHistory()"
-        >
-          Clear
-        </button>
-      </header>
-
-      <div class="ctdr__dice-controls">
-        <div class="ctdr__control-group">
-          <div class="ctdr__control-label">Number of dice</div>
-          <div class="ctdr__number-input">
-            <button
-              type="button"
-              class="ctdr__number-btn"
-              (click)="setNumberOfDice(numberOfDice() - 1)"
-              [disabled]="numberOfDice() <= 1"
-            >
-              −
-            </button>
-            <span class="ctdr__number-value">{{ numberOfDice() }}</span>
-            <button
-              type="button"
-              class="ctdr__number-btn"
-              (click)="setNumberOfDice(numberOfDice() + 1)"
-              [disabled]="numberOfDice() >= 10"
-            >
-              +
-            </button>
-          </div>
-        </div>
-
-        <div class="ctdr__control-group">
-          <div class="ctdr__control-label">Dice sides</div>
-          <div class="ctdr__dice-options">
-            @for (sides of diceOptions; track sides) {
-              <button
-                type="button"
-                class="ctdr__dice-option"
-                [class.ctdr__dice-option--active]="selectedDiceSides() === sides"
-                (click)="setDiceSides(sides)"
-              >
-                d{{ sides }}
-              </button>
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor ctl__editor--merged">
+          <header class="ctl__editor-head">
+            <span>{{ activeTab() === 'coin' ? 'Coin toss' : 'Dice roll' }}</span>
+            @if (lastResultText()) {
+              <span class="ctl__editor-badge">{{ lastResultText() }}</span>
             }
-          </div>
-        </div>
+          </header>
+
+          @if (activeTab() === 'coin') {
+            <div class="ctl__editor-body ctdr-play">
+              <button type="button" class="ctdr-coin-btn" (click)="tossCoin()" [disabled]="isFlipping()" [attr.aria-label]="isFlipping() ? 'Flipping' : 'Toss coin'">
+                <div class="ctdr-coin" [class.ctdr-coin--heads]="lastCoinResult()?.result === 'heads' && !isFlipping()" [class.ctdr-coin--tails]="lastCoinResult()?.result === 'tails' && !isFlipping()" [class.ctdr-coin--spinning]="isFlipping()">
+                  <div class="ctdr-coin__face ctdr-coin__face--heads">H</div>
+                  <div class="ctdr-coin__face ctdr-coin__face--tails">T</div>
+                </div>
+              </button>
+              @if (lastCoinResult(); as result) {
+                <p class="ctdr-result">{{ result.result === 'heads' ? 'Heads' : 'Tails' }} · {{ formatTimestamp(result.timestamp) }}</p>
+              } @else {
+                <p class="ctdr-hint">Tap the coin to flip</p>
+              }
+            </div>
+          } @else {
+            <div class="ctl__editor-body ctdr-play">
+              @if (lastDiceResults().length > 0) {
+                <div class="ctdr-dice-row">
+                  @for (diceResult of lastDiceResults(); track diceResult.timestamp + $index) {
+                    <div class="ctdr-dice" [class.ctdr-dice--rolling]="isRolling()">{{ diceResult.result }}</div>
+                  }
+                </div>
+                <p class="ctdr-result">{{ formatTimestamp(lastDiceResults()[0].timestamp) }}</p>
+              } @else {
+                <div class="ctdr-dice ctdr-dice--placeholder">?</div>
+                <p class="ctdr-hint">Tap Roll to throw dice</p>
+              }
+            </div>
+          }
+        </section>
       </div>
 
-      <div class="ctdr__dice-section">
-        <button
-          type="button"
-          class="btn btn--primary btn--large"
-          (click)="rollDice()"
-          [disabled]="isRolling()"
-        >
-          {{ isRolling() ? 'Rolling...' : 'Roll Dice' }}
-        </button>
-
-        @if (lastDiceResults().length > 0) {
-          <div class="ctdr__dice-display">
-            @if (numberOfDice() === 1) {
-              <div class="ctdr__dice" [class.ctdr__dice--rolling]="isRolling()">
-                {{ lastDiceResults()[0].result }}
+      <aside class="ctl__sidebar" aria-label="Options and history">
+        @if (activeTab() === 'dice') {
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Dice options</header>
+            <div class="ctl__settings">
+              <div class="ctl__field">
+                <span>Number of dice</span>
+                <div class="ctdr-stepper">
+                  <button type="button" class="ctl__icon-btn" (click)="setNumberOfDice(numberOfDice() - 1)" [disabled]="numberOfDice() <= 1" aria-label="Decrease dice">−</button>
+                  <span>{{ numberOfDice() }}</span>
+                  <button type="button" class="ctl__icon-btn" (click)="setNumberOfDice(numberOfDice() + 1)" [disabled]="numberOfDice() >= 10" aria-label="Increase dice">+</button>
+                </div>
               </div>
-            } @else {
-              <div class="ctdr__dice-multiple">
-                @for (diceResult of lastDiceResults(); track diceResult.timestamp + $index) {
-                  <div class="ctdr__dice" [class.ctdr__dice--rolling]="isRolling()">
-                    {{ diceResult.result }}
-                  </div>
-                }
+              <div class="ctl__field">
+                <span>Sides</span>
+                <div class="ctdr-sides">
+                  @for (sides of diceOptions; track sides) {
+                    <button type="button" class="ctdr-side-btn" [class.ctdr-side-btn--active]="selectedDiceSides() === sides" (click)="setDiceSides(sides)">d{{ sides }}</button>
+                  }
+                </div>
               </div>
-            }
-            <div class="ctdr__result-display">
-              <span class="ctdr__result-time">{{ formatTimestamp(lastDiceResults()[0].timestamp) }}</span>
             </div>
           </div>
-        } @else {
-          <div class="ctdr__dice-display">
-            <div class="ctdr__dice-placeholder">Click to roll</div>
-          </div>
         }
-      </div>
-
-      @if (hasDiceHistory()) {
-        <div class="ctdr__stats">
-          <div class="ctdr__stat-item">
-            <span class="ctdr__stat-label">Average</span>
-            <strong>{{ diceStats().average }}</strong>
-          </div>
-          <div class="ctdr__stat-item">
-            <span class="ctdr__stat-label">Min / Max</span>
-            <strong>{{ diceStats().min }} / {{ diceStats().max }}</strong>
-          </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Recent {{ activeTab() === 'coin' ? 'tosses' : 'rolls' }}</header>
+          @if (activeTab() === 'coin' && hasCoinHistory()) {
+            <div class="ctl__panel-body">
+              <ul class="ctdr-history">
+                @for (result of coinResults().slice(0, 10); track result.timestamp) {
+                  <li [class.ctdr-history__heads]="result.result === 'heads'">
+                    <span>{{ result.result === 'heads' ? 'Heads' : 'Tails' }}</span>
+                    <time>{{ formatTimestamp(result.timestamp) }}</time>
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else if (activeTab() === 'dice' && hasDiceHistory()) {
+            <div class="ctl__panel-body">
+              <ul class="ctdr-history">
+                @for (result of diceResults().slice(0, 10); track result.timestamp) {
+                  <li>
+                    <span>d{{ result.sides }}: {{ result.result }}</span>
+                    <time>{{ formatTimestamp(result.timestamp) }}</time>
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else {
+            <div class="ctl__panel-empty"><p>No history yet.</p></div>
+          }
         </div>
+      </aside>
+    </div>
 
-        <div class="ctdr__history">
-          <h3 class="ctdr__history-title">Recent rolls</h3>
-          <ul class="ctdr__history-list">
-            @for (result of diceResults().slice(0, 10); track result.timestamp) {
-              <li class="ctdr__history-item">
-                <span class="ctdr__history-result">d{{ result.sides }}: {{ result.result }}</span>
-                <span class="ctdr__history-time">{{ formatTimestamp(result.timestamp) }}</span>
-              </li>
-            }
-          </ul>
-        </div>
-      }
-    </section>
-  </div>
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Switch between <strong>Coin</strong> and <strong>Dice</strong> tabs.</li>
+        <li>Tap the coin or use Roll — results appear with history in the sidebar.</li>
+        <li>Copy the latest result with the toolbar copy button.</li>
+      </ul>
+    </details>
+  </main>
 </div>

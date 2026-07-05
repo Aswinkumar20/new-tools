@@ -1,7 +1,7 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgSwitch, NgSwitchCase, NgSwitchDefault } from '@angular/common';
+import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
+import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type ConversionMode = 'yaml-to-json' | 'json-to-yaml';
 
@@ -52,12 +52,18 @@ const SAMPLE_JSON = `{
   standalone: true,
   templateUrl: './yaml-to-json-json-to-yaml.html',
   styleUrls: ['./yaml-to-json-json-to-yaml.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgSwitch, NgSwitchCase, NgSwitchDefault, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, Navigation, TooltipDirective]
 })
 export class YamlToJsonJsonToYamlComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('yamlTextarea') yamlTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
+  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+
+  private fileInput: HTMLInputElement | null = null;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'yaml-to-json',
@@ -174,7 +180,7 @@ export class YamlToJsonJsonToYamlComponent implements AfterViewInit {
 
   onEditorScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
@@ -182,9 +188,42 @@ export class YamlToJsonJsonToYamlComponent implements AfterViewInit {
 
   onResultsScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    const lineNumbers = this.outputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  copyInput(): void {
+    const text = this.conversionMode === 'yaml-to-json' ? this.yamlInput : this.jsonInput;
+    void this.copyText(text);
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.readFile(file);
+        }
+      };
+    }
+    this.fileInput.accept =
+      this.conversionMode === 'yaml-to-json' ? '.yml,.yaml' : '.json,application/json';
+    this.fileInput.click();
+  }
+
+  private async copyText(text: string): Promise<void> {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn('Unable to copy to clipboard.', error);
     }
   }
 

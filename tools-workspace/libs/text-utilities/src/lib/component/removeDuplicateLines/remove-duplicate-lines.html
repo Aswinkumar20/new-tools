@@ -1,265 +1,152 @@
-<div class="main-container">
+<div class="rdl">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Duplicate cleaner</p>
-          <h1>Spot and remove repeated words instantly</h1>
-          <p class="strapline">
-            Paste any draft, highlight repeated words automatically, and export a clean version ready for publishing.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Live highlighting</span>
-          <span class="meta-pill">Smart counts</span>
-          <span class="meta-pill">One-click copy</span>
-        </div>
+  <main class="rdl__main">
+    <div class="rdl__top">
+      <header class="rdl__header">
+        <h1>Duplicate Word Remover</h1>
+        <p>Spot repeated words instantly — highlights update live as you type.</p>
       </header>
 
-      <div class="editor-toolbar" aria-label="Duplicate cleaner actions">
-        <div class="toolbar-actions">
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="copyOutput()"
-                  [disabled]="!outputText"
-                  aria-label="Copy cleaned text">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/copy.svg')" alt="" />
-            <span>Copy cleaned</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn destructive"
-                  (click)="clear()"
-                  [disabled]="!inputText"
-                  aria-label="Clear workspace">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/clear.svg')" alt="" />
-            <span>Reset</span>
-          </button>
+      <div class="rdl__stats" aria-label="Live text metrics">
+        <div class="rdl__stat">
+          <span class="rdl__stat-value">{{ wordCount }}</span>
+          <span class="rdl__stat-label">Words</span>
         </div>
-        <div class="toolbar-stats" aria-label="Live text metrics">
-          <div class="stat-chip">
-            <span class="stat-label">Words</span>
-            <span class="stat-value">{{ wordCount }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Duplicates</span>
-            <span class="stat-value">{{ duplicateCount }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Input length</span>
-            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Output length</span>
-            <span class="stat-value">{{ outputText ? outputText.length : 0 }}</span>
-          </div>
+        <div class="rdl__stat">
+          <span class="rdl__stat-value">{{ duplicateCount }}</span>
+          <span class="rdl__stat-label">Duplicates</span>
+        </div>
+        <div class="rdl__stat">
+          <span class="rdl__stat-value">{{ inputText.length }}</span>
+          <span class="rdl__stat-label">Input</span>
+        </div>
+        <div class="rdl__stat">
+          <span class="rdl__stat-value">{{ outputText.length }}</span>
+          <span class="rdl__stat-label">Output</span>
         </div>
       </div>
+    </div>
 
-      <div class="editor-shell">
-        <div class="panel-grid">
-          <section class="panel panel-input">
-            <header class="panel-header">
-              <div>
-                <h2>Source text</h2>
-                <p>Typing, pasting, or importing updates highlights and counts automatically.</p>
-              </div>
-            </header>
-            <label class="sr-only" for="duplicate-input">Input text to clean</label>
-            <textarea id="duplicate-input"
-                      class="text-area text-area--input"
-                      [(ngModel)]="inputText"
-                      (ngModelChange)="onInputChange($event)"
-                      rows="12"
-                      placeholder="Paste raw copy here to highlight duplicates…"></textarea>
-          </section>
+    <div class="rdl__toolbar" aria-label="Duplicate cleaner actions">
+      <button
+        type="button"
+        class="rdl__tool-btn"
+        (click)="clear()"
+        [disabled]="!hasInput"
+        aria-label="Clear all"
+        appTooltip="Clear all"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="rdl__tool-btn-label">Clear</span>
+      </button>
+    </div>
 
-          <section class="panel panel-output">
-            <header class="panel-header">
-              <div>
-                <h2>Highlights & clean copy</h2>
-                <p>Review duplicates visually, then grab the sanitized output.</p>
-              </div>
+    <div class="rdl__workspace">
+      <div class="rdl__editors" aria-label="Source and cleaned text">
+        <section class="rdl__editor">
+          <header class="rdl__editor-head">
+            <span>Source</span>
+            <div class="rdl__editor-actions">
+              <button
+                type="button"
+                class="rdl__icon-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput"
+                aria-label="Copy source"
+                appTooltip="Copy source"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          <label class="sr-only" for="duplicate-input">Input text to clean</label>
+          <textarea
+            id="duplicate-input"
+            class="rdl__textarea"
+            [(ngModel)]="inputText"
+            (ngModelChange)="onInputChange($event)"
+            rows="1"
+            placeholder="Paste or type text to highlight duplicates…"></textarea>
+        </section>
+
+        <section class="rdl__editor rdl__editor--output">
+          <header class="rdl__editor-head">
+            <span>Clean output</span>
+            <div class="rdl__editor-actions">
               @if (outputText) {
-                <span class="panel-badge">Ready to copy</span>
+                <span class="rdl__editor-badge">Ready</span>
               }
-            </header>
-
-            @if (inputText) {
-              <div class="output-stack">
-                <div class="highlight-card">
-                  <h3>Highlighted duplicates</h3>
-                  <div class="highlighted-output" [innerHTML]="highlightedInput" aria-live="polite"></div>
-                </div>
-                <div class="clean-card">
-                  <label for="duplicate-output">Output (duplicates removed)</label>
-                  <textarea id="duplicate-output"
-                            class="text-area text-area--output"
-                            readonly
-                            rows="10"
-                            [value]="outputText"
-                            aria-label="Deduplicated output"></textarea>
-                  <div class="copy-row">
-                    <button type="button"
-                            class="toolbar-btn secondary"
-                            (click)="copyOutput()"
-                            [disabled]="!outputText"
-                            aria-label="Copy deduplicated text">
-                      <img class="btn-icon" [src]="assetService.getAssetPath('icons/copy.svg')" alt="" />
-                      <span>Copy output</span>
-                    </button>
-                    @if (copied) {
-                      <span class="copy-feedback">Copied!</span>
-                    }
-                  </div>
-                </div>
-              </div>
-            } @else {
-              <div class="panel-empty" aria-live="polite">
-                <h3>No text yet</h3>
-                <p>Start typing on the left to surface duplicates and cleaned results.</p>
-              </div>
-            }
-          </section>
-        </div>
-
-        <footer class="editor-footer">
-          <div class="editor-metric">
-            <span class="metric-label">Highlight style</span>
-            <span class="metric-value">Case-insensitive</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Duplicate limit</span>
-            <span class="metric-value">{{ duplicateCount }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Copy status</span>
-            <span class="metric-value">{{ copied ? 'Copied!' : 'Ready' }}</span>
-          </div>
-          <button type="button"
-                  class="clear-btn"
-                  (click)="clear()"
-                  [disabled]="!inputText"
-                  aria-label="Clear duplicate cleaner">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/clear.svg')" alt="" />
-            <span>Clear text</span>
-          </button>
-        </footer>
+              <button
+                type="button"
+                class="rdl__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!outputText"
+                aria-label="Copy cleaned text"
+                appTooltip="Copy cleaned text"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasInput) {
+            <textarea
+              id="duplicate-output"
+              class="rdl__textarea rdl__textarea--output"
+              readonly
+              rows="1"
+              [value]="outputText"
+              aria-label="Deduplicated output"></textarea>
+          } @else {
+            <div class="rdl__empty" aria-live="polite">
+              <p>Cleaned text appears here after you enter source content.</p>
+            </div>
+          }
+        </section>
       </div>
-    </section>
 
-    <aside class="workspace-secondary">
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How it works</h2>
-          <p>We scan your copy, track seen words, and flag repeat occurrences so you can tighten phrasing fast.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Highlights ignore casing, so “Team” and “team” count as duplicates.</li>
-            <li>Output preserves the first appearance of every word in order.</li>
-            <li>Copy the cleaned text or keep editing until duplicates drop to zero.</li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Best for</h2>
-          <p>Use the cleaner to streamline SEO copy, UX strings, or marketing headlines.</p>
-        </header>
-        <div class="insight-body highlight-guide">
-          <div>
-            <span class="dot dot-primary"></span>
-            <p><strong>Highlighted words</strong> show repeat instances detected in your source.</p>
-          </div>
-          <div>
-            <span class="dot dot-muted"></span>
-            <p><strong>Clean output</strong> keeps original ordering without repeated tokens.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How to use</h2>
-          <p>Remove duplicate lines from your text in just a few simple steps.</p>
-        </header>
-
-        <div class="insight-body">
-          <ol class="how-to-list">
-            <li>
-              <strong>Enter your text</strong>
-              <p>Paste or type your content in the source text panel. Duplicates are detected instantly.</p>
-            </li>
-            <li>
-              <strong>View highlights</strong>
-              <p>See duplicate words highlighted in the output panel for easy identification.</p>
-            </li>
-            <li>
-              <strong>Review cleaned output</strong>
-              <p>Check the cleaned text below highlights, with duplicates automatically removed.</p>
-            </li>
-            <li>
-              <strong>Copy results</strong>
-              <p>Click "Copy cleaned" or "Copy output" to use the deduplicated text elsewhere.</p>
-            </li>
-            <li>
-              <strong>Monitor statistics</strong>
-              <p>Track word count, duplicate count, and length metrics in the toolbar.</p>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our duplicate line remover.</p>
-        </header>
-
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              The Duplicate Line Remover identifies and eliminates repeated words from your text. 
-              It highlights duplicates visually while preserving the first occurrence of each word, 
-              helping you create cleaner, more concise content.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Live highlighting</strong>
-                <p>See duplicate words highlighted in real-time as you type or paste content.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Case-insensitive</strong>
-                <p>Detects duplicates regardless of capitalization for accurate results.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Smart preservation</strong>
-                <p>Keeps the first occurrence of each word while removing subsequent duplicates.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Instant statistics</strong>
-                <p>Track word count, duplicate count, and length metrics in real-time.</p>
-              </div>
+      <aside class="rdl__sidebar" aria-label="Duplicate highlights and tips">
+        <div class="rdl__panel">
+          <header class="rdl__panel-head">
+            <span>Highlighted duplicates</span>
+            @if (duplicateCount) {
+              <span class="rdl__panel-badge">{{ duplicateCount }}</span>
+            }
+          </header>
+          @if (hasInput && highlightedInput) {
+            <div class="rdl__highlights" [innerHTML]="highlightedInput" aria-live="polite"></div>
+          } @else if (hasInput) {
+            <div class="rdl__panel-empty" aria-live="polite">
+              <p>No duplicate words found — your text is already clean.</p>
             </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>SEO content optimization</li>
-                <li>Marketing copy refinement</li>
-                <li>UX string cleanup</li>
-                <li>Document deduplication</li>
-                <li>Content editing workflows</li>
-                <li>Text quality improvement</li>
-              </ul>
+          } @else {
+            <div class="rdl__panel-empty" aria-live="polite">
+              <p>Duplicate words will be highlighted here as you type.</p>
             </div>
+          }
+        </div>
+
+        <div class="rdl__info">
+          <div class="rdl__info-item">
+            <span class="rdl__info-dot rdl__info-dot--accent"></span>
+            <p><strong>Case-insensitive</strong> — “Team” and “team” count as duplicates.</p>
+          </div>
+          <div class="rdl__info-item">
+            <span class="rdl__info-dot"></span>
+            <p><strong>First occurrence kept</strong> — output preserves original word order.</p>
           </div>
         </div>
-      </section>
-    </aside>
-  </div>
+      </aside>
+    </div>
+
+    <details class="rdl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste or type in <strong>Source</strong> — duplicates are detected instantly.</li>
+        <li>Review highlighted repeats in the sidebar panel.</li>
+        <li>Use the copy icons on each editor to grab source or cleaned text.</li>
+        <li>Track word count, duplicate count, and lengths in the stats row.</li>
+      </ul>
+    </details>
+  </main>
 </div>

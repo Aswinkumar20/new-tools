@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, compute
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime } from 'rxjs';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type DatePreset = 'today' | 'tomorrow' | 'yesterday';
 
@@ -86,12 +86,13 @@ const LOCALE_OPTIONS: LocaleOption[] = [
   standalone: true,
   templateUrl: './date-to-day-of-week.html',
   styleUrls: ['./date-to-day-of-week.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DateToDayOfWeekComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  readonly assetService = inject(AssetService);
 
   readonly timezones = TIMEZONE_OPTIONS;
   readonly locales = LOCALE_OPTIONS;
@@ -154,6 +155,20 @@ export class DateToDayOfWeekComponent {
 
   clearHistory(): void {
     this.history.set([]);
+  }
+
+  copyResult(): void {
+    const d = this.details();
+    if (!d) return;
+    const text = [
+      `${d.displayDate}: ${d.dayName}`,
+      d.relativeLabel,
+      `Week ${d.weekNumber}, day ${d.isoWeekday} of ISO week`,
+      `Day ${d.dayOfYear} of ${d.totalDaysInYear}`,
+      `Season: ${d.seasonLabel}`,
+      ...this.insights(),
+    ].join('\n');
+    navigator.clipboard.writeText(text);
   }
 
   private calculate(): void {

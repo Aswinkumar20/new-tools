@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type HashAlgorithm = 'md5' | 'sha1' | 'sha256' | 'sha384' | 'sha512';
 
@@ -24,11 +24,12 @@ type HashGeneratorFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './hash-generator.html',
   styleUrls: ['./hash-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HashGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: HashGeneratorFormGroup = this.fb.group({
     input: this.fb.control('', { nonNullable: true }),
@@ -40,6 +41,7 @@ export class HashGeneratorComponent {
   readonly errors = signal<string[]>([]);
   readonly result = signal<HashResult | null>(null);
   readonly hasResult = computed(() => this.result() !== null);
+  readonly hasInput = computed(() => !!this.form.controls.input.value.trim());
 
   readonly displayHex = computed(() => {
     const res = this.result();
@@ -101,5 +103,44 @@ export class HashGeneratorComponent {
       const msg = e instanceof Error ? e.message : 'Unknown error while hashing.';
       this.errors.set([`Failed to generate hash: ${msg}`]);
     }
+  }
+
+  clear(): void {
+    this.form.controls.input.setValue('');
+    this.result.set(null);
+    this.errors.set([]);
+  }
+
+  copyInput(): void {
+    this.copyText(this.form.controls.input.value, 'Input');
+  }
+
+  copyOutput(): void {
+    const r = this.result();
+    if (!r) return;
+    const format = this.form.controls.outputFormat.value;
+    if (format === 'hex') {
+      this.copyText(this.displayHex(), 'Hex hash');
+    } else if (format === 'base64') {
+      this.copyText(r.base64, 'Base64 hash');
+    } else {
+      this.copyText(`Hex:\n${this.displayHex()}\n\nBase64:\n${r.base64}`, 'Hash output');
+    }
+  }
+
+  copyHex(): void {
+    this.copyText(this.displayHex(), 'Hex hash');
+  }
+
+  copyBase64(): void {
+    const r = this.result();
+    if (r) this.copyText(r.base64, 'Base64 hash');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

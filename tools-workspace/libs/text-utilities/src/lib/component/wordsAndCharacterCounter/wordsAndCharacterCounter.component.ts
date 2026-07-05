@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, ToastService, AssetService } from '@tools-workspace/features-home';
+import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
 
 // Import Google Analytics Service - use optional injection to avoid errors if not available
 // In a library, we need to check if the service exists
@@ -32,7 +32,7 @@ type WorkerMessage = {
   standalone: true,
   templateUrl: './wordsAndCharacterCounter.component.html',
   styleUrls: ['./wordsAndCharacterCounter.component.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   // Tool metadata for tracking
@@ -85,6 +85,15 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     const text = this.paragraphControl.value || '';
     return text.trim().length > 0;
   }
+
+  get canUndo(): boolean {
+    return this.historyIndex > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.historyIndex < this.history.length - 1;
+  }
+
   get historyLimit(): number {
     return this.maxHistoryEntries;
   }
@@ -100,8 +109,6 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   // Web Worker
   private analysisWorker?: Worker;
   useWorkerThreshold = 2000; // characters threshold to start using worker (lowered to offload sooner)
-  // Display cap for frequency table to avoid DOM overload
-  // NOTE: no display cap — show all word frequencies per user request
   // Adaptive debounce
   private updateTimer: any = null;
   private pendingText = '';
@@ -111,6 +118,31 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   copyIcon: string = 'icons/copy-icon.svg';
   // no constructor needed
   isGeneratingPdf = false;
+  activeInsightTab: 'frequency' | 'readability' = 'frequency';
+  /** Max rows in the frequency table — keeps DOM light for long pasted text */
+  readonly frequencyDisplayLimit = 100;
+  /** Max tags in the word cloud */
+  readonly tagCloudLimit = 30;
+
+  get displayWordFrequency(): { word: string; count: number }[] {
+    return this.wordFrequency.slice(0, this.frequencyDisplayLimit);
+  }
+
+  get tagCloudWords(): { word: string; count: number }[] {
+    return this.wordFrequency.slice(0, this.tagCloudLimit);
+  }
+
+  get totalUniqueWords(): number {
+    return this.wordFrequency.length;
+  }
+
+  get hasMoreFrequencyRows(): boolean {
+    return this.wordFrequency.length > this.frequencyDisplayLimit;
+  }
+
+  setInsightTab(tab: 'frequency' | 'readability'): void {
+    this.activeInsightTab = tab;
+  }
 
   ngOnInit(): void {
     // Track tool usage
@@ -298,9 +330,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
           const sentencesCount = sentences.length||1;
           const L = (text.replace(/[^A-Za-z]/g,'').length/wordsCount)*100 || 0;
           const S = (sentencesCount/wordsCount)*100 || 0;
-          const colemanLiau = 0.0588 * (L) - 0.296 * (S) - 15.8;
-          const gunningFog = 0.4 * ((wordsCount/sentencesCount) + 100*(words.filter(w=>w.length>6).length/wordsCount));
-          const smog = 1.0430 * Math.sqrt(words.filter(w=>w.match(/\\w{3,}/)).length * (30/sentencesCount)) + 3.1291 || 0;
+          const colemanLiau = Math.round((0.0588 * (L) - 0.296 * (S) - 15.8) * 10) / 10;
+          const gunningFog = Math.round(0.4 * ((wordsCount/sentencesCount) + 100*(words.filter(w=>w.length>6).length/wordsCount)) * 10) / 10;
+          const smog = Math.round((1.0430 * Math.sqrt(words.filter(w=>w.match(/\\w{3,}/)).length * (30/sentencesCount)) + 3.1291) * 10) / 10;
           postMessage({ words, syllables, wordFrequency, sentenceLengths, advanced: { gunningFog, smog, colemanLiau } });
         }`;
         const blob = new Blob([workerCode], { type: 'application/javascript' });
@@ -310,9 +342,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
           this.wordFrequency = data.wordFrequency || [];
           const syllableCount = data.syllables || 0;
           this.readabilityScore = this.calculateFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
-          this.gunningFog = data.advanced?.gunningFog || 0;
-          this.smogIndex = data.advanced?.smog || 0;
-          this.colemanLiau = data.advanced?.colemanLiau || 0;
+          this.gunningFog = this.roundMetric(data.advanced?.gunningFog || 0);
+          this.smogIndex = this.roundMetric(data.advanced?.smog || 0);
+          this.colemanLiau = this.roundMetric(data.advanced?.colemanLiau || 0);
           this.readabilityInterpretation = this.interpretScore(this.readabilityScore);
           this.sentenceLengths = data.sentenceLengths || [];
           this.averageSentenceLength = this.sentenceLengths.length
@@ -369,6 +401,12 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     return { gunningFog, smog, colemanLiau };
   }
  
+
+  private roundMetric(value: number, decimals = 1): number {
+    if (!Number.isFinite(value)) return 0;
+    const factor = Math.pow(10, decimals);
+    return Math.round(value * factor) / factor;
+  }
 
   calculateWordFrequency(words: string[]): { word: string; count: number }[] {
     const freqMap: { [key: string]: number } = {};
@@ -664,8 +702,14 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     }
   }
 
-  fontSizeForCount(_count: number) {
-    return 12;
+  fontSizeForCount(count: number): number {
+    const items = this.tagCloudWords;
+    if (!items.length) return 12;
+    const max = items[0].count;
+    const min = items[items.length - 1].count;
+    if (max === min) return 14;
+    const ratio = (count - min) / (max - min);
+    return Math.round(11 + ratio * 7);
   }
 
   // Charts removed to keep UI minimal. Chart generation methods were removed.

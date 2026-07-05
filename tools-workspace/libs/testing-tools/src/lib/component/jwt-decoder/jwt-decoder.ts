@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type JwtPart = 'header' | 'payload' | 'signature';
 
@@ -31,16 +31,17 @@ type JwtDecoderFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './jwt-decoder.html',
   styleUrls: ['./jwt-decoder.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class JwtDecoderComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: JwtDecoderFormGroup = this.fb.group({
     token: this.fb.control('', { nonNullable: true }),
     prettyPrint: this.fb.control(true, { nonNullable: true }),
-    showDecoded: this.fb.control(true, { nonNullable: true })
+    showDecoded: this.fb.control(true, { nonNullable: true }),
   });
 
   readonly errors = signal<string[]>([]);
@@ -50,6 +51,25 @@ export class JwtDecoderComponent {
   readonly hasToken = computed(() => !!this.form.controls.token.value.trim());
   readonly hasDecoded = computed(() => this.decoded() !== null);
 
+  get tokenParts(): number {
+    const token = this.form.controls.token.value.trim();
+    return token ? token.split('.').length : 0;
+  }
+
+  onTokenInput(): void {
+    if (this.hasToken()) {
+      this.decode();
+    } else {
+      this.clearResults();
+    }
+  }
+
+  onOptionChange(): void {
+    if (this.hasToken()) {
+      this.decode();
+    }
+  }
+
   decode(): void {
     this.errors.set([]);
     this.warnings.set([]);
@@ -57,7 +77,6 @@ export class JwtDecoderComponent {
 
     const token = this.form.controls.token.value.trim();
     if (!token) {
-      this.errors.set(['Enter a JWT token to decode.']);
       return;
     }
 
@@ -72,7 +91,7 @@ export class JwtDecoderComponent {
     const payload = this.decodePart(payloadPart, 'payload');
     const signature = {
       raw: signaturePart,
-      present: !!signaturePart
+      present: !!signaturePart,
     };
 
     this.decoded.set({ header, payload, signature });
@@ -82,12 +101,50 @@ export class JwtDecoderComponent {
     }
   }
 
+  clear(): void {
+    this.form.controls.token.setValue('');
+    this.clearResults();
+  }
+
+  copyToken(): void {
+    this.copyText(this.form.controls.token.value, 'Token');
+  }
+
+  copyDecoded(): void {
+    const d = this.decoded();
+    if (!d) return;
+    const text = [
+      '--- Header ---',
+      d.header.json ?? d.header.raw,
+      '',
+      '--- Payload ---',
+      d.payload.json ?? d.payload.raw,
+      '',
+      '--- Signature ---',
+      d.signature.present ? d.signature.raw : '(none)',
+    ].join('\n');
+    this.copyText(text, 'Decoded JWT');
+  }
+
+  private clearResults(): void {
+    this.errors.set([]);
+    this.warnings.set([]);
+    this.decoded.set(null);
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
+
   private decodePart(part: string, type: JwtPart): DecodedSection {
     if (!part) {
       return {
         raw: '',
         json: null,
-        error: `${type === 'header' ? 'Header' : 'Payload'} part is missing.`
+        error: `${type === 'header' ? 'Header' : 'Payload'} part is missing.`,
       };
     }
 
@@ -101,7 +158,7 @@ export class JwtDecoderComponent {
         return {
           raw: decoded,
           json: null,
-          error: `Could not parse ${type} JSON: ${(e as Error).message}`
+          error: `Could not parse ${type} JSON: ${(e as Error).message}`,
         };
       }
 
@@ -111,29 +168,22 @@ export class JwtDecoderComponent {
       return {
         raw: decoded,
         json: jsonText,
-        error: null
+        error: null,
       };
     } catch (e) {
       return {
         raw: part,
         json: null,
-        error: `Failed to base64url-decode ${type}: ${(e as Error).message}`
+        error: `Failed to base64url-decode ${type}: ${(e as Error).message}`,
       };
     }
   }
 
   private padBase64(value: string): string {
     const remainder = value.length % 4;
-    if (remainder === 2) {
-      return `${value}==`;
-    }
-    if (remainder === 3) {
-      return `${value}=`;
-    }
-    if (remainder === 1) {
-      // Invalid base64url length
-      throw new Error('Invalid base64url string length');
-    }
+    if (remainder === 2) return `${value}==`;
+    if (remainder === 3) return `${value}=`;
+    if (remainder === 1) throw new Error('Invalid base64url string length');
     return value;
   }
 }

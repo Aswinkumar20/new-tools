@@ -1,194 +1,154 @@
-<div class="qrc">
-  <div class="qrc__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="qrc__hero">
-    <div class="qrc__badge">Fun tools</div>
-    <h1>QR Code Generator</h1>
-    <p>
-      Generate QR codes for URLs, text, contact information, and more. Customize size, colors, error correction level,
-      and download or copy the result.
-    </p>
-
-    @if (hasQRCode()) {
-      <div class="qrc__hero-meta">
-        <div>
-          <span class="qrc__meta-label">Status</span>
-          <strong>Ready</strong>
-        </div>
-        <div>
-          <span class="qrc__meta-label">Size</span>
-          <strong>{{ formatSize(form.controls.size.value) }}</strong>
-        </div>
-        <div>
-          <span class="qrc__meta-label">Error correction</span>
-          <strong>{{ form.controls.errorCorrectionLevel.value }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="qrc__hero-meta qrc__hero-meta--placeholder">
-        Enter text or URL below and your QR code will be generated automatically.
-      </div>
-    }
-  </section>
-
-  <div class="qrc__board" [formGroup]="form">
-    <section class="qrc__panel qrc__panel--options">
-      <header class="qrc__card-header">
-        <div>
-          <h2>Options</h2>
-          <p>Configure QR code content and appearance.</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>QR Code Generator</h1>
+        <p>Create QR codes for URLs and text — customize size, colors, and error correction.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="qrc__alert qrc__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
+      <div class="ctl__stats" aria-label="QR code statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasQRCode() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ form.controls.size.value }}</span>
+          <span class="ctl__stat-label">Size</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ form.controls.errorCorrectionLevel.value }}</span>
+          <span class="ctl__stat-label">ECC</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ form.controls.text.value.length }}</span>
+          <span class="ctl__stat-label">Chars</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctl__toolbar" aria-label="QR code actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="downloadQRCode()"
+        [disabled]="!hasQRCode()"
+        aria-label="Download QR code"
+        appTooltip="Download QR code"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyQRCode()"
+        [disabled]="!hasQRCode()"
+        aria-label="Copy QR image"
+        appTooltip="Copy QR image"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy</span>
+      </button>
+    </div>
+
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>Content</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyContent()"
+                [disabled]="!form.controls.text.value.trim()"
+                aria-label="Copy content"
+                appTooltip="Copy content"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+          <label class="sr-only" for="text">QR content</label>
+          <textarea
+            id="text"
+            class="ctl__textarea"
+            formControlName="text"
+            rows="1"
+            placeholder="Enter text, URL, or other content…"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>Preview</span>
+            @if (hasQRCode()) {
+              <span class="ctl__editor-badge">Ready</span>
             }
-          </ul>
-        </div>
-      }
-
-      <div class="qrc__field">
-        <label for="text" class="qrc__label">Content</label>
-        <textarea
-          id="text"
-          class="qrc__textarea"
-          formControlName="text"
-          placeholder="Enter text, URL, or other content..."
-          rows="4"
-        ></textarea>
-        <small class="qrc__hint">The text or URL to encode in the QR code.</small>
+          </header>
+          @if (libraryLoaded() === false) {
+            <div class="ctl__empty"><p>Loading QR code library…</p></div>
+          } @else if (hasQRCode() && qrCodeDataUrl(); as dataUrl) {
+            <div class="ctl__editor-body qrc-preview">
+              <img [src]="dataUrl" alt="Generated QR code" class="qrc-preview__img" />
+            </div>
+          } @else {
+            <div class="ctl__empty"><p>Enter content to generate a QR code.</p></div>
+          }
+        </section>
       </div>
 
-      <div class="qrc__field qrc__field--inline">
-        <div>
-          <label for="size" class="qrc__label">Size (pixels)</label>
-          <input
-            id="size"
-            type="number"
-            class="qrc__input"
-            formControlName="size"
-            min="100"
-            max="1000"
-            step="8"
-          />
-          <small class="qrc__hint">QR code dimensions (100-1000px).</small>
-        </div>
-        <div>
-          <label for="margin" class="qrc__label">Margin</label>
-          <input
-            id="margin"
-            type="number"
-            class="qrc__input"
-            formControlName="margin"
-            min="0"
-            max="10"
-          />
-          <small class="qrc__hint">White space around QR code (0-10).</small>
-        </div>
-      </div>
-
-      <div class="qrc__field">
-        <label for="errorCorrectionLevel" class="qrc__label">Error Correction Level</label>
-        <select id="errorCorrectionLevel" class="qrc__select" formControlName="errorCorrectionLevel">
-          <option value="L">L - Low (~7% recovery)</option>
-          <option value="M">M - Medium (~15% recovery)</option>
-          <option value="Q">Q - Quartile (~25% recovery)</option>
-          <option value="H">H - High (~30% recovery)</option>
-        </select>
-        <small class="qrc__hint">Higher levels allow more damage but increase QR code complexity.</small>
-      </div>
-
-      <div class="qrc__field qrc__field--inline">
-        <div>
-          <label for="darkColor" class="qrc__label">Dark Color</label>
-          <div class="qrc__color-input-wrapper">
-            <input
-              id="darkColor"
-              type="color"
-              class="qrc__color-input"
-              [value]="form.controls.darkColor.value"
-              (input)="form.controls.darkColor.setValue($any($event.target).value)"
-            />
-            <input
-              type="text"
-              class="qrc__color-text"
-              formControlName="darkColor"
-              placeholder="#000000"
-            />
-          </div>
-          <small class="qrc__hint">Color of QR code modules.</small>
-        </div>
-        <div>
-          <label for="lightColor" class="qrc__label">Light Color</label>
-          <div class="qrc__color-input-wrapper">
-            <input
-              id="lightColor"
-              type="color"
-              class="qrc__color-input"
-              [value]="form.controls.lightColor.value"
-              (input)="form.controls.lightColor.setValue($any($event.target).value)"
-            />
-            <input
-              type="text"
-              class="qrc__color-text"
-              formControlName="lightColor"
-              placeholder="#ffffff"
-            />
-          </div>
-          <small class="qrc__hint">Background color.</small>
-        </div>
-      </div>
-    </section>
-
-    <section class="qrc__panel qrc__panel--preview">
-      <header class="qrc__card-header">
-        <div>
-          <h2>Preview</h2>
-          <p>Generated QR code preview.</p>
-        </div>
-        <div class="qrc__header-actions">
-          <button
-            type="button"
-            class="btn btn--ghost btn--small"
-            (click)="copyQRCode()"
-            [disabled]="!hasQRCode()"
-          >
-            Copy
-          </button>
-          <button
-            type="button"
-            class="btn btn--primary btn--small"
-            (click)="downloadQRCode()"
-            [disabled]="!hasQRCode()"
-          >
-            Download
-          </button>
-        </div>
-      </header>
-
-      @if (libraryLoaded() === false) {
-        <div class="qrc__empty">
-          <p>Loading QR code library...</p>
-        </div>
-      } @else if (hasQRCode() && qrCodeDataUrl(); as dataUrl) {
-        <div class="qrc__preview-container">
-          <img [src]="dataUrl" alt="Generated QR Code" class="qrc__preview-image" />
-          <div class="qrc__preview-info">
-            <p class="qrc__preview-text">
-              <strong>Content:</strong> {{ form.controls.text.value || '(empty)' }}
-            </p>
+      <aside class="ctl__sidebar" aria-label="QR options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Options</header>
+          <div class="ctl__settings">
+            <label class="ctl__field" for="size">
+              <span>Size (px)</span>
+              <input id="size" type="number" formControlName="size" min="100" max="1000" step="8" />
+            </label>
+            <label class="ctl__field" for="margin">
+              <span>Margin</span>
+              <input id="margin" type="number" formControlName="margin" min="0" max="10" />
+            </label>
+            <label class="ctl__field" for="errorCorrectionLevel">
+              <span>Error correction</span>
+              <select id="errorCorrectionLevel" formControlName="errorCorrectionLevel">
+                <option value="L">L — Low (~7%)</option>
+                <option value="M">M — Medium (~15%)</option>
+                <option value="Q">Q — Quartile (~25%)</option>
+                <option value="H">H — High (~30%)</option>
+              </select>
+            </label>
+            <label class="ctl__field" for="darkColor">
+              <span>Dark color</span>
+              <input id="darkColor" type="color" [value]="form.controls.darkColor.value" (input)="form.controls.darkColor.setValue($any($event.target).value)" />
+            </label>
+            <label class="ctl__field" for="lightColor">
+              <span>Light color</span>
+              <input id="lightColor" type="color" [value]="form.controls.lightColor.value" (input)="form.controls.lightColor.setValue($any($event.target).value)" />
+            </label>
           </div>
         </div>
-      } @else {
-        <div class="qrc__empty">
-          <p>Enter content above to generate a QR code.</p>
-        </div>
-      }
-    </section>
-  </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste a URL or text — the QR code generates as you type.</li>
+        <li>Higher error correction tolerates more damage but increases complexity.</li>
+        <li>Download or copy the image; use the content copy icon for the raw text.</li>
+      </ul>
+    </details>
+  </main>
 </div>

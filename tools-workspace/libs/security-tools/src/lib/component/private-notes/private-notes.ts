@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface NoteState {
   encrypted: string | null;
@@ -19,11 +19,12 @@ type PrivateNotesFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './private-notes.html',
   styleUrls: ['./private-notes.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PrivateNotesComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: PrivateNotesFormGroup = this.fb.group({
     note: this.fb.control('', { nonNullable: true }),
@@ -37,6 +38,16 @@ export class PrivateNotesComponent {
 
   readonly hasEncrypted = computed(() => !!this.state().encrypted);
   readonly isLocked = computed(() => !!this.state().encrypted && !this.form.controls.note.value);
+
+  readonly canEncrypt = computed(() => {
+    return !!this.form.controls.note.value.trim() && !!this.form.controls.password.value;
+  });
+
+  lastSavedLabel(): string {
+    const ts = this.state().lastSavedAt;
+    if (!ts) return 'Never';
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
   async encryptAndSave(): Promise<void> {
     this.errors.set([]);
@@ -61,7 +72,7 @@ export class PrivateNotesComponent {
       };
       this.state.set(newState);
       this.form.controls.note.setValue('');
-      this.warnings.set(['Note encrypted and stored in memory for this session. It is not sent to a server.']);
+      this.warnings.set(['Note encrypted and stored in memory for this session.']);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unknown error during encryption.';
       this.errors.set([`Failed to encrypt note: ${msg}`]);
@@ -109,10 +120,25 @@ export class PrivateNotesComponent {
     this.warnings.set([]);
   }
 
+  copyNote(): void {
+    this.copyText(this.form.controls.note.value, 'Note');
+  }
+
+  copyEncrypted(): void {
+    const enc = this.state().encrypted;
+    if (enc) this.copyText(enc, 'Encrypted blob');
+  }
+
   formatTimestamp(timestamp: number | null): string {
     if (!timestamp) return 'Never';
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+    return new Date(timestamp).toLocaleString();
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   private async encrypt(plainText: string, password: string): Promise<string> {

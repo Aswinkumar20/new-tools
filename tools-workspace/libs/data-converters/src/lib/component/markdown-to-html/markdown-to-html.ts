@@ -1,7 +1,7 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type ConversionMode = 'markdown-to-html' | 'html-to-markdown';
 
@@ -109,12 +109,18 @@ const SAMPLE_HTML = `<article>
   standalone: true,
   templateUrl: './markdown-to-html.html',
   styleUrls: ['./markdown-to-html.scss'],
-  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, Navigation, TooltipDirective]
 })
 export class MarkdownToHtmlComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('markdownTextarea') markdownTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('htmlTextarea') htmlTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
+  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+
+  private fileInput: HTMLInputElement | null = null;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'markdown-to-html',
@@ -237,7 +243,7 @@ export class MarkdownToHtmlComponent implements AfterViewInit {
 
   onEditorScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
@@ -245,9 +251,41 @@ export class MarkdownToHtmlComponent implements AfterViewInit {
 
   onResultsScroll(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    const lineNumbers = this.outputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  copyInput(): void {
+    const text = this.conversionMode === 'markdown-to-html' ? this.markdownInput : this.htmlInput;
+    void this.copyText(text);
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.readFile(file);
+        }
+      };
+    }
+    this.fileInput.accept = '.md,.markdown,.html,.htm,text/markdown,text/html';
+    this.fileInput.click();
+  }
+
+  private async copyText(text: string): Promise<void> {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn('Unable to copy to clipboard.', error);
     }
   }
 

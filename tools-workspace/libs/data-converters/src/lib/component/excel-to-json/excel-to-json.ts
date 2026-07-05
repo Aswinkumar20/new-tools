@@ -1,8 +1,8 @@
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
-import { CommonModule, NgFor, NgIf } from '@angular/common';
+import { Component, Inject, PLATFORM_ID, inject } from '@angular/core';
+import { CommonModule, NgFor } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { isPlatformBrowser } from '@angular/common';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type CopyStatus = 'idle' | 'success' | 'error';
 type ConversionState = 'idle' | 'success' | 'error';
@@ -72,9 +72,12 @@ const SHEETJS_URL = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.
   standalone: true,
   templateUrl: './excel-to-json.html',
   styleUrls: ['./excel-to-json.scss'],
-  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgFor, FormsModule, Navigation, TooltipDirective]
 })
 export class ExcelToJsonComponent {
+  readonly assetService = inject(AssetService);
+
+  private fileInput: HTMLInputElement | null = null;
   private sheetjs: SheetJSModule | null = null;
 
   readonly heroHighlights = [
@@ -160,6 +163,22 @@ export class ExcelToJsonComponent {
     }
     this.loadWorkbook(file);
     input.value = '';
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.loadWorkbook(file);
+        }
+      };
+    }
+    this.fileInput.accept = '.xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.fods';
+    this.fileInput.click();
   }
 
   onDragEnter(event: DragEvent): void {

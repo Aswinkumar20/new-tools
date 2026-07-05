@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, compute
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime } from 'rxjs';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type FractionOperation = 'add' | 'subtract' | 'multiply' | 'divide';
 
@@ -89,11 +89,12 @@ const FRACTION_PRESETS: FractionPreset[] = [
   standalone: true,
   templateUrl: './fraction-calculator.html',
   styleUrls: ['./fraction-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FractionCalculatorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly operations: ReadonlyArray<{ id: FractionOperation; label: string; symbol: string; helper: string }> = [
@@ -162,6 +163,17 @@ export class FractionCalculatorComponent {
       { emitEvent: true }
     );
     this.activePreset.set(null);
+  }
+
+  copyResult(): void {
+    const c = this.computation();
+    if (!c) return;
+    const text = [
+      `${this.formatFraction(c.left)} ${this.operationSymbol(c.operation)} ${this.formatFraction(c.right)} = ${this.formatFraction(c.simplified)}`,
+      `Decimal: ${c.decimalFormatted}`,
+      `Mixed: ${this.formatMixed(c.mixed)}`,
+    ].join('\n');
+    navigator.clipboard.writeText(text);
   }
 
   applyPreset(presetId: string): void {

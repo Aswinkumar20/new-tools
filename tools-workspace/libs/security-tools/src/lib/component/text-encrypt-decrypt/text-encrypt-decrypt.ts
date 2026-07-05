@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type Mode = 'encrypt' | 'decrypt';
 
@@ -22,11 +22,12 @@ type TextEncryptDecryptFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './text-encrypt-decrypt.html',
   styleUrls: ['./text-encrypt-decrypt.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TextEncryptDecryptComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: TextEncryptDecryptFormGroup = this.fb.group({
     mode: this.fb.control<Mode>('encrypt', { nonNullable: true }),
@@ -41,6 +42,20 @@ export class TextEncryptDecryptComponent {
 
   readonly hasOutput = computed(() => !!this.state().output);
   readonly isEncryptMode = computed(() => this.form.controls.mode.value === 'encrypt');
+
+  readonly inputLength = computed(() => {
+    return this.isEncryptMode()
+      ? this.form.controls.plaintext.value.length
+      : this.form.controls.ciphertext.value.length;
+  });
+
+  readonly canRun = computed(() => {
+    const hasPassword = !!this.form.controls.password.value;
+    if (!hasPassword) return false;
+    return this.isEncryptMode()
+      ? !!this.form.controls.plaintext.value.trim()
+      : !!this.form.controls.ciphertext.value.trim();
+  });
 
   async run(): Promise<void> {
     this.errors.set([]);
@@ -77,10 +92,13 @@ export class TextEncryptDecryptComponent {
     }
   }
 
+  setMode(mode: Mode): void {
+    this.form.controls.mode.setValue(mode);
+  }
+
   swapMode(): void {
     const current = this.form.controls.mode.value;
-    const next: Mode = current === 'encrypt' ? 'decrypt' : 'encrypt';
-    this.form.controls.mode.setValue(next);
+    this.form.controls.mode.setValue(current === 'encrypt' ? 'decrypt' : 'encrypt');
   }
 
   clearAll(): void {
@@ -92,11 +110,23 @@ export class TextEncryptDecryptComponent {
     this.warnings.set([]);
   }
 
+  copyInput(): void {
+    const text = this.isEncryptMode()
+      ? this.form.controls.plaintext.value
+      : this.form.controls.ciphertext.value;
+    this.copyText(text, 'Input');
+  }
+
   copyOutput(): void {
-    const output = this.state().output;
-    if (!output) return;
-    navigator.clipboard.writeText(output).catch(() => {
-      this.errors.set(['Failed to copy output to clipboard.']);
+    this.copyText(this.state().output, 'Output');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    }).catch(() => {
+      this.errors.set([`Failed to copy ${label.toLowerCase()} to clipboard.`]);
     });
   }
 

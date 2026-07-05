@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface LapTime {
   lapNumber: number;
@@ -14,10 +14,11 @@ interface LapTime {
   standalone: true,
   templateUrl: './stopwatch-timer.html',
   styleUrls: ['./stopwatch-timer.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StopwatchTimerComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   readonly elapsedTime = signal<number>(0); // in milliseconds
   readonly isRunning = signal(false);
   readonly lapTimes = signal<LapTime[]>([]);
@@ -138,5 +139,21 @@ export class StopwatchTimerComponent implements OnDestroy {
   clearLaps(): void {
     this.lapTimes.set([]);
     this.lastLapTime.set(0);
+  }
+
+  copyTime(): void {
+    navigator.clipboard.writeText(this.formattedTime()).then(() => {
+      alert('Time copied to clipboard!');
+    });
+  }
+
+  copyLaps(): void {
+    const text = this.lapTimes().map((lap) =>
+      `Lap ${lap.lapNumber}: ${this.formatLapTime(lap.lapTime)} (total ${this.formatTime(lap.totalTime)})`
+    ).join('\n');
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Lap times copied to clipboard!');
+    });
   }
 }

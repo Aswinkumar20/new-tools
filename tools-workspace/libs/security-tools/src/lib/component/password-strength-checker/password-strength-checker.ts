@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type StrengthLevel = 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
 
@@ -21,11 +21,12 @@ type PasswordStrengthFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './password-strength-checker.html',
   styleUrls: ['./password-strength-checker.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PasswordStrengthCheckerComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: PasswordStrengthFormGroup = this.fb.group({
     password: this.fb.control('', { nonNullable: true }),
@@ -34,13 +35,14 @@ export class PasswordStrengthCheckerComponent {
 
   readonly errors = signal<string[]>([]);
 
+  readonly hasPassword = computed(() => !!this.form.controls.password.value);
+
   readonly strengthBreakdown = computed<StrengthBreakdown>(() => {
     const pwd = this.form.controls.password.value;
     if (!pwd) {
       return { lengthScore: 0, varietyScore: 0, bonusScore: 0 };
     }
 
-    // Length score: 0–6
     let lengthScore = 0;
     if (pwd.length >= 8) lengthScore++;
     if (pwd.length >= 10) lengthScore++;
@@ -49,14 +51,12 @@ export class PasswordStrengthCheckerComponent {
     if (pwd.length >= 20) lengthScore++;
     if (pwd.length >= 24) lengthScore++;
 
-    // Variety score: 0–4
     let varietyScore = 0;
     if (/[a-z]/.test(pwd)) varietyScore++;
     if (/[A-Z]/.test(pwd)) varietyScore++;
     if (/[0-9]/.test(pwd)) varietyScore++;
     if (/[^A-Za-z0-9]/.test(pwd)) varietyScore++;
 
-    // Bonus score for no obvious patterns (repeats, sequences)
     let bonusScore = 0;
     if (!/(.)\1{2,}/.test(pwd)) {
       bonusScore++;
@@ -70,7 +70,7 @@ export class PasswordStrengthCheckerComponent {
 
   readonly strengthScore = computed(() => {
     const { lengthScore, varietyScore, bonusScore } = this.strengthBreakdown();
-    return lengthScore + varietyScore + bonusScore; // Range roughly 0–12
+    return lengthScore + varietyScore + bonusScore;
   });
 
   readonly strengthLevel = computed<StrengthLevel>(() => {
@@ -140,4 +140,17 @@ export class PasswordStrengthCheckerComponent {
 
     return suggestions;
   });
+
+  clear(): void {
+    this.form.controls.password.setValue('');
+    this.errors.set([]);
+  }
+
+  copyPassword(): void {
+    const pwd = this.form.controls.password.value;
+    if (!pwd) return;
+    navigator.clipboard.writeText(pwd).then(() => {
+      alert('Password copied to clipboard!');
+    });
+  }
 }

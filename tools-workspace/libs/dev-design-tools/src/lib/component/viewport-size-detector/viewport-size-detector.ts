@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface ViewportInfo {
@@ -53,12 +53,13 @@ const BREAKPOINTS: Breakpoint[] = [
   standalone: true,
   templateUrl: './viewport-size-detector.html',
   styleUrls: ['./viewport-size-detector.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  readonly assetService = inject(AssetService);
   private resizeListener?: () => void;
 
   readonly form: ViewportDetectorFormGroup = this.fb.group({
@@ -125,15 +126,34 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     }
   }
 
+  copyMetrics(): void {
+    const info = this.viewportInfo();
+    if (!info) return;
+    const lines = [
+      `Viewport: ${info.viewportWidth} × ${info.viewportHeight} px`,
+      `Screen: ${info.screenWidth} × ${info.screenHeight} px`,
+      `Aspect ratio: ${info.aspectRatio.toFixed(2)}:1`,
+      `Device pixel ratio: ${info.devicePixelRatio}x`,
+      `Orientation: ${info.orientation}`,
+      `Breakpoint: ${this.formatBreakpointName(this.activeBreakpoint())}`,
+    ];
+    this.copyText(lines.join('\n'), 'Viewport metrics');
+  }
+
+  copyJson(): void {
+    const info = this.viewportInfo();
+    if (!info) return;
+    this.copyText(JSON.stringify(info, null, 2), 'Viewport metrics JSON');
+  }
+
   copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        // Error handling could be added here
-      });
+    this.copyText(text, label);
+  }
+
+  private copyText(text: string, label: string): void {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   clearHistory(): void {

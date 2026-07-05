@@ -1,285 +1,171 @@
-<div class="main-container">
+<div class="b64">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Base64 toolkit</p>
-          <h1>Encode and decode payloads in real time</h1>
-          <p class="strapline">
-            Switch between modes, process text instantly, and copy results without leaving your editor.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Inline conversion</span>
-          <span class="meta-pill">File upload</span>
-          <span class="meta-pill">Clipboard ready</span>
-        </div>
+  <main class="b64__main">
+    <div class="b64__top">
+      <header class="b64__header">
+        <h1>Base64 Encoder &amp; Decoder</h1>
+        <p>Encode or decode payloads in real time — paste, type, or upload a file.</p>
       </header>
 
-      <div class="mode-switcher" role="radiogroup" aria-label="Conversion mode">
-        <button type="button"
-                class="mode-chip"
-                [class.active]="mode === 'encode'"
-                (click)="selectMode('encode')"
-                [attr.aria-pressed]="mode === 'encode'">
-          Encode text
-        </button>
-        <button type="button"
-                class="mode-chip"
-                [class.active]="mode === 'decode'"
-                (click)="selectMode('decode')"
-                [attr.aria-pressed]="mode === 'decode'">
-          Decode Base64
-        </button>
-      </div>
-
-      <div class="mode-description">
-        @if (mode === 'encode') {
-          <p>
-            Base64 encoding converts raw content into a safe ASCII string—perfect for embedding assets or sending payloads
-            through text-only channels.
-          </p>
-        } @else {
-          <p>
-            Base64 decoding restores encoded strings to their original form, ideal for reconstructing files, secrets, or inline
-            media on the fly.
-          </p>
-        }
-      </div>
-
-      <div class="editor-toolbar" aria-label="Conversion actions">
-        <div class="toolbar-actions">
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="copyToClipboard()"
-                  [disabled]="!outputText"
-                  aria-label="Copy converted result">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/copy.svg')" alt="" />
-            <span>Copy result</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="uploadFile()"
-                  aria-label="Upload file for conversion">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/txt.svg')" alt="" />
-            <span>Upload file</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn destructive"
-                  (click)="clearInput()"
-                  [disabled]="!inputText && !outputText"
-                  aria-label="Clear input and output">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/clear.svg')" alt="" />
-            <span>Reset</span>
-          </button>
+      <div class="b64__stats" aria-label="Conversion statistics">
+        <div class="b64__stat b64__stat--mode">
+          <span class="b64__stat-value" [title]="modeLabel">{{ modeLabel }}</span>
+          <span class="b64__stat-label">Mode</span>
         </div>
-        <div class="toolbar-stats" aria-label="Live conversion stats">
-          <div class="stat-chip">
-            <span class="stat-label">Mode</span>
-            <span class="stat-value">{{ mode }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Input length</span>
-            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Output length</span>
-            <span class="stat-value">{{ outputText ? outputText.length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Size delta</span>
-            <span class="stat-value">
-              {{ outputText && inputText ? (outputText.length - inputText.length) : 0 }}
-            </span>
-          </div>
+        <div class="b64__stat">
+          <span class="b64__stat-value">{{ inputText.length }}</span>
+          <span class="b64__stat-label">Input</span>
+        </div>
+        <div class="b64__stat">
+          <span class="b64__stat-value">{{ outputText.length }}</span>
+          <span class="b64__stat-label">Output</span>
+        </div>
+        <div class="b64__stat">
+          <span class="b64__stat-value">{{ sizeDelta >= 0 ? '+' + sizeDelta : sizeDelta }}</span>
+          <span class="b64__stat-label">Delta</span>
         </div>
       </div>
+    </div>
 
-      <div class="editor-shell">
-        <div class="panel-grid">
-          <section class="panel panel-input">
-            <header class="panel-header">
-              <div>
-                <h2>{{ mode === 'encode' ? 'Source text' : 'Base64 input' }}</h2>
-                <p>{{ mode === 'encode' ? 'Paste any string to generate Base64 output.' : 'Drop encoded data to restore the original content.' }}</p>
-              </div>
-            </header>
-            <label class="sr-only" for="base64-source">{{ mode === 'encode' ? 'Text to encode' : 'Base64 string to decode' }}</label>
-            <textarea id="base64-source"
-                      class="text-area text-area--input"
-                      [(ngModel)]="inputText"
-                      (input)="onInputChange()"
-                      rows="12"
-                      [placeholder]="mode === 'encode' ? 'Enter text to encode…' : 'Enter Base64 string to decode…'"></textarea>
-          </section>
+    <div class="b64__toolbar" aria-label="Conversion actions">
+      <button
+        type="button"
+        class="b64__tool-btn"
+        (click)="uploadFile()"
+        aria-label="Upload file"
+        appTooltip="Upload file"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="b64__tool-btn-label">Upload</span>
+      </button>
+      <button
+        type="button"
+        class="b64__tool-btn"
+        (click)="clearInput()"
+        [disabled]="!hasInput && !hasOutput"
+        aria-label="Clear all"
+        appTooltip="Clear all"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="b64__tool-btn-label">Clear</span>
+      </button>
+    </div>
 
-          <section class="panel panel-output">
-            <header class="panel-header">
-              <div>
-                <h2>Converted output</h2>
-                <p>Result updates instantly as you type or upload content.</p>
-              </div>
-              @if (outputText) {
-                <span class="panel-badge">Ready to copy</span>
+    <div class="b64__workspace">
+      <div class="b64__editors" aria-label="Source and converted text">
+        <section class="b64__editor">
+          <header class="b64__editor-head">
+            <span>{{ mode === 'encode' ? 'Source text' : 'Base64 input' }}</span>
+            <div class="b64__editor-actions">
+              <button
+                type="button"
+                class="b64__icon-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          <label class="sr-only" for="base64-source">{{ mode === 'encode' ? 'Text to encode' : 'Base64 to decode' }}</label>
+          <textarea
+            id="base64-source"
+            class="b64__textarea"
+            [(ngModel)]="inputText"
+            (input)="onInputChange()"
+            rows="1"
+            [placeholder]="mode === 'encode' ? 'Enter text to encode…' : 'Enter Base64 string to decode…'"></textarea>
+        </section>
+
+        <section class="b64__editor b64__editor--output">
+          <header class="b64__editor-head">
+            <span>Converted output</span>
+            <div class="b64__editor-actions">
+              @if (hasOutput) {
+                <span class="b64__editor-badge">Ready</span>
               }
-            </header>
-
-            @if (outputText) {
-              <textarea id="base64-output"
-                        class="text-area text-area--output"
-                        readonly
-                        rows="12"
-                        [value]="outputText"
-                        aria-label="Converted Base64 result"></textarea>
-            } @else {
-              <div class="panel-empty" aria-live="polite">
-                <h3>No output yet</h3>
-                <p>Start typing or upload a file to see the converted result.</p>
-              </div>
-            }
-          </section>
-        </div>
-
-        <footer class="editor-footer">
-          <div class="editor-metric">
-            <span class="metric-label">Clipboard status</span>
-            <span class="metric-value">{{ outputText ? 'Available' : 'Empty' }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Upload ready</span>
-            <span class="metric-value">TXT & text-based</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Encoding</span>
-            <span class="metric-value">{{ mode === 'encode' ? 'UTF-16 ➜ Base64' : 'Base64 ➜ UTF-16' }}</span>
-          </div>
-          <button type="button"
-                  class="clear-btn"
-                  (click)="clearInput()"
-                  [disabled]="!inputText && !outputText"
-                  aria-label="Clear converter">
-            <img class="btn-icon" [src]="assetService.getAssetPath('icons/clear.svg')" alt="" />
-            <span>Clear converter</span>
-          </button>
-        </footer>
+              <button
+                type="button"
+                class="b64__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasOutput"
+                aria-label="Copy output"
+                appTooltip="Copy output"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasOutput) {
+            <textarea
+              id="base64-output"
+              class="b64__textarea b64__textarea--output"
+              readonly
+              rows="1"
+              [value]="outputText"
+              aria-label="Converted result"></textarea>
+          } @else {
+            <div class="b64__empty" aria-live="polite">
+              <p>Converted output appears here as you type or upload.</p>
+            </div>
+          }
+        </section>
       </div>
-    </section>
 
-    <aside class="workspace-secondary">
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Mode reference</h2>
-          <p>Encoding expands your payload, decoding restores it. Swap modes anytime—input clears automatically.</p>
-        </header>
-        <div class="insight-body">
-          <dl class="mode-guide">
-            <div>
-              <dt>Encode text</dt>
-              <dd>Produce Base64 output to embed in HTML, CSS, or JSON payloads.</dd>
-            </div>
-            <div>
-              <dt>Decode input</dt>
-              <dd>Recover the original string from Base64, even when copied from remote APIs.</dd>
-            </div>
-          </dl>
+      <aside class="b64__sidebar" aria-label="Mode settings">
+        <div class="b64__tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="b64__tab"
+            [class.b64__tab--active]="mode === 'encode'"
+            [attr.aria-selected]="mode === 'encode'"
+            (click)="selectMode('encode')"
+            aria-label="Encode text"
+            appTooltip="Encode text"
+            tooltipPosition="bottom">
+            Encode
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="b64__tab"
+            [class.b64__tab--active]="mode === 'decode'"
+            [attr.aria-selected]="mode === 'decode'"
+            (click)="selectMode('decode')"
+            aria-label="Decode Base64"
+            appTooltip="Decode Base64"
+            tooltipPosition="bottom">
+            Decode
+          </button>
         </div>
-      </section>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Quick tips</h2>
-          <p>Keep conversions accurate and easy to share.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Base64 expands output by roughly 33%—check the size delta before shipping.</li>
-            <li>Use upload mode for large snippets to avoid browser paste limits.</li>
-            <li>Copy results to reuse in docs, environment files, or CDN payloads.</li>
+        <div class="b64__panel">
+          @if (mode === 'encode') {
+            <p class="b64__panel-hint">Converts raw content into a safe ASCII string for JSON, HTML, or text-only channels.</p>
+          } @else {
+            <p class="b64__panel-hint">Restores encoded strings to their original form from APIs, env files, or data URIs.</p>
+          }
+          <ul class="b64__tips">
+            <li>Base64 expands output by roughly 33%.</li>
+            <li>Use <strong>Upload</strong> for large files to avoid paste limits.</li>
+            <li>Switching mode clears input and output.</li>
           </ul>
         </div>
-      </section>
+      </aside>
+    </div>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How to use</h2>
-          <p>Get started with Base64 encoding and decoding in just a few steps.</p>
-        </header>
-
-        <div class="insight-body">
-          <ol class="how-to-list">
-            <li>
-              <strong>Choose your mode</strong>
-              <p>Select "Encode text" to convert plain text to Base64, or "Decode Base64" to restore original content.</p>
-            </li>
-            <li>
-              <strong>Enter your content</strong>
-              <p>Paste or type your text in the input panel. For large files, use the "Upload file" button.</p>
-            </li>
-            <li>
-              <strong>View results</strong>
-              <p>See the converted output instantly in the right panel. Results update as you type.</p>
-            </li>
-            <li>
-              <strong>Copy or reset</strong>
-              <p>Click "Copy result" to use the output, or "Reset" to clear both panels and start fresh.</p>
-            </li>
-            <li>
-              <strong>Monitor size</strong>
-              <p>Check the "Size delta" stat to see how much the encoding expanded your content.</p>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about Base64 encoding and decoding.</p>
-        </header>
-
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              Base64 is a binary-to-text encoding scheme that converts binary data into ASCII characters. 
-              It's widely used for embedding files in HTML, CSS, JSON, and XML, or for safely transmitting 
-              data through text-only protocols.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Real-time conversion</strong>
-                <p>Watch your text transform instantly as you type or paste content.</p>
-              </div>
-              <div class="feature-item">
-                <strong>File upload support</strong>
-                <p>Handle large files without browser paste limitations using the upload feature.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Mode switching</strong>
-                <p>Toggle between encode and decode modes seamlessly with automatic input clearing.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Size tracking</strong>
-                <p>Monitor how Base64 encoding affects your content size with live delta calculations.</p>
-              </div>
-            </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>Embedding images in HTML/CSS</li>
-                <li>Storing secrets in environment files</li>
-                <li>API payload encoding</li>
-                <li>Data URI generation</li>
-                <li>Email attachment encoding</li>
-                <li>JSON data transmission</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-    </aside>
-  </div>
+    <details class="b64__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose <strong>Encode</strong> or <strong>Decode</strong> in the sidebar.</li>
+        <li>Paste, type, or upload content in the input editor.</li>
+        <li>Use the copy icons on each editor to grab input or output.</li>
+        <li>Check the <strong>Delta</strong> stat to see size change after encoding.</li>
+      </ul>
+    </details>
+  </main>
 </div>

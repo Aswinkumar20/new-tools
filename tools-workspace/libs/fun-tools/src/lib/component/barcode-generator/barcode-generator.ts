@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { Subscription } from 'rxjs';
 
 type BarcodeFormat =
@@ -52,11 +52,12 @@ declare const JsBarcode: any;
   standalone: true,
   templateUrl: './barcode-generator.html',
   styleUrls: ['./barcode-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BarcodeGeneratorComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private formSubscription?: Subscription;
 
   readonly form: BarcodeFormGroup = this.fb.group({
@@ -193,6 +194,17 @@ export class BarcodeGeneratorComponent implements OnInit, OnDestroy {
     } catch (e) {
       this.errors.set([e instanceof Error ? e.message : 'Failed to download barcode.']);
     }
+  }
+
+  copyData(): void {
+    this.copyText(this.form.controls.text.value.trim(), 'Barcode data');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   copyBarcode(): void {

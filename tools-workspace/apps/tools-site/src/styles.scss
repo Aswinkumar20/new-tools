@@ -1,9 +1,40 @@
 @use './app/generic-styles.scss' as *;
+// Stat card values — truncate long numbers/text; full value on hover via appStatValueTooltipHost
+[class*='__stat-value'] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Allow stat cards in grid/flex rows to shrink so ellipsis can apply
+[class*='__stat']:not([class*='__stat-value']):not([class*='__stat-label']):not([class*='__stats']) {
+  min-width: 0;
+}
+
+.ctl__stat--mode .ctl__stat-value,
+[class*='__stat--mode'] [class*='__stat-value'] {
+  font-size: 0.75rem;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
 
 :root {
   --font-sans: 'Inter', 'Segoe UI', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+
+  /* Shared horizontal gutters — nav + page content stay aligned */
+  --page-gutter: max(0.75rem, env(safe-area-inset-left, 0px));
+  --page-gutter-right: max(0.75rem, env(safe-area-inset-right, 0px));
+
+  /* Nav bar height — offset for fixed header */
+  --nav-height: 3.9rem;
+
+  @media (min-width: 768px) {
+    --nav-height: 4.25rem;
+  }
 
   // Use theme variables from generic-styles.scss
   --page-background: var(--bg);
@@ -53,6 +84,21 @@
   --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 
+@media (min-width: 768px) {
+  :root {
+    --page-gutter: max(1.25rem, env(safe-area-inset-left, 0px));
+    --page-gutter-right: max(1.25rem, env(safe-area-inset-right, 0px));
+    --nav-height: 4.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --page-gutter: max(1.5rem, env(safe-area-inset-left, 0px));
+    --page-gutter-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+}
+
 // Theme variables are now defined in generic-styles.scss
 // This ensures consistent theming across all components
 
@@ -74,6 +120,7 @@
 html {
   font-size: 16px;
   scroll-behavior: smooth;
+  scroll-padding-top: var(--nav-height);
 }
 
 body {
@@ -84,13 +131,6 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
-  // Add padding-top to account for fixed navigation (approximately 70px)
-  padding-top: 3.7em;
-  
-  @media (max-width: 768px) {
-    // Slightly less padding on mobile
-    padding-top: 65px;
-  }
 }
 
 body,
@@ -150,7 +190,8 @@ app-root {
 
 lib-navigation {
   display: block;
-  // Navigation is now fixed in navigation.scss, so no need for sticky here
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .hero {
@@ -941,19 +982,27 @@ lib-navigation {
 .site-footer__logo {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.55rem;
   font-weight: 700;
-  font-size: 1.35rem;
-  color: #e2e8f0;
+  font-size: 1.2rem;
+  letter-spacing: -0.04em;
+  color: #f8fafc;
+  text-decoration: none;
+
+  .site-footer__logo-icon {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .site-footer__logo-accent {
+    color: #7dd3fc;
+  }
 }
 
 .site-footer__logo::before {
-  content: '';
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: radial-gradient(circle at 30% 30%, var(--accent-200), var(--accent-600));
-  display: inline-block;
+  content: none;
 }
 
 .site-footer__tagline {
@@ -1038,10 +1087,6 @@ lib-navigation {
 }
 
 @media (max-width: 1024px) {
-  lib-navigation {
-    position: static;
-  }
-
   .workspace__content,
   .workspace__grid {
     grid-template-columns: 1fr !important;

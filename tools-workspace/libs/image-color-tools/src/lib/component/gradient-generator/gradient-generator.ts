@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 
@@ -101,12 +101,13 @@ const PRESETS: GradientPreset[] = [
   standalone: true,
   templateUrl: './gradient-generator.html',
   styleUrls: ['./gradient-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GradientGeneratorComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  readonly assetService = inject(AssetService);
 
   readonly form: GradientFormGroup = this.fb.group({
     type: this.fb.control<'linear' | 'radial' | 'conic'>('linear', { nonNullable: true }),
@@ -130,6 +131,8 @@ export class GradientGeneratorComponent {
   readonly history = signal<HistoryEntry[]>([]);
 
   readonly hasHistory = computed(() => this.history().length > 0);
+  readonly hasResult = computed(() => this.result() !== null);
+  readonly gradientCss = computed(() => this.result()?.css ?? '');
   readonly colorStopsFormArray = computed(() => this.form.controls.colorStops);
 
   constructor() {
@@ -345,6 +348,17 @@ export class GradientGeneratorComponent {
       }
       return [entry, ...entries].slice(0, 10);
     });
+  }
+
+  formatTimestamp(timestamp: number): string {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
   }
 
   private hexValidator(control: FormControl<string>): { [key: string]: any } | null {

@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface PdfOptions {
   pageSize: 'a4' | 'letter' | 'legal';
@@ -55,10 +55,12 @@ Convert your Markdown documents to PDF with ease!`;
   standalone: true,
   templateUrl: './markdown-to-pdf.html',
   styleUrls: ['./markdown-to-pdf.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MarkdownToPdfComponent {
+  readonly assetService = inject(AssetService);
+
   readonly markdownInput = signal<string>(SAMPLE_MARKDOWN);
   readonly htmlOutput = signal<string>('');
   readonly errors = signal<string[]>([]);
@@ -312,6 +314,15 @@ export class MarkdownToPdfComponent {
     this.markdownInput.set('');
     this.htmlOutput.set('');
     this.errors.set([]);
+  }
+
+  copyInput(): void {
+    const md = this.markdownInput();
+    if (md) {
+      navigator.clipboard.writeText(md).catch(() => {
+        this.errors.set(['Unable to copy markdown to clipboard.']);
+      });
+    }
   }
 
   copyHtml(): void {

@@ -1,133 +1,221 @@
-<div class="uuid">
-  <div class="uuid__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl">
+  <lib-navigation></lib-navigation>
 
-  <section class="uuid__hero">
-    <div class="uuid__badge">Security toolkit</div>
-    <h1>UUID Generator</h1>
-    <p>
-      Generate RFC 4122 version 4 UUIDs for identifiers, test data, and API keys. Customize formatting and quickly copy
-      the result.
-    </p>
-
-    @if (hasUuids() && lastUuid()) {
-      <div class="uuid__hero-meta">
-        <div>
-          <span class="uuid__meta-label">Last UUID</span>
-          <strong class="uuid__mono">{{ lastUuid() }}</strong>
-        </div>
-        <div>
-          <span class="uuid__meta-label">Generated count</span>
-          <strong>{{ uuids().length }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="uuid__hero-meta uuid__hero-meta--placeholder">
-        Choose your options below and click \"Generate\" to create UUIDs.
-      </div>
-    }
-  </section>
-
-  <div class="uuid__board" [formGroup]="form">
-    <section class="uuid__panel uuid__panel--options">
-      <header class="uuid__card-header">
-        <div>
-          <h2>Options</h2>
-          <p>Configure UUID format and quantity.</p>
-        </div>
-        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>UUID Generator</h1>
+        <p>Generate RFC 4122 version 4 UUIDs with customizable formatting.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="uuid__alert uuid__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="UUID statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ uuids().length }}</span>
+          <span class="ctl__stat-label">Count</span>
         </div>
-      }
-
-      <div class="uuid__field uuid__field--inline">
-        <div>
-          <label for="count" class="uuid__label">Count</label>
-          <input
-            id="count"
-            type="number"
-            class="uuid__input"
-            formControlName="count"
-            min="1"
-            max="50"
-          />
-          <small class="uuid__hint">How many UUIDs to generate at once.</small>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ formatLabel() }}</span>
+          <span class="ctl__stat-label">Format</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasUuids() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value" [title]="lastUuid()">{{ lastUuidShort() }}</span>
+          <span class="ctl__stat-label">Latest</span>
         </div>
       </div>
+    </div>
 
-      <div class="uuid__options">
-        <label class="uuid__toggle">
-          <input type="checkbox" formControlName="uppercase" />
-          <div>
-            <strong>Uppercase</strong>
-            <span>Render UUIDs in uppercase.</span>
-          </div>
-        </label>
+    <div class="ctl__toolbar" aria-label="UUID actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="generate()"
+        aria-label="Generate UUIDs"
+        appTooltip="Generate UUIDs"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Generate</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyAll()"
+        [disabled]="!hasUuids()"
+        aria-label="Copy all UUIDs"
+        appTooltip="Copy all UUIDs"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy all</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clearList()"
+        [disabled]="!hasUuids()"
+        aria-label="Clear list"
+        appTooltip="Clear list"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
 
-        <label class="uuid__toggle">
-          <input type="checkbox" formControlName="withHyphens" />
-          <div>
-            <strong>Include hyphens</strong>
-            <span>Keep the standard 8-4-4-4-12 format.</span>
-          </div>
-        </label>
-
-        <label class="uuid__toggle">
-          <input type="checkbox" formControlName="withBraces" />
-          <div>
-            <strong>Include braces</strong>
-            <span>Wrap UUIDs in curly braces: {{ '{' }}uuid{{ '}' }}.</span>
-          </div>
-        </label>
-      </div>
-    </section>
-
-    <section class="uuid__panel uuid__panel--output">
-      <header class="uuid__card-header">
-        <div>
-          <h2>Generated UUIDs</h2>
-          <p>Recent UUIDs (last 100).</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearList()"
-          [disabled]="!hasUuids()"
-        >
-          Clear list
-        </button>
-      </header>
-
-      @if (hasUuids() && uuids().length) {
-        <ul class="uuid__list">
-          @for (item of uuids(); track item.createdAt + item.value) {
-            <li class="uuid__item">
-              <div class="uuid__item-main">
-                <code class="uuid__mono">{{ item.value }}</code>
-                <span class="uuid__timestamp">{{ formatTimestamp(item.createdAt) }}</span>
-              </div>
+    <div class="ctl__workspace" [formGroup]="form">
+      <div class="ctl__editors">
+        <section class="ctl__editor">
+          <header class="ctl__editor-head">
+            <span>All UUIDs</span>
+            <div class="ctl__editor-actions">
+              @if (hasUuids()) {
+                <span class="ctl__editor-badge">{{ uuids().length }}</span>
+              }
               <button
                 type="button"
-                class="btn btn--ghost btn--small"
-                (click)="copy(item.value)"
-              >
-                Copy
+                class="ctl__icon-btn"
+                (click)="copyAll()"
+                [disabled]="!hasUuids()"
+                aria-label="Copy all UUIDs"
+                appTooltip="Copy all UUIDs"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
-            </li>
+            </div>
+          </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="uuid__empty">Generated UUIDs will appear here.</div>
-      }
-    </section>
-  </div>
+          @if (hasUuids()) {
+            <textarea
+              class="ctl__textarea ctl__textarea--mono"
+              readonly
+              [value]="allUuidsText()"
+              rows="1"
+              spellcheck="false"></textarea>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Configure options and click Generate to create UUIDs.</p>
+            </div>
+          }
+        </section>
+
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>Latest UUID</span>
+            <div class="ctl__editor-actions">
+              @if (lastUuid()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copy(lastUuid())"
+                [disabled]="!lastUuid()"
+                aria-label="Copy latest UUID"
+                appTooltip="Copy latest UUID"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (lastUuid()) {
+            <textarea
+              class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
+              readonly
+              [value]="lastUuid()"
+              rows="1"
+              spellcheck="false"></textarea>
+          } @else {
+            <div class="ctl__empty">
+              <p>The most recently generated UUID appears here.</p>
+            </div>
+          }
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="UUID options">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Options</header>
+          <div class="ctl__settings">
+            <label class="ctl__field">
+              <span>Count</span>
+              <input id="count" type="number" formControlName="count" min="1" max="50" />
+            </label>
+            <p class="uuid-hint">Generate 1–50 UUIDs at once (last 100 kept).</p>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="uppercase" />
+              <div>
+                <strong>Uppercase</strong>
+                <span>Render UUIDs in uppercase.</span>
+              </div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="withHyphens" />
+              <div>
+                <strong>Include hyphens</strong>
+                <span>Standard 8-4-4-4-12 format.</span>
+              </div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="withBraces" />
+              <div>
+                <strong>Include braces</strong>
+                <span>Wrap as {{ '{' }}uuid{{ '}' }}.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        @if (hasUuids()) {
+          <div class="ctl__panel uuid-history-panel">
+            <header class="ctl__panel-head">
+              History
+              <span class="ctl__panel-badge">{{ uuids().length }}</span>
+            </header>
+            <ul class="uuid-list">
+              @for (item of uuids(); track item.createdAt + item.value) {
+                <li class="uuid-item">
+                  <code>{{ item.value }}</code>
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="copy(item.value)"
+                    aria-label="Copy UUID"
+                    appTooltip="Copy UUID"
+                    tooltipPosition="bottom">
+                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>Uses <strong>crypto.randomUUID</strong> when available.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Set count and formatting options in the sidebar.</li>
+        <li>Click <strong>Generate</strong> to create new UUIDs.</li>
+        <li>Copy individual UUIDs from history or use Copy all.</li>
+        <li>Up to 100 recent UUIDs are kept in the session list.</li>
+      </ul>
+    </details>
+  </main>
 </div>

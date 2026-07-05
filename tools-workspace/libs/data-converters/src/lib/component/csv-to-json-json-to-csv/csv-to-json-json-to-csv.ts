@@ -1,7 +1,7 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationComponent } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type ConversionMode = 'csv-to-json' | 'json-to-csv';
 type CsvLineEnding = 'auto' | 'lf' | 'crlf';
@@ -59,12 +59,18 @@ const SAMPLE_JSON = `[
   standalone: true,
   templateUrl: './csv-to-json-json-to-csv.html',
   styleUrls: ['./csv-to-json-json-to-csv.scss'],
-  imports: [CommonModule, NgIf, NgFor, FormsModule, NavigationComponent]
+  imports: [CommonModule, NgIf, NgFor, FormsModule, Navigation, TooltipDirective]
 })
 export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
+  readonly assetService = inject(AssetService);
+
   @ViewChild('csvTextarea') csvTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
+  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+
+  private fileInput: HTMLInputElement | null = null;
   readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
     {
       id: 'csv-to-json',
@@ -193,20 +199,51 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
   }
 
   onEditorScroll(event: Event): void {
-    // Sync line numbers scroll with editor scroll
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.editor-line-numbers') as HTMLElement;
+    const lineNumbers = this.inputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
     }
   }
 
   onResultsScroll(event: Event): void {
-    // Sync line numbers scroll with results textarea scroll
     const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = document.querySelector('.results-output__line-numbers') as HTMLElement;
+    const lineNumbers = this.outputLineNumbers?.nativeElement;
     if (lineNumbers) {
       lineNumbers.scrollTop = target.scrollTop;
+    }
+  }
+
+  copyInput(): void {
+    const text = this.conversionMode === 'csv-to-json' ? this.csvInput : this.jsonInput;
+    void this.copyText(text);
+  }
+
+  uploadFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.onchange = () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.readFile(file);
+        }
+      };
+    }
+    this.fileInput.accept =
+      this.conversionMode === 'csv-to-json' ? '.csv,text/csv' : '.json,application/json';
+    this.fileInput.click();
+  }
+
+  private async copyText(text: string): Promise<void> {
+    if (!text.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn('Unable to copy to clipboard.', error);
     }
   }
 

@@ -7,3 +7,4 @@ export * from './lib/component/toast-container/toast-container';
 export * from './lib/services/toast.service';
 export * from './lib/services/asset.service';
 export * from './lib/directive/tooltip.directive';
+export * from './lib/directive/stat-value-tooltip-host.directive';

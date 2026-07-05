@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type CardBrand = 'visa' | 'mastercard' | 'amex' | 'discover' | 'diners' | 'jcb' | 'unionpay' | 'unknown';
 
@@ -28,11 +28,12 @@ type CreditCardFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './credit-card-validator.html',
   styleUrls: ['./credit-card-validator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CreditCardValidatorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: CreditCardFormGroup = this.fb.group({
     number: this.fb.control('', {
@@ -73,19 +74,54 @@ export class CreditCardValidatorComponent {
 
   readonly isValid = computed(() => this.validationResult().valid);
 
+  readonly hasInput = computed(() => !!this.cardNumberDigits().length);
+
   toggleMask(): void {
     this.showNumberMasked.update((v) => !v);
   }
 
   onNumberInput(): void {
     const digits = this.cardNumberDigits();
-    // Auto-limit to 19 digits
     if (digits.length > 19) {
       const trimmed = digits.substring(0, 19);
       this.form.controls.number.setValue(this.formatNumber(trimmed));
     } else {
       this.form.controls.number.setValue(this.formatNumber(digits), { emitEvent: false });
     }
+  }
+
+  clear(): void {
+    this.form.reset({
+      number: '',
+      name: '',
+      expiry: '',
+      cvv: '',
+    });
+  }
+
+  copyInput(): void {
+    this.copyText(this.formattedNumber(), 'Card number');
+  }
+
+  copyOutput(): void {
+    const r = this.validationResult();
+    const lines = [
+      `Status: ${r.valid ? 'Valid' : 'Invalid'}`,
+      `Brand: ${r.brandLabel}`,
+      `Luhn: ${r.luhnValid ? 'Pass' : 'Fail'}`,
+      `Length: ${r.lengthValid ? 'Pass' : 'Fail'}`,
+      `Expiry: ${r.expiryValid ? 'Valid' : 'Invalid'}`,
+      `CVV: ${r.cvvValid ? 'Valid' : 'Invalid'}`,
+      ...r.messages.map((m) => `- ${m}`),
+    ];
+    this.copyText(lines.join('\n'), 'Validation summary');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   private validateCard(): CardValidationResult {
@@ -251,7 +287,7 @@ export class CreditCardValidatorComponent {
     if (!cvv) {
       return false;
     }
-    const len = cvv.replace(/\\D/g, '').length;
+    const len = cvv.replace(/\D/g, '').length;
     if (brand === 'amex') {
       return len === 4;
     }
@@ -266,9 +302,9 @@ export class CreditCardValidatorComponent {
     if (!mask) {
       return formatted;
     }
-    const visible = formatted.replace(/\\s/g, '').slice(-4);
+    const visible = formatted.replace(/\s/g, '').slice(-4);
     const maskedSection = formatted
-      .replace(/\\d/g, '•')
+      .replace(/\d/g, '•')
       .split(' ')
       .map((group, index, arr) =>
         index === arr.length - 1 ? visible : group
@@ -278,6 +314,6 @@ export class CreditCardValidatorComponent {
   }
 
   private formatNumber(digits: string): string {
-    return digits.replace(/(\\d{4})(?=\\d)/g, '$1 ').trim();
+    return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
   }
 }

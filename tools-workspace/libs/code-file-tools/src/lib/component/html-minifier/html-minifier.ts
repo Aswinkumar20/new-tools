@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface MinificationResult {
   minified: string;
@@ -58,11 +58,12 @@ const SAMPLE_HTML = `<!DOCTYPE html>
   standalone: true,
   templateUrl: './html-minifier.html',
   styleUrls: ['./html-minifier.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HtmlMinifierComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: MinifierFormGroup = this.fb.group({
     removeComments: this.fb.control(true, { nonNullable: true }),
@@ -84,6 +85,7 @@ export class HtmlMinifierComponent {
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
+  readonly hasInput = computed(() => !!this.inputHtml().trim());
   readonly minifiedHtml = computed(() => this.result()?.minified ?? '');
   readonly reductionPercentage = computed(() => this.result()?.reductionPercentage ?? 0);
 
@@ -207,6 +209,14 @@ export class HtmlMinifierComponent {
     }
 
     return result.trim();
+  }
+
+  copyInput(): void {
+    this.copyToClipboard(this.inputHtml(), 'Input');
+  }
+
+  copyOutput(): void {
+    this.copyToClipboard(this.minifiedHtml(), 'Output');
   }
 
   copyToClipboard(text: string, label: string): void {

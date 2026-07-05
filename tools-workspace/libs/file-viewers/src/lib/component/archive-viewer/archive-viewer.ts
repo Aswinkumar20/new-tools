@@ -8,11 +8,12 @@ import {
   ChangeDetectorRef,
   HostListener,
   PLATFORM_ID,
-  Inject
+  Inject,
+  inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 // JSZip types
 interface JSZip {
@@ -101,9 +102,10 @@ interface ArchiveInfo {
   standalone: true,
   templateUrl: './archive-viewer.html',
   styleUrls: ['./archive-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
 })
 export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewContainer') previewContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fileTree') fileTree!: ElementRef<HTMLDivElement>;
@@ -791,6 +793,34 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       }
       
       this.cdr.markForCheck();
+    }
+  }
+
+  clearAll(): void {
+    this.archiveFiles = [];
+    this.currentArchiveIndex = -1;
+    this.fileTreeData = [];
+    this.flatFileList = [];
+    this.selectedFile = null;
+    this.previewContent = '';
+    this.previewType = 'none';
+    this.searchText = '';
+    this.errorMessage = '';
+    this.loading = false;
+    this.cdr.markForCheck();
+  }
+
+  async copyPreviewText(): Promise<void> {
+    if (!this.previewContent || this.previewType !== 'text') return;
+    try {
+      await navigator.clipboard.writeText(this.previewContent);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = this.previewContent;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
     }
   }
 

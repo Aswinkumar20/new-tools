@@ -1,324 +1,357 @@
-<div class="main-container">
-  <lib-navigation class="site-navigation"></lib-navigation>
+<div class="home" [class.home--ready]="pageReady">
+  <lib-navigation [reserveSpace]="false"></lib-navigation>
 
-  <main id="main-content" class="workspacee">
-    <!-- Primary Content Area -->
-    <div class="workspace-primary">
-      <!-- Hero Card Section -->
-      <section class="hero-card" aria-labelledby="hero-title">
-        <div class="hero-card-inner">
-          <!-- Left Section: Name and Description -->
-          <div class="hero-left">
-            <div class="hero-heading">
-              <h1 id="hero-title">EasyToolHub</h1>
-              <p class="strapline">
-                Discover {{ totalTools }}+ free online tools for text editing, file conversion, 
-                data processing, PDF manipulation, image editing, and much more. No signup required.
-              </p>
-            </div>
-          </div>
-
-          <!-- Right Center Section: Search and Tools Count -->
-          <div class="hero-right-center">
-            <form class="hero-search-wrapper" role="search" (submit)="onSearch($event)" [attr.aria-label]="'Search tools'">
-              <div class="search-container">
-                <label class="sr-only" for="homepage-search">Search tools</label>
-                <div class="search-icon-wrapper">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                  </svg>
-                </div>
-                <input
-                  id="homepage-search"
-                  placeholder="Search tools by name or category..."
-                  type="search"
-                  name="search"
-                  [(ngModel)]="searchQuery"
-                  (input)="filterCategories()"
-                  autocomplete="off"
-                  aria-label="Search tools and categories" />
-                <button type="submit" class="search-submit-btn" aria-label="Submit search">
-                  <span class="search-btn-text">Search</span>
-                  <svg class="search-btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m9 18 6-6-6-6"/>
-                  </svg>
-                </button>
-              </div>
-            </form>
-
-            <!-- Tools Count -->
-            <div class="tools-count-section">
-              <div class="tools-count-item">
-                <span class="count-value" aria-label="Total available tools">{{ totalTools }}</span>
-                <span class="count-label">Tools</span>
-              </div>
-              <div class="tools-count-item">
-                <span class="count-value" aria-label="Total categories">{{ toolCategories.length }}</span>
-                <span class="count-label">Categories</span>
-              </div>
-              <div class="tools-count-item">
-                <span class="count-value" aria-label="Recent updates count">{{ weeklyHighlights }}</span>
-                <span class="count-label">Weekly Updates</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Categories Section -->
-      <section class="categories-section" aria-labelledby="categories-title">
-        <div class="categories-header">
-          <h2 id="categories-title">Browse Tools by Category</h2>
-          <p>Explore our collection of tools organized by function</p>
+  <main id="main-content" class="home__main" [attr.aria-busy]="!pageReady">
+    <section class="home-hero" aria-labelledby="hero-title">
+      <div class="home-hero__shell">
+        <div class="home-hero__backdrop" aria-hidden="true">
+          <span class="home-hero__type home-hero__type--pdf">PDF</span>
+          <span class="home-hero__type home-hero__type--json">{{ '{ }' }}</span>
+          <span class="home-hero__type home-hero__type--code">&lt;/&gt;</span>
+          <span class="home-hero__type home-hero__type--hash">#</span>
+          <span class="home-hero__type home-hero__type--aa">Aa</span>
+          <span class="home-hero__type home-hero__type--csv">CSV</span>
+          <span class="home-hero__type home-hero__type--zip">ZIP</span>
+          <span class="home-hero__type home-hero__type--qr">QR</span>
+          <span class="home-hero__type home-hero__type--bin">01</span>
+          <span class="home-hero__type home-hero__type--slug">slug</span>
+          <span class="home-hero__type home-hero__type--merge">merge</span>
+          <span class="home-hero__type home-hero__type--xml">XML</span>
+          <span class="home-hero__type home-hero__type--yaml">YAML</span>
+          <span class="home-hero__type home-hero__type--uuid">UUID</span>
+          <span class="home-hero__type home-hero__type--b64">B64</span>
+          <span class="home-hero__type home-hero__type--png">PNG</span>
+          <span class="home-hero__type home-hero__type--gif">GIF</span>
+          <span class="home-hero__type home-hero__type--api">API</span>
+          <span class="home-hero__type home-hero__type--ssl">SSL</span>
+          <span class="home-hero__type home-hero__type--diff">diff</span>
+          <span class="home-hero__type home-hero__type--utf">UTF-8</span>
+          <span class="home-hero__type home-hero__type--md5">MD5</span>
+          <span class="home-hero__type home-hero__type--regex">.*</span>
+          <span class="home-hero__type home-hero__type--brand">easytoolhub</span>
         </div>
 
-        <ng-container *ngIf="filteredCategories.length > 0; else noResults">
-          <div class="categories-grid">
-            <article 
-              class="category-card" 
-              *ngFor="let category of filteredCategories; trackBy: trackByCategory">
-              <div class="category-card-inner">
-                <div class="category-header">
-                  <div class="category-icon" [attr.aria-hidden]="true">
-                    <ng-container [ngSwitch]="category.name">
-                      <!-- Text & Utilities -->
-                      <svg *ngSwitchCase="'Text & Utilities'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
-                      <!-- File Viewers -->
-                      <svg *ngSwitchCase="'File Viewers'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                        <path d="M8 13h8"></path>
-                        <path d="M8 17h8"></path>
-                        <path d="M8 9h1"></path>
-                      </svg>
-                      <!-- JSON / Data Converters -->
-                      <svg *ngSwitchCase="'JSON / Data Converters'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="16 18 22 12 16 6"></polyline>
-                        <polyline points="8 6 2 12 8 18"></polyline>
-                        <line x1="2" y1="12" x2="22" y2="12"></line>
-                      </svg>
-                      <!-- Number & Date Tools -->
-                      <svg *ngSwitchCase="'Number & Date Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="9" y1="3" x2="9" y2="21"></line>
-                        <line x1="9" y1="9" x2="21" y2="9"></line>
-                        <circle cx="12" cy="12" r="1"></circle>
-                        <circle cx="15" cy="12" r="1"></circle>
-                        <circle cx="18" cy="12" r="1"></circle>
-                      </svg>
-                      <!-- PDF Tools -->
-                      <svg *ngSwitchCase="'PDF Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                      </svg>
-                      <!-- Image & Color Tools -->
-                      <svg *ngSwitchCase="'Image & Color Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                      </svg>
-                      <!-- File & Code Tools -->
-                      <svg *ngSwitchCase="'File & Code Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="16 18 22 12 16 6"></polyline>
-                        <polyline points="8 6 2 12 8 18"></polyline>
-                      </svg>
-                      <!-- Design & Web Dev Tools -->
-                      <svg *ngSwitchCase="'Design & Web Dev Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                        <line x1="8" y1="21" x2="16" y2="21"></line>
-                        <line x1="12" y1="17" x2="12" y2="21"></line>
-                      </svg>
-                      <!-- Validation & Testing Tools -->
-                      <svg *ngSwitchCase="'Validation & Testing Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                      </svg>
-                      <!-- Security & Crypto Tools -->
-                      <svg *ngSwitchCase="'Security & Crypto Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                      <!-- Media & Audio Tools -->
-                      <svg *ngSwitchCase="'Media & Audio Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                      </svg>
-                      <!-- System / Browser Utilities -->
-                      <svg *ngSwitchCase="'System / Browser Utilities'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m19.07-4.93l-4.24 4.24M8.17 15.83l-4.24 4.24m0-16.48l4.24 4.24m7.66 7.66l4.24 4.24"></path>
-                      </svg>
-                      <!-- Fun & Productivity Tools -->
-                      <svg *ngSwitchCase="'Fun & Productivity Tools'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                      </svg>
-                      <!-- Default Icon -->
-                      <svg *ngSwitchDefault width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="9" cy="9" r="2"></circle>
-                        <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-                      </svg>
-                    </ng-container>
-                  </div>
-                  <div class="category-info">
-                    <h3 class="category-title">{{ category.name }}</h3>
-                    <p class="category-description">{{ category.description }}</p>
-                  </div>
-                  <div class="category-count">
-                    <span class="count-number">{{ category.subCategories?.length || 0 }}</span>
-                    <span class="count-label">tools</span>
-                  </div>
-                </div>
-                
-                <ng-container *ngIf="category.subCategories && category.subCategories.length > 0">
-                  <div class="category-tools-scroll">
-                    <div class="tools-grid" role="list" [attr.aria-label]="'Tools in ' + category.name">
-                      <button 
-                        *ngFor="let tool of category.subCategories; trackBy: trackByTool"
-                        class="tool-tag"
-                        type="button"
-                        role="listitem"
-                        [title]="tool.description || tool.name"
-                        [attr.aria-label]="'Navigate to ' + tool.name"
-                        (click)="navigateTo(tool.path)">
-                        {{ tool.name }}
-                      </button>
-                    </div>
-                  </div>
-                </ng-container>
-
-                <ng-container *ngIf="!category.subCategories || category.subCategories.length === 0">
-                  <div class="category-empty">
-                    <h3>No tools available</h3>
-                    <p>This category is coming soon.</p>
-                  </div>
-                </ng-container>
-              </div>
-            </article>
-          </div>
-        </ng-container>
-
-        <ng-template #noResults>
-          <div class="empty-state-card">
-            <div class="empty-state-icon">
-              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-                <line x1="11" y1="8" x2="11" y2="12"></line>
-                <line x1="11" y1="16" x2="11.01" y2="16"></line>
-              </svg>
+        <div class="home-hero__stage">
+          <div
+            class="home-skeleton home-skeleton--hero"
+            role="status"
+            [attr.aria-hidden]="pageReady"
+            aria-label="Loading homepage">
+            <span class="sr-only">Loading homepage…</span>
+            <div class="home-skeleton__head">
+              <div class="home-skeleton__bone home-skeleton__bone--badge"></div>
+              <div class="home-skeleton__bone home-skeleton__bone--title"></div>
+              <div class="home-skeleton__bone home-skeleton__bone--lead"></div>
             </div>
-            <div class="empty-state-content">
-              <h3>No tools found</h3>
-              <p *ngIf="searchQuery">We couldn't find any tools matching your search "<strong>{{ searchQuery }}</strong>".</p>
-            <p *ngIf="!searchQuery">No categories available at the moment.</p>
-              <p class="empty-state-suggestion" *ngIf="searchQuery">Try adjusting your search terms or browse all categories.</p>
-              <p class="empty-state-suggestion" *ngIf="!searchQuery">Please check back later for new categories and tools.</p>
-              <button *ngIf="searchQuery" type="button" class="empty-state-btn" (click)="searchQuery=''; filterCategories()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="1 4 1 10 7 10"></polyline>
-                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                </svg>
-                <span>Clear Search & Show All</span>
+            <div class="home-skeleton__bone home-skeleton__bone--search"></div>
+            <div class="home-skeleton__bone home-skeleton__bone--trust"></div>
+            <div class="home-skeleton__chips" aria-hidden="true">
+              <div class="home-skeleton__bone home-skeleton__bone--chip-label"></div>
+              @for (i of skeletonChipSlots; track i) {
+                <div class="home-skeleton__bone home-skeleton__bone--chip" [style.--stagger]="i * 60 + 'ms'"></div>
+              }
+            </div>
+            <div class="home-skeleton__cats" aria-hidden="true">
+              @for (i of skeletonCategorySlots; track i) {
+                <div class="home-skeleton__bone home-skeleton__bone--cat" [style.--stagger]="i * 50 + 'ms'"></div>
+              }
+            </div>
+            <div class="home-skeleton__popular" aria-hidden="true">
+              <div class="home-skeleton__bone home-skeleton__bone--popular-label"></div>
+              @for (i of skeletonPopularSlots; track i) {
+                <div class="home-skeleton__bone home-skeleton__bone--popular" [style.--stagger]="i * 45 + 'ms'"></div>
+              }
+            </div>
+            <div class="home-skeleton__stats" aria-hidden="true">
+              @for (i of skeletonStatSlots; track i) {
+                <div class="home-skeleton__bone home-skeleton__bone--stat" [style.--stagger]="i * 40 + 'ms'"></div>
+              }
+            </div>
+          </div>
+
+          <div class="home-hero__live" [attr.aria-hidden]="!pageReady">
+        <header class="home-hero__head home-anim home-anim--1">
+          <p class="home-hero__badge">
+            <span class="home-hero__badge-dot" aria-hidden="true"></span>
+            {{ totalTools }}+ tools · private · free
+          </p>
+          <h1 id="hero-title" class="home-hero__title">
+            What do you need to do?
+          </h1>
+          <p class="home-hero__lead">
+            Search any utility — text, PDF, files, data, and more. Everything runs in your browser.
+          </p>
+        </header>
+
+        <div class="home-search-wrap home-anim home-anim--2">
+          <form
+            class="home-search"
+            role="search"
+            (submit)="onSearch($event)"
+            aria-label="Search tools">
+            <label class="sr-only" for="homepage-search">Search tools</label>
+            <span class="home-search__icon" aria-hidden="true">
+              <img [src]="searchIconUrl" alt="" width="20" height="20" />
+            </span>
+            <input
+              #homepageSearch
+              id="homepage-search"
+              type="search"
+              name="search"
+              [placeholder]="searchPlaceholder"
+              [(ngModel)]="searchQuery"
+              (input)="onSearchInput()"
+              autocomplete="off"
+              aria-label="Search tools and categories"
+              aria-controls="homepage-search-results"
+              [attr.aria-expanded]="searchQuery.trim().length > 0"
+              [attr.aria-autocomplete]="'list'" />
+            @if (searchQuery.trim()) {
+              <span class="home-search__count" aria-live="polite">{{ getVisibleToolCount() }}</span>
+              <button type="button" class="home-search__clear" (click)="clearSearch()" aria-label="Clear search">
+                <span aria-hidden="true">×</span>
               </button>
-            </div>
-          </div>
-        </ng-template>
-      </section>
-    </div>
+            }
+          </form>
 
-    <!-- Secondary Sidebar -->
-    <div class="workspace-secondary">
-      <!-- Highlights Section -->
-      <section class="sidebar-card" aria-labelledby="highlights-title">
-        <div class="sidebar-card-header">
-          <div class="sidebar-icon-wrapper">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-              <path d="M2 17l10 5 10-5"></path>
-              <path d="M2 12l10 5 10-5"></path>
-            </svg>
+          @if (!searchQuery.trim()) {
+            <p class="home-hero__trust">Files never leave your device.</p>
+          }
+
+          @if (searchQuery.trim()) {
+            <ul
+              id="homepage-search-results"
+              class="home-search-results"
+              role="listbox"
+              aria-label="Search results">
+              @for (result of getSearchResults(); track result.path) {
+                <li role="option">
+                  <button
+                    type="button"
+                    class="home-search-results__item"
+                    (click)="navigateTo(result.path)">
+                    <span class="home-search-results__avatar" aria-hidden="true">
+                      {{ shortToolName(result.name).charAt(0) }}
+                    </span>
+                    <span class="home-search-results__text">
+                      <span class="home-search-results__name">{{ shortToolName(result.name) }}</span>
+                      <span class="home-search-results__category">{{ shortCategoryName(result.category) }}</span>
+                    </span>
+                    <span class="home-search-results__go" aria-hidden="true">→</span>
+                  </button>
+                </li>
+              } @empty {
+                <li class="home-search-results__empty" role="option">
+                  <p>No tools match “{{ searchQuery }}”</p>
+                  <button type="button" class="home-search-results__reset" (click)="clearSearch()">
+                    Clear search
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        @if (!searchQuery.trim()) {
+          <div class="home-hero__hints" aria-label="Popular searches">
+            <span class="home-hero__hints-label">Try</span>
+            @for (suggestion of searchSuggestions; track suggestion; let i = $index) {
+              <button
+                type="button"
+                class="home-hero__hint"
+                [class.home-hero__hint--active]="suggestion === currentSuggestion"
+                [style.--stagger]="i * 40 + 'ms'"
+                (click)="applySuggestion(suggestion)">
+                {{ suggestion }}
+              </button>
+            }
           </div>
-          <div>
-            <h2 id="highlights-title">Why Choose EasyToolHub</h2>
+
+          <nav class="home-hero__cats" aria-label="Browse by category">
+            @for (category of featuredCategories; track category.name; let i = $index) {
+              <button
+                type="button"
+                class="home-hero__cat"
+                [attr.data-tint]="i % 6"
+                [class.home-hero__cat--active]="activeCategoryName === category.name"
+                [style.--stagger]="i * 40 + 'ms'"
+                (click)="exploreCategory(category)"
+                [attr.aria-pressed]="activeCategoryName === category.name"
+                [title]="category.name">
+                @if (category.iconUrl) {
+                  <img [src]="category.iconUrl" alt="" width="18" height="18" loading="lazy" />
+                }
+                <span class="home-hero__cat-body">
+                  <span class="home-hero__cat-name">{{ shortCategoryName(category.name) }}</span>
+                  @if (category.description) {
+                    <span class="home-hero__cat-desc">{{ category.description }}</span>
+                  }
+                </span>
+                <span class="home-hero__cat-count">{{ category.subCategories?.length || 0 }}</span>
+              </button>
+            }
+          </nav>
+
+          @if (popularTools.length) {
+            <div class="home-hero__popular-strip">
+              <span class="home-hero__popular-label" id="hero-popular-label">Popular</span>
+              <ul class="home-hero__popular-list" aria-labelledby="hero-popular-label">
+                @for (tool of popularTools.slice(0, 5); track tool.path; let i = $index) {
+                  <li [style.--stagger]="i * 45 + 'ms'">
+                    <button
+                      type="button"
+                      class="home-hero__popular-chip"
+                      (click)="navigateTo(tool.path)"
+                      [title]="tool.name">
+                      {{ shortToolName(tool.name) }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          <ul class="home-hero__bar home-anim home-anim--6" aria-label="Platform stats">
+            <li>
+              <strong>{{ totalTools }}+</strong>
+              <span>tools</span>
+            </li>
+            <li>
+              <strong>{{ toolCategories.length }}</strong>
+              <span>categories</span>
+            </li>
+            <li>
+              <strong>100%</strong>
+              <span>in-browser</span>
+            </li>
+            <li>
+              <strong>Free</strong>
+              <span>no sign-up</span>
+            </li>
+          </ul>
+        }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="home-catalog"
+      [class.home-catalog--searching]="!!searchQuery.trim()"
+      [class.home-catalog--filtered]="!!activeCategoryName"
+      aria-labelledby="catalog-title">
+      <div class="home-catalog__stage">
+        <div
+          class="home-skeleton home-skeleton--catalog"
+          role="status"
+          [attr.aria-hidden]="pageReady"
+          aria-label="Loading tool catalog">
+          <span class="sr-only">Loading tool catalog…</span>
+          <div class="home-skeleton__catalog-head" aria-hidden="true">
+            <div class="home-skeleton__bone home-skeleton__bone--h2"></div>
+            <div class="home-skeleton__bone home-skeleton__bone--sub"></div>
+          </div>
+          <div class="home-skeleton__grid" aria-hidden="true">
+            @for (i of skeletonCardSlots; track i) {
+              <div class="home-skeleton__card" [style.--stagger]="i * 50 + 'ms'">
+                <div class="home-skeleton__card-head">
+                  <div class="home-skeleton__bone home-skeleton__bone--icon"></div>
+                  <div class="home-skeleton__card-meta">
+                    <div class="home-skeleton__bone home-skeleton__bone--card-title"></div>
+                    <div class="home-skeleton__bone home-skeleton__bone--card-desc"></div>
+                  </div>
+                  <div class="home-skeleton__bone home-skeleton__bone--count"></div>
+                </div>
+                <div class="home-skeleton__card-tools">
+                  @for (j of skeletonToolLineSlots; track j) {
+                    <div class="home-skeleton__bone home-skeleton__bone--tool"></div>
+                  }
+                </div>
+              </div>
+            }
           </div>
         </div>
 
-        <div class="sidebar-features">
-          <article 
-            *ngFor="let highlight of highlights; trackBy: trackByHighlight; let i = index"
-            class="feature-card">
-            <div class="feature-number">{{ i + 1 }}</div>
-            <div class="feature-content">
-              <h3 class="feature-title">{{ highlight.title }}</h3>
-              <p class="feature-description">{{ highlight.description }}</p>
-            </div>
-          </article>
-        </div>
-      </section>
+        <div class="home-catalog__live" [attr.aria-hidden]="!pageReady">
+          <div class="home-catalog__header">
+        <h2 id="catalog-title">
+          @if (activeCategoryName) {
+            {{ activeCategoryName }}
+          } @else {
+            All Tools
+          }
+        </h2>
+        @if (searchQuery) {
+          <p>{{ getVisibleToolCount() }} results for “{{ searchQuery }}”</p>
+        } @else if (activeCategoryName) {
+          <p>
+            {{ getVisibleToolCount() }} tools
+            <button type="button" class="home-catalog__clear" (click)="clearCategoryFilter()">Show all</button>
+          </p>
+        } @else {
+          <p>{{ totalTools }} tools available</p>
+        }
+          </div>
 
-      <!-- Platform Stats -->
-      <section class="sidebar-card sidebar-stats-card" aria-label="Platform statistics">
-        <div class="sidebar-card-header">
-          <div class="sidebar-icon-wrapper">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="20" x2="12" y2="10"></line>
-              <line x1="18" y1="20" x2="18" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="16"></line>
-            </svg>
-          </div>
-          <div>
-            <h2>Platform Statistics</h2>
-            <p class="sidebar-subtitle">Real-time metrics</p>
-          </div>
-        </div>
+          @if (filteredCategories.length > 0) {
+            <div class="home-grid">
+          @for (category of filteredCategories; track category.name; let i = $index) {
+            <article
+              class="home-card home-anim home-anim--card"
+              [class.home-card--expanded]="isCategoryExpanded(category.name)"
+              [style.--stagger]="i * 50 + 'ms'">
+              <header class="home-card__header">
+                <div class="home-card__icon">
+                  <img [src]="category.iconUrl" [alt]="''" width="20" height="20" loading="lazy" />
+                </div>
+                <div class="home-card__meta">
+                  <h3>{{ category.name }}</h3>
+                  <p>{{ category.description }}</p>
+                </div>
+                <span class="home-card__count">{{ category.subCategories?.length || 0 }}</span>
+              </header>
 
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon-wrapper">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-              </svg>
+              @if (category.subCategories?.length) {
+                <div class="home-card__body">
+                  <ul
+                    class="home-card__tools"
+                    [class.home-card__tools--scrollable]="isCategoryExpanded(category.name)">
+                    @for (tool of getDisplayTools(category); track tool.path) {
+                      <li>
+                        <button type="button" (click)="navigateTo(tool.path)" [title]="tool.description || tool.name">
+                          {{ shortToolName(tool.name) }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                  @if (getRemainingToolCount(category) > 0) {
+                    <button
+                      type="button"
+                      class="home-card__more"
+                      (click)="toggleCategoryTools(category.name)"
+                      [attr.aria-expanded]="isCategoryExpanded(category.name)">
+                      @if (isCategoryExpanded(category.name)) {
+                        Show less
+                      } @else {
+                        +{{ getRemainingToolCount(category) }} more
+                      }
+                    </button>
+                  }
+                </div>
+              } @else {
+                <p class="home-card__empty">Coming soon</p>
+              }
+            </article>
+          }
             </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ totalTools }}</div>
-              <div class="stat-label">Total Tools</div>
+          } @else {
+            <div class="home-empty">
+              <p>No tools found for “{{ searchQuery }}”.</p>
+              <button type="button" (click)="clearSearch()">Clear search</button>
             </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ toolCategories.length }}</div>
-              <div class="stat-label">Categories</div>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon-wrapper">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-              </svg>
-            </div>
-            <div class="stat-content">
-              <div class="stat-value">{{ weeklyHighlights }}</div>
-              <div class="stat-label">Weekly Updates</div>
-            </div>
-          </div>
+          }
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   </main>
 </div>

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface MinificationResult {
   minified: string;
@@ -62,11 +62,12 @@ console.log('Final total:', finalTotal);`;
   standalone: true,
   templateUrl: './javascript-minifier.html',
   styleUrls: ['./javascript-minifier.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class JavascriptMinifierComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: MinifierFormGroup = this.fb.group({
     removeComments: this.fb.control(true, { nonNullable: true }),
@@ -86,6 +87,7 @@ export class JavascriptMinifierComponent {
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
+  readonly hasInput = computed(() => !!this.inputJs().trim());
   readonly minifiedJs = computed(() => this.result()?.minified ?? '');
   readonly reductionPercentage = computed(() => this.result()?.reductionPercentage ?? 0);
 
@@ -195,6 +197,14 @@ export class JavascriptMinifierComponent {
     }
 
     return result.trim();
+  }
+
+  copyInput(): void {
+    this.copyToClipboard(this.inputJs(), 'Input');
+  }
+
+  copyOutput(): void {
+    this.copyToClipboard(this.minifiedJs(), 'Output');
   }
 
   copyToClipboard(text: string, label: string): void {

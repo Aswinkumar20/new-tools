@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, EffectRef, inject, OnDestroy, signal, Signal, WritableSignal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 
 @Component({
@@ -9,10 +9,11 @@ import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
   standalone: true,
   templateUrl: './percentage-calculator.html',
   styleUrls: ['./percentage-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class PercentageCalculatorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly calculationSubscription: Subscription;
   private readonly effectRefs: EffectRef[] = [];
 

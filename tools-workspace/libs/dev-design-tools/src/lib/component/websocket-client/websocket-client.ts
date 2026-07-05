@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface Message {
   id: string;
@@ -23,12 +23,13 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
   standalone: true,
   templateUrl: './websocket-client.html',
   styleUrls: ['./websocket-client.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class WebSocketClientComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  readonly assetService = inject(AssetService);
 
   readonly form: WebSocketClientFormGroup = this.fb.group({
     url: this.fb.control('wss://echo.websocket.org', {

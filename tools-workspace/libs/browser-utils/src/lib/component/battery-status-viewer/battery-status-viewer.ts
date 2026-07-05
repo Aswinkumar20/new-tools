@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface BatteryStatus {
   charging: boolean;
@@ -24,10 +24,11 @@ interface BatteryManager {
   standalone: true,
   templateUrl: './battery-status-viewer.html',
   styleUrls: ['./battery-status-viewer.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BatteryStatusViewerComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   readonly supported = 'getBattery' in navigator || ('battery' in navigator && (navigator as any).battery);
   readonly currentStatus = signal<BatteryStatus | null>(null);
   readonly history = signal<BatteryStatus[]>([]);
@@ -138,6 +139,50 @@ export class BatteryStatusViewerComponent implements OnDestroy {
   clearHistory(): void {
     this.history.set([]);
     this.errors.set([]);
+  }
+
+  copyStatus(): void {
+    const status = this.currentStatus();
+    if (!status) return;
+    const lines = [
+      `Level: ${this.formatPercentage(status.level)}`,
+      `Charging: ${status.charging ? 'Yes' : 'No'}`,
+    ];
+    if (status.charging && status.chargingTime !== null) {
+      lines.push(`Time to full: ${this.formatTime(status.chargingTime)}`);
+    }
+    if (!status.charging && status.dischargingTime !== null) {
+      lines.push(`Time until empty: ${this.formatTime(status.dischargingTime)}`);
+    }
+    this.copyText(lines.join('\n'), 'Battery status');
+  }
+
+  copyHistory(): void {
+    const entries = this.history();
+    if (!entries.length) return;
+    const text = entries
+      .map((e) => {
+        const parts = [
+          `[${this.formatTimestamp(e.timestamp)}]`,
+          `${this.formatPercentage(e.level)}`,
+          e.charging ? 'Charging' : 'Discharging',
+        ];
+        if (e.charging && e.chargingTime !== null) {
+          parts.push(`to full: ${this.formatTime(e.chargingTime)}`);
+        }
+        if (!e.charging && e.dischargingTime !== null) {
+          parts.push(`until empty: ${this.formatTime(e.dischargingTime)}`);
+        }
+        return parts.join(' · ');
+      })
+      .join('\n');
+    this.copyText(text, 'Battery history');
+  }
+
+  private copyText(text: string, label: string): void {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   formatTime(seconds: number | null): string {

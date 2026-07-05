@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type StorageType = 'local' | 'session';
 
@@ -28,11 +28,12 @@ type StorageViewerFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './storage-viewer.html',
   styleUrls: ['./storage-viewer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StorageViewerComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: StorageViewerFormGroup = this.fb.group({
     storageType: this.fb.control<StorageType>('local', { nonNullable: true }),
@@ -137,6 +138,35 @@ export class StorageViewerComponent {
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  }
+
+  clearEditor(): void {
+    this.form.controls.key.setValue('');
+    this.form.controls.value.setValue('');
+  }
+
+  copyEntry(entry: StorageEntry): void {
+    this.copyText(`${entry.key}=${entry.value}`, entry.key);
+  }
+
+  copyEditorValue(): void {
+    const value = this.form.controls.value.value;
+    if (!value) return;
+    this.copyText(value, 'Storage value');
+  }
+
+  copyAllEntries(): void {
+    const text = this.entries()
+      .map((e) => `${e.key}=${e.value}`)
+      .join('\n');
+    this.copyText(text, 'All storage entries');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   private async estimateStorage(): Promise<void> {

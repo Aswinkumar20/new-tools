@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule, NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 // PDF.js types - using dynamic import to avoid build-time dependency issues
 interface PDFDocumentProxy {
@@ -73,9 +73,10 @@ interface PdfFile {
   standalone: true,
   templateUrl: './pdf-viewer.html',
   styleUrls: ['./pdf-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf]
+  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf, TooltipDirective]
 })
 export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfContainer') pdfContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('canvasContainer') canvasContainer!: ElementRef<HTMLDivElement>;

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, EffectRef, inject, OnDestroy, signal, WritableSignal, effect } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
 
 @Component({
@@ -9,10 +9,11 @@ import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
   standalone: true,
   templateUrl: './bmi-calculator.html',
   styleUrls: ['./bmi-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
 })
 export class BmiCalculatorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
   private readonly calculationSub: Subscription;
   private readonly effectRefs: EffectRef[] = [];
 
@@ -123,6 +124,18 @@ export class BmiCalculatorComponent implements OnDestroy {
   clearHistory(): void {
     this.history.set([]);
     this.notify('History cleared.');
+  }
+
+  copyResult(): void {
+    const s = this.summary();
+    if (!s) return;
+    const text = [
+      `BMI: ${s.bmi.toFixed(1)}`,
+      `Classification: ${s.classification.label}`,
+      s.interpretation,
+      `Ideal range: ${s.idealRange}`,
+    ].join('\n');
+    navigator.clipboard.writeText(text).then(() => this.notify('Result copied to clipboard.'));
   }
 
   restoreHistory(entry: BmiHistory): void {

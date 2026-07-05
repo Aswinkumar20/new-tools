@@ -1,14 +1,20 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, ToastService, AssetService } from '@tools-workspace/features-home';
+import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
+
+interface FormatOption {
+  value: string;
+  label: string;
+  description: string;
+}
 
 @Component({
   selector: 'lib-text-to-ascii',
   standalone: true,
   templateUrl: './text-to-ASCII.html',
   styleUrls: ['./text-to-ASCII.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
 
 })
 
@@ -28,12 +34,24 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   private readonly toastService = inject(ToastService);
   readonly assetService = inject(AssetService);
 
-typeOptions = [
-  { value: 'text', label: 'Text', description: 'Plain readable text.' },
-  { value: 'ascii', label: 'ASCII', description: 'ASCII codes representing each character.' },
-  { value: 'binary', label: 'Binary', description: 'Binary representation (0s and 1s) of text.' },
-  { value: 'hex', label: 'Hex', description: 'Hexadecimal representation of text.' }
-];
+  readonly typeOptions: FormatOption[] = [
+    { value: 'text', label: 'Text', description: 'Plain readable text.' },
+    { value: 'ascii', label: 'ASCII', description: 'ASCII codes representing each character.' },
+    { value: 'binary', label: 'Binary', description: 'Binary representation (0s and 1s) of text.' },
+    { value: 'hex', label: 'Hex', description: 'Hexadecimal representation of text.' },
+  ];
+
+  get hasInput(): boolean {
+    return !!this.inputValue?.trim();
+  }
+
+  get fromLabel(): string {
+    return this.typeOptions.find((o) => o.value === this.leftType)?.label ?? this.leftType;
+  }
+
+  get toLabel(): string {
+    return this.typeOptions.find((o) => o.value === this.rightType)?.label ?? this.rightType;
+  }
 
   convert() {
     this.errorMessage = '';
@@ -228,15 +246,22 @@ typeOptions = [
     this.clearInput();
   }
 
-  copyOutput() {
+  copyInput(): void {
+    this.copyText(this.inputValue, 'Input');
+  }
+
+  copyOutput(): void {
+    this.copyText(this.outputValue, 'Output');
+  }
+
+  private copyText(text: string, label: string): void {
     try {
-      if (!this.outputValue) return;
-      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(this.outputValue);
+      if (!text) return;
+      if (navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
       } else {
-        // fallback
         const textarea = document.createElement('textarea');
-        textarea.value = this.outputValue;
+        textarea.value = text;
         textarea.style.position = 'fixed';
         textarea.style.left = '-9999px';
         document.body.appendChild(textarea);
@@ -244,8 +269,8 @@ typeOptions = [
         document.execCommand('copy');
         document.body.removeChild(textarea);
       }
-      this.toastService.success('Copied to clipboard!', 2000);
-    } catch (e) {
+      this.toastService.success(`${label} copied to clipboard`, 2000);
+    } catch {
       this.toastService.error('Failed to copy to clipboard', 3000);
     }
   }

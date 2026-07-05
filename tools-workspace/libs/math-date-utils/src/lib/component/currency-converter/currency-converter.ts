@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, Injectable, computed, i
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 // eslint-disable-next-line deprecation/deprecation
 import { HttpClient, HttpClientModule } from '@angular/common/http';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { catchError, debounceTime, distinctUntilChanged, map, of, Subject, switchMap, tap, throwError, timer } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -180,7 +180,7 @@ const mapFallbackResponse = (response: FallbackApiResponse): RateSnapshot => {
   templateUrl: './currency-converter.html',
   styleUrls: ['./currency-converter.scss'],
   // eslint-disable-next-line deprecation/deprecation
-  imports: [CommonModule, ReactiveFormsModule, HttpClientModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, HttpClientModule, Navigation, TooltipDirective],
   providers: [CurrencyRateService],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -188,6 +188,7 @@ export class CurrencyConverterComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly rateService = inject(CurrencyRateService);
+  readonly assetService = inject(AssetService);
 
   private readonly refreshTrigger = new Subject<{ base: string; force?: boolean }>();
   private readonly latestSnapshots = new Map<string, RateSnapshot>();
@@ -317,6 +318,18 @@ export class CurrencyConverterComponent {
 
   convertNow(): void {
     this.calculateConversion();
+  }
+
+  copyResult(): void {
+    const r = this.conversionResult();
+    if (!r) return;
+    const amount = this.form.get('amount')?.value ?? 0;
+    const text = [
+      `${amount} ${r.baseCurrency} = ${r.convertedAmount.toFixed(2)} ${r.quoteCurrency}`,
+      `Rate: 1 ${r.baseCurrency} = ${r.rate.toFixed(6)} ${r.quoteCurrency}`,
+      r.feeAmount > 0 ? `Fee: ${r.feeAmount.toFixed(2)} ${r.baseCurrency}` : '',
+    ].filter(Boolean).join('\n');
+    navigator.clipboard.writeText(text);
   }
 
   setToCurrency(code: string): void {

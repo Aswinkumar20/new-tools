@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 type StrengthLevel = 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
 
@@ -33,11 +33,14 @@ type PasswordRuleFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './password-rule-validator.html',
   styleUrls: ['./password-rule-validator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PasswordRuleValidatorComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
+
+  readonly showPassword = signal(false);
 
   readonly form: PasswordRuleFormGroup = this.fb.group({
     password: this.fb.control('', { nonNullable: true }),
@@ -213,4 +216,37 @@ export class PasswordRuleValidatorComponent {
     const index = levels.indexOf(this.strengthLevel());
     return ((index + 1) / levels.length) * 100;
   });
+
+  readonly hasInput = computed(() => !!this.form.controls.password.value.length);
+
+  readonly allPassed = computed(
+    () => this.hasInput() && this.passedCount() === this.totalCount() && this.totalCount() > 0
+  );
+
+  toggleShowPassword(): void {
+    this.showPassword.update((v) => !v);
+  }
+
+  clear(): void {
+    this.form.controls.password.setValue('');
+    this.showPassword.set(false);
+  }
+
+  copyInput(): void {
+    this.copyText(this.form.controls.password.value, 'Password');
+  }
+
+  copyOutput(): void {
+    const lines = this.rules().map((r) => `${r.passed ? '✓' : '✗'} ${r.label}: ${r.description}`);
+    lines.unshift(`Strength: ${this.strengthLabel()}`);
+    lines.unshift(`Rules: ${this.passedCount()}/${this.totalCount()} passed`);
+    this.copyText(lines.join('\n'), 'Rule checklist');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
 }

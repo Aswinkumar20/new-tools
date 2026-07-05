@@ -1,26 +1,42 @@
 import { Component, inject } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, AssetService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-base64-encode-and-decode',
   standalone: true,
   templateUrl: './base64-encode-and-decode.html',
-styleUrls: ['./base64-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule],
+  styleUrls: ['./base64-encode-and-decode.scss'],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class Base64EncodeAndDecodeComponent {
   readonly assetService = inject(AssetService);
-  
-  inputText: string = '';
-  outputText: string = '';
+
+  inputText = '';
+  outputText = '';
   mode: 'encode' | 'decode' = 'encode';
-  
-  // File input element reference
+
   private fileInput: HTMLInputElement | null = null;
 
-  selectMode(selectedMode: 'encode' | 'decode') {
+  get modeLabel(): string {
+    return this.mode === 'encode' ? 'Encode' : 'Decode';
+  }
+
+  get hasInput(): boolean {
+    return !!this.inputText;
+  }
+
+  get hasOutput(): boolean {
+    return !!this.outputText;
+  }
+
+  get sizeDelta(): number {
+    if (!this.outputText || !this.inputText) return 0;
+    return this.outputText.length - this.inputText.length;
+  }
+
+  selectMode(selectedMode: 'encode' | 'decode'): void {
     if (this.mode !== selectedMode) {
       this.mode = selectedMode;
       this.inputText = '';
@@ -28,7 +44,7 @@ export class Base64EncodeAndDecodeComponent {
     }
   }
 
-  onInputChange() {
+  onInputChange(): void {
     if (this.mode === 'encode') {
       this.encodeText();
     } else {
@@ -36,7 +52,11 @@ export class Base64EncodeAndDecodeComponent {
     }
   }
 
-  private encodeText() {
+  private encodeText(): void {
+    if (!this.inputText) {
+      this.outputText = '';
+      return;
+    }
     try {
       this.outputText = btoa(this.inputText);
     } catch {
@@ -44,7 +64,11 @@ export class Base64EncodeAndDecodeComponent {
     }
   }
 
-  private decodeText() {
+  private decodeText(): void {
+    if (!this.inputText) {
+      this.outputText = '';
+      return;
+    }
     try {
       this.outputText = atob(this.inputText);
     } catch {
@@ -52,51 +76,46 @@ export class Base64EncodeAndDecodeComponent {
     }
   }
 
-  clearInput() {
+  clearInput(): void {
     this.inputText = '';
     this.outputText = '';
   }
 
-  async copyToClipboard() {
-    try {
-      await navigator.clipboard.writeText(this.outputText);
-      // You might want to add a toast/notification here
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
+  copyInput(): void {
+    this.copyText(this.inputText, 'Input');
   }
 
-  uploadFile() {
-    // Create file input if it doesn't exist
+  copyOutput(): void {
+    this.copyText(this.outputText, 'Output');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
+  }
+
+  uploadFile(): void {
     if (!this.fileInput) {
       this.fileInput = document.createElement('input');
       this.fileInput.type = 'file';
-      this.fileInput.accept = this.mode === 'encode' ? '.txt,text/*' : '';
       this.fileInput.style.display = 'none';
-      
+
       this.fileInput.onchange = () => {
         const file = this.fileInput?.files?.[0];
         if (file) {
           const reader = new FileReader();
           reader.onload = (e) => {
-            const content = e.target?.result as string;
-            this.inputText = content;
+            this.inputText = (e.target?.result as string) ?? '';
             this.onInputChange();
           };
-          
-          if (this.mode === 'encode') {
-            reader.readAsText(file);
-          } else {
-            reader.readAsText(file);
-          }
+          reader.readAsText(file);
         }
       };
     }
-    
-    // Update accept attribute based on current mode
+
     this.fileInput.accept = this.mode === 'encode' ? '.txt,text/*' : '';
-    
-    // Trigger file selection
     this.fileInput.click();
   }
 }

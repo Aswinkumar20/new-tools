@@ -1,275 +1,148 @@
-<div class="main-container">
+<div class="ctl">
   <lib-navigation></lib-navigation>
 
-  <section class="workspace">
-    <div class="editor-hero">
-      <h1 class="editor-hero__title">
-        <span *ngIf="conversionMode === 'yaml-to-json'">YAML → JSON Converter</span>
-        <span *ngIf="conversionMode === 'json-to-yaml'">JSON → YAML Converter</span>
-      </h1>
-      <p class="editor-hero__subtitle">
-        <span *ngIf="conversionMode === 'yaml-to-json'">
-          Convert YAML configuration files into clean JSON payloads with flexible formatting options, auto-detection, and one-click sharing tools. Perfect for data engineers, analysts, and developers working across formats.
-        </span>
-        <span *ngIf="conversionMode === 'json-to-yaml'">
-          Export JSON arrays back to YAML with flexible indentation control, auto-detection, and one-click sharing tools. Perfect for data engineers, analysts, and developers working across formats.
-        </span>
-      </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>YAML ⇄ JSON Converter</h1>
+        <p>Convert YAML configuration to JSON and back with indentation and quoting controls.</p>
+      </header>
+
+      <div class="ctl__stats" aria-label="Conversion statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ conversionMode === 'yaml-to-json' ? 'YAML→JSON' : 'JSON→YAML' }}</span>
+          <span class="ctl__stat-label">Mode</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ metrics.lines | number }}</span>
+          <span class="ctl__stat-label">Lines</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ metrics.sizeLabel }}</span>
+          <span class="ctl__stat-label">Size</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ metrics.selection }}</span>
+          <span class="ctl__stat-label">Input</span>
+        </div>
+      </div>
     </div>
 
-    <div class="workspace__content">
-      <div class="workspace__card workspace__card--editor">
-        <div
-          class="workspace__panel workspace__panel--editor"
-          [class.workspace__panel--dragging]="isDragOver"
-          (dragenter)="onDragEnter($event)"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)"
-        >
-          <div class="editor-toolbar">
-            <div class="toolbar-group">
-              <div class="mode-selector">
-                <label for="conversionMode" class="mode-selector__label">Mode:</label>
-                <select id="conversionMode" class="mode-selector__select" [(ngModel)]="conversionMode" (ngModelChange)="onModeChange($event)" [attr.data-tooltip]="'Choose conversion direction'">
-                  <option *ngFor="let mode of modes" [value]="mode.id">{{ mode.label }}</option>
-                </select>
-              </div>
+    <div class="ctl__toolbar" aria-label="Conversion actions">
+      <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload file" tooltipPosition="bottom" aria-label="Upload file">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Upload</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="convert()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Convert</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="downloadResult()" [disabled]="!resultOutput" appTooltip="Download result" tooltipPosition="bottom" aria-label="Download result">
+        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Download</span>
+      </button>
+      <button type="button" class="ctl__tool-btn" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Reset</span>
+      </button>
+    </div>
 
-              <label class="btn-upload" [attr.data-tooltip]="'Upload a ' + (conversionMode === 'yaml-to-json' ? 'YAML' : 'JSON') + ' file or drag and drop it here'">
-                <input type="file" [accept]="conversionMode === 'yaml-to-json' ? '.yml,.yaml' : '.json,application/json'" (change)="onFileInputChange($event)" />
-                <span class="btn-upload__icon">📤</span>
-                <span class="btn-upload__label">Upload</span>
-              </label>
-            </div>
-
-            <div class="toolbar-group toolbar-group--actions">
-              <button class="btn-primary" type="button" (click)="convert()" [attr.data-tooltip]="'Convert ' + (conversionMode === 'yaml-to-json' ? 'YAML to JSON' : 'JSON to YAML')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-                <span class="btn-primary__label">Convert</span>
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          <header class="ctl__editor-head">
+            <span>{{ conversionMode === 'yaml-to-json' ? 'YAML input' : 'JSON input' }}</span>
+            <div class="ctl__editor-actions">
+              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!(conversionMode === 'yaml-to-json' ? yamlInput : jsonInput)" appTooltip="Copy input" tooltipPosition="bottom" aria-label="Copy input">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
-              <span class="tooltip-wrapper" [attr.data-tooltip]="'Reset to default sample data'">
-                <button class="btn-icon-reset" type="button" (click)="resetWorkspace()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.9L22 6M22 12.5a10 10 0 0 1-18.8 4.9L2 18"/>
-                  </svg>
-                </button>
-              </span>
             </div>
-          </div>
-
-          <div class="editor-metrics">
-            <div class="metric">
-              <span class="metric__label">LINES:</span>
-              <span class="metric__value">{{ metrics.lines | number }}</span>
+          </header>
+          <div class="ctl__editor-wrap">
+            <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
+              <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
             </div>
-            <div class="metric">
-              <span class="metric__label">PAYLOAD SIZE:</span>
-              <span class="metric__value">{{ metrics.sizeLabel }}</span>
-            </div>
-            <div class="metric">
-              <span class="metric__label">ACTIVE INPUT:</span>
-              <span class="metric__value">{{ metrics.selection }}</span>
-            </div>
-          </div>
-
-          <div class="editor-wrapper">
-            <div class="editor-line-numbers">
-              <span *ngFor="let line of editorLines" class="line-number">{{ line }}</span>
-            </div>
-            <textarea
-              *ngIf="conversionMode === 'yaml-to-json'; else jsonEditor"
-              class="editor editor--yaml"
-              spellcheck="false"
-              [(ngModel)]="yamlInput"
-              (ngModelChange)="onYamlInputChange($event)"
-              (scroll)="onEditorScroll($event)"
-              placeholder="users:&#10;  - id: 1&#10;    name: Ada"
-              #yamlTextarea
-            ></textarea>
+            <textarea *ngIf="conversionMode === 'yaml-to-json'; else jsonEditor" class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="yamlInput" (ngModelChange)="onYamlInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder="users:&#10;  - id: 1&#10;    name: Ada" #yamlTextarea></textarea>
             <ng-template #jsonEditor>
-              <textarea
-                class="editor editor--json"
-                spellcheck="false"
-                [(ngModel)]="jsonInput"
-                (ngModelChange)="onJsonInputChange($event)"
-                (scroll)="onEditorScroll($event)"
-                placeholder='{&#10;  "id": 1,&#10;  "name": "Ada"&#10;}'
-                #jsonTextarea
-              ></textarea>
+              <textarea class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="jsonInput" (ngModelChange)="onJsonInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder='{ "id": 1 }' #jsonTextarea></textarea>
             </ng-template>
           </div>
+        </section>
 
-          <div class="editor-controls">
-            <div class="controls-section" *ngIf="conversionMode === 'yaml-to-json'">
-              <div class="controls-grid">
-                <div class="control-group">
-                  <p class="controls__label controls__label--heading">JSON options</p>
-                  <div class="toggles-grid">
-                    <label class="toggle">
-                      <input type="checkbox" [checked]="jsonPrettyPrint" (change)="toggleJsonPrettyPrint()" />
-                      <span>Pretty print output</span>
-                    </label>
-                    <label class="toggle">
-                      <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleJsonSortKeys()" />
-                      <span>Sort keys alphabetically</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
+        <section class="ctl__editor ctl__editor--output">
+          <header class="ctl__editor-head">
+            <span>{{ conversionMode === 'yaml-to-json' ? 'JSON output' : 'YAML output' }}</span>
+            <div class="ctl__editor-actions">
+              @if (resultOutput && conversionStatus.status === 'success') {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!resultOutput" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-
-            <div class="controls-section" *ngIf="conversionMode === 'json-to-yaml'">
-              <div class="controls-grid">
-                <div class="control-group">
-                  <label for="yamlIndent" class="control-label">Indentation (spaces)</label>
-                  <input
-                    id="yamlIndent"
-                    type="number"
-                    min="2"
-                    max="8"
-                    step="1"
-                    class="control-input"
-                    [(ngModel)]="yamlIndent"
-                    (ngModelChange)="onYamlIndentChange($event)"
-                    [attr.data-tooltip]="'Number of spaces for YAML indentation'"
-                  />
-                </div>
+          </header>
+          @if (conversionStatus.status === 'error') {
+            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+          }
+          @if (resultOutput && conversionStatus.status !== 'error') {
+            <div class="ctl__editor-wrap">
+              <div class="ctl__line-numbers" #outputLineNumbers aria-hidden="true">
+                <span *ngFor="let line of resultLines" class="ctl__line-number">{{ line }}</span>
               </div>
-              <div class="toggles-grid">
-                <label class="toggle">
-                  <input type="checkbox" [checked]="yamlSortKeys" (change)="toggleYamlSortKeys()" />
-                  <span>Sort keys alphabetically</span>
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" [checked]="yamlQuoteStrings" (change)="toggleYamlQuoteStrings()" />
-                  <span>Always quote text values</span>
-                </label>
-              </div>
+              <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="resultOutput" (scroll)="onResultsScroll($event)" rows="1" #resultsTextarea></textarea>
             </div>
-          </div>
-        </div>
+          } @else if (conversionStatus.status !== 'error') {
+            <div class="ctl__empty"><p>Run a conversion to inspect the output here.</p></div>
+          }
+        </section>
       </div>
 
-      <div class="workspace__card workspace__card--results">
-        <div class="workspace__panel workspace__panel--results">
-          <div class="results-header">
-            <div class="results-header__content">
-              <h2 class="results-header__title">Conversion Result</h2>
-              <p class="results-header__caption">{{ conversionStatus.message }}</p>
-            </div>
-            <div class="results-actions">
-              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Copy result to clipboard' : 'No result to copy'" [class.tooltip-wrapper--disabled]="!resultOutput">
-                <button
-                  class="btn-icon btn-icon--copy"
-                  type="button"
-                  [disabled]="!resultOutput"
-                  (click)="copyResult()"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                  </svg>
-                </button>
-              </span>
-              <span class="tooltip-wrapper" [attr.data-tooltip]="resultOutput ? 'Download result as file' : 'No result to download'" [class.tooltip-wrapper--disabled]="!resultOutput">
-                <button
-                  class="btn-icon btn-icon--download"
-                  type="button"
-                  [disabled]="!resultOutput"
-                  (click)="downloadResult()"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </button>
-              </span>
-            </div>
-          </div>
-
-          <div
-            class="status-badge"
-            [class.status-badge--success]="conversionStatus.status === 'success'"
-            [class.status-badge--error]="conversionStatus.status === 'error'"
-            [class.status-badge--idle]="conversionStatus.status === 'idle'"
-            *ngIf="conversionStatus.status !== 'idle' || resultOutput"
-          >
-            <span *ngIf="conversionStatus.status === 'success'">✓ Success</span>
-            <span *ngIf="conversionStatus.status === 'error'">✗ Error</span>
-            <span *ngIf="conversionStatus.status === 'idle'">Ready</span>
-          </div>
-
-          <div class="error-message" *ngIf="conversionStatus.status === 'error'">
-            <div class="error-message__icon">⚠</div>
-            <div class="error-message__content">
-              <strong class="error-message__title">Conversion Failed</strong>
-              <p class="error-message__text">{{ conversionStatus.message }}</p>
-            </div>
-          </div>
-
-          <div class="results-output" *ngIf="resultOutput && conversionStatus.status !== 'error'; else emptyResult">
-            <div class="results-output__line-numbers">
-              <span *ngFor="let line of resultLines" class="line-number">{{ line }}</span>
-            </div>
-            <textarea
-              class="results-output__content"
-              readonly
-              spellcheck="false"
-              [value]="resultOutput"
-              (scroll)="onResultsScroll($event)"
-              #resultsTextarea
-            ></textarea>
-          </div>
-          <ng-template #emptyResult>
-            <div class="results-empty" *ngIf="conversionStatus.status !== 'error'">
-              <div class="results-empty__icon">📋</div>
-              <p class="results-empty__text">Run a conversion to inspect the output here.</p>
-            </div>
-          </ng-template>
+      <aside class="ctl__sidebar" aria-label="Conversion options">
+        <div class="ctl__tabs" role="tablist">
+          <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="conversionMode === 'yaml-to-json'" (click)="onModeChange('yaml-to-json')" appTooltip="YAML to JSON" tooltipPosition="bottom">YAML → JSON</button>
+          <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="conversionMode === 'json-to-yaml'" (click)="onModeChange('json-to-yaml')" appTooltip="JSON to YAML" tooltipPosition="bottom">JSON → YAML</button>
         </div>
-      </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Options</header>
+          <div class="ctl__settings">
+            @if (conversionMode === 'yaml-to-json') {
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="jsonPrettyPrint" (change)="toggleJsonPrettyPrint()" />
+                <div><strong>Pretty print JSON</strong><span>Format output with indentation.</span></div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleJsonSortKeys()" />
+                <div><strong>Sort keys</strong><span>Alphabetize object keys.</span></div>
+              </label>
+            } @else {
+              <label class="ctl__field" for="yamlIndent">
+                <span>Indentation (spaces)</span>
+                <input id="yamlIndent" type="number" min="2" max="8" step="1" [(ngModel)]="yamlIndent" (ngModelChange)="onYamlIndentChange($event)" />
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="yamlSortKeys" (change)="toggleYamlSortKeys()" />
+                <div><strong>Sort keys</strong><span>Alphabetize YAML keys.</span></div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="yamlQuoteStrings" (change)="toggleYamlQuoteStrings()" />
+                <div><strong>Quote strings</strong><span>Always quote text values.</span></div>
+              </label>
+            }
+          </div>
+        </div>
+        <div class="ctl__info">
+          <div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Conversion runs <strong>locally</strong> in your browser.</p></div>
+        </div>
+      </aside>
     </div>
-  </section>
 
-  <section class="info-grid">
-    <article class="info-card info-card--usage">
-      <h2>How to use</h2>
-      <ol>
-        <li *ngFor="let step of usageSteps">{{ step }}</li>
-      </ol>
-      <p class="info-card__tip">Switch modes without leaving the page to reverse your conversion instantly.</p>
-    </article>
-
-    <article class="info-card">
-      <h2>Best practices</h2>
+    <details class="ctl__help">
+      <summary>How to use</summary>
       <ul>
-        <li>Stick to spaces for YAML indentation—mixed tabs can break parsing.</li>
-        <li>Use quotes when keys include colons, spaces, or special characters.</li>
-        <li>Sort keys when committing YAML to keep diffs clean and predictable.</li>
-        <li>Validate by converting back to confirm semantic equivalence.</li>
+        <li>Pick conversion direction in the sidebar tabs.</li>
+        <li>Paste or upload YAML/JSON, adjust options, and convert.</li>
+        <li>Use copy icons on each editor for quick sharing.</li>
       </ul>
-    </article>
-
-    <article class="info-card">
-      <h2>Format insights</h2>
-      <ul>
-        <li>Match indentation to your infrastructure repositories to avoid merge noise.</li>
-        <li>Pretty print JSON for human-friendly reviews before sharing.</li>
-        <li>Use consistent indentation (2 or 4 spaces) for better readability.</li>
-      </ul>
-    </article>
-  </section>
-
-  <section class="next-steps">
-    <h2>Next steps</h2>
-    <ul>
-      <li>Export the converted payload and commit it alongside your infrastructure code.</li>
-      <li>Copy the result to share with teammates during reviews.</li>
-      <li>Explore the JSON tree viewer to inspect nested structures more deeply.</li>
-    </ul>
-  </section>
+    </details>
+  </main>
 </div>

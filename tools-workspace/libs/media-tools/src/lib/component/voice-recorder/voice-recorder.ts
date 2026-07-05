@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface Recording {
   id: string;
@@ -16,10 +16,11 @@ interface Recording {
   standalone: true,
   templateUrl: './voice-recorder.html',
   styleUrls: ['./voice-recorder.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VoiceRecorderComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
   readonly isRecording = signal(false);
   readonly isPaused = signal(false);
   readonly isPlaying = signal(false);
@@ -43,6 +44,16 @@ export class VoiceRecorderComponent implements OnDestroy {
   readonly hasRecordings = computed(() => this.recordings().length > 0);
   readonly hasCurrentRecording = computed(() => this.currentRecording() !== null);
   readonly formattedTime = computed(() => this.formatTime(this.elapsedTime()));
+
+  readonly statusLabel = computed(() => {
+    if (this.isRecording()) {
+      return this.isPaused() ? 'Paused' : 'Recording';
+    }
+    if (this.isPlaying()) {
+      return 'Playing';
+    }
+    return 'Ready';
+  });
 
   readonly stats = computed(() => {
     const recordings = this.recordings();

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface SpeedTestResult {
   url: string;
@@ -23,11 +23,12 @@ type SpeedTestFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './network-speed-test.html',
   styleUrls: ['./network-speed-test.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NetworkSpeedTestComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: SpeedTestFormGroup = this.fb.group({
     url: this.fb.control('https://speed.hetzner.de/1MB.bin', { nonNullable: true }),
@@ -135,14 +136,32 @@ export class NetworkSpeedTestComponent {
   }
 
   formatBytes(bytes: number): string {
-    return `${bytes.toFixed(2)} bytes`;
+    if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(2)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${bytes.toFixed(0)} B`;
   }
 
-  formatUrl(url: string): string {
-    return url;
+  copyResults(): void {
+    const text = this.results()
+      .map((r) => {
+        const parts = [
+          `${this.formatMbps(r.mbps)}`,
+          this.formatMs(r.durationMs),
+          this.formatBytes(r.bytes),
+          r.url,
+          this.formatTimestamp(r.timestamp),
+        ];
+        if (r.error) parts.push(`Error: ${r.error}`);
+        return parts.join(' · ');
+      })
+      .join('\n');
+    this.copyText(text, 'Speed test results');
   }
 
-  formatError(error: string): string {
-    return error;
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 }

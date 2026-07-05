@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 
 interface ParsedUserAgent {
   raw: string;
@@ -24,11 +24,12 @@ type UserAgentFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './user-agent-parser.html',
   styleUrls: ['./user-agent-parser.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UserAgentParserComponent {
   private readonly fb = inject(FormBuilder);
+  readonly assetService = inject(AssetService);
 
   readonly form: UserAgentFormGroup = this.fb.group({
     userAgent: this.fb.control('', { nonNullable: true }),
@@ -41,8 +42,60 @@ export class UserAgentParserComponent {
 
   readonly hasParsed = computed(() => this.parsed() !== null);
 
+  readonly hasInput = computed(() => !!this.form.controls.userAgent.value.trim());
+
   constructor() {
     this.populateCurrentUA();
+  }
+
+  onInputChange(): void {
+    if (this.hasInput()) {
+      this.parse();
+    } else {
+      this.parsed.set(null);
+      this.errors.set([]);
+    }
+  }
+
+  onUseCurrentChange(): void {
+    if (this.form.controls.useCurrent.value) {
+      this.populateCurrentUA();
+    }
+  }
+
+  clear(): void {
+    this.form.controls.userAgent.setValue('');
+    this.form.controls.useCurrent.setValue(false);
+    this.parsed.set(null);
+    this.errors.set([]);
+    this.warnings.set([]);
+  }
+
+  copyInput(): void {
+    this.copyText(this.form.controls.userAgent.value, 'User agent');
+  }
+
+  copyOutput(): void {
+    const p = this.parsed();
+    if (!p) return;
+    const lines = [
+      `Browser: ${p.browser ?? 'Unknown'}${p.browserVersion ? ` (${p.browserVersion})` : ''}`,
+      `OS: ${p.os ?? 'Unknown'}${p.osVersion ? ` (${p.osVersion})` : ''}`,
+      `Engine: ${p.engine ?? 'Unknown'}`,
+      `Device: ${p.deviceType}`,
+      `Bot: ${p.isBot ? 'Yes' : 'No'}`,
+      '',
+      'Raw:',
+      p.raw,
+    ];
+    this.copyText(lines.join('\n'), 'Parsed details');
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard!`);
+    });
   }
 
   populateCurrentUA(): void {
