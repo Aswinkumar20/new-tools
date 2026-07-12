@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { ImageCompressorComponent } from './image-compressor';
 
 describe('ImageCompressorComponent', () => {
@@ -7,7 +8,8 @@ describe('ImageCompressorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ImageCompressorComponent]
+      imports: [ImageCompressorComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ImageCompressorComponent);

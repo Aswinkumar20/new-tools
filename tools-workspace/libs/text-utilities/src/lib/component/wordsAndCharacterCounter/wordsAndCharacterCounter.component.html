@@ -5,7 +5,7 @@
     <div class="wcc__top">
       <header class="wcc__header">
         <h1>Word &amp; Character Counter</h1>
-        <p>Live word, character, and readability stats as you type.</p>
+        <p>Live word, character, and readability stats as you type, paste, or upload.</p>
       </header>
 
       <div class="wcc__stats" aria-label="Live text counters">
@@ -25,87 +25,151 @@
           <span class="wcc__stat-value">{{ paragraphCount }}</span>
           <span class="wcc__stat-label">Paragraphs</span>
         </div>
+        <div class="wcc__stat">
+          <span class="wcc__stat-value">{{ lineCount }}</span>
+          <span class="wcc__stat-label">Lines</span>
+        </div>
+        <div class="wcc__stat">
+          <span class="wcc__stat-value">{{ hasContent ? uniqueWordCount : 0 }}</span>
+          <span class="wcc__stat-label">Unique</span>
+        </div>
+        <div class="wcc__stat">
+          <span class="wcc__stat-value wcc__stat-value--text" [title]="readingTimeLabel">{{ readingTimeLabel }}</span>
+          <span class="wcc__stat-label">Read</span>
+        </div>
+        <div class="wcc__stat">
+          <span class="wcc__stat-value wcc__stat-value--text" [title]="speakingTimeLabel">{{ speakingTimeLabel }}</span>
+          <span class="wcc__stat-label">Speak</span>
+        </div>
       </div>
     </div>
 
-    <div class="wcc__toolbar" aria-label="Text actions">
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="copyText()"
-        [disabled]="!hasContent"
-        aria-label="Copy text"
-        appTooltip="Copy text"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">Copy</span>
-      </button>
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="copyAllStats()"
-        [disabled]="!hasContent"
-        aria-label="Copy statistics"
-        appTooltip="Copy statistics"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">Stats</span>
-      </button>
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="downloadAnalysis('pdf')"
-        [disabled]="!hasContent || isGeneratingPdf"
-        aria-label="Download PDF"
-        [appTooltip]="isGeneratingPdf ? 'Generating PDF…' : 'Download PDF'"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath(isGeneratingPdf ? 'icons/spinner.svg' : 'icons/pdf.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">{{ isGeneratingPdf ? '…' : 'PDF' }}</span>
-      </button>
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="downloadAnalysis('txt')"
-        [disabled]="!hasContent"
-        aria-label="Download TXT"
-        appTooltip="Download TXT"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">TXT</span>
-      </button>
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="undo()"
-        [disabled]="!canUndo"
-        aria-label="Undo"
-        appTooltip="Undo (Ctrl+Z)"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">Undo</span>
-      </button>
-      <button
-        type="button"
-        class="wcc__tool-btn"
-        (click)="redo()"
-        [disabled]="!canRedo"
-        aria-label="Redo"
-        appTooltip="Redo (Ctrl+Y)"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
-        <span class="wcc__tool-btn-label">Redo</span>
-      </button>
-    </div>
-
     <div class="wcc__workspace">
-    <section class="wcc__editor" aria-label="Text editor">
+    <section
+      class="wcc__editor"
+      [class.wcc__editor--dragover]="isDragOver"
+      aria-label="Text editor"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)">
+      <header class="wcc__editor-head" aria-label="Text actions">
+        <div class="wcc__toolbar">
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="uploadTextFile()"
+            [disabled]="isReadingFile"
+            aria-label="Upload text file"
+            [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="copyText()"
+            [disabled]="!hasContent"
+            aria-label="Copy text"
+            appTooltip="Copy text"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">Copy</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="copyAllStats()"
+            [disabled]="!hasContent"
+            aria-label="Copy statistics"
+            appTooltip="Copy statistics"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">Stats</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="exportFrequencyCsv()"
+            [disabled]="!hasContent"
+            aria-label="Export frequency CSV"
+            appTooltip="Export frequency CSV"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">CSV</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="downloadAnalysis('pdf')"
+            [disabled]="!hasContent || isGeneratingPdf"
+            aria-label="Download PDF"
+            [appTooltip]="isGeneratingPdf ? 'Generating PDF…' : 'Download PDF'"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath(isGeneratingPdf ? 'icons/spinner.svg' : 'icons/pdf.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">{{ isGeneratingPdf ? '…' : 'PDF' }}</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="downloadAnalysis('txt')"
+            [disabled]="!hasContent"
+            aria-label="Download TXT"
+            appTooltip="Download TXT"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">TXT</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="undo()"
+            [disabled]="!canUndo"
+            aria-label="Undo"
+            appTooltip="Undo (Ctrl+Z)"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">Undo</span>
+          </button>
+          <button
+            type="button"
+            class="wcc__tool-btn"
+            (click)="redo()"
+            [disabled]="!canRedo"
+            aria-label="Redo"
+            appTooltip="Redo (Ctrl+Y)"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">Redo</span>
+          </button>
+        </div>
+      </header>
+
+      @if (highlightedWord) {
+        <div class="wcc__highlight-bar">
+          <span>Highlighting <strong>{{ highlightedWord }}</strong> · {{ highlightMatchCount }} found</span>
+          <button type="button" class="wcc__highlight-clear" (click)="clearHighlight()">Clear</button>
+        </div>
+      }
+
       <label class="sr-only" for="text-input">Enter your text</label>
-      <textarea
-        id="text-input"
-        [formControl]="paragraphControl"
-        class="wcc__textarea"
-        rows="10"
-        placeholder="Paste or type your text here…"></textarea>
+      <div class="wcc__textarea-stack" [class.wcc__textarea-stack--highlight]="!!highlightedWord">
+        <div
+          #highlightBackdrop
+          class="wcc__highlight-backdrop"
+          [class.wcc__highlight-backdrop--active]="!!highlightedWord"
+          [innerHTML]="highlightedBackdropHtml"
+          aria-hidden="true"></div>
+        <textarea
+          #textInput
+          id="text-input"
+          [formControl]="paragraphControl"
+          class="wcc__textarea"
+          [class.wcc__textarea--highlight]="!!highlightedWord"
+          rows="10"
+          (scroll)="onTextareaScroll()"
+          placeholder="Paste, type, or drop a text file here…"></textarea>
+      </div>
 
       <footer class="wcc__editor-foot">
         <span>No spaces: <strong>{{ charCountNoSpaces }}</strong></span>
@@ -127,7 +191,33 @@
           appTooltip="Word frequency"
           tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/word-frequency.svg')" alt="" width="16" height="16" />
-          <span class="wcc__tab-label">Word frequency</span>
+          <span class="wcc__tab-label">Words</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="wcc__tab"
+          [class.wcc__tab--active]="activeInsightTab === 'phrases'"
+          [attr.aria-selected]="activeInsightTab === 'phrases'"
+          (click)="setInsightTab('phrases')"
+          aria-label="Phrase frequency"
+          appTooltip="Phrase frequency"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/word-frequency.svg')" alt="" width="16" height="16" />
+          <span class="wcc__tab-label">Phrases</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="wcc__tab"
+          [class.wcc__tab--active]="activeInsightTab === 'breakdown'"
+          [attr.aria-selected]="activeInsightTab === 'breakdown'"
+          (click)="setInsightTab('breakdown')"
+          aria-label="Text breakdown"
+          appTooltip="Text breakdown"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="16" height="16" />
+          <span class="wcc__tab-label">Breakdown</span>
         </button>
         <button
           type="button"
@@ -146,10 +236,16 @@
 
       @if (activeInsightTab === 'frequency') {
         <div class="wcc__panel" role="tabpanel">
-          @if (wordFrequency && wordFrequency.length > 0) {
+          @if (hasContent && filteredWordFrequency.length > 0) {
+            <div class="wcc__panel-options">
+              <label class="wcc__toggle">
+                <input type="checkbox" [checked]="excludeStopWords" (change)="toggleStopWords()" />
+                <span>Hide stop words</span>
+              </label>
+            </div>
             <div class="wcc__tag-cloud" aria-label="Word cloud">
               @for (item of tagCloudWords; track item.word) {
-                <span class="wcc__tag" [style.fontSize.px]="fontSizeForCount(item.count)">{{ item.word }}</span>
+                <button type="button" class="wcc__tag" [style.fontSize.px]="fontSizeForCount(item.count)" (click)="highlightWord(item.word)">{{ item.word }}</button>
               }
             </div>
             <div class="wcc__table-wrap">
@@ -158,23 +254,90 @@
                   <tr>
                     <th scope="col">Word</th>
                     <th scope="col" class="wcc__table-count">Count</th>
+                    <th scope="col" class="wcc__table-density">Density</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (item of displayWordFrequency; track item.word) {
-                    <tr>
+                  @for (item of keywordDensityList; track item.word) {
+                    <tr
+                      class="wcc__table-row--clickable"
+                      [class.wcc__table-row--active]="highlightedWord === item.word"
+                      (click)="highlightWord(item.word)">
                       <td>{{ item.word }}</td>
                       <td class="wcc__table-count">{{ item.count }}</td>
+                      <td class="wcc__table-density">{{ item.density }}%</td>
                     </tr>
                   }
                 </tbody>
               </table>
               @if (hasMoreFrequencyRows) {
-                <p class="wcc__table-note">Showing top {{ frequencyDisplayLimit }} of {{ totalUniqueWords }} unique words</p>
+                <p class="wcc__table-note">Showing top {{ frequencyDisplayLimit }} of {{ filteredUniqueCount }} words{{ excludeStopWords ? ' (stop words hidden)' : '' }}</p>
               }
             </div>
           } @else {
-            <p class="wcc__empty">Start typing to see word frequency analysis.</p>
+            <p class="wcc__empty">Start typing to see word frequency and keyword density.</p>
+          }
+        </div>
+      }
+
+      @if (activeInsightTab === 'phrases') {
+        <div class="wcc__panel" role="tabpanel">
+          @if (hasContent) {
+            <div class="wcc__panel-options">
+              <div class="wcc__phrase-toggle" role="group" aria-label="Phrase length">
+                <button type="button" class="wcc__phrase-btn" [class.wcc__phrase-btn--active]="activePhraseSize === 2" (click)="setPhraseSize(2)">2-word</button>
+                <button type="button" class="wcc__phrase-btn" [class.wcc__phrase-btn--active]="activePhraseSize === 3" (click)="setPhraseSize(3)">3-word</button>
+              </div>
+            </div>
+            @if (activePhraseList.length > 0) {
+              <div class="wcc__table-wrap">
+                <table class="wcc__table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Phrase</th>
+                      <th scope="col" class="wcc__table-count">Count</th>
+                      <th scope="col" class="wcc__table-density">Density</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (item of activePhraseList; track item.phrase) {
+                      <tr>
+                        <td>{{ item.phrase }}</td>
+                        <td class="wcc__table-count">{{ item.count }}</td>
+                        <td class="wcc__table-density">{{ phraseDensity(item.count) }}%</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+                @if (hasMorePhraseRows) {
+                  <p class="wcc__table-note">Showing top {{ phraseDisplayLimit }} of {{ totalPhraseCount }} phrases</p>
+                }
+              </div>
+            } @else {
+              <p class="wcc__empty">Not enough words for {{ activePhraseSize }}-word phrases.</p>
+            }
+          } @else {
+            <p class="wcc__empty">Start typing to see phrase frequency.</p>
+          }
+        </div>
+      }
+
+      @if (activeInsightTab === 'breakdown') {
+        <div class="wcc__panel" role="tabpanel">
+          @if (hasContent) {
+            <dl class="wcc__breakdown">
+              @for (item of breakdownItems; track item.label) {
+                <div>
+                  <dt>{{ item.label }}</dt>
+                  <dd>
+                    <span class="wcc__breakdown-value">{{ item.value }}</span>
+                    <span class="wcc__breakdown-pct">{{ item.pct }}%</span>
+                  </dd>
+                </div>
+              }
+            </dl>
+          } @else {
+            <p class="wcc__empty">Start typing to see character breakdown.</p>
           }
         </div>
       }
@@ -189,6 +352,10 @@
             </div>
             <dl class="wcc__readability-grid">
               <div>
+                <dt>Flesch-Kincaid Grade</dt>
+                <dd>{{ hasContent ? (fleschKincaidGrade | number:'1.0-1') : '—' }}</dd>
+              </div>
+              <div>
                 <dt>Gunning Fog</dt>
                 <dd>{{ hasContent ? (gunningFog | number:'1.0-1') : '—' }}</dd>
               </div>
@@ -200,6 +367,14 @@
                 <dt>Coleman-Liau</dt>
                 <dd>{{ hasContent ? (colemanLiau | number:'1.0-1') : '—' }}</dd>
               </div>
+              <div>
+                <dt>Reading time</dt>
+                <dd>{{ readingTimeLabel }}</dd>
+              </div>
+              <div>
+                <dt>Speaking time</dt>
+                <dd>{{ speakingTimeLabel }}</dd>
+              </div>
             </dl>
           </div>
         </div>
@@ -210,10 +385,11 @@
     <details class="wcc__help">
       <summary>How to use</summary>
       <ul>
-        <li>Type or paste text — stats update instantly in the bar above the editor.</li>
-        <li>Use <strong>Copy</strong> or <strong>Stats</strong> to copy text or metrics to the clipboard.</li>
-        <li>Export a report as <strong>PDF</strong> or plain <strong>TXT</strong>.</li>
-        <li>Switch tabs to view word frequency or readability scores.</li>
+        <li>Type, paste, <strong>Upload</strong>, or drag &amp; drop a text file — stats update instantly.</li>
+        <li>Click a word in the frequency table or cloud to <strong>highlight</strong> it in the editor.</li>
+        <li>Toggle <strong>Hide stop words</strong> for cleaner keyword density analysis.</li>
+        <li>Use <strong>Phrases</strong> for 2–3 word n-grams · <strong>Breakdown</strong> for character mix.</li>
+        <li>Export word frequency as <strong>CSV</strong>, or full report as <strong>PDF</strong> / <strong>TXT</strong>.</li>
         <li><kbd>Ctrl+Z</kbd> / <kbd>Cmd+Z</kbd> undo · <kbd>Ctrl+Y</kbd> redo.</li>
       </ul>
     </details>

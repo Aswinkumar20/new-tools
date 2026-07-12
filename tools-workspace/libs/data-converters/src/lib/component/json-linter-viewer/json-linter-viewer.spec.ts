@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { JsonLinterViewerComponent } from './json-linter-viewer';
+import { converterTestProviders } from '../../shared/converter-test.utils';
 
 describe('JsonLinterViewerComponent', () => {
   let component: JsonLinterViewerComponent;
@@ -7,7 +8,8 @@ describe('JsonLinterViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [JsonLinterViewerComponent]
+      imports: [JsonLinterViewerComponent],
+      providers: converterTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(JsonLinterViewerComponent);

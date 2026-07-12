@@ -1,0 +1,159 @@
+<div class="ttool">
+  <lib-navigation></lib-navigation>
+
+  <main class="ttool__main">
+    <div class="ttool__top">
+      <header class="ttool__header">
+        <h1>Sort Lines</h1>
+        <p>Sort text lines alphabetically, by length, or numerically — live as you type.</p>
+      </header>
+
+      <div class="ttool__stats" aria-label="Statistics">
+        <div class="ttool__stat ttool__stat--mode">
+          <span class="ttool__stat-value" [title]="sortModeLabel">{{ sortModeLabel }}</span>
+          <span class="ttool__stat-label">Sort</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ lineCount }}</span>
+          <span class="ttool__stat-label">Lines</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ inputText.length }}</span>
+          <span class="ttool__stat-label">Input</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ outputText.length }}</span>
+          <span class="ttool__stat-label">Output</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ttool__workflow" aria-label="Sort mode">
+      <div class="ttool__mode-group" role="group" aria-label="Sort mode">
+        @for (opt of sortModes; track opt.value) {
+          <button
+            type="button"
+            class="ttool__chip-btn"
+            [class.ttool__chip-btn--active]="sortMode === opt.value"
+            (click)="setSortMode(opt.value)">
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+      <button
+        type="button"
+        class="ttool__chip-btn"
+        (click)="showOptionsPanel = !showOptionsPanel"
+        [class.ttool__chip-btn--active]="showOptionsPanel || caseSensitive">
+        Options
+      </button>
+    </div>
+
+    @if (showOptionsPanel) {
+      <section class="ttool__options" aria-label="Sort options">
+        <div class="ttool__options-grid">
+          <label class="ttool__toggle">
+            <input type="checkbox" [(ngModel)]="caseSensitive" (ngModelChange)="onOptionsChange()" />
+            <span>Case sensitive</span>
+          </label>
+        </div>
+      </section>
+    }
+
+    <div class="ttool__workspace">
+      <div class="ttool__editors" aria-label="Input and sorted output">
+        <section
+          class="ttool__editor"
+          [class.ttool__editor--dragover]="isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)">
+          <header class="ttool__editor-head">
+            <span class="ttool__editor-title">Input</span>
+            <div class="ttool__toolbar">
+              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" appTooltip="Upload file" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Upload</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="copyInput()" [disabled]="!hasInput" appTooltip="Copy input" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Copy</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="undo()" [disabled]="!canUndo" appTooltip="Undo" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Undo</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="redo()" [disabled]="!canRedo" appTooltip="Redo" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Redo</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="clear()" appTooltip="Clear" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Clear</span>
+              </button>
+            </div>
+          </header>
+          <textarea
+            #inputTextarea
+            class="ttool__textarea"
+            [(ngModel)]="inputText"
+            (input)="onInputChange()"
+            rows="1"
+            placeholder="Paste or type one line per row…"></textarea>
+        </section>
+
+        <section class="ttool__editor ttool__editor--output" [class.ttool__editor--error]="errorMessage">
+          <header class="ttool__editor-head">
+            <div class="ttool__editor-head-left">
+              <span class="ttool__editor-title">Sorted output</span>
+              @if (hasOutput) {
+                <span class="ttool__editor-badge">Ready</span>
+              } @else if (errorMessage) {
+                <span class="ttool__editor-badge ttool__editor-badge--error">Error</span>
+              }
+            </div>
+            <div class="ttool__toolbar">
+              <button type="button" class="ttool__tool-btn" (click)="copyOutput()" [disabled]="!hasOutput" appTooltip="Copy output" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Copy</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!hasOutput" appTooltip="Download" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">TXT</span>
+              </button>
+              <button type="button" class="ttool__tool-btn" (click)="useOutputAsInput()" [disabled]="!hasOutput" appTooltip="Use as input" tooltipPosition="bottom">
+                <span class="ttool__tool-btn-label">→ In</span>
+              </button>
+            </div>
+          </header>
+          @if (errorMessage) {
+            <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div>
+          } @else if (hasOutput) {
+            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText"></textarea>
+          } @else {
+            <div class="ttool__empty"><p>Sorted lines appear here as you type.</p></div>
+          }
+        </section>
+      </div>
+
+      <aside class="ttool__sidebar" aria-label="Tips">
+        <div class="ttool__panel">
+          <ul class="ttool__tips">
+            <li><strong>A → Z / Z → A</strong> — alphabetical sort, with optional case sensitivity.</li>
+            <li><strong>Length</strong> — shortest or longest lines first; ties break alphabetically.</li>
+            <li><strong>Numeric</strong> — sorts lines by leading number when present.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ttool__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste a list with one item per line — sorting updates instantly.</li>
+        <li>Pick a sort mode in the workflow bar; open <strong>Options</strong> for case sensitivity.</li>
+        <li>Use <strong>→ In</strong> to replace input with sorted output.</li>
+      </ul>
+    </details>
+  </main>
+</div>

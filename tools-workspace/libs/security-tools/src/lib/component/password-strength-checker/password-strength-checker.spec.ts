@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { PasswordStrengthCheckerComponent } from './password-strength-checker';
 
 describe('PasswordStrengthCheckerComponent', () => {
@@ -7,7 +8,8 @@ describe('PasswordStrengthCheckerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PasswordStrengthCheckerComponent]
+      imports: [PasswordStrengthCheckerComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PasswordStrengthCheckerComponent);

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buToolTestProviders } from '../../shared/bu-tool-test.utils';
 import { NetworkSpeedTestComponent } from './network-speed-test';
 
 describe('NetworkSpeedTestComponent', () => {
@@ -7,7 +8,8 @@ describe('NetworkSpeedTestComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [NetworkSpeedTestComponent]
+      imports: [NetworkSpeedTestComponent],
+      providers: buToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(NetworkSpeedTestComponent);

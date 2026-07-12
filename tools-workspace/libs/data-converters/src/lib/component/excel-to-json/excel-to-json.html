@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dc">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,28 +28,42 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Converter actions">
-      <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload workbook" tooltipPosition="bottom" aria-label="Upload workbook">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="convertWorkbook()" [disabled]="!canConvert" appTooltip="Convert worksheet" tooltipPosition="bottom" aria-label="Convert worksheet">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Convert</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="downloadResult()" [disabled]="!conversionResult" appTooltip="Download result" tooltipPosition="bottom" aria-label="Download result">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="dc-workflow" aria-label="Converter controls">
+      <div class="dc-workflow__group dc-workflow__group--files">
+        <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload workbook" tooltipPosition="bottom" aria-label="Upload workbook">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--actions" role="group" aria-label="Conversion actions">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="convertWorkbook()" [disabled]="!canConvert" appTooltip="Convert worksheet" tooltipPosition="bottom" aria-label="Convert worksheet">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+          <span class="ctl__tool-btn-label">Convert</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadResult()" [disabled]="!conversionResult" appTooltip="Download result" tooltipPosition="bottom" aria-label="Download result">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+      </div>
     </div>
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dc-editor-panel" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
           <header class="ctl__editor-head">
             <span>Worksheet preview</span>
             @if (fileName) {
@@ -72,13 +86,19 @@
               </table>
             </div>
           } @else {
-            <div class="ctl__empty">
-              <p>Upload an Excel workbook (.xlsx, .xls, .csv, .ods) or use sample data.</p>
-            </div>
+            <button
+              type="button"
+              class="ctl__empty dc-dropzone"
+              (click)="uploadFile()"
+              aria-label="Upload workbook by clicking or dragging files here">
+              <img class="dc-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+              <p class="dc-dropzone__title">Drop spreadsheets here or <strong>browse files</strong></p>
+              <p class="dc-dropzone__formats">XLSX, XLS, CSV, ODS</p>
+            </button>
           }
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dc-editor-panel">
           <header class="ctl__editor-head">
             <span>Conversion result</span>
             <div class="ctl__editor-actions">
@@ -101,7 +121,15 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Workbook options">
+            <details class="dc-options-flyout">
+        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Workbook options">
         <div class="ctl__panel">
           <header class="ctl__panel-head">Worksheet</header>
           <div class="ctl__settings">
@@ -168,6 +196,7 @@
           </div>
         }
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
@@ -175,7 +204,7 @@
       <ul>
         <li>Upload a workbook and select a worksheet in the sidebar.</li>
         <li>Adjust header detection, column types, and output format.</li>
-        <li>Click <strong>Convert</strong> and copy or download the result.</li>
+        <li>Use the workflow bar to convert and download the result.</li>
       </ul>
     </details>
   </main>

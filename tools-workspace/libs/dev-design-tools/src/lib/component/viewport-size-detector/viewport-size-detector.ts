@@ -19,8 +19,10 @@ interface ViewportInfo {
   screenWidth: number;
   screenHeight: number;
   devicePixelRatio: number;
-  orientation: 'portrait' | 'landscape';
+  orientation: 'portrait' | 'landscape' | 'square';
   aspectRatio: number;
+  visualViewportWidth?: number;
+  visualViewportHeight?: number;
   timestamp: number;
 }
 
@@ -69,7 +71,9 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
   readonly breakpoints = BREAKPOINTS;
   readonly viewportInfo = signal<ViewportInfo | null>(null);
   readonly history = signal<HistoryEntry[]>([]);
+  readonly errors = signal<string[]>([]);
   readonly Math = Math;
+  private visualViewportListener?: () => void;
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly activeBreakpoint = computed(() => {
@@ -90,6 +94,10 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     if (this.resizeListener) {
       window.removeEventListener('resize', this.resizeListener);
     }
+    if (this.visualViewportListener && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.visualViewportListener);
+      window.visualViewport.removeEventListener('scroll', this.visualViewportListener);
+    }
   }
 
   private setupResizeListener(): void {
@@ -97,6 +105,12 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
       this.updateViewportInfo();
     };
     window.addEventListener('resize', this.resizeListener, { passive: true });
+
+    if (window.visualViewport) {
+      this.visualViewportListener = () => this.updateViewportInfo();
+      window.visualViewport.addEventListener('resize', this.visualViewportListener, { passive: true });
+      window.visualViewport.addEventListener('scroll', this.visualViewportListener, { passive: true });
+    }
   }
 
   private updateViewportInfo(): void {
@@ -105,8 +119,9 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
     const devicePixelRatio = window.devicePixelRatio || 1;
-    const orientation = viewportWidth > viewportHeight ? 'landscape' : 'portrait';
-    const aspectRatio = viewportWidth / viewportHeight;
+    const orientation =
+      viewportWidth === viewportHeight ? 'square' : viewportWidth > viewportHeight ? 'landscape' : 'portrait';
+    const aspectRatio = viewportHeight === 0 ? 0 : viewportWidth / viewportHeight;
 
     const info: ViewportInfo = {
       viewportWidth,
@@ -116,6 +131,8 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
       devicePixelRatio,
       orientation,
       aspectRatio,
+      visualViewportWidth: window.visualViewport?.width,
+      visualViewportHeight: window.visualViewport?.height,
       timestamp: Date.now()
     };
 
@@ -151,9 +168,14 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
   }
 
   private copyText(text: string, label: string): void {
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard!`);
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        this.errors.set([]);
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
   }
 
   clearHistory(): void {

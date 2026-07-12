@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { CompressPdfComponent } from './compress-pdf';
 
 describe('CompressPdfComponent', () => {
@@ -7,7 +8,8 @@ describe('CompressPdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CompressPdfComponent]
+      imports: [CompressPdfComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CompressPdfComponent);

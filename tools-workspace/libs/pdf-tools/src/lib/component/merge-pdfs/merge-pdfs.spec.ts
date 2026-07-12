@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { MergePdfsComponent } from './merge-pdfs';
 
 describe('MergePdfsComponent', () => {
@@ -7,7 +8,8 @@ describe('MergePdfsComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MergePdfsComponent]
+      imports: [MergePdfsComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(MergePdfsComponent);

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { TypingSpeedTestComponent } from './typing-speed-test';
 
 describe('TypingSpeedTestComponent', () => {
@@ -7,7 +8,8 @@ describe('TypingSpeedTestComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TypingSpeedTestComponent]
+      imports: [TypingSpeedTestComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(TypingSpeedTestComponent);

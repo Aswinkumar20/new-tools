@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { SimpleCompoundInterestCalculatorComponent } from './simple-compound-interest-calculator';
 
 describe('SimpleCompoundInterestCalculatorComponent', () => {
@@ -7,7 +8,8 @@ describe('SimpleCompoundInterestCalculatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SimpleCompoundInterestCalculatorComponent]
+      imports: [SimpleCompoundInterestCalculatorComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(SimpleCompoundInterestCalculatorComponent);

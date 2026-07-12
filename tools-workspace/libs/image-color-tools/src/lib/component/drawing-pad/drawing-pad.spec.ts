@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { DrawingPadComponent } from './drawing-pad';
 
 describe('DrawingPadComponent', () => {
@@ -7,7 +8,8 @@ describe('DrawingPadComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DrawingPadComponent]
+      imports: [DrawingPadComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(DrawingPadComponent);

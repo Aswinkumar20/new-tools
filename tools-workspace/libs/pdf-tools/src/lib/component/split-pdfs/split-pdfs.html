@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl pt">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,47 +28,59 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Split actions">
-      <button type="button" class="ctl__tool-btn" (click)="openFileDialog()" [disabled]="loading" aria-label="Upload PDF" appTooltip="Upload PDF" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+    <div class="pt-workflow" aria-label="Split actions">
+      <div class="pt-workflow__group pt-workflow__group--actions">
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" [disabled]="loading" aria-label="Upload PDF" appTooltip="Upload PDF" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Upload</span>
       </button>
-      <button type="button" class="ctl__tool-btn" (click)="splitPdf()" [disabled]="loading || !splitResults.length" aria-label="Split and download" appTooltip="Split & download" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="splitPdf()" [disabled]="!canSplit" aria-label="Split and download" appTooltip="Split and download" tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+        </svg>
         <span class="ctl__tool-btn-label">{{ loading ? 'Splitting…' : 'Split' }}</span>
       </button>
-      <button type="button" class="ctl__tool-btn" (click)="reset()" [disabled]="!pdfFile" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="reset()" [disabled]="!canReset" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Reset</span>
       </button>
+      </div>
     </div>
-
     <input #fileInput type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    @if (pdfFile && splitConfigHint) {
+      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsSplitConfig" role="status">
+        <span class="pt-setup-banner__step">Step 2</span>
+        <p class="pt-setup-banner__text">{{ splitConfigHint }}</p>
+        @if (needsSplitConfig) {
+          <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+        }
+      </div>
+    }
+
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor pt-editor-panel">
           <header class="ctl__editor-head">
             <span>PDF preview</span>
             @if (pdfFile && pdfFile.pdfDoc) {
               <div class="ctl-pdf__page-nav">
-                <button type="button" class="ctl__icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" />
+                <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
                 <input type="number" class="ctl-pdf__page-input" [ngModel]="currentPage" (ngModelChange)="goToPage($event)" [min]="1" [max]="totalPages" />
-                <button type="button" class="ctl__icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" style="transform: scaleX(-1)" />
+                <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+                <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  </svg>
                 </button>
               </div>
             }
           </header>
-
-          @if (errorMessage) {
-            <div class="ctl__alert ctl__alert--error"><p>{{ errorMessage }}</p></div>
-          }
-          @if (successMessage) {
-            <div class="ctl__alert ctl__alert--success"><p>{{ successMessage }}</p></div>
-          }
 
           @if (!pdfFile) {
             <button
@@ -85,15 +97,21 @@
               <p>Max 100 MB</p>
             </button>
           } @else if (pdfFile.pdfDoc) {
-            <div class="ctl-pdf__canvas-wrap">
-              <canvas #pdfPreviewCanvas class="ctl-pdf__canvas"></canvas>
+            <div #pdfPreviewCanvasWrap class="ctl-pdf__canvas-wrap">
+              @if (previewRendering) {
+                <p class="ctl-pdf__preview-status" aria-live="polite">Rendering preview…</p>
+              }
+              @if (previewError) {
+                <p class="ctl-pdf__preview-status ctl-pdf__preview-status--error" role="alert">{{ previewError }}</p>
+              }
+              <canvas #pdfPreviewCanvas class="ctl-pdf__canvas" [class.ctl-pdf__canvas--hidden]="previewRendering && !previewError"></canvas>
             </div>
           } @else {
             <div class="ctl__empty"><p>Password required to unlock this PDF.</p></div>
           }
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output pt-editor-panel">
           <header class="ctl__editor-head">
             <span>Split results</span>
             @if (splitResults.length) {
@@ -115,54 +133,109 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Split options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Split mode</header>
-          <div class="ctl__settings">
-            <div class="ctl__tabs">
-              <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'range'" (click)="splitMode = 'range'; updateSplitResults()">Range</button>
-              <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'every'" (click)="splitMode = 'every'; updateSplitResults()">Every N</button>
-              <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'extract'" (click)="splitMode = 'extract'; updateSplitResults()">Extract</button>
+            <div
+              #optionsFlyout
+              class="pt-options-flyout pt-options-flyout--inline"
+              [class.pt-options-flyout--open]="optionsPanelOpen"
+              [class.pt-options-flyout--attention]="needsSplitConfig">
+        <button
+          type="button"
+          class="pt-options-flyout__trigger"
+          [class.pt-options-flyout__trigger--attention]="needsSplitConfig"
+          [attr.aria-expanded]="optionsPanelOpen"
+          (click)="toggleOptionsPanel()"
+          appTooltip="Split mode and page ranges"
+          tooltipPosition="left">
+          <svg class="pt-options-flyout__chevron" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Configuration</span>
+          @if (needsSplitConfig) {
+            <span class="pt-options-flyout__badge" aria-hidden="true">!</span>
+          }
+        </button>
+        <button type="button" class="pt-options-flyout__backdrop" aria-label="Close configuration panel" appTooltip="Close configuration" tooltipPosition="left" (click)="optionsPanelOpen = false"></button>
+        <aside class="pt-config-panel pt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Split configuration">
+          <header class="pt-config-panel__head">
+            <div class="pt-config-panel__head-row">
+              <div class="pt-config-panel__head-brand">
+                <span class="pt-config-panel__icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                </span>
+                <h2 class="pt-config-panel__bar-title">Configuration</h2>
+              </div>
+              <button type="button" class="pt-config-panel__close" (click)="optionsPanelOpen = false" aria-label="Close configuration">×</button>
             </div>
+            <p class="pt-config-panel__desc">Choose how to split and name output files.</p>
+          </header>
+          <div class="pt-config-panel__scroll">
+            <div class="pt-config-panel__sections">
+              <section class="pt-config-panel__section">
+                <h3 class="pt-config-panel__section-title">Split mode</h3>
+                <div class="ctl__tabs">
+                  <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'range'" (click)="splitMode = 'range'; updateSplitResults()">Range</button>
+                  <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'every'" (click)="splitMode = 'every'; updateSplitResults()">Every N</button>
+                  <button type="button" class="ctl__tab" [class.ctl__tab--active]="splitMode === 'extract'" (click)="splitMode = 'extract'; updateSplitResults()">Extract</button>
+                </div>
 
-            @if (splitMode === 'range') {
-              <label class="ctl__field">
-                <span>Page ranges</span>
-                <textarea class="ctl__textarea ctl__textarea--mono" [(ngModel)]="pageRanges" (ngModelChange)="updateSplitResults()" rows="3" placeholder="1-5, 10-15, 20"></textarea>
-              </label>
-            }
-            @if (splitMode === 'every') {
-              <label class="ctl__field">
-                <span>Pages per file</span>
-                <input type="number" [(ngModel)]="pagesPerFile" (ngModelChange)="updateSplitResults()" [min]="1" [max]="totalPages" />
-              </label>
-            }
-            @if (splitMode === 'extract') {
-              <label class="ctl__field">
-                <span>Pages to extract</span>
-                <input type="text" [(ngModel)]="extractPages" (ngModelChange)="updateSplitResults()" placeholder="1, 3, 5-7" />
-              </label>
-            }
+                @if (splitMode === 'range') {
+                  <label class="pt-config-field">
+                    <span class="pt-config-field__label">Page ranges</span>
+                    <textarea class="pt-config-input ctl__textarea ctl__textarea--mono" [(ngModel)]="pageRanges" (ngModelChange)="updateSplitResults()" rows="3" placeholder="1-5, 10-15, 20"></textarea>
+                    <span class="pt-config-field__help">One range per line or comma-separated</span>
+                  </label>
+                }
+                @if (splitMode === 'every') {
+                  <label class="pt-config-field">
+                    <span class="pt-config-field__label">Pages per file</span>
+                    <input class="pt-config-input" type="number" [(ngModel)]="pagesPerFile" (ngModelChange)="updateSplitResults()" [min]="1" [max]="totalPages" />
+                  </label>
+                }
+                @if (splitMode === 'extract') {
+                  <label class="pt-config-field">
+                    <span class="pt-config-field__label">Pages to extract</span>
+                    <input class="pt-config-input" type="text" [(ngModel)]="extractPages" (ngModelChange)="updateSplitResults()" placeholder="1, 3, 5-7" />
+                  </label>
+                }
+              </section>
 
-            <label class="ctl__field">
-              <span>Filename prefix</span>
-              <input type="text" [(ngModel)]="outputPrefix" (ngModelChange)="updateSplitResults()" placeholder="split" [disabled]="loading" />
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" [(ngModel)]="downloadAsZip" [disabled]="loading" />
-              <div><strong>Download as ZIP</strong><span>Combine all split files into one archive.</span></div>
-            </label>
-          </div>
-        </div>
-        @if (pdfFile) {
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p><strong>{{ pdfFile.name }}</strong> · {{ formatFileSize(pdfFile.size) }}</p>
+              <section class="pt-config-panel__section pt-config-panel__section--output">
+                <h3 class="pt-config-panel__section-title">Output files</h3>
+                <label class="pt-config-field">
+                  <span class="pt-config-field__label">Filename prefix</span>
+                  <input class="pt-config-input" type="text" [(ngModel)]="outputPrefix" (ngModelChange)="updateSplitResults()" placeholder="split" [disabled]="loading" />
+                </label>
+                <label class="ctl__toggle">
+                  <input type="checkbox" [(ngModel)]="downloadAsZip" [disabled]="loading" />
+                  <div><strong>Download as ZIP</strong><span>Combine all split files into one archive.</span></div>
+                </label>
+              </section>
             </div>
           </div>
-        }
-      </aside>
+          @if (pdfFile) {
+            <div class="pt-config-panel__foot">
+              <p class="pt-config-panel__meta">
+                <span><strong>{{ pdfFile.name }}</strong> · {{ formatFileSize(pdfFile.size) }}</span>
+              </p>
+            </div>
+          }
+          <div class="pt-config-panel__trust" role="note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <span>Processed locally in your browser</span>
+          </div>
+        </aside>
+      </div>
     </div>
 
     <details class="ctl__help">
@@ -181,6 +254,20 @@
       <p>{{ loadingMessage }}</p>
     </div>
   }
+
+  <lib-pdf-fullscreen-overlay
+    [open]="previewFullscreen"
+    [title]="pdfFile?.name || 'PDF preview'"
+    (closed)="closePreviewFullscreen()"
+    (ready)="renderPdfPreview()">
+    @if (pdfFile?.pdfDoc) {
+      <div pdfFsToolbar class="ctl-pdf__page-nav">
+        <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
+        <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
+        <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+      </div>
+    }
+  </lib-pdf-fullscreen-overlay>
 
   @if (showPasswordDialog) {
     <div class="ctl-pdf__dialog-layer">

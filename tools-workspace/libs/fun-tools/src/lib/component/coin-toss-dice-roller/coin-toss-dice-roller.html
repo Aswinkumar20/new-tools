@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl ft">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -33,10 +33,10 @@
       <button type="button" class="ctl__tab" [class.ctl__tab--active]="activeTab() === 'dice'" (click)="setTab('dice')">Dice</button>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Roller actions">
+    <div class="ft-workflow" aria-label="Roller actions"><div class="ft-workflow__group ft-workflow__group--actions">
       @if (activeTab() === 'coin') {
         <button type="button" class="ctl__tool-btn" (click)="tossCoin()" [disabled]="isFlipping()" appTooltip="Toss coin" tooltipPosition="bottom" aria-label="Toss coin">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12"/><path d="M9 9h4.5a2.5 2.5 0 0 1 0 5H9"/></svg>
           <span class="ctl__tool-btn-label">{{ isFlipping() ? 'Flipping…' : 'Toss' }}</span>
         </button>
         <button type="button" class="ctl__tool-btn" (click)="clearCoinHistory()" [disabled]="!hasCoinHistory()" appTooltip="Clear coin history" tooltipPosition="bottom" aria-label="Clear coin history">
@@ -45,7 +45,7 @@
         </button>
       } @else {
         <button type="button" class="ctl__tool-btn" (click)="rollDice()" [disabled]="isRolling()" appTooltip="Roll dice" tooltipPosition="bottom" aria-label="Roll dice">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
           <span class="ctl__tool-btn-label">{{ isRolling() ? 'Rolling…' : 'Roll' }}</span>
         </button>
         <button type="button" class="ctl__tool-btn" (click)="clearDiceHistory()" [disabled]="!hasDiceHistory()" appTooltip="Clear dice history" tooltipPosition="bottom" aria-label="Clear dice history">
@@ -58,9 +58,9 @@
         <span class="ctl__tool-btn-label">Copy</span>
       </button>
     </div>
-
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
+    </div>
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ctl__editor--merged">
           <header class="ctl__editor-head">
             <span>{{ activeTab() === 'coin' ? 'Coin toss' : 'Dice roll' }}</span>
@@ -101,7 +101,15 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Options and history">
+            <details class="ft-options-flyout">
+        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Options and history">
         @if (activeTab() === 'dice') {
           <div class="ctl__panel">
             <header class="ctl__panel-head">Dice options</header>
@@ -154,6 +162,7 @@
           }
         </div>
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">

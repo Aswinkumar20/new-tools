@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -55,6 +56,7 @@ const COMMON_BREAKPOINTS: ActiveBreakpoint[] = [
 export class ResponsiveBreakpointTesterComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
   readonly assetService = inject(AssetService);
 
   @ViewChild('iframe', { static: false }) iframeRef?: ElementRef<HTMLIFrameElement>;
@@ -82,7 +84,9 @@ export class ResponsiveBreakpointTesterComponent {
   readonly warnings = signal<string[]>([]);
   readonly currentWidth = signal<number>(1280);
   readonly currentHeight = signal<number>(720);
+  readonly safeIframeUrl = signal<SafeResourceUrl | null>(null);
   readonly Infinity = Infinity;
+  private readonly formTick = signal(0);
 
   readonly activeBreakpoint = computed(() => {
     const width = this.currentWidth();
@@ -90,26 +94,23 @@ export class ResponsiveBreakpointTesterComponent {
   });
 
   readonly iframeUrl = computed(() => {
-    const url = this.form.controls.url.value;
-    if (!url || !this.form.controls.url.valid) {
-      return null;
-    }
-    return url;
+    this.formTick();
+    return this.safeIframeUrl();
   });
 
   constructor() {
-    // Update current dimensions when form changes
     this.form.valueChanges
       .pipe(debounceTime(100), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
         const { width, height } = this.form.getRawValue();
         this.currentWidth.set(width);
         this.currentHeight.set(height);
       });
 
-    // Initial update
     this.currentWidth.set(this.form.controls.width.value);
     this.currentHeight.set(this.form.controls.height.value);
+    this.loadUrl();
   }
 
   applyPreset(preset: Breakpoint): void {
@@ -121,17 +122,20 @@ export class ResponsiveBreakpointTesterComponent {
 
   loadUrl(): void {
     this.errors.set([]);
-    const url = this.form.controls.url.value;
+    this.warnings.set([]);
+    const url = this.form.controls.url.value?.trim() ?? '';
 
-    if (!url || !this.form.controls.url.valid) {
+    if (!url || !/^https?:\/\/.+/i.test(url)) {
       this.errors.set(['Please enter a valid URL starting with http:// or https://']);
+      this.safeIframeUrl.set(null);
       return;
     }
 
-    // Iframe will load automatically when url changes
-    if (this.iframeRef?.nativeElement) {
-      this.iframeRef.nativeElement.src = url;
-    }
+    this.safeIframeUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+    this.warnings.set([
+      'Many sites block iframe embedding (X-Frame-Options / CSP). If the preview stays blank, try example.com or a same-origin page.'
+    ]);
+    this.formTick.update((n) => n + 1);
   }
 
   rotate(): void {
@@ -151,7 +155,7 @@ export class ResponsiveBreakpointTesterComponent {
       showRulers: false
     });
     this.errors.set([]);
-    this.warnings.set([]);
+    this.loadUrl();
   }
 
   copyDimensions(): void {

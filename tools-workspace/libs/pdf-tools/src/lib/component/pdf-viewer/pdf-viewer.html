@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl pt">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,63 +28,103 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Viewer actions">
-      <button type="button" class="ctl__tool-btn" (click)="openFileDialog()" aria-label="Open PDFs" appTooltip="Open PDFs" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Open</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="previousPage()" [disabled]="!currentPdf || currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Prev</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="nextPage()" [disabled]="!currentPdf || currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" style="transform: scaleX(-1)" />
-        <span class="ctl__tool-btn-label">Next</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">−</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 300" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">+</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="downloadPdf()" [disabled]="!currentPdf" aria-label="Download" appTooltip="Download" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Save</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="!pdfFiles.length" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
-    </div>
+    <div class="pt-workflow" aria-label="Viewer actions">
+      <div class="pt-workflow__group pt-workflow__group--files">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" aria-label="Open PDFs" appTooltip="Open PDFs" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Open</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadPdf()" [disabled]="!currentPdf" aria-label="Download PDF" appTooltip="Download PDF" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="!pdfFiles.length" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
 
+      @if (currentPdf) {
+        <span class="pt-workflow__divider" aria-hidden="true"></span>
+
+        <div class="pt-workflow__group pt-workflow__group--nav" role="group" aria-label="Page navigation">
+          <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <span class="ctl__editor-badge pt-workflow__index" aria-live="polite">{{ currentPage }}/{{ totalPages }}</span>
+          <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <span class="pt-workflow__divider" aria-hidden="true"></span>
+
+        <div class="pt-workflow__group pt-workflow__group--zoom" role="group" aria-label="Zoom controls">
+          <button type="button" class="pt-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+          </button>
+          <span class="ctl__editor-badge pt-workflow__zoom" aria-live="polite">{{ zoomLevel }}%</span>
+          <button type="button" class="pt-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 300" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <line x1="11" y1="8" x2="11" y2="14" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+          </button>
+          <button type="button" class="pt-icon-btn" (click)="fitToWidth()" aria-label="Fit width" appTooltip="Fit width" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+            </svg>
+          </button>
+          <button type="button" class="pt-icon-btn" (click)="toggleFullscreen()" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="bottom">
+            @if (!isFullscreen) {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+              </svg>
+            } @else {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              </svg>
+            }
+          </button>
+          <button type="button" class="pt-icon-btn" (click)="printPdf()" aria-label="Print PDF" appTooltip="Print PDF" tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+          </button>
+        </div>
+      }
+    </div>
     <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
 
-    <div class="ctl__workspace">
-      <section class="ctl__editor">
+    <div class="ctl__workspace ctl__workspace--split">
+      <section class="ctl__editor pt-viewer-panel">
         <header class="ctl__editor-head">
           <span>{{ currentPdf?.name || 'Document' }}</span>
-          <div class="ctl__editor-actions">
-            <button type="button" class="ctl__icon-btn" (click)="fitToWidth()" [disabled]="!currentPdf" aria-label="Fit width" appTooltip="Fit width" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="16" height="16" />
-            </button>
-            <button type="button" class="ctl__icon-btn" (click)="toggleFullscreen()" [disabled]="!currentPdf" aria-label="Fullscreen" appTooltip="Fullscreen" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="16" height="16" />
-            </button>
-            <button type="button" class="ctl__icon-btn" (click)="printPdf()" [disabled]="!currentPdf" aria-label="Print" appTooltip="Print" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="16" height="16" />
-            </button>
-          </div>
         </header>
 
-        @if (errorMessage) {
-          <div class="ctl__alert ctl__alert--error"><p>{{ errorMessage }}</p></div>
-        }
-
-        @if (loading && !showPasswordDialog) {
-          <div class="ctl__empty"><p>Loading PDF…</p></div>
-        } @else if (!pdfFiles.length) {
+        @if (!pdfFiles.length) {
+          @if (loading && !showPasswordDialog) {
+            <div class="pt-loading" role="status" aria-live="polite">
+              <div class="pt-spinner" aria-hidden="true"></div>
+              <p>Loading PDF…</p>
+            </div>
+          } @else {
           <button
             type="button"
             class="ctl-pdf__drop"
@@ -98,14 +138,33 @@
             <p><strong>Drop PDF files here</strong> or click to browse</p>
             <p>Max 100 MB per file</p>
           </button>
+          }
         } @else {
-          <div class="ctl-pdf__canvas-wrap" #pdfContainer>
+          <div class="ctl-pdf__canvas-wrap pt-viewer-body" #pdfContainer>
+            @if (loading && !showPasswordDialog) {
+              <div class="pt-loading pt-loading--overlay" role="status" aria-live="polite">
+                <div class="pt-spinner" aria-hidden="true"></div>
+                <p>Loading PDF…</p>
+              </div>
+            }
             <div class="canvas-wrapper" #canvasContainer></div>
           </div>
         }
       </section>
 
-      <aside class="ctl__sidebar" aria-label="Documents">
+            <details class="pt-options-flyout pt-options-flyout--inline" [open]="pdfFiles.length > 1">
+        <summary
+          class="pt-options-flyout__trigger"
+          aria-label="Open documents panel"
+          appTooltip="Loaded PDF documents"
+          tooltipPosition="left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Documents</span>
+        </summary>
+        <button type="button" class="pt-options-flyout__backdrop" aria-label="Close documents panel" appTooltip="Close documents panel" tooltipPosition="left" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar pt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Loaded documents">
         <div class="ctl__panel">
           <header class="ctl__panel-head">Loaded PDFs</header>
           @if (pdfFiles.length > 1) {
@@ -116,8 +175,11 @@
                     {{ pdf.name }}
                   </button>
                   <span class="ctl-pdf__file-meta">{{ formatFileSize(pdf.size) }}</span>
-                  <button type="button" class="ctl__icon-btn" (click)="removePdf(i)" aria-label="Remove" appTooltip="Remove" tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                  <button type="button" class="pt-icon-btn" (click)="removePdf(i)" aria-label="Remove PDF" appTooltip="Remove PDF" tooltipPosition="bottom">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                   </button>
                 </li>
               }
@@ -141,6 +203,7 @@
           </div>
         </div>
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
@@ -178,7 +241,10 @@
   @if (isFullscreen) {
     <div class="ctl-pdf-viewer__fs" #fullscreenContainer>
       <button type="button" class="ctl-pdf-viewer__fs-close" (click)="exitFullscreen()" aria-label="Exit fullscreen" appTooltip="Exit fullscreen" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="20" height="20" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
       </button>
       <div class="ctl-pdf-viewer__fs-canvas" #fullscreenCanvasContainer></div>
     </div>

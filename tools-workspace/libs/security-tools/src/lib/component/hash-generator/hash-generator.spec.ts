@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { HashGeneratorComponent } from './hash-generator';
 
 describe('HashGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('HashGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HashGeneratorComponent]
+      imports: [HashGeneratorComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HashGeneratorComponent);

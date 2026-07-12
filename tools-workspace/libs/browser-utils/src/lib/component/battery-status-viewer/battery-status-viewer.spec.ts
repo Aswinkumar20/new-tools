@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buToolTestProviders } from '../../shared/bu-tool-test.utils';
 import { BatteryStatusViewerComponent } from './battery-status-viewer';
 
 describe('BatteryStatusViewerComponent', () => {
@@ -7,7 +8,8 @@ describe('BatteryStatusViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [BatteryStatusViewerComponent]
+      imports: [BatteryStatusViewerComponent],
+      providers: buToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(BatteryStatusViewerComponent);

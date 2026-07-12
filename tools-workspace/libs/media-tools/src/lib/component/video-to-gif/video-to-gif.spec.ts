@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mtToolTestProviders } from '../../shared/mt-tool-test.utils';
 import { VideoToGifComponent } from './video-to-gif';
 
 describe('VideoToGifComponent', () => {
@@ -7,7 +8,8 @@ describe('VideoToGifComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [VideoToGifComponent]
+      imports: [VideoToGifComponent],
+      providers: mtToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(VideoToGifComponent);

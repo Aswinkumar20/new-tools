@@ -105,6 +105,9 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   showDropZone: boolean = false;
   loading: boolean = false;
   errorMessage: string = '';
+  loadedFileName: string = '';
+  loadedFileContent: string = '';
+  wordWrap: boolean = true;
 
   // Scroll state
   scrollPosition: number = 0;
@@ -224,9 +227,13 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     try {
       const content = await file.text();
+      this.loadedFileName = file.name;
+      this.loadedFileContent = content;
       const lines = content.split('\n');
       this.logs = lines;
       this.processLogs();
+      this.loading = false;
+      this.cdr.markForCheck();
     } catch (error) {
       this.errorMessage = `Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.loading = false;
@@ -307,6 +314,8 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.filteredLogEntries = [];
     this.displayedLogEntries = [];
     this.logs = [];
+    this.loadedFileName = '';
+    this.loadedFileContent = '';
     this.stats = null;
     this.searchText = '';
     this.searchText$.next('');
@@ -424,6 +433,27 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   toggleAbout(): void {
     this.showAbout = !this.showAbout;
     this.cdr.markForCheck();
+  }
+
+  toggleWordWrap(): void {
+    this.wordWrap = !this.wordWrap;
+    this.cdr.markForCheck();
+  }
+
+  downloadFile(): void {
+    if (!this.loadedFileContent && this.allLogEntries.length === 0) {
+      return;
+    }
+
+    const content = this.loadedFileContent || this.allLogEntries.map(entry => entry.raw).join('\n');
+    const fileName = this.loadedFileName || 'log-export.log';
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   onScroll(event: Event): void {

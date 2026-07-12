@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl md">
   <lib-navigation></lib-navigation>
   <main class="ctl__main">
     <div class="ctl__top">
@@ -10,14 +10,15 @@
         <div class="ctl__stat"><span class="ctl__stat-value">{{ formattedOutput() ? 'Ready' : '—' }}</span><span class="ctl__stat-label">Status</span></div>
       </div>
     </div>
-    <div class="ctl__toolbar" aria-label="Conversion actions">
+    <div class="md-workflow" aria-label="Conversion actions"><div class="md-workflow__group md-workflow__group--actions">
       <button type="button" class="ctl__tool-btn" (click)="submitForm()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Convert</span></button>
       <button type="button" class="ctl__tool-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
       <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" appTooltip="Reset" tooltipPosition="bottom" aria-label="Reset"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Reset</span></button>
     </div>
-    <div class="ctl__workspace" [formGroup]="form">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>Input</span></header>
           <div class="ctl__editor-body ctl__settings">
             <label class="ctl__field" for="numericInput"><span>Number</span><input id="numericInput" type="text" formControlName="numericInput" placeholder="Paste or type a number…" /></label>
@@ -39,7 +40,7 @@
             @if (errorMessage()) { <div class="ctl__alert ctl__alert--error">{{ errorMessage() }}</div> }
           </div>
         </section>
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
           <header class="ctl__editor-head"><span>Output</span>
             <div class="ctl__editor-actions">@if (formattedOutput()) { <span class="ctl__editor-badge">{{ formatLabel() }}</span> }
               <button type="button" class="ctl__icon-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
@@ -50,7 +51,15 @@
           } @else { <div class="ctl__empty"><p>Enter a number to convert to words.</p></div> }
         </section>
       </div>
-      <aside class="ctl__sidebar" aria-label="Samples and history">
+            <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Samples and history">
         <div class="ctl__panel"><header class="ctl__panel-head">Samples</header><div class="ctl__panel-body"><div class="ntw__samples">@for (sample of sampleNumbers; track trackSample($index, sample)) {
           <button type="button" class="ntw__sample" (click)="applySample(sample)"><strong>{{ sample.label }}</strong><small>{{ sample.value }}</small></button>
         }</div></div></div>
@@ -60,6 +69,7 @@
           <li><button type="button" class="ntw__history-item" (click)="restoreHistory(entry)"><strong>{{ entry.text }}</strong><span>{{ entry.input }} · {{ entry.locale }}</span></button></li>
         }</ul> } @else { <div class="ctl__panel-empty"><p>Conversions appear here.</p></div> }</div></div>
       </aside>
+      </details>
     </div>
     <details class="ctl__help"><summary>How to use</summary><ul><li>Enter a number and pick locale, case, and format.</li><li>Output updates automatically — copy from toolbar or output panel.</li><li>Use samples or restore from history.</li></ul></details>
   </main>

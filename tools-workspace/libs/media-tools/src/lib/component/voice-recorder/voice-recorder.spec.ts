@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mtToolTestProviders } from '../../shared/mt-tool-test.utils';
 import { VoiceRecorderComponent } from './voice-recorder';
 
 describe('VoiceRecorderComponent', () => {
@@ -7,7 +8,8 @@ describe('VoiceRecorderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [VoiceRecorderComponent]
+      imports: [VoiceRecorderComponent],
+      providers: mtToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(VoiceRecorderComponent);

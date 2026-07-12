@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MarkdownToHtmlComponent } from './markdown-to-html';
+import { converterTestProviders } from '../../shared/converter-test.utils';
 
 describe('MarkdownToHtmlComponent', () => {
   let component: MarkdownToHtmlComponent;
@@ -7,7 +8,8 @@ describe('MarkdownToHtmlComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MarkdownToHtmlComponent]
+      imports: [MarkdownToHtmlComponent],
+      providers: converterTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(MarkdownToHtmlComponent);

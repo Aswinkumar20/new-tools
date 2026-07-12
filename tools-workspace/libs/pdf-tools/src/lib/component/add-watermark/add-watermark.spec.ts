@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { AddWatermarkComponent } from './add-watermark';
 
 describe('AddWatermarkComponent', () => {
@@ -7,7 +8,8 @@ describe('AddWatermarkComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AddWatermarkComponent]
+      imports: [AddWatermarkComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(AddWatermarkComponent);

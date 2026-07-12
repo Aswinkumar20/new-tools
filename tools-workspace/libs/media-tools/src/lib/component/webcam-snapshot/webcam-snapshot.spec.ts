@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mtToolTestProviders } from '../../shared/mt-tool-test.utils';
 import { WebcamSnapshotComponent } from './webcam-snapshot';
 
 describe('WebcamSnapshotComponent', () => {
@@ -7,7 +8,8 @@ describe('WebcamSnapshotComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [WebcamSnapshotComponent]
+      imports: [WebcamSnapshotComponent],
+      providers: mtToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(WebcamSnapshotComponent);

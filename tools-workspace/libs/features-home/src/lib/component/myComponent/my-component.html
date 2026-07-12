@@ -196,7 +196,7 @@
             <div class="home-hero__popular-strip">
               <span class="home-hero__popular-label" id="hero-popular-label">Popular</span>
               <ul class="home-hero__popular-list" aria-labelledby="hero-popular-label">
-                @for (tool of popularTools.slice(0, 5); track tool.path; let i = $index) {
+                @for (tool of popularTools.slice(0, 8); track tool.path; let i = $index) {
                   <li [style.--stagger]="i * 45 + 'ms'">
                     <button
                       type="button"
@@ -334,7 +334,6 @@
               @for (category of filteredCategories; track category.name; let i = $index) {
                 <article
                   class="home-card home-anim home-anim--card"
-                  [class.home-card--expanded]="isCategoryExpanded(category.name)"
                   [class.home-card--active]="activeCategoryName === category.name"
                   [style.--stagger]="i * 50 + 'ms'">
                   <button
@@ -357,7 +356,8 @@
                     <div class="home-card__body">
                       <ul
                         class="home-card__tools"
-                        [class.home-card__tools--expanded]="isCategoryExpanded(category.name)">
+                        [style.--home-tool-preview-rows]="getToolPreviewRows(category)"
+                        (scroll)="onCategoryToolsScroll(category, $event)">
                         @for (tool of getDisplayTools(category); track tool.path) {
                           <li>
                             <button
@@ -375,17 +375,13 @@
                         }
                       </ul>
                       <div class="home-card__footer">
-                        @if (getRemainingToolCount(category) > 0 || isCategoryExpanded(category.name)) {
+                        @if (getRemainingToolCount(category) > 0) {
                           <button
                             type="button"
                             class="home-card__more"
-                            (click)="toggleCategoryTools(category.name, $event)"
-                            [attr.aria-expanded]="isCategoryExpanded(category.name)">
-                            @if (isCategoryExpanded(category.name)) {
-                              View less tools
-                            } @else {
-                              View all {{ category.subCategories?.length }} tools
-                            }
+                            (click)="scrollCategoryTools(category, $event)"
+                            [attr.aria-label]="(isCategoryScrolled(category) ? 'Show fewer tools in ' : 'Show more tools in ') + category.name">
+                            {{ isCategoryScrolled(category) ? 'Show less' : ('Show more (' + getRemainingToolCount(category) + ')') }}
                           </button>
                         }
                       </div>

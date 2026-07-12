@@ -36,7 +36,12 @@ interface GradientPreset {
 interface HistoryEntry {
   timestamp: number;
   css: string;
-  type: string;
+  type: GradientType;
+  angle: number;
+  position: string;
+  shape: string;
+  size: string;
+  colors: ColorStop[];
 }
 
 type GradientFormGroup = FormGroup<{
@@ -222,12 +227,24 @@ export class CssGradientGeneratorComponent {
     const { type, angle, position, shape, size, colorStops } = this.form.getRawValue();
 
     if (!colorStops || colorStops.length < 2) {
+      this.errors.set(['Add at least two color stops.']);
       this.result.set(null);
       return;
     }
 
+    const hexPattern = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+    const invalidStop = colorStops.find((stop) => !hexPattern.test(stop.color?.trim() ?? ''));
+    if (invalidStop) {
+      this.errors.set(['Each color stop needs a valid hex color (#RGB or #RRGGBB).']);
+      return;
+    }
+
+    const safeAngle = Math.min(360, Math.max(0, Number(angle) || 0));
     const stops = colorStops
-      .map((stop) => ({ color: stop.color, position: stop.position }))
+      .map((stop) => ({
+        color: stop.color.trim(),
+        position: Math.min(100, Math.max(0, Number(stop.position) || 0))
+      }))
       .sort((a, b) => a.position - b.position);
 
     let css = '';
@@ -235,16 +252,16 @@ export class CssGradientGeneratorComponent {
 
     switch (type) {
       case 'linear': {
-        css = `linear-gradient(${angle}deg, ${stopsString})`;
+        css = `linear-gradient(${safeAngle}deg, ${stopsString})`;
         break;
       }
       case 'radial': {
         const shapeSize = size ? ` ${size}` : '';
-        css = `radial-gradient(${shape}${shapeSize} at ${position}, ${stopsString})`;
+        css = `radial-gradient(${shape}${shapeSize} at ${position || 'center'}, ${stopsString})`;
         break;
       }
       case 'conic': {
-        css = `conic-gradient(from ${angle}deg at ${position}, ${stopsString})`;
+        css = `conic-gradient(from ${safeAngle}deg at ${position || 'center'}, ${stopsString})`;
         break;
       }
     }
@@ -253,7 +270,7 @@ export class CssGradientGeneratorComponent {
       css,
       type: type ?? 'linear',
       colors: stops,
-      angle: type === 'linear' || type === 'conic' ? angle : undefined,
+      angle: type === 'linear' || type === 'conic' ? safeAngle : undefined,
       position: type === 'radial' || type === 'conic' ? position : undefined,
       shape: type === 'radial' ? shape : undefined,
       size: type === 'radial' ? size : undefined
@@ -305,8 +322,20 @@ export class CssGradientGeneratorComponent {
   }
 
   applyHistory(entry: HistoryEntry): void {
-    // Parse CSS to extract gradient info (simplified)
-    this.copyToClipboard(entry.css, 'Gradient CSS');
+    while (this.colorStops.length > 0) {
+      this.colorStops.removeAt(0);
+    }
+    for (const stop of entry.colors) {
+      this.colorStops.push(this.createColorStop(stop.color, stop.position));
+    }
+    this.form.patchValue({
+      type: entry.type,
+      angle: entry.angle,
+      position: entry.position,
+      shape: entry.shape,
+      size: entry.size
+    });
+    this.generateGradient();
   }
 
   clearHistory(): void {
@@ -318,11 +347,18 @@ export class CssGradientGeneratorComponent {
   }
 
   private addToHistory(result: GradientResult): void {
+    const { angle, position, shape, size } = this.form.getRawValue();
     const entry: HistoryEntry = {
       timestamp: Date.now(),
       css: result.css,
-      type: result.type
+      type: result.type,
+      angle: angle ?? 0,
+      position: position ?? 'center',
+      shape: shape ?? 'ellipse',
+      size: size ?? 'farthest-corner',
+      colors: result.colors.map((c) => ({ ...c }))
     };
+
     this.history.update((entries) => {
       const exists = entries.some((e) => e.css === entry.css);
       if (exists) {

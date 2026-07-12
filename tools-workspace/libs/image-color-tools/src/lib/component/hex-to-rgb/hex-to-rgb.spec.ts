@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { HexToRgbComponent } from './hex-to-rgb';
 
 describe('HexToRgbComponent', () => {
@@ -7,7 +8,8 @@ describe('HexToRgbComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HexToRgbComponent]
+      imports: [HexToRgbComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HexToRgbComponent);

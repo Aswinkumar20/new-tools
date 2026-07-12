@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { TextEncryptDecryptComponent } from './text-encrypt-decrypt';
 
 describe('TextEncryptDecryptComponent', () => {
@@ -7,7 +8,8 @@ describe('TextEncryptDecryptComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TextEncryptDecryptComponent]
+      imports: [TextEncryptDecryptComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(TextEncryptDecryptComponent);

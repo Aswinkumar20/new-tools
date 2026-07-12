@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ttToolTestProviders } from '../../shared/tt-tool-test.utils';
 import { UserAgentParserComponent } from './user-agent-parser';
 
 describe('UserAgentParserComponent', () => {
@@ -7,7 +8,8 @@ describe('UserAgentParserComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [UserAgentParserComponent]
+      imports: [UserAgentParserComponent],
+      providers: ttToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(UserAgentParserComponent);

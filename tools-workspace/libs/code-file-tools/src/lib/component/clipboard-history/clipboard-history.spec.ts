@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { cftToolTestProviders } from '../../shared/cft-tool-test.utils';
 import { ClipboardHistoryComponent } from './clipboard-history';
 
 describe('ClipboardHistoryComponent', () => {
@@ -7,7 +8,8 @@ describe('ClipboardHistoryComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ClipboardHistoryComponent]
+      imports: [ClipboardHistoryComponent],
+      providers: cftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ClipboardHistoryComponent);

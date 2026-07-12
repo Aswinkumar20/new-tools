@@ -1,13 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { VideoPlayerComponent } from './video-player';
 
+import { fileViewerTestProviders } from '../../shared/file-viewer-test.utils';
+
 describe('VideoPlayerComponent', () => {
   let component: VideoPlayerComponent;
   let fixture: ComponentFixture<VideoPlayerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [VideoPlayerComponent]
+      imports: [VideoPlayerComponent],
+      providers: fileViewerTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(VideoPlayerComponent);

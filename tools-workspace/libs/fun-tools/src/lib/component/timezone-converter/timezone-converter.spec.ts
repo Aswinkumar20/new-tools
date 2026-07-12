@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { TimezoneConverterComponent } from './timezone-converter';
 
 describe('TimezoneConverterComponent', () => {
@@ -7,7 +8,8 @@ describe('TimezoneConverterComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TimezoneConverterComponent]
+      imports: [TimezoneConverterComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(TimezoneConverterComponent);

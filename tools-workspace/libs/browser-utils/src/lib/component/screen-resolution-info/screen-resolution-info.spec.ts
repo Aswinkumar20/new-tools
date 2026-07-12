@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buToolTestProviders } from '../../shared/bu-tool-test.utils';
 import { ScreenResolutionInfoComponent } from './screen-resolution-info';
 
 describe('ScreenResolutionInfoComponent', () => {
@@ -7,7 +8,8 @@ describe('ScreenResolutionInfoComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ScreenResolutionInfoComponent]
+      imports: [ScreenResolutionInfoComponent],
+      providers: buToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScreenResolutionInfoComponent);

@@ -1,5 +1,5 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Title, Meta } from '@angular/platform-browser';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -12,7 +12,12 @@ export interface SeoMetadata {
   url?: string;
   type?: string;
   author?: string;
-  structuredData?: any;
+  structuredData?: unknown | unknown[];
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  url: string;
 }
 
 @Injectable({
@@ -22,17 +27,11 @@ export class SeoService {
   private readonly baseUrl = 'https://easytoolhub.com';
   private readonly defaultImage = 'https://easytoolhub.com/assets/og-image.svg';
   private readonly siteName = 'EasyToolHub';
-
-  private get document(): Document {
-    if (isPlatformBrowser(this.platformId)) {
-      return document;
-    }
-    // Return a mock document for SSR - Title and Meta services handle SSR
-    return {} as Document;
-  }
+  private readonly staticJsonLdScriptCount = 2;
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
+    @Inject(DOCUMENT) private document: Document,
     private titleService: Title,
     private metaService: Meta,
     private router: Router
@@ -41,7 +40,6 @@ export class SeoService {
       this.router.events
         .pipe(filter((event) => event instanceof NavigationEnd))
         .subscribe(() => {
-          // Update canonical URL on route change
           this.updateCanonicalUrl();
         });
     }
@@ -55,54 +53,41 @@ export class SeoService {
     const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
     const image = metadata.image || this.defaultImage;
     const type = metadata.type || 'website';
+    const title = metadata.title || this.siteName;
 
-    // Update page title
-    if (metadata.title) {
-      const fullTitle = metadata.title.includes(this.siteName)
-        ? metadata.title
-        : `${metadata.title} | ${this.siteName}`;
-      this.titleService.setTitle(fullTitle);
-    }
+    const fullTitle = title.includes(this.siteName) ? title : `${title} | ${this.siteName}`;
+    this.titleService.setTitle(fullTitle);
 
-    // Update or create meta tags
-    this.updateMetaTag('name', 'title', metadata.title || '');
+    this.updateMetaTag('name', 'title', title);
     this.updateMetaTag('name', 'description', metadata.description || '');
     this.updateMetaTag('name', 'keywords', metadata.keywords || '');
     if (metadata.author) {
       this.updateMetaTag('name', 'author', metadata.author);
     }
 
-    // Open Graph tags
-    this.updateMetaTag('property', 'og:title', metadata.title || '');
+    this.updateMetaTag('property', 'og:title', title);
     this.updateMetaTag('property', 'og:description', metadata.description || '');
     this.updateMetaTag('property', 'og:image', image);
     this.updateMetaTag('property', 'og:url', fullUrl);
     this.updateMetaTag('property', 'og:type', type);
     this.updateMetaTag('property', 'og:site_name', this.siteName);
 
-    // Twitter Card tags
     this.updateMetaTag('name', 'twitter:card', 'summary_large_image');
-    this.updateMetaTag('name', 'twitter:title', metadata.title || '');
+    this.updateMetaTag('name', 'twitter:title', title);
     this.updateMetaTag('name', 'twitter:description', metadata.description || '');
     this.updateMetaTag('name', 'twitter:image', image);
     this.updateMetaTag('name', 'twitter:url', fullUrl);
 
-    // Update canonical URL
     this.updateCanonicalUrl(fullUrl);
 
-    // Add structured data if provided
     if (metadata.structuredData) {
       this.addStructuredData(metadata.structuredData);
     }
   }
 
-  /**
-   * Update or create a meta tag
-   */
   private updateMetaTag(attr: 'name' | 'property', selector: string, content: string): void {
     if (!content) return;
 
-    // Use Angular's Meta service which handles SSR
     if (attr === 'name') {
       this.metaService.updateTag({ name: selector, content });
     } else {
@@ -110,72 +95,52 @@ export class SeoService {
     }
   }
 
-  /**
-   * Update canonical URL
-   */
   private updateCanonicalUrl(url?: string): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-
     const canonicalUrl = url || this.getCurrentUrl();
     const fullCanonicalUrl = canonicalUrl.startsWith('http')
       ? canonicalUrl
       : `${this.baseUrl}${canonicalUrl}`;
 
-    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
+    let canonicalLink = this.document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (canonicalLink) {
       canonicalLink.setAttribute('href', fullCanonicalUrl);
     } else {
-      canonicalLink = document.createElement('link');
+      canonicalLink = this.document.createElement('link');
       canonicalLink.setAttribute('rel', 'canonical');
       canonicalLink.setAttribute('href', fullCanonicalUrl);
-      document.head.appendChild(canonicalLink);
+      this.document.head.appendChild(canonicalLink);
     }
   }
 
-  /**
-   * Add structured data (JSON-LD)
-   */
-  private addStructuredData(data: any): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-
-    // Remove existing structured data scripts (keep the ones from index.html)
-    const existingScripts = document.querySelectorAll('script[type="application/ld+json"]');
-    // Remove all but the first two (website and organization schemas from index.html)
-    if (existingScripts.length > 2) {
-      for (let i = 2; i < existingScripts.length; i++) {
-        existingScripts[i].remove();
-      }
+  private addStructuredData(data: unknown | unknown[]): void {
+    const existingScripts = this.document.querySelectorAll('script[type="application/ld+json"]');
+    for (let i = this.staticJsonLdScriptCount; i < existingScripts.length; i++) {
+      existingScripts[i].remove();
     }
 
-    // Add new structured data
-    const script = document.createElement('script');
-    script.type = 'application/ld+json';
-    script.text = JSON.stringify(data);
-    document.head.appendChild(script);
+    const items = Array.isArray(data) ? data : [data];
+    for (const item of items) {
+      const script = this.document.createElement('script');
+      script.type = 'application/ld+json';
+      script.text = JSON.stringify(item);
+      this.document.head.appendChild(script);
+    }
   }
 
-  /**
-   * Get current URL path
-   */
   private getCurrentUrl(): string {
-    if (isPlatformBrowser(this.platformId)) {
-      return this.router.url.split('?')[0];
-    }
-    return '/';
+    return this.router.url.split('?')[0] || '/tools/home';
   }
 
-  /**
-   * Generate structured data for a tool page
-   */
-  generateToolStructuredData(toolName: string, description: string, url: string): any {
+  generateToolStructuredData(toolName: string, description: string, url: string): unknown {
     return {
       '@context': 'https://schema.org',
       '@type': 'WebApplication',
       name: toolName,
-      description: description,
+      description,
       url: url.startsWith('http') ? url : `${this.baseUrl}${url}`,
       applicationCategory: 'UtilityApplication',
       operatingSystem: 'Web',
+      browserRequirements: 'Requires JavaScript',
       offers: {
         '@type': 'Offer',
         price: '0',
@@ -189,10 +154,20 @@ export class SeoService {
     };
   }
 
-  /**
-   * Generate structured data for the website
-   */
-  generateWebsiteStructuredData(): any {
+  generateBreadcrumbStructuredData(items: BreadcrumbItem[]): unknown {
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: items.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.name,
+        item: item.url.startsWith('http') ? item.url : `${this.baseUrl}${item.url}`,
+      })),
+    };
+  }
+
+  generateWebsiteStructuredData(): unknown {
     return {
       '@context': 'https://schema.org',
       '@type': 'WebSite',
@@ -204,29 +179,21 @@ export class SeoService {
         '@type': 'SearchAction',
         target: {
           '@type': 'EntryPoint',
-          urlTemplate: `${this.baseUrl}/tools?search={search_term_string}`,
+          urlTemplate: `${this.baseUrl}/tools/home?search={search_term_string}`,
         },
         'query-input': 'required name=search_term_string',
       },
     };
   }
 
-  /**
-   * Generate structured data for organization
-   */
-  generateOrganizationStructuredData(): any {
+  generateOrganizationStructuredData(): unknown {
     return {
       '@context': 'https://schema.org',
       '@type': 'Organization',
       name: this.siteName,
       url: this.baseUrl,
       logo: this.defaultImage,
-      sameAs: [
-        // Add your social media profiles here when available
-        // 'https://twitter.com/easytoolhub',
-        // 'https://facebook.com/easytoolhub',
-      ],
+      sameAs: [],
     };
   }
 }
-

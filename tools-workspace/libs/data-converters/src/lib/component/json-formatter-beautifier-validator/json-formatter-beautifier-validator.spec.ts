@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { JsonFormatterBeautifierValidatorComponent } from './json-formatter-beautifier-validator';
+import { converterTestProviders } from '../../shared/converter-test.utils';
 
 describe('JsonFormatterBeautifierValidatorComponent', () => {
   let component: JsonFormatterBeautifierValidatorComponent;
@@ -7,7 +8,8 @@ describe('JsonFormatterBeautifierValidatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [JsonFormatterBeautifierValidatorComponent]
+      imports: [JsonFormatterBeautifierValidatorComponent],
+      providers: converterTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(JsonFormatterBeautifierValidatorComponent);

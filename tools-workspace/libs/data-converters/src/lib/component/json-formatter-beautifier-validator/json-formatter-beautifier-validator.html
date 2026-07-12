@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dc">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,32 +28,60 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Formatter actions">
-      <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload file" tooltipPosition="bottom" aria-label="Upload file">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="formatJson()" appTooltip="Format JSON" tooltipPosition="bottom" aria-label="Format JSON">
-        <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Format</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="validateJson()" appTooltip="Validate JSON" tooltipPosition="bottom" aria-label="Validate JSON">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Validate</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="autoFixJson()" appTooltip="Auto-fix JSON" tooltipPosition="bottom" aria-label="Auto-fix JSON">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Fix</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="dc-workflow" aria-label="JSON formatter controls">
+      <div class="dc-workflow__group dc-workflow__group--files">
+        <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload JSON file" tooltipPosition="bottom" aria-label="Upload JSON file">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--actions" role="group" aria-label="JSON actions">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="formatJson()" appTooltip="Format JSON" tooltipPosition="bottom" aria-label="Format JSON">
+          <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Format</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="validateJson()" appTooltip="Validate JSON" tooltipPosition="bottom" aria-label="Validate JSON">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span class="ctl__tool-btn-label">Validate</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="autoFixJson()" appTooltip="Auto-fix JSON" tooltipPosition="bottom" aria-label="Auto-fix JSON">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Fix</span>
+        </button>
+      </div>
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--views" role="tablist" aria-label="Result view">
+        @for (tab of resultTabs; track tab.id) {
+          <button
+            type="button"
+            role="tab"
+            class="dc-chip"
+            [class.dc-chip--active]="activeResultTab === tab.id"
+            [attr.aria-selected]="activeResultTab === tab.id"
+            (click)="setActiveResultTab(tab.id)"
+            [appTooltip]="tab.description"
+            tooltipPosition="bottom">
+            {{ tab.label }}
+          </button>
+        }
+      </div>
     </div>
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dc-editor-panel" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
           <header class="ctl__editor-head">
             <span>JSON input</span>
             <div class="ctl__editor-actions">
@@ -70,7 +98,7 @@
           </div>
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dc-editor-panel">
           <header class="ctl__editor-head">
             <span>{{ activeResultTab === 'formatted' ? 'Formatted output' : activeResultTab === 'tree' ? 'Tree view' : 'Validation' }}</span>
             <div class="ctl__editor-actions">
@@ -143,10 +171,23 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Formatter options">
-        <div class="ctl__tabs" role="tablist">
-          <button type="button" role="tab" class="ctl__tab" *ngFor="let tab of resultTabs" [class.ctl__tab--active]="activeResultTab === tab.id" (click)="setActiveResultTab(tab.id)" [appTooltip]="tab.description" tooltipPosition="bottom">{{ tab.label }}</button>
-        </div>
+      <details class="dc-options-flyout">
+        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Formatter options">
         <div class="ctl__panel">
           <header class="ctl__panel-head">Options</header>
           <div class="ctl__settings">
@@ -164,14 +205,15 @@
           <div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Processing runs <strong>locally</strong> in your browser.</p></div>
         </div>
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
         <li>Paste or upload JSON in the input editor.</li>
-        <li>Use toolbar actions to format, validate, or auto-fix.</li>
-        <li>Switch result tabs in the sidebar: formatted, tree, or validation.</li>
+        <li>On desktop, input and output appear <strong>side by side</strong> for full vertical height.</li>
+        <li>Click the <strong>Options</strong> button (bottom-right) to adjust indent and settings.</li>
       </ul>
     </details>
   </main>

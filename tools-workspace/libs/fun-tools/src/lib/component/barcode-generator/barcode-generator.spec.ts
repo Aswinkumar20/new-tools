@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { BarcodeGeneratorComponent } from './barcode-generator';
 
 describe('BarcodeGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('BarcodeGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [BarcodeGeneratorComponent]
+      imports: [BarcodeGeneratorComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(BarcodeGeneratorComponent);

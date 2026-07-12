@@ -71,26 +71,36 @@ export class PixelToRemComponent {
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly history = signal<HistoryEntry[]>([]);
+  private readonly formTick = signal(0);
 
   readonly hasHistory = computed(() => this.history().length > 0);
-  readonly conversionResult = computed(() => this.calculateConversion());
+  readonly conversionResult = computed(() => {
+    this.formTick();
+    return this.calculateConversion();
+  });
   readonly hasResult = computed(() => this.conversionResult() !== null);
 
   constructor() {
     this.form.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(50), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
+        this.validateInputs();
         this.updateHistory();
       });
 
-    // Initial calculation
+    this.formTick.update((n) => n + 1);
     this.updateHistory();
   }
 
   calculateConversion(): ConversionResult | null {
+    if (!this.form.controls.inputValue.valid || !this.form.controls.baseSize.valid) {
+      return null;
+    }
+
     const { direction, inputValue, baseSize } = this.form.getRawValue();
 
-    if (inputValue === null || inputValue === undefined || isNaN(inputValue)) {
+    if (inputValue === null || inputValue === undefined || Number.isNaN(inputValue) || baseSize <= 0) {
       return null;
     }
 
@@ -112,19 +122,39 @@ export class PixelToRemComponent {
     };
   }
 
+  getCommonSizeRem(px: number): number {
+    const base = this.form.controls.baseSize.value || 16;
+    return px / base;
+  }
+
   applyCommonSize(size: { px: number; rem: number }): void {
     const direction = this.form.controls.direction.value;
     if (direction === 'px-to-rem') {
       this.form.patchValue({ inputValue: size.px });
     } else {
-      this.form.patchValue({ inputValue: size.rem });
+      this.form.patchValue({ inputValue: this.getCommonSizeRem(size.px) });
     }
   }
 
   swapDirection(): void {
+    const current = this.calculateConversion();
     const currentDirection = this.form.controls.direction.value;
     const newDirection = currentDirection === 'px-to-rem' ? 'rem-to-px' : 'px-to-rem';
-    this.form.patchValue({ direction: newDirection });
+    this.form.patchValue({
+      direction: newDirection,
+      inputValue: current ? Number(this.formatOutput(current.output)) : this.form.controls.inputValue.value
+    });
+  }
+
+  private validateInputs(): void {
+    const issues: string[] = [];
+    if (this.form.controls.baseSize.invalid) {
+      issues.push('Base font size must be between 1 and 100.');
+    }
+    if (this.form.controls.inputValue.invalid) {
+      issues.push('Input value must be 0 or greater.');
+    }
+    this.errors.set(issues);
   }
 
   copyToClipboard(text: string, label: string): void {

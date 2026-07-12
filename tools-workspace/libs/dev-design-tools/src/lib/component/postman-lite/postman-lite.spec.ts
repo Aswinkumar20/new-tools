@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { PostmanLiteComponent } from './postman-lite';
 
 describe('PostmanLiteComponent', () => {
@@ -7,7 +8,8 @@ describe('PostmanLiteComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PostmanLiteComponent]
+      imports: [PostmanLiteComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PostmanLiteComponent);

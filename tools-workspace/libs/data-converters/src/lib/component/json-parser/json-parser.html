@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dc">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,28 +28,60 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Parser actions">
-      <button type="button" class="ctl__tool-btn" (click)="parseJson()" appTooltip="Parse JSON" tooltipPosition="bottom" aria-label="Parse JSON">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Parse</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="formatJson()" appTooltip="Format JSON" tooltipPosition="bottom" aria-label="Format JSON">
-        <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Format</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="minifyJson()" appTooltip="Minify JSON" tooltipPosition="bottom" aria-label="Minify JSON">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Minify</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="dc-workflow" aria-label="Parser controls">
+      <div class="dc-workflow__group dc-workflow__group--actions" role="group" aria-label="JSON actions">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="parseJson()" appTooltip="Parse JSON" tooltipPosition="bottom" aria-label="Parse JSON">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span class="ctl__tool-btn-label">Parse</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="formatJson()" appTooltip="Format JSON" tooltipPosition="bottom" aria-label="Format JSON">
+          <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Format</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="minifyJson()" appTooltip="Minify JSON" tooltipPosition="bottom" aria-label="Minify JSON">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Minify</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
+
+      @if (filteredTree.length) {
+        <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+        <div class="dc-workflow__search">
+          <input id="filterInput" type="search" [(ngModel)]="filterTerm" (ngModelChange)="filterTree($event)" placeholder="Filter by key, value, or path" aria-label="Filter nodes" />
+        </div>
+      }
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--views" role="tablist" aria-label="Preview mode">
+        @for (mode of previewModes; track mode.id) {
+          <button
+            type="button"
+            role="tab"
+            class="dc-chip"
+            [class.dc-chip--active]="previewMode === mode.id"
+            [attr.aria-selected]="previewMode === mode.id"
+            (click)="setPreviewMode(mode.id)"
+            [appTooltip]="mode.label + ' output'"
+            tooltipPosition="bottom"
+            [attr.aria-label]="mode.label + ' output'">
+            {{ mode.label }}
+          </button>
+        }
+      </div>
     </div>
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dc-editor-panel">
           <header class="ctl__editor-head">
             <span>JSON input</span>
             <div class="ctl__editor-actions">
@@ -69,7 +101,7 @@
           </div>
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dc-editor-panel">
           <header class="ctl__editor-head">
             <span>{{ filteredTree.length ? 'JSON tree' : 'Formatted output' }}</span>
             <div class="ctl__editor-actions">
@@ -88,8 +120,8 @@
               </ng-container>
               <ng-template #treeNode let-node="node">
                 <div class="jp-tree__node" [style.paddingLeft.px]="node.level * 16">
-                  <button *ngIf="node.children?.length" type="button" class="jp-tree__toggle" (click)="toggleNode(node)">{{ node.expanded ? '▼' : '▶' }}</button>
-                  <button type="button" class="jp-tree__key" (click)="selectNode(node)" [class.jp-tree__key--selected]="node === selectedNode">
+                  <button *ngIf="node.children?.length" type="button" class="jp-tree__toggle" (click)="toggleNode(node)" [attr.aria-label]="node.expanded ? 'Collapse node' : 'Expand node'">{{ node.expanded ? '▼' : '▶' }}</button>
+                  <button type="button" class="jp-tree__key" (click)="selectNode(node)" [class.jp-tree__key--selected]="node === selectedNode" [attr.aria-label]="'Select node ' + (node.key || 'root')">
                     <span class="jp-tree__type jp-tree__type--{{ node.type }}">{{ node.key || '$' }}</span>
                     <span class="jp-tree__preview">{{ node.preview }}</span>
                   </button>
@@ -109,18 +141,15 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Explorer options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Filter & preview</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="filterInput"><span>Filter nodes</span>
-              <input id="filterInput" type="text" [(ngModel)]="filterTerm" (ngModelChange)="filterTree($event)" placeholder="Key, value, or path" />
-            </label>
-            <div class="ctl__tabs" role="tablist">
-              <button type="button" role="tab" class="ctl__tab" *ngFor="let mode of previewModes" [class.ctl__tab--active]="previewMode === mode.id" (click)="setPreviewMode(mode.id)">{{ mode.label }}</button>
-            </div>
-          </div>
-        </div>
+            <details class="dc-options-flyout">
+        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Explorer options">
         @if (selectedNode) {
           <div class="ctl__panel">
             <header class="ctl__panel-head">Selected node</header>
@@ -128,8 +157,8 @@
               <p><strong>Path</strong><code>{{ selectedNode.path }}</code></p>
               <p><strong>Type</strong> {{ selectedNode.type | titlecase }}</p>
               <div class="jp-node__actions">
-                <button type="button" class="ctl__tool-btn" (click)="copyPath(selectedNode)" appTooltip="Copy path" tooltipPosition="bottom">Copy path</button>
-                <button type="button" class="ctl__tool-btn" (click)="copyValue(selectedNode)" appTooltip="Copy value" tooltipPosition="bottom">Copy value</button>
+                <button type="button" class="ctl__tool-btn" (click)="copyPath(selectedNode)" appTooltip="Copy path" tooltipPosition="bottom" aria-label="Copy path">Copy path</button>
+                <button type="button" class="ctl__tool-btn" (click)="copyValue(selectedNode)" appTooltip="Copy value" tooltipPosition="bottom" aria-label="Copy value">Copy value</button>
               </div>
             </div>
           </div>
@@ -138,21 +167,22 @@
           <header class="ctl__panel-head">Stringify</header>
           <div class="ctl__settings">
             <textarea class="ctl__textarea ctl__textarea--mono" rows="3" [(ngModel)]="stringifyInput" (ngModelChange)="onStringifyInputChange($event)" [placeholder]="stringifyPlaceholder"></textarea>
-            <button type="button" class="ctl__tool-btn" (click)="stringifyJsonInput()" appTooltip="Stringify JSON" tooltipPosition="bottom">Stringify</button>
+            <button type="button" class="ctl__tool-btn" (click)="stringifyJsonInput()" appTooltip="Stringify JSON" tooltipPosition="bottom" aria-label="Stringify JSON">Stringify</button>
             @if (stringifyOutput) {
               <textarea class="ctl__textarea ctl__textarea--mono" rows="3" readonly [value]="stringifyOutput"></textarea>
-              <button type="button" class="ctl__tool-btn" (click)="copyStringifyOutput()" [disabled]="!stringifyOutput" appTooltip="Copy stringify output" tooltipPosition="bottom">Copy</button>
+              <button type="button" class="ctl__tool-btn" (click)="copyStringifyOutput()" [disabled]="!stringifyOutput" appTooltip="Copy stringify output" tooltipPosition="bottom" aria-label="Copy stringify output">Copy</button>
             }
           </div>
         </div>
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
         <li>Paste JSON and click <strong>Parse</strong> to build the tree.</li>
-        <li>Filter nodes or switch preview mode in the sidebar.</li>
+        <li>Filter nodes from the workflow bar after parsing.</li>
         <li>Select a node to copy its JSONPath or value.</li>
       </ul>
     </details>

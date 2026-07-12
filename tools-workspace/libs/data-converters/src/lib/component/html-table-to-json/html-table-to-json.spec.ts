@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HtmlTableToJsonComponent } from './html-table-to-json';
+import { converterTestProviders } from '../../shared/converter-test.utils';
 
 describe('HtmlTableToJsonComponent', () => {
   let component: HtmlTableToJsonComponent;
@@ -7,7 +8,8 @@ describe('HtmlTableToJsonComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HtmlTableToJsonComponent]
+      imports: [HtmlTableToJsonComponent],
+      providers: converterTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HtmlTableToJsonComponent);

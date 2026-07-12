@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
@@ -15,21 +15,31 @@ interface FormatOption {
   templateUrl: './text-to-ASCII.html',
   styleUrls: ['./text-to-ASCII.scss'],
   imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
-
 })
-
 export class TextToASCIIComponent implements OnInit, OnDestroy {
-  inputValue: string = '';
-  outputValue: string = '';
-  errorMessage: string = '';
+  @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
+
+  inputValue = '';
+  outputValue = '';
+  errorMessage = '';
   isConverting = false;
 
-  // two separate selectors for input (left) and output (right)
-  leftType: string = 'text';
-  rightType: string = 'ascii';
-  
-  private convertTimer: any = null;
-  private readonly DEBOUNCE_DELAY = 300; // milliseconds
+  leftType = 'text';
+  rightType = 'ascii';
+
+  undoStack: string[] = [''];
+  redoStack: string[] = [];
+  private isRestoringHistory = false;
+  private historyTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingHistoryValue = '';
+
+  isReadingFile = false;
+  isDragOver = false;
+  readonly maxUploadBytes = 10 * 1024 * 1024;
+  private fileInput?: HTMLInputElement;
+
+  private convertTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly DEBOUNCE_DELAY = 300;
 
   private readonly toastService = inject(ToastService);
   readonly assetService = inject(AssetService);
@@ -45,6 +55,14 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     return !!this.inputValue?.trim();
   }
 
+  get canUndo(): boolean {
+    return this.undoStack.length > 1;
+  }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
   get fromLabel(): string {
     return this.typeOptions.find((o) => o.value === this.leftType)?.label ?? this.leftType;
   }
@@ -53,36 +71,78 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     return this.typeOptions.find((o) => o.value === this.rightType)?.label ?? this.rightType;
   }
 
-  convert() {
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboard(evt: KeyboardEvent): void {
+    if (!this.isSourceEditorFocused()) {
+      return;
+    }
+
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const key = evt.key.toLowerCase();
+    const undoKey = isMac
+      ? evt.metaKey && key === 'z' && !evt.shiftKey
+      : evt.ctrlKey && key === 'z' && !evt.shiftKey;
+    const redoKey = isMac
+      ? evt.metaKey && (key === 'y' || (evt.shiftKey && key === 'z'))
+      : evt.ctrlKey && (key === 'y' || (evt.shiftKey && key === 'z'));
+
+    if (undoKey) {
+      evt.preventDefault();
+      this.undo();
+    } else if (redoKey) {
+      evt.preventDefault();
+      this.redo();
+    }
+  }
+
+  private isSourceEditorFocused(): boolean {
+    const textarea = this.inputTextareaRef?.nativeElement;
+    return !!textarea && document.activeElement === textarea;
+  }
+
+  ngOnInit(): void {
+    this.seedHistory('');
+  }
+
+  ngOnDestroy(): void {
+    if (this.convertTimer) {
+      clearTimeout(this.convertTimer);
+    }
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+    }
+    this.fileInput?.remove();
+    this.fileInput = undefined;
+  }
+
+  private seedHistory(value: string): void {
+    this.undoStack = [value];
+    this.redoStack = [];
+  }
+
+  convert(): void {
     this.errorMessage = '';
     this.outputValue = '';
     this.isConverting = true;
 
     try {
-      // normalize null/undefined
       const raw = this.inputValue ?? '';
       const trimmed = raw.trim();
 
-      // Handle empty input
       if (!trimmed) {
         this.outputValue = '';
-        this.isConverting = false;
         return;
       }
 
-      // if same type, just pass through (no transformation)
       if (this.leftType === this.rightType) {
         this.outputValue = trimmed;
-        this.isConverting = false;
         return;
       }
 
-      // Validate types
       if (!this.isValidType(this.leftType) || !this.isValidType(this.rightType)) {
         throw new Error('Invalid conversion type selected.');
       }
 
-      // first convert input (whatever it is) into plain text
       let text: string;
       switch (this.leftType) {
         case 'text':
@@ -101,12 +161,10 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
           throw new Error('Invalid input type selected.');
       }
 
-      // Validate that we got valid text
       if (text === null || text === undefined) {
         throw new Error('Failed to convert input to text. Please check your input format.');
       }
 
-      // then convert text into desired output type
       switch (this.rightType) {
         case 'text':
           this.outputValue = text;
@@ -123,8 +181,9 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
         default:
           throw new Error('Invalid output type selected.');
       }
-    } catch (e: any) {
-      this.errorMessage = e?.message || 'Invalid input for the selected conversion. Please check the format and try again.';
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Invalid input for the selected conversion. Please check the format and try again.';
+      this.errorMessage = message;
       this.outputValue = '';
     } finally {
       this.isConverting = false;
@@ -132,118 +191,277 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   }
 
   private isValidType(type: string): boolean {
-    return this.typeOptions.some(opt => opt.value === type);
-  }
-
-  ngOnInit(): void {
-    // Auto-convert on format change
-    // Note: We'll handle input changes via onInputChange()
-  }
-
-  ngOnDestroy(): void {
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-    }
+    return this.typeOptions.some((opt) => opt.value === type);
   }
 
   onInputChange(): void {
-    // Clear any existing timer
+    if (this.isRestoringHistory) {
+      return;
+    }
+
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
     }
 
-    // Clear previous error
     this.errorMessage = '';
     this.isConverting = true;
 
-    // Debounce the conversion
     this.convertTimer = setTimeout(() => {
       if (this.inputValue && this.inputValue.trim()) {
         this.convert();
       } else {
         this.outputValue = '';
+        this.isConverting = false;
       }
-      this.isConverting = false;
     }, this.DEBOUNCE_DELAY);
+
+    this.scheduleHistoryPush(this.inputValue);
   }
 
-  onFormatChange(): void {
-    // Clear any pending conversion timer
+  private scheduleHistoryPush(value: string): void {
+    this.pendingHistoryValue = value;
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+    }
+    const wait = value.length > 5000 ? 600 : value.length > 2000 ? 450 : 300;
+    this.historyTimer = setTimeout(() => {
+      if (!this.isRestoringHistory) {
+        this.pushToUndoStack(this.pendingHistoryValue);
+      }
+      this.historyTimer = null;
+    }, wait);
+  }
+
+  private applyInputState(value: string): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
+    }
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
       this.convertTimer = null;
     }
-    
-    // Clear previous errors
+    this.pendingHistoryValue = value;
+    this.isRestoringHistory = true;
+    this.inputValue = value;
     this.errorMessage = '';
-    
-    // Auto-convert when format changes
+    if (value.trim()) {
+      this.isConverting = true;
+      this.convert();
+    } else {
+      this.outputValue = '';
+      this.isConverting = false;
+    }
+    this.isRestoringHistory = false;
+  }
+
+  pushToUndoStack(value: string): void {
+    if (this.isRestoringHistory) {
+      return;
+    }
+    const last = this.undoStack[this.undoStack.length - 1];
+    if (last !== undefined && last === value) {
+      return;
+    }
+    this.undoStack.push(value);
+    if (this.undoStack.length > 100) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+  }
+
+  undo(): void {
+    if (this.undoStack.length > 1) {
+      const last = this.undoStack.pop()!;
+      this.redoStack.push(last);
+      const prev = this.undoStack[this.undoStack.length - 1];
+      this.applyInputState(prev);
+    }
+  }
+
+  redo(): void {
+    if (this.redoStack.length > 0) {
+      const next = this.redoStack.pop()!;
+      this.undoStack.push(next);
+      this.applyInputState(next);
+    }
+  }
+
+  onFormatChange(): void {
+    if (this.convertTimer) {
+      clearTimeout(this.convertTimer);
+      this.convertTimer = null;
+    }
+
+    this.errorMessage = '';
+
     if (this.inputValue && this.inputValue.trim()) {
       this.isConverting = true;
       this.convert();
     } else {
-      // Clear output if no input
       this.outputValue = '';
       this.isConverting = false;
     }
   }
 
-  swapTypes() {
-    // Swap the types
+  swapTypes(): void {
     const tmpType = this.leftType;
     this.leftType = this.rightType;
     this.rightType = tmpType;
-    
-    // Swap the values - output becomes input, input becomes output
+
     const tmpValue = this.inputValue;
     this.inputValue = this.outputValue;
     this.outputValue = tmpValue;
-    
-    // Clear any previous errors
+
     this.errorMessage = '';
-    
-    // Clear any pending conversion timer
+
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
       this.convertTimer = null;
     }
-    
-    // Show toast notification
-    this.toastService.info('Formats swapped successfully', 2000);
-    
-    // If there's input after swap, convert it
+
+    this.toastService.info('Formats swapped');
+
     if (this.inputValue && this.inputValue.trim()) {
       this.isConverting = true;
-      // Use a small delay to ensure Angular has updated the bindings
-      setTimeout(() => {
-        this.convert();
-      }, 0);
+      setTimeout(() => this.convert(), 0);
     } else {
-      // Clear output if no input
       this.outputValue = '';
       this.isConverting = false;
     }
   }
-  
 
-  // helper to show guidance
+  useOutputAsInput(): void {
+    if (!this.outputValue) {
+      this.toastService.info('No output to use');
+      return;
+    }
+    const next = this.outputValue;
+    this.applyInputState(next);
+    this.pushToUndoStack(next);
+    this.toastService.info('Output moved to input');
+  }
+
   getTypeDescription(type: string): string {
-    const found = this.typeOptions.find(opt => opt.value === type);
+    const found = this.typeOptions.find((opt) => opt.value === type);
     return found ? found.description : '';
   }
 
-  clearInput(): void {
-    this.inputValue = '';
-    this.outputValue = '';
-    this.errorMessage = '';
+  clear(): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
+    }
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
+      this.convertTimer = null;
     }
+    this.applyInputState('');
+    this.seedHistory('');
+    this.errorMessage = '';
     this.isConverting = false;
+    this.toastService.info('Text cleared');
   }
 
-  clear() {
-    this.clearInput();
+  uploadTextFile(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.addEventListener('change', () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) {
+          this.handleUploadedFile(file);
+        }
+        if (this.fileInput) {
+          this.fileInput.value = '';
+        }
+      });
+      document.body.appendChild(this.fileInput);
+    }
+
+    this.fileInput.accept =
+      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
+    this.fileInput.click();
+  }
+
+  private handleUploadedFile(file: File): void {
+    if (file.size > this.maxUploadBytes) {
+      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
+      return;
+    }
+
+    if (!this.isLikelyTextFile(file)) {
+      this.toastService.error('Please upload a text-based file (.txt, .md, .csv, .json, etc.).');
+      return;
+    }
+
+    this.isReadingFile = true;
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      if (this.historyTimer) {
+        clearTimeout(this.historyTimer);
+        this.historyTimer = null;
+      }
+      this.applyInputState(text);
+      this.pushToUndoStack(text);
+      this.isReadingFile = false;
+      this.toastService.info(`Loaded "${file.name}"`);
+    };
+
+    reader.onerror = () => {
+      this.isReadingFile = false;
+      this.toastService.error('Could not read the file. Please try another text file.');
+    };
+
+    reader.readAsText(file);
+  }
+
+  private isLikelyTextFile(file: File): boolean {
+    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
+    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
+      return false;
+    }
+    if (!file.type || file.type.startsWith('text/')) {
+      return true;
+    }
+    const allowedTypes = new Set([
+      'application/json', 'application/xml', 'application/javascript',
+      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
+    ]);
+    if (allowedTypes.has(file.type)) {
+      return true;
+    }
+    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+    const textExtensions = new Set([
+      'txt', 'text', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
+      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf', 'js', 'ts', 'css', 'scss',
+    ]);
+    return textExtensions.has(ext);
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = true;
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = false;
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragOver = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file) {
+      this.handleUploadedFile(file);
+    }
   }
 
   copyInput(): void {
@@ -254,31 +472,29 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.copyText(this.outputValue, 'Output');
   }
 
-  private copyText(text: string, label: string): void {
-    try {
-      if (!text) return;
-      if (navigator?.clipboard?.writeText) {
-        navigator.clipboard.writeText(text);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      this.toastService.success(`${label} copied to clipboard`, 2000);
-    } catch {
-      this.toastService.error('Failed to copy to clipboard', 3000);
-    }
+  downloadText(): void {
+    if (!this.outputValue) return;
+    const ext = this.rightType === 'text' ? 'txt' : this.rightType;
+    const blob = new Blob([this.outputValue], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `output.${ext}`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
-  // Conversion Functions
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      this.toastService.info(`${label} copied to clipboard`);
+    }).catch(() => {
+      this.toastService.error('Failed to copy to clipboard');
+    });
+  }
+
   textToAscii(text: string): string {
     if (!text) return '';
-    return text.split('').map(c => c.charCodeAt(0)).join(' ');
+    return text.split('').map((c) => c.charCodeAt(0)).join(' ');
   }
 
   asciiToText(ascii: string): string {
@@ -286,31 +502,30 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
       throw new Error('ASCII input cannot be empty.');
     }
     const trimmed = ascii.trim();
-    const parts = trimmed.split(/\s+/).filter(p => p.length > 0);
-    
+    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
+
     if (parts.length === 0) {
       throw new Error('ASCII input must contain at least one number.');
     }
-    
-    if (!parts.every(p => /^\d+$/.test(p))) {
+
+    if (!parts.every((p) => /^\d+$/.test(p))) {
       throw new Error('ASCII must contain only numbers separated by spaces (e.g., "72 101 108 108 111").');
     }
-    
-    // Validate ASCII range (0-255 for standard ASCII, but allow up to 65535 for extended)
-    const invalidCodes = parts.filter(p => {
+
+    const invalidCodes = parts.filter((p) => {
       const num = Number(p);
       return isNaN(num) || num < 0 || num > 65535;
     });
-    
+
     if (invalidCodes.length > 0) {
       throw new Error(`Invalid ASCII code(s): ${invalidCodes.join(', ')}. Codes must be between 0 and 65535.`);
     }
-    
-    return parts.map(p => String.fromCharCode(Number(p))).join('');
+
+    return parts.map((p) => String.fromCharCode(Number(p))).join('');
   }
 
   textToBinary(text: string): string {
-    return text.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+    return text.split('').map((c) => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
   }
 
   binaryToText(binary: string): string {
@@ -318,32 +533,32 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
       throw new Error('Binary input cannot be empty.');
     }
     const trimmed = binary.trim();
-    const parts = trimmed.split(/\s+/).filter(p => p.length > 0);
-    
+    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
+
     if (parts.length === 0) {
       throw new Error('Binary input must contain at least one binary number.');
     }
-    
-    if (!parts.every(b => /^[01]+$/.test(b))) {
+
+    if (!parts.every((b) => /^[01]+$/.test(b))) {
       throw new Error('Binary must contain only 0s and 1s, separated by spaces (e.g., "01001000 01100101").');
     }
-    
-    // Validate binary length (should be 8 bits per byte, but allow any length)
+
     try {
-      return parts.map(b => {
+      return parts.map((b) => {
         const charCode = parseInt(b, 2);
         if (isNaN(charCode) || charCode < 0 || charCode > 65535) {
           throw new Error(`Invalid binary value: ${b}`);
         }
         return String.fromCharCode(charCode);
       }).join('');
-    } catch (e: any) {
-      throw new Error(e.message || 'Invalid binary format. Each binary number should represent a valid character code.');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Invalid binary format. Each binary number should represent a valid character code.';
+      throw new Error(message);
     }
   }
 
   textToHex(text: string): string {
-    return text.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+    return text.split('').map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
   }
 
   hexToText(hex: string): string {
@@ -351,26 +566,27 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
       throw new Error('Hexadecimal input cannot be empty.');
     }
     const trimmed = hex.trim();
-    const parts = trimmed.split(/\s+/).filter(p => p.length > 0);
-    
+    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
+
     if (parts.length === 0) {
       throw new Error('Hexadecimal input must contain at least one hex value.');
     }
-    
-    if (!parts.every(h => /^[0-9a-fA-F]+$/.test(h))) {
+
+    if (!parts.every((h) => /^[0-9a-fA-F]+$/.test(h))) {
       throw new Error('Hexadecimal must contain only 0-9 and A-F (case-insensitive), separated by spaces (e.g., "48 65 6C 6C 6F").');
     }
-    
+
     try {
-      return parts.map(h => {
+      return parts.map((h) => {
         const charCode = parseInt(h, 16);
         if (isNaN(charCode) || charCode < 0 || charCode > 65535) {
           throw new Error(`Invalid hex value: ${h}`);
         }
         return String.fromCharCode(charCode);
       }).join('');
-    } catch (e: any) {
-      throw new Error(e.message || 'Invalid hexadecimal format. Each hex value should represent a valid character code.');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Invalid hexadecimal format. Each hex value should represent a valid character code.';
+      throw new Error(message);
     }
   }
 }

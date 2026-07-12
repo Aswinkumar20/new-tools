@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { CssGradientGeneratorComponent } from './css-gradient-generator';
 
 describe('CssGradientGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('CssGradientGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CssGradientGeneratorComponent]
+      imports: [CssGradientGeneratorComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CssGradientGeneratorComponent);

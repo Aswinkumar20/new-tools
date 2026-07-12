@@ -1,0 +1,169 @@
+<div class="ctl pt pt-jspdf">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>{{ title }}</h1>
+        <p>{{ description }}</p>
+      </header>
+
+      <div class="ctl__stats" aria-label="PDF status">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ outputBytes ? '1' : '0' }}</span>
+          <span class="ctl__stat-label">Output</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ outputBytes ? formatFileSize(outputBytes.length) : '—' }}</span>
+          <span class="ctl__stat-label">Size</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ outputBytes ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-workflow" aria-label="PDF actions">
+      <div class="pt-workflow__group pt-workflow__group--primary">
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon ctl__tool-btn--primary"
+          (click)="runPrimaryAction()"
+          [disabled]="loading">
+          <span class="ctl__tool-btn-label">{{ primaryActionLabel() }}</span>
+        </button>
+      </div>
+      <span class="pt-workflow__divider" aria-hidden="true"></span>
+      <div class="pt-workflow__group pt-workflow__group--output">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="download()" [disabled]="!canDownload">
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="reset()" [disabled]="!canReset">
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctl__workspace pt-studio pt-studio--create">
+      <div class="pt-studio__editor">
+        @switch (mode) {
+          @case ('html-to-pdf') {
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('htmlInput')">
+              <span>HTML source</span>
+              <textarea class="ctl__textarea" rows="16" [(ngModel)]="htmlInput" (ngModelChange)="clearFieldError('htmlInput')"></textarea>
+              @if (fieldError('htmlInput')) { <span class="pt-studio__field-error">{{ fieldError('htmlInput') }}</span> }
+            </label>
+            <p class="pt-studio__hint">Live preview is rendered when you create the PDF.</p>
+          }
+          @case ('tables-to-pdf') {
+            <label class="pt-studio__field"><span>Table title</span><input class="ctl__input" [(ngModel)]="tableTitle" /></label>
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('tableRows')">
+              <span>Headers (comma-separated)</span>
+              <input class="ctl__input" [(ngModel)]="tableHeaders" (ngModelChange)="clearFieldError('tableRows')" />
+            </label>
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('tableRows')">
+              <span>Rows (one per line, comma-separated cells)</span>
+              <textarea class="ctl__textarea" rows="10" [(ngModel)]="tableRows" (ngModelChange)="clearFieldError('tableRows')"></textarea>
+              @if (fieldError('tableRows')) { <span class="pt-studio__field-error">{{ fieldError('tableRows') }}</span> }
+            </label>
+          }
+          @case ('charts-to-pdf') {
+            <label class="pt-studio__field"><span>Chart title</span><input class="ctl__input" [(ngModel)]="chartTitle" (ngModelChange)="onChartConfigChange()" /></label>
+            <label class="pt-studio__field"><span>Chart type</span>
+              <select class="ctl__input" [(ngModel)]="chartType" (ngModelChange)="onChartConfigChange()">
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie</option>
+                <option value="doughnut">Doughnut</option>
+              </select>
+            </label>
+            <label class="pt-studio__field"><span>Labels (comma-separated)</span><input class="ctl__input" [(ngModel)]="chartLabels" (ngModelChange)="onChartConfigChange()" /></label>
+            <label class="pt-studio__field"><span>Dataset label</span><input class="ctl__input" [(ngModel)]="chartDatasetLabel" (ngModelChange)="onChartConfigChange()" /></label>
+            <label class="pt-studio__field"><span>Values (comma-separated)</span><input class="ctl__input" [(ngModel)]="chartDataset" (ngModelChange)="onChartConfigChange()" /></label>
+            <div class="pt-jspdf__chart-wrap">
+              <canvas #chartCanvas aria-label="Chart preview"></canvas>
+            </div>
+          }
+          @case ('resume-generator') {
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('resumeName')">
+              <span>Full name</span>
+              <input class="ctl__input" [(ngModel)]="resume.name" (ngModelChange)="clearFieldError('resumeName')" />
+              @if (fieldError('resumeName')) { <span class="pt-studio__field-error">{{ fieldError('resumeName') }}</span> }
+            </label>
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('resumeEmail')">
+              <span>Email</span>
+              <input class="ctl__input" type="email" [(ngModel)]="resume.email" (ngModelChange)="clearFieldError('resumeEmail')" />
+              @if (fieldError('resumeEmail')) { <span class="pt-studio__field-error">{{ fieldError('resumeEmail') }}</span> }
+            </label>
+            <label class="pt-studio__field"><span>Phone</span><input class="ctl__input" [(ngModel)]="resume.phone" /></label>
+            <label class="pt-studio__field"><span>Summary</span><textarea class="ctl__textarea" rows="3" [(ngModel)]="resume.summary"></textarea></label>
+            <label class="pt-studio__field"><span>Experience</span><textarea class="ctl__textarea" rows="4" [(ngModel)]="resume.experience"></textarea></label>
+            <label class="pt-studio__field"><span>Education</span><textarea class="ctl__textarea" rows="3" [(ngModel)]="resume.education"></textarea></label>
+          }
+          @case ('invoice-generator') {
+            <div class="pt-jspdf__grid">
+              <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('companyName')">
+                <span>Company name</span><input class="ctl__input" [(ngModel)]="invoice.companyName" />
+              </label>
+              <label class="pt-studio__field"><span>Company address</span><textarea class="ctl__textarea" rows="2" [(ngModel)]="invoice.companyAddress"></textarea></label>
+              <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('customerName')">
+                <span>Customer name</span><input class="ctl__input" [(ngModel)]="invoice.customerName" />
+              </label>
+              <label class="pt-studio__field"><span>Customer address</span><textarea class="ctl__textarea" rows="2" [(ngModel)]="invoice.customerAddress"></textarea></label>
+              <label class="pt-studio__field"><span>Invoice #</span><input class="ctl__input" [(ngModel)]="invoice.invoiceNumber" /></label>
+              <label class="pt-studio__field"><span>Invoice date</span><input class="ctl__input" type="date" [(ngModel)]="invoice.invoiceDate" /></label>
+              <label class="pt-studio__field"><span>Due date</span><input class="ctl__input" type="date" [(ngModel)]="invoice.dueDate" /></label>
+              <label class="pt-studio__field"><span>Tax rate (%)</span><input class="ctl__input" type="number" [(ngModel)]="invoice.taxRate" /></label>
+            </div>
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('itemsText')">
+              <span>Line items (description,qty,unit price — one per line)</span>
+              <textarea class="ctl__textarea" rows="6" [(ngModel)]="invoice.itemsText"></textarea>
+              @if (fieldError('itemsText')) { <span class="pt-studio__field-error">{{ fieldError('itemsText') }}</span> }
+            </label>
+            <label class="pt-studio__field"><span>Notes</span><textarea class="ctl__textarea" rows="2" [(ngModel)]="invoice.notes"></textarea></label>
+          }
+          @case ('barcode-to-pdf') {
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('barcodeValue')">
+              <span>Barcode value</span>
+              <input class="ctl__input" [(ngModel)]="barcodeValue" (ngModelChange)="clearFieldError('barcodeValue')" />
+              @if (fieldError('barcodeValue')) { <span class="pt-studio__field-error">{{ fieldError('barcodeValue') }}</span> }
+            </label>
+            <label class="pt-studio__field">
+              <span>Format</span>
+              <select class="ctl__input" [(ngModel)]="barcodeFormat">
+                <option value="CODE128">CODE128</option>
+                <option value="EAN13">EAN13</option>
+                <option value="UPC">UPC</option>
+                <option value="CODE39">CODE39</option>
+              </select>
+            </label>
+          }
+          @case ('text-to-pdf') {
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('plainTextInput')">
+              <span>Text content</span>
+              <textarea class="ctl__textarea" rows="14" [(ngModel)]="plainTextInput" (ngModelChange)="clearFieldError('plainTextInput')"></textarea>
+              @if (fieldError('plainTextInput')) { <span class="pt-studio__field-error">{{ fieldError('plainTextInput') }}</span> }
+            </label>
+            <div class="pt-jspdf__grid">
+              <label class="pt-studio__field"><span>Font size</span><input class="ctl__input" type="number" min="8" max="24" [(ngModel)]="textFontSize" /></label>
+              <label class="pt-studio__field"><span>Margin (mm)</span><input class="ctl__input" type="number" min="10" max="40" [(ngModel)]="textMargin" /></label>
+            </div>
+          }
+          @case ('qr-code-to-pdf') {
+            <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('qrValue')">
+              <span>QR content (URL or text)</span>
+              <textarea class="ctl__textarea" rows="4" [(ngModel)]="qrValue" (ngModelChange)="clearFieldError('qrValue')"></textarea>
+              @if (fieldError('qrValue')) { <span class="pt-studio__field-error">{{ fieldError('qrValue') }}</span> }
+            </label>
+          }
+        }
+
+        <label class="pt-studio__field">
+          <span>Output filename (optional)</span>
+          <input class="ctl__input" [(ngModel)]="outputFilename" placeholder="document.pdf" />
+        </label>
+      </div>
+    </div>
+  </main>
+</div>

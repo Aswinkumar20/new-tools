@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { ImageToTextComponent } from './image-to-text';
 
 describe('ImageToTextComponent', () => {
@@ -7,7 +8,8 @@ describe('ImageToTextComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ImageToTextComponent]
+      imports: [ImageToTextComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ImageToTextComponent);

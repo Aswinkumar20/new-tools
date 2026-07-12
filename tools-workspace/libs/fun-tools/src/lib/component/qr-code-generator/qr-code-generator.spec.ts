@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { QrCodeGeneratorComponent } from './qr-code-generator';
 
 describe('QrCodeGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('QrCodeGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [QrCodeGeneratorComponent]
+      imports: [QrCodeGeneratorComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(QrCodeGeneratorComponent);

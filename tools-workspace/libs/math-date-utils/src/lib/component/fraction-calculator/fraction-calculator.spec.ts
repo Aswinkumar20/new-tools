@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { FractionCalculatorComponent } from './fraction-calculator';
 
 describe('FractionCalculatorComponent', () => {
@@ -7,7 +8,8 @@ describe('FractionCalculatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FractionCalculatorComponent]
+      imports: [FractionCalculatorComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(FractionCalculatorComponent);

@@ -63,21 +63,50 @@ export class HttpRequestGeneratorComponent {
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly history = signal<HistoryEntry[]>([]);
+  readonly generatedCode = signal('');
+  private readonly formTick = signal(0);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly headersFormArray = computed(() => this.form.controls.headers);
-  readonly generatedCode = computed(() => this.generateCode());
   readonly currentFormatLabel = computed(() => {
+    this.formTick();
     const format = this.codeFormats.find((f) => f.value === this.form.controls.codeFormat.value);
     return format?.label || 'Fetch';
   });
 
   constructor() {
+    this.refreshGeneratedCode();
     this.form.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(150), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.refreshGeneratedCode();
         this.updateHistory();
       });
+  }
+
+  private refreshGeneratedCode(): void {
+    this.formTick.update((n) => n + 1);
+    this.errors.set([]);
+    this.warnings.set([]);
+
+    const url = this.form.controls.url.value?.trim() ?? '';
+    if (!url) {
+      this.errors.set(['URL is required.']);
+      this.generatedCode.set('');
+      return;
+    }
+    if (!/^https?:\/\/.+/i.test(url)) {
+      this.errors.set(['URL must start with http:// or https://.']);
+      this.generatedCode.set(this.generateCode());
+      return;
+    }
+
+    try {
+      this.generatedCode.set(this.generateCode());
+    } catch (error) {
+      this.errors.set([error instanceof Error ? error.message : 'Failed to generate code.']);
+      this.generatedCode.set('');
+    }
   }
 
   get headers(): FormArray<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>> {
@@ -231,21 +260,26 @@ export class HttpRequestGeneratorComponent {
     let code = `const https = require('https');\n`;
     code += `const http = require('http');\n\n`;
 
-    const urlObj = new URL(url);
+    let urlObj: URL;
+    try {
+      urlObj = new URL(url);
+    } catch {
+      return `// Invalid URL: ${url}\n`;
+    }
     const protocol = urlObj.protocol === 'https:' ? 'https' : 'http';
 
     code += `const options = {\n`;
-    code += `  hostname: '${urlObj.hostname}',\n`;
+    code += `  hostname: '${this.escapeSingleQuotes(urlObj.hostname)}',\n`;
     if (urlObj.port) {
       code += `  port: ${urlObj.port},\n`;
     }
-    code += `  path: '${urlObj.pathname}${urlObj.search}',\n`;
+    code += `  path: '${this.escapeSingleQuotes(`${urlObj.pathname}${urlObj.search}`)}',\n`;
     code += `  method: '${method}',\n`;
 
     if (Object.keys(headers).length > 0) {
       code += `  headers: {\n`;
       for (const [key, value] of Object.entries(headers)) {
-        code += `    '${key}': '${value}',\n`;
+        code += `    '${this.escapeSingleQuotes(key)}': '${this.escapeSingleQuotes(value)}',\n`;
       }
       code += `  }\n`;
     }
@@ -259,7 +293,7 @@ export class HttpRequestGeneratorComponent {
     code += `  });\n`;
     code += `});\n\n`;
 
-    if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+    if (body && !['GET', 'HEAD'].includes(method)) {
       code += `req.write(${this.formatBodyForCode(body)});\n`;
     }
 
@@ -296,14 +330,16 @@ export class HttpRequestGeneratorComponent {
   }
 
   private formatBodyForCode(body: string): string {
-    // Try to parse as JSON
     try {
       const parsed = JSON.parse(body);
       return JSON.stringify(parsed);
     } catch {
-      // If not JSON, return as string
-      return `'${body.replace(/'/g, "\\'")}'`;
+      return `'${this.escapeSingleQuotes(body)}'`;
     }
+  }
+
+  private escapeSingleQuotes(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   }
 
   copyToClipboard(text: string, label: string): void {

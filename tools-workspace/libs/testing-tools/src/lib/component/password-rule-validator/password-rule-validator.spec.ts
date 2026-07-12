@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ttToolTestProviders } from '../../shared/tt-tool-test.utils';
 import { PasswordRuleValidatorComponent } from './password-rule-validator';
 
 describe('PasswordRuleValidatorComponent', () => {
@@ -7,7 +8,8 @@ describe('PasswordRuleValidatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PasswordRuleValidatorComponent]
+      imports: [PasswordRuleValidatorComponent],
+      providers: ttToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PasswordRuleValidatorComponent);

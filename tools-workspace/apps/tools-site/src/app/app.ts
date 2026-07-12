@@ -11,7 +11,7 @@ import { FooterComponent, StatValueTooltipHostDirective, ToastContainerComponent
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { AutoGATrackerService } from './services/auto-ga-tracker.service';
 import { SeoService } from './services/seo.service';
-import { getSeoMetadataForRoute } from './config/route-seo.config';
+import { getSeoMetadataForRoute, getToolSeoEntry } from './config/route-seo.config';
 import { GaScrollDirective } from './directives/ga-scroll.directive';
 
 @Component({
@@ -41,6 +41,16 @@ export class App implements OnInit, OnDestroy {
     private readonly autoTracker: AutoGATrackerService,
     private readonly seoService: SeoService
   ) {
+    // SEO runs on server and client so crawlers/SSR receive per-page metadata
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed()
+      )
+      .subscribe((event: NavigationEnd) => {
+        this.updateSeoForRoute(event.urlAfterRedirects);
+      });
+
     if (isPlatformBrowser(this.platformId)) {
       // Track route changes and scroll to top
       this.router.events
@@ -58,9 +68,6 @@ export class App implements OnInit, OnDestroy {
           // Update current path and start time
           this.currentPath = event.urlAfterRedirects;
           this.pageStartTime = Date.now();
-
-          // Update SEO metadata for the new route
-          this.updateSeoForRoute(event.urlAfterRedirects);
 
           // Scroll to top
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -82,15 +89,15 @@ export class App implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Apply SEO for the initial route (SSR + client hydration)
+    this.updateSeoForRoute(this.router.url);
+
     if (isPlatformBrowser(this.platformId)) {
       // Apply theme immediately on app load
       this.applyThemeOnInit();
       
       this.currentPath = this.router.url;
       this.pageStartTime = Date.now();
-
-      // Update SEO metadata for initial route
-      this.updateSeoForRoute(this.currentPath);
 
       // Track initial page load performance
       if ('performance' in window && window.performance.timing) {
@@ -230,21 +237,29 @@ export class App implements OnInit, OnDestroy {
     const cleanUrl = url.split('?')[0];
     const seoMetadata = getSeoMetadataForRoute(cleanUrl);
 
-    if (seoMetadata) {
-      // Generate structured data for tool pages
-      if (cleanUrl !== '/tools/home' && cleanUrl.startsWith('/')) {
-        const toolName = seoMetadata.title?.split(' - ')[0] || 'Tool';
-        seoMetadata.structuredData = this.seoService.generateToolStructuredData(
-          toolName,
-          seoMetadata.description || '',
-          cleanUrl
-        );
-      } else {
-        // Home page structured data
-        seoMetadata.structuredData = this.seoService.generateWebsiteStructuredData();
-      }
-
-      this.seoService.updateMetadata(seoMetadata);
+    if (!seoMetadata) {
+      return;
     }
+
+    if (cleanUrl === '/tools/home') {
+      seoMetadata.structuredData = this.seoService.generateWebsiteStructuredData();
+    } else {
+      const entry = getToolSeoEntry(cleanUrl);
+      const toolName = entry?.name || seoMetadata.title?.split(' - ')[0] || 'Tool';
+      const breadcrumbs = [
+        { name: 'Home', url: '/tools/home' },
+        ...(entry?.category
+          ? [{ name: entry.category, url: `/${entry.categorySlug}` }]
+          : []),
+        { name: toolName, url: cleanUrl },
+      ];
+
+      seoMetadata.structuredData = [
+        this.seoService.generateToolStructuredData(toolName, seoMetadata.description || '', cleanUrl),
+        this.seoService.generateBreadcrumbStructuredData(breadcrumbs),
+      ];
+    }
+
+    this.seoService.updateMetadata(seoMetadata);
   }
 }

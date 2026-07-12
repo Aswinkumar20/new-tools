@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { cftToolTestProviders } from '../../shared/cft-tool-test.utils';
 import { FileMetadataViewerComponent } from './file-metadata-viewer';
 
 describe('FileMetadataViewerComponent', () => {
@@ -7,7 +8,8 @@ describe('FileMetadataViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FileMetadataViewerComponent]
+      imports: [FileMetadataViewerComponent],
+      providers: cftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(FileMetadataViewerComponent);

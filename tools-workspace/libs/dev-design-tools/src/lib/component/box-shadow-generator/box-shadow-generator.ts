@@ -111,13 +111,13 @@ const PRESETS: BoxShadowPreset[] = [
     inset: true
   },
   {
-    label: 'Multiple layers',
-    description: 'Layered shadow',
+    label: 'Soft elevation',
+    description: 'Soft elevated card shadow',
     offsetX: 0,
-    offsetY: 2,
-    blur: 4,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.1)',
+    offsetY: 10,
+    blur: 30,
+    spread: -5,
+    color: 'rgba(0, 0, 0, 0.12)',
     inset: false
   },
   {
@@ -180,19 +180,33 @@ export class BoxShadowGeneratorComponent {
   readonly presets = PRESETS;
   readonly errors = signal<string[]>([]);
   readonly history = signal<HistoryEntry[]>([]);
+  /** Bumped on form changes so computed CSS/preview stay in sync with reactive forms. */
+  private readonly formTick = signal(0);
 
   readonly hasHistory = computed(() => this.history().length > 0);
-  readonly boxShadowCss = computed(() => this.getBoxShadowCss());
-  readonly boxShadowStyle = computed(() => this.getBoxShadowStyle());
+  readonly boxShadowCss = computed(() => {
+    this.formTick();
+    return this.getBoxShadowCss();
+  });
+  readonly boxShadowStyle = computed(() => {
+    this.formTick();
+    return this.getBoxShadowStyle();
+  });
+  readonly colorOpacity = computed(() => {
+    this.formTick();
+    return this.parseColorOpacity(this.form.controls.color.value);
+  });
 
   constructor() {
     this.form.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(50), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
+        this.validateColor();
         this.updateHistory();
       });
 
-    // Initial update
+    this.formTick.update((n) => n + 1);
     this.updateHistory();
   }
 
@@ -209,14 +223,16 @@ export class BoxShadowGeneratorComponent {
 
   getBoxShadowCss(): string {
     const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
+    const safeColor = this.normalizeColor(color) ?? 'rgba(0, 0, 0, 0.15)';
     const insetStr = inset ? 'inset ' : '';
-    return `box-shadow: ${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${color};`;
+    return `box-shadow: ${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${safeColor};`;
   }
 
   getBoxShadowStyle(): string {
     const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
+    const safeColor = this.normalizeColor(color) ?? 'rgba(0, 0, 0, 0.15)';
     const insetStr = inset ? 'inset ' : '';
-    return `${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${color}`;
+    return `${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${safeColor}`;
   }
 
   copyToClipboard(text: string, label: string): void {
@@ -295,24 +311,74 @@ export class BoxShadowGeneratorComponent {
   }
 
   getColorValue(): string {
-    const color = this.form.controls.color.value;
-    // Try to extract hex from rgba or use as-is
-    if (color.startsWith('rgba') || color.startsWith('rgb')) {
-      // For color picker, convert to hex if possible
-      return '#000000';
-    }
-    return color;
+    return this.rgbToHex(this.form.controls.color.value) ?? '#000000';
   }
 
   onColorChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const hex = input.value;
-    // Convert hex to rgba for better control
     const r = Number.parseInt(hex.slice(1, 3), 16);
     const g = Number.parseInt(hex.slice(3, 5), 16);
     const b = Number.parseInt(hex.slice(5, 7), 16);
-    const rgba = `rgba(${r}, ${g}, ${b}, 0.15)`;
-    this.form.patchValue({ color: rgba });
+    if ([r, g, b].some((n) => Number.isNaN(n))) {
+      return;
+    }
+    const alpha = this.parseColorOpacity(this.form.controls.color.value);
+    this.form.patchValue({ color: `rgba(${r}, ${g}, ${b}, ${alpha})` });
+  }
+
+  onOpacityChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const alpha = Math.min(1, Math.max(0, Number.parseFloat(input.value) || 0));
+    const hex = this.getColorValue();
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
+    this.form.patchValue({ color: `rgba(${r}, ${g}, ${b}, ${alpha})` });
+  }
+
+  private validateColor(): void {
+    const color = this.form.controls.color.value?.trim() ?? '';
+    if (!color || this.normalizeColor(color)) {
+      this.errors.set([]);
+      return;
+    }
+    this.errors.set(['Enter a valid color (hex like #000000 or rgb/rgba).']);
+  }
+
+  private normalizeColor(color: string): string | null {
+    const value = color.trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      return value;
+    }
+    if (/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*(0|1|0?\.\d+))?\s*\)$/i.test(value)) {
+      return value;
+    }
+    return null;
+  }
+
+  private parseColorOpacity(color: string): number {
+    const match = color.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(0|1|0?\.\d+)\s*\)/i);
+    if (match) {
+      return Number.parseFloat(match[1]);
+    }
+    return 1;
+  }
+
+  private rgbToHex(color: string): string | null {
+    const value = color.trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      if (value.length === 4) {
+        return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`;
+      }
+      return value;
+    }
+    const match = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (!match) {
+      return null;
+    }
+    const toHex = (n: number) => Math.min(255, Math.max(0, n)).toString(16).padStart(2, '0');
+    return `#${toHex(Number(match[1]))}${toHex(Number(match[2]))}${toHex(Number(match[3]))}`;
   }
 
   formatTimestamp(timestamp: number): string {

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { UnitConverterComponent } from './unit-converter';
 
 describe('UnitConverterComponent', () => {
@@ -7,7 +8,8 @@ describe('UnitConverterComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [UnitConverterComponent]
+      imports: [UnitConverterComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(UnitConverterComponent);

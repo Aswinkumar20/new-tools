@@ -286,7 +286,10 @@ const NUMEROLOGY_KEYWORDS: Record<number, string[]> = {
   6: ['Nurturing', 'Responsibility', 'Heart-centered'],
   7: ['Intuition', 'Analysis', 'Spiritual insight'],
   8: ['Ambition', 'Manifestation', 'Authority'],
-  9: ['Humanitarian', 'Wisdom', 'Compassion']
+  9: ['Humanitarian', 'Wisdom', 'Compassion'],
+  11: ['Intuition', 'Inspiration', 'Illumination'],
+  22: ['Master builder', 'Vision', 'Legacy'],
+  33: ['Compassion', 'Healing', 'Service'],
 };
 @Component({
   selector: 'lib-zodiac-finder',
@@ -440,7 +443,7 @@ function computeZodiac(birthDate: string, birthTime: string | undefined, timezon
     dayOfWeek,
     chineseAnimal: chinese,
     lifePathNumber: lifePath,
-    numerologyKeywords: NUMEROLOGY_KEYWORDS[lifePath],
+    numerologyKeywords: NUMEROLOGY_KEYWORDS[lifePath] ?? [],
     birthstone,
     luckyColors: lucky,
     season,
@@ -608,7 +611,7 @@ function buildSummaryCards(result: ZodiacResult | null): Array<{ title: string; 
     {
       title: 'Life path',
       value: result.lifePathNumber.toString(),
-      footnote: result.numerologyKeywords.join(' · ')
+      footnote: result.numerologyKeywords?.join(' · ') ?? ''
     },
     {
       title: 'Birthstone',

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { CreatePdfFromHtmlComponent } from './create-pdf-from-html';
 
 describe('CreatePdfFromHtmlComponent', () => {
@@ -7,7 +8,8 @@ describe('CreatePdfFromHtmlComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CreatePdfFromHtmlComponent]
+      imports: [CreatePdfFromHtmlComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CreatePdfFromHtmlComponent);

@@ -1,0 +1,616 @@
+<div class="ctl pt pt-workbench">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>{{ title }}</h1>
+        <p>{{ description }}</p>
+        @if (capabilityNote) {
+          <p class="pt-studio__note">{{ capabilityNote }}</p>
+        }
+      </header>
+
+      <div class="ctl__stats" aria-label="PDF status">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ hasDocument ? '1' : '0' }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ hasDocument ? totalPages : '—' }}</span>
+          <span class="ctl__stat-label">Pages</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ hasDocument ? formatFileSize(fileSize) : '—' }}</span>
+          <span class="ctl__stat-label">Size</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ outputBytes || base64Output ? 'Ready' : hasDocument ? 'Loaded' : '—' }}</span>
+          <span class="ctl__stat-label">Output</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-workflow" aria-label="PDF actions">
+      @if (needsPdfUpload) {
+        <div class="pt-workflow__group pt-workflow__group--files">
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" aria-label="Upload PDF" appTooltip="Upload PDF" tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+            <span class="ctl__tool-btn-label">Upload</span>
+          </button>
+          @if (mode === 'screenshot-to-pdf' || mode === 'image-to-pdf') {
+            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openImageDialog()" aria-label="Upload images" appTooltip="Upload images" tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+              <span class="ctl__tool-btn-label">Images</span>
+            </button>
+          }
+        </div>
+        <span class="pt-workflow__divider" aria-hidden="true"></span>
+      }
+
+      <div class="pt-workflow__group pt-workflow__group--primary">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon ctl__tool-btn--primary" (click)="runPrimaryAction()" [disabled]="!canRunPrimaryAction" appTooltip="{{ primaryActionLabel() }}" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">{{ loading ? 'Working…' : primaryActionLabel() }}</span>
+        </button>
+      </div>
+
+      @if (hasDocument && (mode === 'annotate-pdf' || mode === 'highlight-text' || (supportsPageThumbnails && mode === 'rotate-pages'))) {
+        <span class="pt-workflow__divider" aria-hidden="true"></span>
+        <div class="pt-workflow__group pt-workflow__group--edit" role="group" aria-label="Edit tools">
+          @if (mode === 'annotate-pdf' || mode === 'highlight-text') {
+            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="togglePlacementMode()" [class.is-active]="placementMode" appTooltip="Click preview to place" tooltipPosition="bottom">
+              <span class="ctl__tool-btn-label">{{ placementMode ? 'Placing…' : 'Place' }}</span>
+            </button>
+          }
+          @if (supportsPageThumbnails && mode === 'rotate-pages') {
+            <button type="button" class="pt-icon-btn" (click)="rotateCurrentPage(true)" [disabled]="!hasDocument" aria-label="Rotate clockwise" appTooltip="Rotate 90° clockwise" tooltipPosition="bottom">↻</button>
+            <button type="button" class="pt-icon-btn" (click)="rotateCurrentPage(false)" [disabled]="!hasDocument" aria-label="Rotate counter-clockwise" appTooltip="Rotate 90° counter-clockwise" tooltipPosition="bottom">↺</button>
+          }
+          <button type="button" class="pt-icon-btn" (click)="undo()" [disabled]="!canUndo" aria-label="Undo" appTooltip="Undo" tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" />
+          </button>
+        </div>
+      }
+
+      <span class="pt-workflow__divider" aria-hidden="true"></span>
+
+      <div class="pt-workflow__group pt-workflow__group--output" role="group" aria-label="Output actions">
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="extractText()" [disabled]="!canExtractText" appTooltip="Extract text" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Extract</span>
+        </button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadResult()" [disabled]="!canDownload" appTooltip="Download" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        @if (mode === 'pdf-to-base64') {
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="copyBase64()" [disabled]="!base64Output" aria-label="Copy Base64" appTooltip="Copy Base64" tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          </button>
+        }
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="!canClearAll" aria-label="Clear" appTooltip="Clear" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        </button>
+      </div>
+    </div>
+
+    <input #fileInput type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
+    <input #imageInput type="file" accept="image/*" multiple (change)="onImagesSelected($event)" hidden />
+
+    @if (hasOptionsPanel && configSetupHint) {
+      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsConfigAttention" role="status">
+        <span class="pt-setup-banner__step">Step 2</span>
+        <p class="pt-setup-banner__text">{{ configSetupHint }}</p>
+        @if (needsConfigAttention) {
+          <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+        }
+      </div>
+    }
+
+    <div class="ctl__workspace pt-studio" [class.pt-studio--create]="isCreationMode">
+      @if (isCreationMode) {
+        <div class="ctl__editors ctl__editors--split pt-studio__create">
+          <section class="ctl__editor pt-editor-panel pt-studio__input">
+            <header class="ctl__editor-head"><span>Input</span></header>
+            <div class="pt-studio__body pt-studio__options">
+              @switch (mode) {
+                @case ('text-to-pdf') {
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('plainTextInput')">
+                    <span>Text content</span>
+                    <textarea class="ctl__textarea" rows="14" [(ngModel)]="plainTextInput" (ngModelChange)="clearFieldError('plainTextInput')"></textarea>
+                    @if (fieldError('plainTextInput')) { <span class="pt-studio__field-error">{{ fieldError('plainTextInput') }}</span> }
+                  </label>
+                }
+                @case ('create-pdf-from-html') {
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('htmlInput')">
+                    <span>HTML source</span>
+                    <textarea class="ctl__textarea" rows="14" [(ngModel)]="htmlInput" (ngModelChange)="clearFieldError('htmlInput')"></textarea>
+                    @if (fieldError('htmlInput')) { <span class="pt-studio__field-error">{{ fieldError('htmlInput') }}</span> }
+                  </label>
+                }
+                @case ('tables-charts-to-pdf') {
+                  <label class="pt-studio__field"><span>Title</span><input class="ctl__input" [(ngModel)]="tableTitle" /></label>
+                  <label class="pt-studio__field"><span>Headers (comma-separated)</span><input class="ctl__input" [(ngModel)]="tableHeaders" (ngModelChange)="clearFieldError('tableRows')" /></label>
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('tableRows')">
+                    <span>Rows (CSV lines)</span>
+                    <textarea class="ctl__textarea" rows="8" [(ngModel)]="tableRows" (ngModelChange)="clearFieldError('tableRows')"></textarea>
+                    @if (fieldError('tableRows')) { <span class="pt-studio__field-error">{{ fieldError('tableRows') }}</span> }
+                  </label>
+                }
+                @case ('resume-invoice-generator') {
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('resumeName')">
+                    <span>Name</span>
+                    <input class="ctl__input" [(ngModel)]="resume.name" (ngModelChange)="clearFieldError('resumeName')" />
+                    @if (fieldError('resumeName')) { <span class="pt-studio__field-error">{{ fieldError('resumeName') }}</span> }
+                  </label>
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('resumeEmail')">
+                    <span>Email</span>
+                    <input class="ctl__input" type="email" [(ngModel)]="resume.email" (ngModelChange)="clearFieldError('resumeEmail')" />
+                    @if (fieldError('resumeEmail')) { <span class="pt-studio__field-error">{{ fieldError('resumeEmail') }}</span> }
+                  </label>
+                  <label class="pt-studio__field"><span>Phone</span><input class="ctl__input" [(ngModel)]="resume.phone" /></label>
+                  <label class="pt-studio__field"><span>Summary</span><textarea class="ctl__textarea" rows="3" [(ngModel)]="resume.summary"></textarea></label>
+                  <label class="pt-studio__field"><span>Experience</span><textarea class="ctl__textarea" rows="4" [(ngModel)]="resume.experience"></textarea></label>
+                  <label class="pt-studio__field"><span>Education</span><textarea class="ctl__textarea" rows="3" [(ngModel)]="resume.education"></textarea></label>
+                }
+              }
+              <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('outputFilename')">
+                <span>Output filename</span>
+                <input class="ctl__input" [(ngModel)]="outputFilename" (ngModelChange)="clearFieldError('outputFilename')" placeholder="document.pdf" />
+                @if (fieldError('outputFilename')) { <span class="pt-studio__field-error">{{ fieldError('outputFilename') }}</span> }
+              </label>
+            </div>
+          </section>
+
+          <section class="ctl__editor pt-editor-panel pt-studio__preview">
+            <header class="ctl__editor-head">
+              <span>Preview</span>
+              @if (hasDocument) {
+                <div class="ctl-pdf__page-nav">
+                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
+                  <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
+                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+                  <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                    </svg>
+                  </button>
+                </div>
+              }
+            </header>
+            @if (!hasDocument) {
+              <div class="ctl__empty">
+                <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
+                <p>Click <strong>{{ primaryActionLabel() }}</strong> to generate a preview</p>
+              </div>
+            } @else {
+              <div #previewCanvasWrap class="ctl-pdf__canvas-wrap" (click)="onCanvasClick($event)">
+                @if (previewRendering) {
+                  <p class="ctl-pdf__preview-status" aria-live="polite">Rendering preview…</p>
+                }
+                @if (previewError) {
+                  <p class="ctl-pdf__preview-status ctl-pdf__preview-status--error" role="alert">{{ previewError }}</p>
+                }
+                <canvas #previewCanvas class="ctl-pdf__canvas" [class.ctl-pdf__canvas--hidden]="previewRendering && !previewError"></canvas>
+              </div>
+            }
+          </section>
+        </div>
+      } @else {
+        @if (supportsPageThumbnails && hasDocument) {
+          <aside class="pt-studio__thumbs pt-studio__thumbs--mobile" aria-label="Page thumbnails">
+            @for (thumb of thumbnails; track $index; let i = $index) {
+              <button
+                type="button"
+                class="pt-studio__thumb"
+                [class.is-active]="currentPage === i + 1"
+                [class.is-selected]="pages[i]?.selected"
+                draggable="true"
+                (click)="selectPage(i + 1)"
+                (dragstart)="onThumbDragStart(i)"
+                (dragover)="$event.preventDefault()"
+                (drop)="onThumbDrop(i)">
+                <img [src]="thumb" alt="Page {{ i + 1 }}" width="72" />
+                <span>{{ i + 1 }}</span>
+                @if (mode === 'delete-pages' || mode === 'extract-pages') {
+                  <input type="checkbox" [checked]="pages[i]?.selected" (click)="$event.stopPropagation()" (change)="togglePageSelected(i + 1)" />
+                }
+              </button>
+            }
+          </aside>
+        }
+
+        <section class="ctl__editor pt-editor-panel pt-studio__preview">
+          <header class="ctl__editor-head">
+            <span class="pt-studio__doc-title">{{ fileName || 'Document' }}</span>
+            @if (hasDocument) {
+              <div class="ctl-pdf__page-nav">
+                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
+                <input type="number" class="ctl-pdf__page-input" [ngModel]="currentPage" (ngModelChange)="selectPage($event)" [min]="1" [max]="totalPages" />
+                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+                <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  </svg>
+                </button>
+              </div>
+            }
+          </header>
+
+          @if (!hasDocument) {
+            <button
+              type="button"
+              class="ctl-pdf__drop"
+              [class.ctl-pdf__drop--active]="showDropZone"
+              (dragenter)="onDragEnter($event)"
+              (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave($event)"
+              (drop)="onDrop($event)"
+              (click)="openFileDialog()">
+              <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
+              <p><strong>Drop PDF here</strong> or click to browse</p>
+              <p>Max 100 MB · processed locally in your browser</p>
+            </button>
+          } @else {
+            <div #previewCanvasWrap class="ctl-pdf__canvas-wrap" (click)="onCanvasClick($event)">
+              @if (previewRendering) {
+                <p class="ctl-pdf__preview-status" aria-live="polite">Rendering preview…</p>
+              }
+              @if (previewError) {
+                <p class="ctl-pdf__preview-status ctl-pdf__preview-status--error" role="alert">{{ previewError }}</p>
+              }
+              <canvas #previewCanvas class="ctl-pdf__canvas" [class.ctl-pdf__canvas--hidden]="previewRendering && !previewError"></canvas>
+            </div>
+          }
+        </section>
+
+        @if (hasDocument) {
+        <div
+          #optionsFlyout
+          class="pt-options-flyout pt-options-flyout--inline"
+          [class.pt-options-flyout--open]="optionsPanelOpen"
+          [class.pt-options-flyout--attention]="needsConfigAttention">
+          <button
+            type="button"
+            class="pt-options-flyout__trigger"
+            [class.pt-options-flyout__trigger--attention]="needsConfigAttention"
+            [attr.aria-expanded]="optionsPanelOpen"
+            aria-controls="pdf-tool-config-panel"
+            (click)="toggleOptionsPanel()"
+            appTooltip="Tool settings and options"
+            tooltipPosition="left">
+            <svg class="pt-options-flyout__chevron" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+              <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+              <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+              <line x1="17" y1="16" x2="23" y2="16" />
+            </svg>
+            <span>Configuration</span>
+            @if (needsConfigAttention) {
+              <span class="pt-options-flyout__badge" aria-hidden="true">!</span>
+            }
+          </button>
+          <button type="button" class="pt-options-flyout__backdrop" aria-label="Close configuration panel" appTooltip="Close configuration" tooltipPosition="left" (click)="optionsPanelOpen = false"></button>
+          <aside id="pdf-tool-config-panel" class="pt-config-panel pt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Tool configuration">
+            <header class="pt-config-panel__head">
+              <div class="pt-config-panel__head-row">
+                <div class="pt-config-panel__head-brand">
+                  <span class="pt-config-panel__icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                      <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                      <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                      <line x1="17" y1="16" x2="23" y2="16" />
+                    </svg>
+                  </span>
+                  <h2 class="pt-config-panel__bar-title">Configuration</h2>
+                </div>
+                <button type="button" class="pt-config-panel__close" (click)="optionsPanelOpen = false" aria-label="Close configuration">×</button>
+              </div>
+              <p class="pt-config-panel__desc">{{ configPanelDescription }}</p>
+            </header>
+
+            <div class="pt-config-panel__scroll">
+              <div class="pt-config-panel__sections">
+                @switch (mode) {
+                  @case ('pdf-metadata-editor') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Document info</h3>
+                      <label class="pt-config-field"><span class="pt-config-field__label">Title</span><input class="pt-config-input" [(ngModel)]="metadata.title" /></label>
+                      <label class="pt-config-field"><span class="pt-config-field__label">Author</span><input class="pt-config-input" [(ngModel)]="metadata.author" /></label>
+                      <label class="pt-config-field"><span class="pt-config-field__label">Subject</span><input class="pt-config-input" [(ngModel)]="metadata.subject" /></label>
+                      <label class="pt-config-field"><span class="pt-config-field__label">Keywords</span><input class="pt-config-input" [(ngModel)]="metadata.keywords" /></label>
+                    </section>
+                  }
+                  @case ('password-protect-pdf') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Security</h3>
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('userPassword')">
+                        <span class="pt-config-field__label">User password</span>
+                        <input class="pt-config-input" type="password" [(ngModel)]="userPassword" (ngModelChange)="clearFieldError('userPassword')" />
+                        @if (fieldError('userPassword')) { <span class="pt-config-field__error">{{ fieldError('userPassword') }}</span> }
+                      </label>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Owner password (optional)</span>
+                        <input class="pt-config-input" type="password" [(ngModel)]="ownerPassword" />
+                      </label>
+                    </section>
+                  }
+                  @case ('add-page-numbers') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Numbering</h3>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Position</span>
+                        <select class="pt-config-input" [(ngModel)]="pageNumberPosition">
+                          <option value="bottom-left">Bottom left</option>
+                          <option value="bottom-center">Bottom center</option>
+                          <option value="bottom-right">Bottom right</option>
+                          <option value="top-left">Top left</option>
+                          <option value="top-center">Top center</option>
+                          <option value="top-right">Top right</option>
+                        </select>
+                      </label>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Font size</span>
+                        <input class="pt-config-input" type="number" min="6" max="24" [(ngModel)]="pageNumberFontSize" />
+                      </label>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Starting number</span>
+                        <input class="pt-config-input" type="number" min="1" [(ngModel)]="pageNumberStart" />
+                      </label>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Format</span>
+                        <select class="pt-config-input" [(ngModel)]="pageNumberFormat">
+                          <option value="number">1, 2, 3…</option>
+                          <option value="page-of-total">Page 1 of N</option>
+                        </select>
+                      </label>
+                    </section>
+                  }
+                  @case ('add-watermark') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Watermark</h3>
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('watermarkText')">
+                        <span class="pt-config-field__label">Watermark text</span>
+                        <input class="pt-config-input" [(ngModel)]="watermarkText" (ngModelChange)="clearFieldError('watermarkText')" placeholder="CONFIDENTIAL" />
+                        @if (fieldError('watermarkText')) { <span class="pt-config-field__error">{{ fieldError('watermarkText') }}</span> }
+                      </label>
+                      <label class="pt-config-field">
+                        <span class="pt-config-field__label">Opacity ({{ watermarkOpacity }})</span>
+                        <input class="pt-config-input" type="range" min="0.1" max="0.8" step="0.05" [(ngModel)]="watermarkOpacity" />
+                      </label>
+                    </section>
+                  }
+                  @case ('annotate-pdf') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Annotation</h3>
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('annotationText')">
+                        <span class="pt-config-field__label">Text to place</span>
+                        <input class="pt-config-input" [(ngModel)]="annotationText" (ngModelChange)="clearFieldError('annotationText')" />
+                        @if (fieldError('annotationText')) { <span class="pt-config-field__error">{{ fieldError('annotationText') }}</span> }
+                      </label>
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('annotationFontSize')">
+                        <span class="pt-config-field__label">Font size</span>
+                        <input class="pt-config-input" type="number" min="6" max="72" [(ngModel)]="annotationFontSize" (ngModelChange)="clearFieldError('annotationFontSize')" />
+                        @if (fieldError('annotationFontSize')) { <span class="pt-config-field__error">{{ fieldError('annotationFontSize') }}</span> }
+                      </label>
+                      <p class="pt-config-note">Enable <strong>Place</strong> in the toolbar, then click on the preview.</p>
+                      @if (fieldError('annotations')) { <p class="pt-config-alert">{{ fieldError('annotations') }}</p> }
+                    </section>
+                  }
+                  @case ('highlight-text') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Highlight</h3>
+                      <p class="pt-config-note">Enable <strong>Place</strong> in the toolbar, then click where to add a highlight box.</p>
+                      @if (fieldError('annotations')) { <p class="pt-config-alert">{{ fieldError('annotations') }}</p> }
+                    </section>
+                  }
+                  @case ('fill-pdf-forms') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Form fields</h3>
+                      @if (!formFields.length) {
+                        <p class="pt-config-note">No AcroForm fields detected in this PDF.</p>
+                        @if (fieldError('formFields')) { <p class="pt-config-alert">{{ fieldError('formFields') }}</p> }
+                      }
+                      @for (field of formFields; track field.name) {
+                        <label class="pt-config-field">
+                          <span class="pt-config-field__label">{{ field.name }} <span class="pt-config-field__help">({{ field.type }})</span></span>
+                          <input class="pt-config-input" [(ngModel)]="field.value" />
+                        </label>
+                      }
+                    </section>
+                  }
+                  @case ('delete-pages') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Pages to delete</h3>
+                      @if (fieldError('pageSelection')) { <p class="pt-config-alert">{{ fieldError('pageSelection') }}</p> }
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('pageRangeInput')">
+                        <span class="pt-config-field__label">Page ranges</span>
+                        <div class="pt-config-input-row">
+                          <input class="pt-config-input" [(ngModel)]="pageRangeInput" (ngModelChange)="clearFieldError('pageRangeInput')" placeholder="1-3, 5" />
+                          <button type="button" class="pt-config-btn" (click)="applyRangeSelection()">Apply</button>
+                        </div>
+                        <span class="pt-config-field__help">Use ranges or select thumbnails on the left</span>
+                        @if (fieldError('pageRangeInput')) { <span class="pt-config-field__error">{{ fieldError('pageRangeInput') }}</span> }
+                      </label>
+                      <div class="pt-config-btn-row">
+                        <button type="button" class="pt-config-chip" (click)="selectAllPages()">Select all</button>
+                        <button type="button" class="pt-config-chip" (click)="clearPageSelection()">Clear</button>
+                      </div>
+                    </section>
+                  }
+                  @case ('extract-pages') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Pages to extract</h3>
+                      @if (fieldError('pageSelection')) { <p class="pt-config-alert">{{ fieldError('pageSelection') }}</p> }
+                      <label class="pt-config-field" [class.pt-config-field--error]="fieldError('pageRangeInput')">
+                        <span class="pt-config-field__label">Page ranges</span>
+                        <div class="pt-config-input-row">
+                          <input class="pt-config-input" [(ngModel)]="pageRangeInput" (ngModelChange)="clearFieldError('pageRangeInput')" placeholder="1-3, 5" />
+                          <button type="button" class="pt-config-btn" (click)="applyRangeSelection()">Apply</button>
+                        </div>
+                        <span class="pt-config-field__help">Use ranges or select thumbnails on the left</span>
+                        @if (fieldError('pageRangeInput')) { <span class="pt-config-field__error">{{ fieldError('pageRangeInput') }}</span> }
+                      </label>
+                    </section>
+                  }
+                  @case ('reorder-pages') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Reorder</h3>
+                      <p class="pt-config-note">Drag thumbnails to reorder pages, then click <strong>Apply order</strong> in the toolbar.</p>
+                    </section>
+                  }
+                  @case ('rotate-pages') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Rotate</h3>
+                      <p class="pt-config-note">Use ↻ / ↺ in the toolbar or rotate per page, then click <strong>Apply rotation</strong>.</p>
+                    </section>
+                  }
+                  @case ('flatten-pdf-forms') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Flatten</h3>
+                      <p class="pt-config-note">Flattens AcroForm fields into static content.</p>
+                      @if (fieldError('formFields')) { <p class="pt-config-alert">{{ fieldError('formFields') }}</p> }
+                    </section>
+                  }
+                  @case ('compress-pdf') {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Compression</h3>
+                      <div class="pt-config-metrics">
+                        <div class="pt-config-metrics__item">
+                          <span class="pt-config-metrics__value">{{ formatFileSize(fileSize) }}</span>
+                          <span class="pt-config-metrics__label">Original</span>
+                        </div>
+                        <div class="pt-config-metrics__item">
+                          <span class="pt-config-metrics__value">{{ totalPages }}</span>
+                          <span class="pt-config-metrics__label">Pages</span>
+                        </div>
+                        @if (compressOutputSizeLabel) {
+                          <div class="pt-config-metrics__item pt-config-metrics__item--result">
+                            <span class="pt-config-metrics__value">{{ compressOutputSizeLabel }}</span>
+                            <span class="pt-config-metrics__label">Compressed</span>
+                          </div>
+                        }
+                      </div>
+                      @if (compressSavingsLabel) {
+                        <p class="pt-config-hint pt-config-hint--success">{{ compressSavingsLabel }}</p>
+                      } @else {
+                        <p class="pt-config-hint">Press <strong>Compress</strong> in the toolbar, then download your file.</p>
+                      }
+                    </section>
+                  }
+                  @default {
+                    <section class="pt-config-panel__section">
+                      <h3 class="pt-config-panel__section-title">Options</h3>
+                      <p class="pt-config-note">Set an output filename below, then run the primary action from the toolbar.</p>
+                    </section>
+                  }
+                }
+
+                <section class="pt-config-panel__section pt-config-panel__section--output">
+                  <h3 class="pt-config-panel__section-title">Output file</h3>
+                  <label class="pt-config-field" [class.pt-config-field--error]="fieldError('outputFilename')">
+                    <span class="pt-config-field__label">Filename</span>
+                    <input class="pt-config-input" [(ngModel)]="outputFilename" (ngModelChange)="clearFieldError('outputFilename')" placeholder="document.pdf" />
+                    @if (fieldError('outputFilename')) { <span class="pt-config-field__error">{{ fieldError('outputFilename') }}</span> }
+                  </label>
+                </section>
+
+                @if (extractedText) {
+                  <section class="pt-config-panel__section pt-config-panel__section--output">
+                    <h3 class="pt-config-panel__section-title">Extracted text</h3>
+                    <label class="pt-config-field">
+                      <textarea class="pt-config-input ctl__textarea" rows="5" readonly [value]="extractedText"></textarea>
+                    </label>
+                    <button type="button" class="pt-config-btn" (click)="downloadExtractedText()">Download TXT</button>
+                  </section>
+                }
+
+                @if (base64Output) {
+                  <section class="pt-config-panel__section pt-config-panel__section--output">
+                    <h3 class="pt-config-panel__section-title">Base64</h3>
+                    <label class="pt-config-field">
+                      <textarea class="pt-config-input ctl__textarea" rows="5" readonly [value]="base64Output"></textarea>
+                    </label>
+                  </section>
+                }
+              </div>
+            </div>
+
+            <div class="pt-config-panel__trust" role="note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Processed locally in your browser</span>
+            </div>
+          </aside>
+        </div>
+        }
+      }
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        @if (isCreationMode) {
+          <li>Enter your content in the input panel.</li>
+          <li>Click <strong>{{ primaryActionLabel() }}</strong> to generate and preview the PDF.</li>
+          <li>Download when satisfied with the result.</li>
+        } @else {
+          <li>Upload a PDF via drag-and-drop or the toolbar.</li>
+          <li>Configure tool settings in the <strong>Configuration</strong> panel beside the preview.</li>
+          <li>Run the primary action, preview changes, then download.</li>
+        }
+      </ul>
+    </details>
+  </main>
+</div>
+
+<lib-pdf-fullscreen-overlay
+  [open]="previewFullscreen"
+  [title]="fileName || title"
+  (closed)="closePreviewFullscreen()"
+  (ready)="scheduleRenderPreview()">
+  @if (hasDocument) {
+    <div pdfFsToolbar class="ctl-pdf__page-nav">
+      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
+      <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
+      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+    </div>
+  }
+</lib-pdf-fullscreen-overlay>
+
+@if (loading) {
+  <div class="ctl-pdf__overlay" aria-live="polite">
+    <div class="ctl-pdf__spinner"></div>
+    <p>{{ loadingMessage }}</p>
+  </div>
+}
+
+@if (showPasswordDialog) {
+  <div class="ctl-pdf__dialog-layer">
+    <button type="button" class="ctl-pdf__dialog-overlay" (click)="cancelPassword()" aria-label="Close"></button>
+    <div class="ctl-pdf__dialog" tabindex="-1">
+      <div class="ctl-pdf__dialog-head"><h3>Password required</h3></div>
+      <div class="ctl-pdf__dialog-body">
+        <p>{{ passwordError }}</p>
+        <label class="ctl__field">
+          <span>Password</span>
+          <input class="ctl__input" type="password" [(ngModel)]="passwordInput" (keydown.enter)="submitPassword()" autocomplete="off" />
+        </label>
+      </div>
+      <div class="ctl-pdf__dialog-actions">
+        <button type="button" class="ctl-pdf__btn" (click)="cancelPassword()">Cancel</button>
+        <button type="button" class="ctl-pdf__btn ctl-pdf__btn--primary" (click)="submitPassword()">Unlock</button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dd">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,32 +28,34 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Box shadow actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        aria-label="Reset values"
-        appTooltip="Reset values"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="copyToClipboard(boxShadowCss(), 'Box shadow CSS')"
-        aria-label="Copy CSS"
-        appTooltip="Copy CSS"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy CSS</span>
-      </button>
+    <div class="dd-workflow" aria-label="Box shadow actions">
+      <div class="dd-workflow__group dd-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          aria-label="Reset values"
+          appTooltip="Reset values"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyToClipboard(boxShadowCss(), 'Box shadow CSS')"
+          aria-label="Copy CSS"
+          appTooltip="Copy CSS"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy CSS</span>
+        </button>
+      </div>
     </div>
 
-    <div class="ctl__workspace" [formGroup]="form">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dd-editor-panel">
           <header class="ctl__editor-head">
             <span>Preview</span>
           </header>
@@ -83,7 +85,7 @@
           </div>
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dd-editor-panel">
           <header class="ctl__editor-head">
             <span>CSS output</span>
             <div class="ctl__editor-actions">
@@ -127,138 +129,197 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Box shadow options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="offsetX">
-              <span>Horizontal offset (X)</span>
-              <input id="offsetX" type="number" min="-100" max="100" formControlName="offsetX" />
-            </label>
-
-            <label class="ctl__field" for="offsetY">
-              <span>Vertical offset (Y)</span>
-              <input id="offsetY" type="number" min="-100" max="100" formControlName="offsetY" />
-            </label>
-
-            <label class="ctl__field" for="blur">
-              <span>Blur radius</span>
-              <input id="blur" type="number" min="0" max="200" formControlName="blur" />
-            </label>
-
-            <label class="ctl__field" for="spread">
-              <span>Spread radius</span>
-              <input id="spread" type="number" min="-50" max="50" formControlName="spread" />
-            </label>
-
-            <div class="ctl__field">
-              <span>Color</span>
-              <div class="bsg__color-input-group">
-                <input
-                  type="color"
-                  [value]="getColorValue()"
-                  (input)="onColorChange($event)"
-                  class="bsg__color-picker"
-                  title="Color"
-                />
-                <input
-                  id="color"
-                  type="text"
-                  formControlName="color"
-                  placeholder="rgba(0, 0, 0, 0.15)"
-                />
-              </div>
-            </div>
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="inset" />
-              <div>
-                <strong>Inset shadow</strong>
-                <span>Create an inner shadow instead of outer</span>
-              </div>
-            </label>
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="rememberHistory" />
-              <div>
-                <strong>Remember history</strong>
-                <span>Keep track of recent box-shadow values</span>
-              </div>
-            </label>
-          </div>
+      <section class="dd-primary-panel" aria-label="Box shadow controls">
+        <div class="dd-primary-panel__head">
+          <span>Edit shadow</span>
         </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Presets</header>
-          <div class="ctl__panel-body">
-            <div class="bsg__presets-grid">
-              @for (preset of presets; track preset.label) {
-                <button type="button" class="bsg__preset-item" (click)="applyPreset(preset)">
-                  <div class="bsg__preset-preview" [style.box-shadow]="getPresetPreview(preset)"></div>
-                  <div class="bsg__preset-info">
-                    <strong>{{ preset.label }}</strong>
-                    <span>{{ preset.description }}</span>
-                  </div>
-                </button>
+        <div class="dd-primary-panel__grid">
+          <label class="ctl__field" for="offsetX">
+            <span>Horizontal offset ({{ form.controls.offsetX.value }}px)</span>
+            <input id="offsetX" type="range" min="-100" max="100" formControlName="offsetX" />
+            <input
+              type="number"
+              min="-100"
+              max="100"
+              formControlName="offsetX"
+              aria-label="Horizontal offset value"
+            />
+          </label>
+
+          <label class="ctl__field" for="offsetY">
+            <span>Vertical offset ({{ form.controls.offsetY.value }}px)</span>
+            <input id="offsetY" type="range" min="-100" max="100" formControlName="offsetY" />
+            <input
+              type="number"
+              min="-100"
+              max="100"
+              formControlName="offsetY"
+              aria-label="Vertical offset value"
+            />
+          </label>
+
+          <label class="ctl__field" for="blur">
+            <span>Blur radius ({{ form.controls.blur.value }}px)</span>
+            <input id="blur" type="range" min="0" max="200" formControlName="blur" />
+            <input
+              type="number"
+              min="0"
+              max="200"
+              formControlName="blur"
+              aria-label="Blur radius value"
+            />
+          </label>
+
+          <label class="ctl__field" for="spread">
+            <span>Spread radius ({{ form.controls.spread.value }}px)</span>
+            <input id="spread" type="range" min="-50" max="50" formControlName="spread" />
+            <input
+              type="number"
+              min="-50"
+              max="50"
+              formControlName="spread"
+              aria-label="Spread radius value"
+            />
+          </label>
+
+          <div class="ctl__field">
+            <span>Color</span>
+            <div class="bsg__color-input-group">
+              <input
+                type="color"
+                [value]="getColorValue()"
+                (input)="onColorChange($event)"
+                class="bsg__color-picker"
+                title="Color"
+                aria-label="Shadow color picker"
+              />
+              <input
+                id="color"
+                type="text"
+                formControlName="color"
+                placeholder="rgba(0, 0, 0, 0.15)"
+                aria-label="Shadow color value"
+              />
+            </div>
+            <label class="bsg__opacity">
+              <span>Opacity {{ colorOpacity() }}</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                [value]="colorOpacity()"
+                (input)="onOpacityChange($event)"
+                aria-label="Shadow color opacity"
+              />
+            </label>
+          </div>
+
+          <label class="ctl__toggle">
+            <input type="checkbox" formControlName="inset" />
+            <div>
+              <strong>Inset shadow</strong>
+              <span>Create an inner shadow instead of outer</span>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open more options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Preferences</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div>
+                  <strong>Remember history</strong>
+                  <span>Keep track of recent box-shadow values</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Presets</header>
+            <div class="ctl__panel-body">
+              <div class="bsg__presets-grid">
+                @for (preset of presets; track preset.label) {
+                  <button type="button" class="bsg__preset-item" (click)="applyPreset(preset)">
+                    <div class="bsg__preset-preview" [style.box-shadow]="getPresetPreview(preset)"></div>
+                    <div class="bsg__preset-info">
+                      <strong>{{ preset.label }}</strong>
+                      <span>{{ preset.description }}</span>
+                    </div>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!hasHistory()"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (hasHistory()) {
+                <ul class="bsg__history-list">
+                  @for (entry of history(); track entry.timestamp) {
+                    <li>
+                      <button type="button" (click)="applyHistory(entry)" class="bsg__history-item">
+                        <div class="bsg__history-preview" [style.box-shadow]="getHistoryPreview(entry)"></div>
+                        <div class="bsg__history-info">
+                          <strong>{{ entry.css }}</strong>
+                          <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        class="ctl__icon-btn"
+                        (click)="removeHistoryEntry(entry.timestamp)"
+                        aria-label="Remove entry"
+                        appTooltip="Remove entry"
+                        tooltipPosition="bottom">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty">
+                  <p>Enable history tracking to keep a list of recent box-shadow values.</p>
+                </div>
               }
             </div>
           </div>
-        </div>
-
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button
-              type="button"
-              class="ctl__icon-btn"
-              (click)="clearHistory()"
-              [disabled]="!hasHistory()"
-              aria-label="Clear history"
-              appTooltip="Clear history"
-              tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <div class="ctl__panel-body">
-            @if (hasHistory()) {
-              <ul class="bsg__history-list">
-                @for (entry of history(); track entry.timestamp) {
-                  <li>
-                    <button type="button" (click)="applyHistory(entry)" class="bsg__history-item">
-                      <div class="bsg__history-preview" [style.box-shadow]="getHistoryPreview(entry)"></div>
-                      <div class="bsg__history-info">
-                        <strong>{{ entry.css }}</strong>
-                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="removeHistoryEntry(entry.timestamp)"
-                      aria-label="Remove entry"
-                      appTooltip="Remove entry"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <div class="ctl__panel-empty">
-                <p>Enable history tracking to keep a list of recent box-shadow values.</p>
-              </div>
-            }
-          </div>
-        </div>
-      </aside>
+        </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Adjust offset, blur, spread, and color to shape your shadow.</li>
+        <li>Adjust offset, blur, spread, color, and inset in the main controls — the preview updates live.</li>
         <li>Toggle <strong>Inset</strong> for inner shadows on inputs and pressed buttons.</li>
-        <li>Try presets for common elevation levels from subtle to dramatic.</li>
+        <li>Open <strong>More</strong> for presets and history.</li>
         <li>Copy the CSS from the toolbar or output panel.</li>
       </ul>
     </details>

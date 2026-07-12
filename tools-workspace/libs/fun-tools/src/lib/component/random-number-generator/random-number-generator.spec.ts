@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { RandomNumberGeneratorComponent } from './random-number-generator';
 
 describe('RandomNumberGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('RandomNumberGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [RandomNumberGeneratorComponent]
+      imports: [RandomNumberGeneratorComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(RandomNumberGeneratorComponent);

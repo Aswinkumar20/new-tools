@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dc">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -30,54 +30,95 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Conversion actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="uploadFile()"
-        aria-label="Upload file"
-        appTooltip="Upload file"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="convert()"
-        aria-label="Convert"
-        appTooltip="Convert"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Convert</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="downloadResult()"
-        [disabled]="!resultOutput"
-        aria-label="Download result"
-        appTooltip="Download result"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="resetWorkspace()"
-        aria-label="Reset sample"
-        appTooltip="Reset sample"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="dc-workflow" aria-label="Conversion controls">
+      <div class="dc-workflow__group dc-workflow__group--files">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="uploadFile()"
+          aria-label="Upload file"
+          appTooltip="Upload file"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="downloadResult()"
+          [disabled]="!resultOutput"
+          aria-label="Download result"
+          appTooltip="Download result"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="resetWorkspace()"
+          aria-label="Reset sample"
+          appTooltip="Reset sample"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--mode" role="group" aria-label="Conversion direction">
+        <button
+          type="button"
+          class="dc-chip"
+          [class.dc-chip--active]="conversionMode === 'csv-to-json'"
+          [attr.aria-pressed]="conversionMode === 'csv-to-json'"
+          (click)="onModeChange('csv-to-json')"
+          appTooltip="CSV to JSON"
+          tooltipPosition="bottom">
+          CSV → JSON
+        </button>
+        <button
+          type="button"
+          class="dc-chip"
+          [class.dc-chip--active]="conversionMode === 'json-to-csv'"
+          [attr.aria-pressed]="conversionMode === 'json-to-csv'"
+          (click)="onModeChange('json-to-csv')"
+          appTooltip="JSON to CSV"
+          tooltipPosition="bottom">
+          JSON → CSV
+        </button>
+      </div>
+
+      <span class="dc-workflow__divider" aria-hidden="true"></span>
+
+      <div class="dc-workflow__group dc-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="convert()"
+          aria-label="Convert"
+          appTooltip="Convert"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="17 1 21 5 17 9" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <polyline points="7 23 3 19 7 15" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Convert</span>
+        </button>
+      </div>
     </div>
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors" aria-label="Source and converted output">
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split" aria-label="Source and converted output">
         <section
-          class="ctl__editor"
+          class="ctl__editor dc-editor-panel"
           [class.ctl__editor--dragging]="isDragOver"
           (dragenter)="onDragEnter($event)"
           (dragover)="onDragOver($event)"
@@ -128,7 +169,7 @@
           </div>
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dc-editor-panel">
           <header class="ctl__editor-head">
             <span>{{ conversionMode === 'csv-to-json' ? 'JSON output' : 'CSV output' }}</span>
             <div class="ctl__editor-actions">
@@ -174,32 +215,15 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Conversion options">
-        <div class="ctl__tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            class="ctl__tab"
-            [class.ctl__tab--active]="conversionMode === 'csv-to-json'"
-            [attr.aria-selected]="conversionMode === 'csv-to-json'"
-            (click)="onModeChange('csv-to-json')"
-            appTooltip="CSV to JSON"
-            tooltipPosition="bottom">
-            CSV → JSON
-          </button>
-          <button
-            type="button"
-            role="tab"
-            class="ctl__tab"
-            [class.ctl__tab--active]="conversionMode === 'json-to-csv'"
-            [attr.aria-selected]="conversionMode === 'json-to-csv'"
-            (click)="onModeChange('json-to-csv')"
-            appTooltip="JSON to CSV"
-            tooltipPosition="bottom">
-            JSON → CSV
-          </button>
-        </div>
-
+            <details class="dc-options-flyout">
+        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Conversion options">
         <div class="ctl__panel">
           <header class="ctl__panel-head">Options</header>
           <div class="ctl__settings">
@@ -294,12 +318,13 @@
           </div>
         </div>
       </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Choose <strong>CSV → JSON</strong> or <strong>JSON → CSV</strong> in the sidebar.</li>
+        <li>Choose <strong>CSV → JSON</strong> or <strong>JSON → CSV</strong> in the workflow bar.</li>
         <li>Paste, type, or upload data in the input editor.</li>
         <li>Adjust delimiter and header options, then click <strong>Convert</strong>.</li>
         <li>Use copy icons on each editor or download the result.</li>

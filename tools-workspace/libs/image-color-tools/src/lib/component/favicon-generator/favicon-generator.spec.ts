@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { FaviconGeneratorComponent } from './favicon-generator';
 
 describe('FaviconGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('FaviconGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FaviconGeneratorComponent]
+      imports: [FaviconGeneratorComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(FaviconGeneratorComponent);

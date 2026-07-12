@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { CorsTestToolComponent } from './cors-test-tool';
 
 describe('CorsTestToolComponent', () => {
@@ -7,7 +8,8 @@ describe('CorsTestToolComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CorsTestToolComponent]
+      imports: [CorsTestToolComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CorsTestToolComponent);

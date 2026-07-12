@@ -18,80 +18,153 @@
           <span class="td__stat-label">Modified</span>
         </div>
         <div class="td__stat">
-          <span class="td__stat-value">{{ diffStats.originalLines }}</span>
-          <span class="td__stat-label">Orig lines</span>
+          <span class="td__stat-value">{{ diffStats.changes }}</span>
+          <span class="td__stat-label">Changes</span>
         </div>
-        <div class="td__stat">
-          <span class="td__stat-value">{{ diffStats.modifiedLines }}</span>
-          <span class="td__stat-label">Mod lines</span>
+        <div class="td__stat td__stat--mode">
+          <span class="td__stat-value" [title]="viewModeLabel">{{ viewModeLabel }}</span>
+          <span class="td__stat-label">View</span>
         </div>
       </div>
     </div>
 
-    <div class="td__toolbar" aria-label="Diff viewer controls">
+    <div class="td__workflow" aria-label="Diff viewer controls">
+      @if (!isMobileView) {
+        <button
+          type="button"
+          class="td__chip-btn"
+          [class.td__chip-btn--active]="showSideBySide"
+          (click)="setViewMode(true)">
+          Split view
+        </button>
+        <button
+          type="button"
+          class="td__chip-btn"
+          [class.td__chip-btn--active]="!showSideBySide"
+          (click)="setViewMode(false)">
+          Unified view
+        </button>
+      }
       <button
         type="button"
-        class="td__tool-btn"
-        (click)="copyOriginal()"
-        [disabled]="!originalModel.code"
-        aria-label="Copy original"
-        appTooltip="Copy original"
+        class="td__chip-btn"
+        [class.td__chip-btn--active]="showSidebar"
+        (click)="toggleSidebar()"
+        aria-label="Toggle properties panel"
+        appTooltip="Show or hide properties panel"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="td__tool-btn-label">Original</span>
-      </button>
-      <button
-        type="button"
-        class="td__tool-btn"
-        (click)="copyModified()"
-        [disabled]="!modifiedModel.code"
-        aria-label="Copy modified"
-        appTooltip="Copy modified"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="td__tool-btn-label">Modified</span>
-      </button>
-      <button
-        type="button"
-        class="td__tool-btn"
-        (click)="clearOriginal()"
-        [disabled]="!originalModel.code"
-        aria-label="Clear original"
-        appTooltip="Clear original"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="td__tool-btn-label">Clr orig</span>
-      </button>
-      <button
-        type="button"
-        class="td__tool-btn"
-        (click)="clearModified()"
-        [disabled]="!modifiedModel.code"
-        aria-label="Clear modified"
-        appTooltip="Clear modified"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="td__tool-btn-label">Clr mod</span>
-      </button>
-      <button
-        type="button"
-        class="td__tool-btn"
-        (click)="clearAll()"
-        [disabled]="!diffStats.hasContent"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="td__tool-btn-label">Clear all</span>
+        Properties
       </button>
     </div>
 
-    <div class="td__workspace">
+    <div class="td__workspace" [class.td__workspace--sidebar-hidden]="!showSidebar">
       <section class="td__editor-panel" aria-label="Side-by-side diff">
+        <header class="td__editor-head" aria-label="Diff editor actions">
+          <span class="td__editor-title">Diff editor</span>
+          <div class="td__toolbar">
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="uploadOriginal()"
+              aria-label="Upload original"
+              appTooltip="Upload original file"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="td__tool-btn-label">Orig</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="uploadModified()"
+              aria-label="Upload modified"
+              appTooltip="Upload modified file"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="td__tool-btn-label">Mod</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="copyOriginal()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Copy original"
+              appTooltip="Copy original"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Copy O</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="copyModified()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Copy modified"
+              appTooltip="Copy modified"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Copy M</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="swapSides()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Swap sides"
+              appTooltip="Swap original and modified"
+              tooltipPosition="bottom">
+              <span class="td__tool-btn-label">⇄ Swap</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="downloadOriginal()"
+              [disabled]="!diffStats.originalChars"
+              aria-label="Download original"
+              appTooltip="Download original TXT"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">O TXT</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="downloadModified()"
+              [disabled]="!diffStats.modifiedChars"
+              aria-label="Download modified"
+              appTooltip="Download modified TXT"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">M TXT</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="clearAll()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Clear all"
+              appTooltip="Clear all"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Clear</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn td__tool-btn--panel"
+              [class.td__tool-btn--active]="showSidebar"
+              (click)="toggleSidebar()"
+              aria-label="Toggle properties panel"
+              appTooltip="Toggle properties panel"
+              tooltipPosition="bottom">
+              <span class="td__tool-btn-label">Props</span>
+            </button>
+          </div>
+        </header>
+
         <div class="td__diff-labels" aria-hidden="true">
           <span>Original</span>
           <span>Modified</span>
         </div>
+
         <div class="td__diff-container" #editorContainer>
           <ngx-monaco-diff-editor
             class="td__diff-editor"
@@ -103,57 +176,92 @@
         </div>
       </section>
 
-      <aside class="td__sidebar" aria-label="Editor settings">
-        <div class="td__panel">
-          <header class="td__panel-head">Editor settings</header>
-          <div class="td__settings">
-            <label class="td__field" for="theme-select">
-              <span>Theme</span>
-              <select
-                id="theme-select"
-                [ngModel]="editorOptions.theme"
-                (ngModelChange)="onThemeChange($event)">
-                @for (theme of themes; track theme) {
-                  <option [value]="theme">{{ theme }}</option>
-                }
-              </select>
-            </label>
-            <label class="td__field" for="language-select">
-              <span>Language</span>
-              <select
-                id="language-select"
-                [ngModel]="editorOptions.language === 'plaintext' ? 'text/plain' : editorOptions.language"
-                (ngModelChange)="onLanguageChange($event)">
-                @for (language of languages; track language) {
-                  <option [value]="language === 'plaintext' ? 'text/plain' : language">
-                    {{ language === 'plaintext' ? 'Plain Text' : language }}
-                  </option>
-                }
-              </select>
-            </label>
+      @if (showSidebar) {
+        <aside class="td__sidebar" aria-label="Editor settings">
+          <div class="td__panel">
+            <header class="td__panel-head">
+              <span>Editor settings</span>
+              <button
+                type="button"
+                class="td__panel-close"
+                (click)="toggleSidebar()"
+                aria-label="Hide properties panel"
+                appTooltip="Hide panel"
+                tooltipPosition="bottom">
+                ✕
+              </button>
+            </header>
+            <div class="td__settings">
+              <label class="td__field" for="theme-select">
+                <span>Theme</span>
+                <select
+                  id="theme-select"
+                  [ngModel]="editorOptions.theme"
+                  (ngModelChange)="onThemeChange($event)">
+                  @for (theme of themes; track theme) {
+                    <option [value]="theme">{{ theme }}</option>
+                  }
+                </select>
+              </label>
+              <label class="td__field" for="language-select">
+                <span>Language</span>
+                <select
+                  id="language-select"
+                  [ngModel]="editorOptions.language === 'plaintext' ? 'text/plain' : editorOptions.language"
+                  (ngModelChange)="onLanguageChange($event)">
+                  @for (language of languages; track language) {
+                    <option [value]="language === 'plaintext' ? 'text/plain' : language">
+                      {{ language === 'plaintext' ? 'Plain Text' : language }}
+                    </option>
+                  }
+                </select>
+              </label>
+              <label class="td__field" for="font-size">
+                <span>Font size</span>
+                <input
+                  id="font-size"
+                  type="number"
+                  min="8"
+                  max="32"
+                  [ngModel]="editorOptions.fontSize"
+                  (ngModelChange)="onFontSizeChange(+$event)" />
+              </label>
+              <label class="td__toggle">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="ignoreTrimWhitespace"
+                  (ngModelChange)="onIgnoreWhitespaceChange()" />
+                <span>Ignore trim whitespace</span>
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="td__info">
-          <div class="td__info-item">
-            <span class="td__info-dot td__info-dot--accent"></span>
-            <p>Paste or type directly — diffs update in real time.</p>
+          <div class="td__info">
+            <div class="td__info-item">
+              <span class="td__info-dot td__info-dot--accent"></span>
+              <p>Type or paste in either pane — diffs update in real time.</p>
+            </div>
+            <div class="td__info-item">
+              <span class="td__info-dot"></span>
+              <p>Hide <strong>Properties</strong> for a wider editor view.</p>
+            </div>
+            <div class="td__info-item">
+              <span class="td__info-dot"></span>
+              <p><kbd>Ctrl+F</kbd> opens in-editor search within each pane.</p>
+            </div>
           </div>
-          <div class="td__info-item">
-            <span class="td__info-dot"></span>
-            <p>Switch language for syntax-aware highlighting.</p>
-          </div>
-        </div>
-      </aside>
+        </aside>
+      }
     </div>
 
     <details class="td__help">
       <summary>How to use</summary>
       <ul>
         <li>Paste original content on the left and modified on the right in the diff editor.</li>
-        <li>Use toolbar copy buttons for original or modified text.</li>
-        <li>Change theme and language in the sidebar for clearer review.</li>
-        <li><kbd>Ctrl+F</kbd> opens in-editor search within each pane.</li>
+        <li>Use <strong>Orig</strong> / <strong>Mod</strong> upload to load files into each side.</li>
+        <li>Toggle <strong>Properties</strong> to hide the settings panel for more editor space.</li>
+        <li>Switch <strong>Split</strong> or <strong>Unified</strong> view on desktop.</li>
+        <li>Use <strong>⇄ Swap</strong> to exchange original and modified content.</li>
       </ul>
     </details>
   </main>

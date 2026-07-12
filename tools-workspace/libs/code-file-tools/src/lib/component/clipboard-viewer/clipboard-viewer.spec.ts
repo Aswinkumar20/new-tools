@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { cftToolTestProviders } from '../../shared/cft-tool-test.utils';
 import { ClipboardViewerComponent } from './clipboard-viewer';
 
 describe('ClipboardViewerComponent', () => {
@@ -7,7 +8,8 @@ describe('ClipboardViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ClipboardViewerComponent]
+      imports: [ClipboardViewerComponent],
+      providers: cftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ClipboardViewerComponent);

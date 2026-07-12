@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { StopwatchTimerComponent } from './stopwatch-timer';
 
 describe('StopwatchTimerComponent', () => {
@@ -7,7 +8,8 @@ describe('StopwatchTimerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [StopwatchTimerComponent]
+      imports: [StopwatchTimerComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(StopwatchTimerComponent);

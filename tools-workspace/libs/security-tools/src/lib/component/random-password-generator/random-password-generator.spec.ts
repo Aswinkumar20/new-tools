@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { RandomPasswordGeneratorComponent } from './random-password-generator';
 
 describe('RandomPasswordGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('RandomPasswordGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [RandomPasswordGeneratorComponent]
+      imports: [RandomPasswordGeneratorComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(RandomPasswordGeneratorComponent);

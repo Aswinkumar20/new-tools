@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { PdfViewerComponent } from './pdf-viewer';
 
 describe('PdfViewerComponent', () => {
@@ -7,7 +8,8 @@ describe('PdfViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PdfViewerComponent]
+      imports: [PdfViewerComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PdfViewerComponent);

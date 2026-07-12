@@ -330,6 +330,28 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.formatFileSize(totalBytes);
   }
 
+  get currentFormatLabel(): string {
+    if (!this.currentImage?.type) {
+      return '—';
+    }
+    return this.currentImage.type.replace('image/', '').toUpperCase() || '—';
+  }
+
+  get canGoPrevious(): boolean {
+    return this.images.length > 1 && this.currentImageIndex > 0;
+  }
+
+  get canGoNext(): boolean {
+    return this.images.length > 1 && this.currentImageIndex >= 0 && this.currentImageIndex < this.images.length - 1;
+  }
+
+  get activeIndexLabel(): string {
+    if (this.images.length === 0 || this.currentImageIndex < 0) {
+      return '—';
+    }
+    return `${this.currentImageIndex + 1}/${this.images.length}`;
+  }
+
   previousImage(): void {
     if (this.images.length === 0) return;
     
@@ -576,7 +598,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
             }, 150);
           } else {
             // Fallback: use fullscreen CSS class (container is already rendered)
-            container.classList.add('fullscreen-active');
+            container.classList.add('iv-fullscreen--active');
             this.isEnteringFullscreen = false;
             setTimeout(() => {
               this.fitToScreen();
@@ -611,7 +633,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     
     // Remove fallback fullscreen class
     if (this.fullscreenContainer?.nativeElement) {
-      this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
+      this.fullscreenContainer.nativeElement.classList.remove('iv-fullscreen--active');
     }
     
     this.cdr.detectChanges();
@@ -820,7 +842,7 @@ export class ImageViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   private verifyImageLoad(url: string, imageFile: ImageFile, errors: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      let timeoutId: number | null = null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let isResolved = false;
       
       const cleanup = () => {

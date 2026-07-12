@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { HttpRequestGeneratorComponent } from './http-request-generator';
 
 describe('HttpRequestGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('HttpRequestGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HttpRequestGeneratorComponent]
+      imports: [HttpRequestGeneratorComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HttpRequestGeneratorComponent);

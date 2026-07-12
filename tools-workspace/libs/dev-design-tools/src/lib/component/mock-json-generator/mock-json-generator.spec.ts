@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { MockJsonGeneratorComponent } from './mock-json-generator';
 
 describe('MockJsonGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('MockJsonGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MockJsonGeneratorComponent]
+      imports: [MockJsonGeneratorComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(MockJsonGeneratorComponent);

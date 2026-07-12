@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { AgeCalculatorComponent } from './age-calculator';
 
 describe('AgeCalculatorComponent', () => {
@@ -7,7 +8,8 @@ describe('AgeCalculatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AgeCalculatorComponent]
+      imports: [AgeCalculatorComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(AgeCalculatorComponent);

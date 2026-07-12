@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { BorderRadiusPreviewComponent } from './border-radius-preview';
 
 describe('BorderRadiusPreviewComponent', () => {
@@ -7,7 +8,8 @@ describe('BorderRadiusPreviewComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [BorderRadiusPreviewComponent]
+      imports: [BorderRadiusPreviewComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(BorderRadiusPreviewComponent);

@@ -22,6 +22,8 @@ interface HistoryEntry {
     topRight: number;
     bottomRight: number;
     bottomLeft: number;
+    unit: 'px' | 'rem' | 'em' | '%';
+    mode: 'uniform' | 'individual';
   };
 }
 
@@ -79,11 +81,11 @@ const PRESETS: BorderRadiusPreset[] = [
   },
   {
     label: 'Pill',
-    description: '50px all corners',
-    topLeft: 50,
-    topRight: 50,
-    bottomRight: 50,
-    bottomLeft: 50
+    description: '9999px all corners (pill shape)',
+    topLeft: 9999,
+    topRight: 9999,
+    bottomRight: 9999,
+    bottomLeft: 9999
   },
   {
     label: 'Circle',
@@ -169,19 +171,27 @@ export class BorderRadiusPreviewComponent {
   readonly presets = PRESETS;
   readonly errors = signal<string[]>([]);
   readonly history = signal<HistoryEntry[]>([]);
+  private readonly formTick = signal(0);
 
   readonly hasHistory = computed(() => this.history().length > 0);
-  readonly borderRadiusCss = computed(() => this.getBorderRadiusCss());
-  readonly borderRadiusStyle = computed(() => this.getBorderRadiusStyle());
+  readonly borderRadiusCss = computed(() => {
+    this.formTick();
+    return this.getBorderRadiusCss();
+  });
+  readonly borderRadiusStyle = computed(() => {
+    this.formTick();
+    return this.getBorderRadiusStyle();
+  });
 
   constructor() {
     this.form.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(50), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
         this.updateHistory();
       });
 
-    // Initial update
+    this.formTick.update((n) => n + 1);
     this.updateHistory();
   }
 
@@ -208,9 +218,8 @@ export class BorderRadiusPreviewComponent {
   }
 
   applyPreset(preset: BorderRadiusPreset): void {
-    const unit = this.form.controls.unit.value;
     const isPercentage = preset.label === 'Circle';
-    const actualUnit = isPercentage ? '%' : unit;
+    const isPill = preset.label === 'Pill';
 
     this.form.patchValue({
       mode: 'individual',
@@ -219,7 +228,7 @@ export class BorderRadiusPreviewComponent {
       bottomRight: preset.bottomRight,
       bottomLeft: preset.bottomLeft,
       uniform: preset.topLeft,
-      unit: actualUnit
+      unit: isPercentage ? '%' : isPill ? 'px' : this.form.controls.unit.value
     });
   }
 
@@ -230,23 +239,13 @@ export class BorderRadiusPreviewComponent {
       return `border-radius: ${uniform}${unit};`;
     }
 
-    const values = [topLeft, topRight, bottomRight, bottomLeft];
-    const allSame = values.every((v) => v === values[0]);
-
-    if (allSame) {
+    // Always emit 4-value shorthand so TL/TR/BR/BL map correctly
+    // (CSS 2-value form is TL+BR / TR+BL, not top/bottom pairs).
+    if (topLeft === topRight && topRight === bottomRight && bottomRight === bottomLeft) {
       return `border-radius: ${topLeft}${unit};`;
     }
 
-    const topSame = topLeft === topRight;
-    const bottomSame = bottomRight === bottomLeft;
-    const leftSame = topLeft === bottomLeft;
-    const rightSame = topRight === bottomRight;
-
-    if (topSame && bottomSame) {
-      return `border-radius: ${topLeft}${unit} ${bottomRight}${unit};`;
-    }
-
-    if (leftSame && rightSame) {
+    if (topLeft === bottomRight && topRight === bottomLeft) {
       return `border-radius: ${topLeft}${unit} ${topRight}${unit};`;
     }
 
@@ -288,12 +287,13 @@ export class BorderRadiusPreviewComponent {
 
   applyHistory(entry: HistoryEntry): void {
     this.form.patchValue({
-      mode: 'individual',
+      mode: entry.values.mode ?? 'individual',
       topLeft: entry.values.topLeft,
       topRight: entry.values.topRight,
       bottomRight: entry.values.bottomRight,
       bottomLeft: entry.values.bottomLeft,
-      uniform: entry.values.topLeft
+      uniform: entry.values.topLeft,
+      unit: entry.values.unit ?? 'px'
     });
   }
 
@@ -310,13 +310,13 @@ export class BorderRadiusPreviewComponent {
       return;
     }
 
-    const { topLeft, topRight, bottomRight, bottomLeft } = this.form.getRawValue();
+    const { mode, topLeft, topRight, bottomRight, bottomLeft, unit } = this.form.getRawValue();
     const css = this.getBorderRadiusCss();
 
     const entry: HistoryEntry = {
       timestamp: Date.now(),
       css,
-      values: { topLeft, topRight, bottomRight, bottomLeft }
+      values: { topLeft, topRight, bottomRight, bottomLeft, unit, mode }
     };
 
     this.history.update((entries) => {
@@ -334,10 +334,9 @@ export class BorderRadiusPreviewComponent {
   }
 
   getHistoryPreview(entry: HistoryEntry): string {
-    const { topLeft, topRight, bottomRight, bottomLeft } = entry.values;
-    // Extract unit from CSS (simplified - assumes px)
-    const unit = 'px';
-    return `${topLeft}${unit} ${topRight}${unit} ${bottomRight}${unit} ${bottomLeft}${unit}`;
+    const { topLeft, topRight, bottomRight, bottomLeft, unit } = entry.values;
+    const u = unit ?? 'px';
+    return `${topLeft}${u} ${topRight}${u} ${bottomRight}${u} ${bottomLeft}${u}`;
   }
 
   formatTimestamp(timestamp: number): string {

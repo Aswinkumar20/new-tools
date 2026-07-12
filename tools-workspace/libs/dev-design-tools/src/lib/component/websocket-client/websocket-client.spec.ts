@@ -1,16 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { WebsocketClientComponent } from './websocket-client';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
+import { WebSocketClientComponent } from './websocket-client';
 
-describe('WebsocketClientComponent', () => {
-  let component: WebsocketClientComponent;
-  let fixture: ComponentFixture<WebsocketClientComponent>;
+describe('WebSocketClientComponent', () => {
+  let component: WebSocketClientComponent;
+  let fixture: ComponentFixture<WebSocketClientComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [WebsocketClientComponent]
+      imports: [WebSocketClientComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(WebsocketClientComponent);
+    fixture = TestBed.createComponent(WebSocketClientComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

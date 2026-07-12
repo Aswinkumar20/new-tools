@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dd">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -36,7 +36,7 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="CORS test actions">
+    <div class="dd-workflow" aria-label="CORS test actions"><div class="dd-workflow__group dd-workflow__group--actions">
       <button
         type="button"
         class="ctl__tool-btn"
@@ -45,7 +45,7 @@
         aria-label="Test CORS"
         appTooltip="Test CORS"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         <span class="ctl__tool-btn-label">{{ isTesting() ? 'Testing…' : 'Test CORS' }}</span>
       </button>
       <button
@@ -55,13 +55,13 @@
         aria-label="Reset"
         appTooltip="Reset"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Reset</span>
       </button>
     </div>
-
-    <div class="ctl__workspace" [formGroup]="form">
-      <section class="ctl__editor ctl__editor--output">
+    </div>
+    <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
+      <section class="ctl__editor ctl__editor--output dd-viewer-panel">
         <header class="ctl__editor-head">
           <span>Test results</span>
           @if (hasResult()) {
@@ -163,149 +163,165 @@
         }
       </section>
 
-      <aside class="ctl__sidebar" aria-label="Request settings and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Request settings</header>
-          <div class="ctl__settings">
-            <div class="ctl__field">
-              <span>URL</span>
-              <input
-                id="url"
-                type="url"
-                formControlName="url"
-                placeholder="https://api.example.com/endpoint"
-              />
-            </div>
-
-            <div class="ctl__field">
-              <span>HTTP method</span>
-              <select id="method" formControlName="method">
-                @for (method of methods; track method) {
-                  <option [value]="method">{{ method }}</option>
-                }
-              </select>
-            </div>
-
-            <div class="ctt__headers-section">
-              <div class="ctt__section-header">
-                <span>Custom headers</span>
-                <button
-                  type="button"
-                  class="ctl__icon-btn"
-                  (click)="addHeader()"
-                  aria-label="Add header"
-                  appTooltip="Add header"
-                  tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="16" height="16" />
-                </button>
-              </div>
-              <div class="ctt__headers-list">
-                @for (header of headersFormArray().controls; track $index; let i = $index) {
-                  <div class="ctt__header-item">
-                    <input
-                      type="text"
-                      [formControl]="header.controls.key"
-                      placeholder="Header name"
-                    />
-                    <input
-                      type="text"
-                      [formControl]="header.controls.value"
-                      placeholder="Header value"
-                    />
-                    @if (headersFormArray().length > 1) {
-                      <button
-                        type="button"
-                        class="ctl__icon-btn ctt__remove-btn"
-                        (click)="removeHeader(i)"
-                        aria-label="Remove header"
-                        appTooltip="Remove header"
-                        tooltipPosition="bottom">
-                        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                      </button>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-
-            @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
-              <div class="ctl__field">
-                <span>Request body</span>
-                <textarea
-                  id="body"
-                  class="ctl__textarea ctl__textarea--mono"
-                  formControlName="body"
-                  placeholder='{"key": "value"}'
-                  rows="4"
-                ></textarea>
-              </div>
-            }
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="rememberHistory" />
-              <div>
-                <strong>Remember history</strong>
-                <span>Keep track of recent CORS tests</span>
-              </div>
-            </label>
-          </div>
+      <section class="dd-primary-panel" aria-label="Request controls">
+        <div class="dd-primary-panel__head">
+          <span>Request</span>
         </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>Test history</span>
+        <div class="dd-primary-panel__grid">
+          <label class="ctl__field" for="url">
+            <span>URL</span>
+            <input
+              id="url"
+              type="url"
+              formControlName="url"
+              placeholder="https://api.example.com/endpoint"
+            />
+          </label>
+
+          <label class="ctl__field" for="method">
+            <span>HTTP method</span>
+            <select id="method" formControlName="method">
+              @for (method of methods; track method) {
+                <option [value]="method">{{ method }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="ctt__headers-section">
+          <div class="ctt__section-header">
+            <span>Custom headers</span>
             <button
               type="button"
               class="ctl__icon-btn"
-              (click)="clearHistory()"
-              [disabled]="!hasHistory()"
-              aria-label="Clear history"
-              appTooltip="Clear history"
+              (click)="addHeader()"
+              aria-label="Add header"
+              appTooltip="Add header"
               tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
-          </header>
-          @if (hasHistory()) {
-            <ul class="ctt__history-list">
-              @for (entry of history(); track entry.timestamp) {
-                <li>
-                  <button type="button" (click)="applyHistory(entry)" class="ctt__history-item">
-                    <div class="ctt__history-info">
-                      <strong>{{ entry.method }} {{ entry.url }}</strong>
-                      <span>
-                        {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
-                      </span>
-                      @if (Object.keys(entry.corsHeaders).length > 0) {
-                        <span class="ctt__history-cors">CORS headers: {{ Object.keys(entry.corsHeaders).length }}</span>
-                      }
-                    </div>
-                  </button>
+          </div>
+          <div class="ctt__headers-list">
+            @for (header of headersFormArray().controls; track $index; let i = $index) {
+              <div class="ctt__header-item">
+                <input
+                  type="text"
+                  [formControl]="header.controls.key"
+                  placeholder="Header name"
+                />
+                <input
+                  type="text"
+                  [formControl]="header.controls.value"
+                  placeholder="Header value"
+                />
+                @if (headersFormArray().length > 1) {
                   <button
                     type="button"
-                    class="ctl__icon-btn"
-                    (click)="removeHistoryEntry(entry.timestamp)"
-                    aria-label="Remove entry"
-                    appTooltip="Remove entry"
+                    class="ctl__icon-btn ctt__remove-btn"
+                    (click)="removeHeader(i)"
+                    aria-label="Remove header"
+                    appTooltip="Remove header"
                     tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="ctl__empty"><p>Enable history to keep recent CORS tests.</p></div>
-          }
+                }
+              </div>
+            }
+          </div>
         </div>
-      </aside>
+
+        @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
+          <label class="ctl__field" for="body">
+            <span>Request body</span>
+            <textarea
+              id="body"
+              class="ctl__textarea ctl__textarea--mono"
+              formControlName="body"
+              placeholder='{"key": "value"}'
+              rows="4"
+            ></textarea>
+          </label>
+        }
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open more panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="History and preferences">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Preferences</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div>
+                  <strong>Remember history</strong>
+                  <span>Keep track of recent CORS tests</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Test history</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!hasHistory()"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            @if (hasHistory()) {
+              <ul class="ctt__history-list">
+                @for (entry of history(); track entry.timestamp) {
+                  <li>
+                    <button type="button" (click)="applyHistory(entry)" class="ctt__history-item">
+                      <div class="ctt__history-info">
+                        <strong>{{ entry.method }} {{ entry.url }}</strong>
+                        <span>
+                          {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
+                        </span>
+                        @if (Object.keys(entry.corsHeaders).length > 0) {
+                          <span class="ctt__history-cors">CORS headers: {{ Object.keys(entry.corsHeaders).length }}</span>
+                        }
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="ctl__icon-btn"
+                      (click)="removeHistoryEntry(entry.timestamp)"
+                      aria-label="Remove entry"
+                      appTooltip="Remove entry"
+                      tooltipPosition="bottom">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__empty"><p>Enable history to keep recent CORS tests.</p></div>
+            }
+          </div>
+        </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Enter a URL and choose an HTTP method in the sidebar.</li>
-        <li>Add custom headers or a request body for POST, PUT, or PATCH.</li>
+        <li>Set URL, method, headers, and body in the Request panel.</li>
         <li>Tap <strong>Test CORS</strong> to send the request and inspect response headers.</li>
-        <li>Review CORS headers, all response headers, and the response body in the results panel.</li>
+        <li>Open <strong>More</strong> for history preferences and past tests.</li>
       </ul>
     </details>
   </main>

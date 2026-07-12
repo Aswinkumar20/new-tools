@@ -28,73 +28,89 @@
       </div>
     </div>
 
-    <div class="tta__toolbar" aria-label="Conversion actions">
-      <button
-        type="button"
-        class="tta__tool-btn"
-        (click)="swapTypes()"
-        aria-label="Swap formats"
-        appTooltip="Swap input and output formats"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="tta__tool-btn-label">Swap</span>
-      </button>
-      <button
-        type="button"
-        class="tta__tool-btn"
-        (click)="clear()"
-        [disabled]="!hasInput && !outputValue"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="tta__tool-btn-label">Clear</span>
-      </button>
-      <button
-        type="button"
-        class="tta__tool-btn"
-        (click)="convert()"
-        [disabled]="!hasInput"
-        aria-label="Convert"
-        appTooltip="Convert now"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="tta__tool-btn-label">Convert</span>
-      </button>
-    </div>
-
     <div class="tta__workspace">
       <div class="tta__editors" aria-label="Source and converted text">
-        <section class="tta__editor">
-          <header class="tta__editor-head">
-            <span>Input ({{ fromLabel }})</span>
-            <div class="tta__editor-actions">
+        <section
+          class="tta__editor"
+          [class.tta__editor--dragover]="isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)">
+          <header class="tta__editor-head" aria-label="Input editor actions">
+            <span class="tta__editor-title">Input ({{ fromLabel }})</span>
+            <div class="tta__toolbar">
               <button
                 type="button"
-                class="tta__icon-btn"
+                class="tta__tool-btn"
+                (click)="uploadTextFile()"
+                [disabled]="isReadingFile"
+                aria-label="Upload text file"
+                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
                 (click)="copyInput()"
                 [disabled]="!hasInput"
                 aria-label="Copy input"
                 appTooltip="Copy input"
                 tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Copy</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="undo()"
+                [disabled]="!canUndo"
+                aria-label="Undo"
+                appTooltip="Undo (Ctrl+Z)"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Undo</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="redo()"
+                [disabled]="!canRedo"
+                aria-label="Redo"
+                appTooltip="Redo (Ctrl+Y)"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Redo</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="clear()"
+                [disabled]="!hasInput && !outputValue"
+                aria-label="Clear all"
+                appTooltip="Clear all"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Clear</span>
               </button>
             </div>
           </header>
           <label class="sr-only" for="conversion-input">Enter value to convert</label>
           <textarea
+            #inputTextarea
             id="conversion-input"
             class="tta__textarea tta__textarea--mono"
             [(ngModel)]="inputValue"
             (input)="onInputChange()"
             rows="1"
-            placeholder="Paste or type content to convert…"></textarea>
+            placeholder="Paste, type, or drop a text file here…"></textarea>
         </section>
 
         <section class="tta__editor tta__editor--output" [class.tta__editor--error]="errorMessage">
-          <header class="tta__editor-head">
-            <span>Output ({{ toLabel }})</span>
-            <div class="tta__editor-actions">
+          <header class="tta__editor-head" aria-label="Output editor actions">
+            <div class="tta__editor-head-left">
+              <span class="tta__editor-title">Output ({{ toLabel }})</span>
               @if (isConverting) {
                 <span class="tta__editor-badge tta__editor-badge--busy">Converting…</span>
               } @else if (outputValue && !errorMessage) {
@@ -102,15 +118,49 @@
               } @else if (errorMessage) {
                 <span class="tta__editor-badge tta__editor-badge--error">Error</span>
               }
+            </div>
+            <div class="tta__toolbar">
               <button
                 type="button"
-                class="tta__icon-btn"
+                class="tta__tool-btn"
                 (click)="copyOutput()"
                 [disabled]="!outputValue"
                 aria-label="Copy output"
                 appTooltip="Copy output"
                 tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Copy</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="downloadText()"
+                [disabled]="!outputValue"
+                aria-label="Download TXT"
+                appTooltip="Download TXT"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">TXT</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="useOutputAsInput()"
+                [disabled]="!outputValue"
+                aria-label="Use output as input"
+                appTooltip="Use output as new input"
+                tooltipPosition="bottom">
+                <span class="tta__tool-btn-label">→ In</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="swapTypes()"
+                [disabled]="!outputValue && !hasInput"
+                aria-label="Swap formats and values"
+                appTooltip="Swap formats and values"
+                tooltipPosition="bottom">
+                <span class="tta__tool-btn-label">⇄ Swap</span>
               </button>
             </div>
           </header>
@@ -194,9 +244,10 @@
       <summary>How to use</summary>
       <ul>
         <li>Choose <strong>From</strong> and <strong>To</strong> formats in the sidebar.</li>
-        <li>Paste or type in <strong>Input</strong> — conversion runs automatically.</li>
-        <li>Use <strong>Swap</strong> to reverse formats and verify reversibility.</li>
+        <li>Paste, type, <strong>Upload</strong>, or drag &amp; drop in <strong>Input</strong> — conversion runs automatically.</li>
+        <li>Use <strong>Swap</strong> or <strong>→ In</strong> to reverse formats or reuse output.</li>
         <li>ASCII, binary, and hex values are space-separated (e.g. <code>72 101 108</code>).</li>
+        <li><kbd>Ctrl+Z</kbd> / <kbd>Cmd+Z</kbd> undo · <kbd>Ctrl+Y</kbd> / <kbd>Cmd+Shift+Z</kbd> redo.</li>
       </ul>
     </details>
   </main>

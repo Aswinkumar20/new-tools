@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { ColorPickerComponent } from './color-picker';
 
 describe('ColorPickerComponent', () => {
@@ -7,7 +8,8 @@ describe('ColorPickerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ColorPickerComponent]
+      imports: [ColorPickerComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ColorPickerComponent);

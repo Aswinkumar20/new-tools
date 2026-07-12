@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { ImageToBase64Component } from './image-to-base64';
 
 describe('ImageToBase64Component', () => {
@@ -7,7 +8,8 @@ describe('ImageToBase64Component', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ImageToBase64Component]
+      imports: [ImageToBase64Component],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ImageToBase64Component);

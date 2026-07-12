@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { PrivateNotesComponent } from './private-notes';
 
 describe('PrivateNotesComponent', () => {
@@ -7,7 +8,8 @@ describe('PrivateNotesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PrivateNotesComponent]
+      imports: [PrivateNotesComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PrivateNotesComponent);

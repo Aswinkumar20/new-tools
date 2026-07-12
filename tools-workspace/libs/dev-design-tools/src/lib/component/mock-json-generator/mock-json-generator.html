@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dd">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Generator actions">
+    <div class="dd-workflow" aria-label="Generator actions"><div class="dd-workflow__group dd-workflow__group--actions">
       <button
         type="button"
         class="ctl__tool-btn"
@@ -39,7 +39,7 @@
         aria-label="Generate JSON"
         appTooltip="Generate JSON"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         <span class="ctl__tool-btn-label">Generate</span>
       </button>
       <button
@@ -60,13 +60,13 @@
         aria-label="Reset"
         appTooltip="Reset"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Reset</span>
       </button>
     </div>
-
-    <div class="ctl__workspace" [formGroup]="form">
-      <section class="ctl__editor ctl__editor--output">
+    </div>
+    <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
+      <section class="ctl__editor ctl__editor--output dd-viewer-panel">
         <header class="ctl__editor-head">
           <span>Generated JSON</span>
           @if (hasGeneratedJson()) {
@@ -130,139 +130,169 @@
         }
       </section>
 
-      <aside class="ctl__sidebar" aria-label="Field builder and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">JSON structure</header>
-          <div class="ctl__settings">
-            <div class="ctl__field">
-              <span>Number of objects</span>
-              <input
-                id="arrayCount"
-                type="number"
-                min="1"
-                max="100"
-                formControlName="arrayCount"
-              />
-            </div>
-
-            <div class="mjg__fields-section">
-              <div class="mjg__section-header">
-                <span>Fields</span>
-                <button
-                  type="button"
-                  class="ctl__icon-btn"
-                  (click)="addField()"
-                  aria-label="Add field"
-                  appTooltip="Add field"
-                  tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="16" height="16" />
-                </button>
-              </div>
-              <div class="mjg__fields-list">
-                @for (field of fieldsFormArray().controls; track $index; let i = $index) {
-                  <div class="mjg__field-item">
-                    <input
-                      type="text"
-                      [formControl]="field.controls.key"
-                      placeholder="Field name"
-                    />
-                    <select [formControl]="field.controls.type">
-                      @for (type of fieldTypes; track type.value) {
-                        <option [value]="type.value">{{ type.label }}</option>
-                      }
-                    </select>
-                    @if (field.controls.type.value === 'array') {
-                      <input
-                        type="number"
-                        [formControl]="field.controls.arrayLength"
-                        min="1"
-                        max="100"
-                        placeholder="Length"
-                        title="Array length"
-                      />
-                    }
-                    @if (field.controls.type.value !== 'array' && field.controls.type.value !== 'object' && field.controls.type.value !== 'null') {
-                      <input
-                        type="text"
-                        [formControl]="field.controls.value"
-                        [placeholder]="getFieldPlaceholder(field.controls.type.value)"
-                      />
-                    }
-                    <button
-                      type="button"
-                      class="ctl__icon-btn mjg__remove-btn"
-                      (click)="removeField(i)"
-                      aria-label="Remove field"
-                      appTooltip="Remove field"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </div>
-                }
-              </div>
-            </div>
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="rememberHistory" />
-              <div>
-                <strong>Remember history</strong>
-                <span>Keep track of recent mock JSON configurations</span>
-              </div>
-            </label>
-          </div>
+      <section class="dd-primary-panel" aria-label="JSON structure controls">
+        <div class="dd-primary-panel__head">
+          <span>JSON structure</span>
         </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
+        <div class="dd-primary-panel__grid">
+          <label class="ctl__field" for="arrayCount">
+            <span>Number of objects</span>
+            <input
+              id="arrayCount"
+              type="number"
+              min="1"
+              max="100"
+              formControlName="arrayCount"
+            />
+          </label>
+        </div>
+
+        <div class="mjg__fields-section">
+          <div class="mjg__section-header">
+            <span>Fields</span>
             <button
               type="button"
               class="ctl__icon-btn"
-              (click)="clearHistory()"
-              [disabled]="!hasHistory()"
-              aria-label="Clear history"
-              appTooltip="Clear history"
+              (click)="addField()"
+              aria-label="Add field"
+              appTooltip="Add field"
               tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
-          </header>
-          @if (hasHistory()) {
-            <ul class="mjg__history-list">
-              @for (entry of history(); track entry.timestamp) {
-                <li>
-                  <button type="button" (click)="applyHistory(entry)" class="mjg__history-item">
-                    <div class="mjg__history-info">
-                      <strong>{{ entry.fields.length }} fields</strong>
-                      <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                      <code class="mjg__history-preview">{{ entry.generatedJson.substring(0, 80) }}{{ entry.generatedJson.length > 80 ? '...' : '' }}</code>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="removeHistoryEntry(entry.timestamp)"
-                    aria-label="Remove entry"
-                    appTooltip="Remove entry"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                  </button>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="ctl__empty"><p>Enable history to keep recent mock JSON configurations.</p></div>
-          }
+          </div>
+          <div class="mjg__fields-list">
+            @for (field of fieldsFormArray().controls; track $index; let i = $index) {
+              <div class="mjg__field-item">
+                <input
+                  type="text"
+                  [formControl]="field.controls.key"
+                  placeholder="Field name"
+                />
+                <select [formControl]="field.controls.type">
+                  @for (type of fieldTypes; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+                @if (field.controls.type.value === 'array') {
+                  <select [formControl]="field.controls.value" title="Array item type">
+                    <option value="string">Item: string</option>
+                    <option value="number">Item: number</option>
+                    <option value="boolean">Item: boolean</option>
+                  </select>
+                  <input
+                    type="number"
+                    [formControl]="field.controls.arrayLength"
+                    min="1"
+                    max="100"
+                    placeholder="Length"
+                    title="Array length"
+                  />
+                }
+                @if (field.controls.type.value === 'object') {
+                  <input
+                    type="text"
+                    [formControl]="field.controls.value"
+                    placeholder="Optional object note"
+                    title="Object fields use a simple id/name/value shape"
+                  />
+                }
+                @if (field.controls.type.value !== 'array' && field.controls.type.value !== 'object' && field.controls.type.value !== 'null') {
+                  <input
+                    type="text"
+                    [formControl]="field.controls.value"
+                    [placeholder]="getFieldPlaceholder(field.controls.type.value)"
+                  />
+                }
+                <button
+                  type="button"
+                  class="ctl__icon-btn mjg__remove-btn"
+                  (click)="removeField(i)"
+                  aria-label="Remove field"
+                  appTooltip="Remove field"
+                  tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            }
+          </div>
         </div>
-      </aside>
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open more panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="History preferences">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Preferences</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div>
+                  <strong>Remember history</strong>
+                  <span>Keep track of recent mock JSON configurations</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!hasHistory()"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            @if (hasHistory()) {
+              <ul class="mjg__history-list">
+                @for (entry of history(); track entry.timestamp) {
+                  <li>
+                    <button type="button" (click)="applyHistory(entry)" class="mjg__history-item">
+                      <div class="mjg__history-info">
+                        <strong>{{ entry.fields.length }} fields</strong>
+                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                        <code class="mjg__history-preview">{{ entry.generatedJson.substring(0, 80) }}{{ entry.generatedJson.length > 80 ? '...' : '' }}</code>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="ctl__icon-btn"
+                      (click)="removeHistoryEntry(entry.timestamp)"
+                      aria-label="Remove entry"
+                      appTooltip="Remove entry"
+                      tooltipPosition="bottom">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__empty"><p>Enable history to keep recent mock JSON configurations.</p></div>
+            }
+          </div>
+        </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Define fields with types and optional default values in the sidebar.</li>
-        <li>Set the number of objects — 1 for a single object, more for an array.</li>
+        <li>Define fields and object count in the JSON structure panel below the output.</li>
+        <li>Set 1 object for a single object, or more for an array.</li>
         <li>JSON generates automatically as you edit — or tap <strong>Generate</strong>.</li>
-        <li>Copy the output or restore a past configuration from history.</li>
+        <li>Open <strong>More</strong> for history and preferences.</li>
       </ul>
     </details>
   </main>

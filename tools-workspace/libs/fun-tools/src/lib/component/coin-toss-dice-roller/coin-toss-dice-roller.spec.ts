@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { CoinTossDiceRollerComponent } from './coin-toss-dice-roller';
 
 describe('CoinTossDiceRollerComponent', () => {
@@ -7,7 +8,8 @@ describe('CoinTossDiceRollerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CoinTossDiceRollerComponent]
+      imports: [CoinTossDiceRollerComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CoinTossDiceRollerComponent);

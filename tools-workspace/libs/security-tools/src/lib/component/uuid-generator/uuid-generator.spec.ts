@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { stToolTestProviders } from '../../shared/st-tool-test.utils';
 import { UuidGeneratorComponent } from './uuid-generator';
 
 describe('UuidGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('UuidGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [UuidGeneratorComponent]
+      imports: [UuidGeneratorComponent],
+      providers: stToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(UuidGeneratorComponent);

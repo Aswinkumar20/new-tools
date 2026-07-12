@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { cftToolTestProviders } from '../../shared/cft-tool-test.utils';
 import { HtmlMinifierComponent } from './html-minifier';
 
 describe('HtmlMinifierComponent', () => {
@@ -7,7 +8,8 @@ describe('HtmlMinifierComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HtmlMinifierComponent]
+      imports: [HtmlMinifierComponent],
+      providers: cftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HtmlMinifierComponent);

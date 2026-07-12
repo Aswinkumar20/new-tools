@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { DateDifferenceCalculatorComponent } from './date-difference-calculator';
 
 describe('DateDifferenceCalculatorComponent', () => {
@@ -7,7 +8,8 @@ describe('DateDifferenceCalculatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DateDifferenceCalculatorComponent]
+      imports: [DateDifferenceCalculatorComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(DateDifferenceCalculatorComponent);

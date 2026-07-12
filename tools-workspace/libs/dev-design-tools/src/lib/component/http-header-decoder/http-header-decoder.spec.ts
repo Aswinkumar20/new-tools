@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { HttpHeaderDecoderComponent } from './http-header-decoder';
 
 describe('HttpHeaderDecoderComponent', () => {
@@ -7,7 +8,8 @@ describe('HttpHeaderDecoderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HttpHeaderDecoderComponent]
+      imports: [HttpHeaderDecoderComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HttpHeaderDecoderComponent);

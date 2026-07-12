@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ExcelToJsonComponent } from './excel-to-json';
+import { converterTestProviders } from '../../shared/converter-test.utils';
 
 describe('ExcelToJsonComponent', () => {
   let component: ExcelToJsonComponent;
@@ -7,7 +8,8 @@ describe('ExcelToJsonComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ExcelToJsonComponent]
+      imports: [ExcelToJsonComponent],
+      providers: converterTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ExcelToJsonComponent);

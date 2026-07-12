@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { PaletteGeneratorComponent } from './palette-generator';
 
 describe('PaletteGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('PaletteGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PaletteGeneratorComponent]
+      imports: [PaletteGeneratorComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PaletteGeneratorComponent);

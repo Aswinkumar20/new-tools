@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { BoxShadowGeneratorComponent } from './box-shadow-generator';
 
 describe('BoxShadowGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('BoxShadowGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [BoxShadowGeneratorComponent]
+      imports: [BoxShadowGeneratorComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(BoxShadowGeneratorComponent);

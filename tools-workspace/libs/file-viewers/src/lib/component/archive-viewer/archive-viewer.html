@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl fv">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,45 +28,90 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Archive actions">
-      <label class="ctl__tool-btn" aria-label="Upload archives" appTooltip="Upload archives" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-        <input #fileInput type="file" multiple accept=".zip,.rar,.7z,.tar,.gz,.bz2,.xz,.z,.cab,.iso,.apk,.jar,.war,.ear" (change)="onFileSelected($event)" />
-      </label>
-      <button type="button" class="ctl__tool-btn" (click)="extractAll()" [disabled]="currentArchiveIndex < 0" aria-label="Extract all" appTooltip="Extract all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Extract</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="archiveFiles.length === 0" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="fv-workflow" aria-label="Archive viewer controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <label class="ctl__tool-btn" aria-label="Upload archives" appTooltip="Upload archives" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+          <input #fileInput type="file" multiple accept=".zip,.rar,.7z,.tar,.gz,.bz2,.xz,.z,.cab,.iso,.apk,.jar,.war,.ear" (change)="onFileSelected($event)" />
+        </label>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="extractAll()"
+          [disabled]="currentArchiveIndex < 0"
+          aria-label="Extract all files"
+          appTooltip="Extract all files"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Extract</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="archiveFiles.length === 0"
+          aria-label="Clear all archives"
+          appTooltip="Clear all archives"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+
+      <ng-container *ngIf="archiveFiles.length > 0 && currentArchiveIndex >= 0">
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+        <div class="fv-workflow__group fv-viewer-controls" role="group" aria-label="Tree controls">
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="expandAll()"
+            aria-label="Expand all folders"
+            appTooltip="Expand all folders"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="collapseAll()"
+            aria-label="Collapse all folders"
+            appTooltip="Collapse all folders"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
+        </div>
+      </ng-container>
     </div>
 
     <div class="ctl__workspace">
       <div class="ctl__editors">
-        <section class="ctl__editor ctl__editor--merged archive-viewer-panel">
-          <header class="ctl__editor-head">
-            <span>Archive browser</span>
-            <div class="ctl__editor-actions fv-viewer-controls" *ngIf="currentArchiveIndex >= 0">
-              <button class="fv-icon-btn" (click)="expandAll()" title="Expand all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
-              <button class="fv-icon-btn" (click)="collapseAll()" title="Collapse all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
-            </div>
-          </header>
-
-          <div class="fv-loading" *ngIf="loading">
-            <div class="fv-spinner"></div>
+        <section class="ctl__editor fv-viewer-panel archive-viewer-panel" aria-label="Archive browser">
+          <div class="fv-loading" *ngIf="loading" role="status" aria-live="polite">
+            <div class="fv-spinner" aria-hidden="true"></div>
             <p>Loading archive…</p>
             <div class="progress-bar" *ngIf="loadingProgress > 0"><div class="progress-fill" [style.width.%]="loadingProgress"></div></div>
             <p class="progress-text" *ngIf="loadingProgress > 0">{{ loadingProgress }}%</p>
           </div>
-          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage"><p>{{ errorMessage }}</p></div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p></div>
 
           <div class="fv-viewer-body" *ngIf="archiveFiles.length > 0">
+            <header class="fv-viewer-bar" *ngIf="currentArchiveIndex >= 0 && archiveFiles[currentArchiveIndex]">
+              <p class="fv-viewer-bar__name" [title]="archiveFiles[currentArchiveIndex].name">{{ archiveFiles[currentArchiveIndex].name }}</p>
+              <p class="fv-viewer-bar__hint">{{ archiveFiles[currentArchiveIndex].totalFiles }} files · {{ formatFileSize(archiveFiles[currentArchiveIndex].totalSize) }}</p>
+            </header>
+
             <div class="search-toolbar" *ngIf="currentArchiveIndex >= 0">
               <div class="search-box">
-                <input type="text" [(ngModel)]="searchText" (ngModelChange)="performSearch()" placeholder="Search files…" class="search-input">
+                <input type="text" [(ngModel)]="searchText" (ngModelChange)="performSearch()" placeholder="Search files…" class="search-input" aria-label="Search archive files">
               </div>
             </div>
 
@@ -81,8 +126,8 @@
                     <div class="tree-item" [class.directory]="file.isDirectory" [class.selected]="selectedFile?.path === file.path" (click)="file.isDirectory ? toggleExpand(file) : selectFile(file)">
                       <span class="tree-icon">
                         <span *ngIf="file.isDirectory">
-                          <svg *ngIf="!file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                          <svg *ngIf="file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                          <svg *ngIf="!file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                          <svg *ngIf="file.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </span>
                         <span *ngIf="!file.isDirectory">{{ getFileIcon(file) }}</span>
                       </span>
@@ -94,8 +139,8 @@
                         <div class="tree-item" [class.directory]="child.isDirectory" [class.selected]="selectedFile?.path === child.path" (click)="child.isDirectory ? toggleExpand(child) : selectFile(child)">
                           <span class="tree-icon">
                             <span *ngIf="child.isDirectory">
-                              <svg *ngIf="!child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                              <svg *ngIf="child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                              <svg *ngIf="!child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                              <svg *ngIf="child.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </span>
                             <span *ngIf="!child.isDirectory">{{ getFileIcon(child) }}</span>
                           </span>
@@ -107,8 +152,8 @@
                             <div class="tree-item" [class.directory]="nested.isDirectory" [class.selected]="selectedFile?.path === nested.path" (click)="nested.isDirectory ? toggleExpand(nested) : selectFile(nested)">
                               <span class="tree-icon">
                                 <span *ngIf="nested.isDirectory">
-                                  <svg *ngIf="!nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                  <svg *ngIf="nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                  <svg *ngIf="!nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                  <svg *ngIf="nested.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                 </span>
                                 <span *ngIf="!nested.isDirectory">{{ getFileIcon(nested) }}</span>
                               </span>
@@ -120,8 +165,8 @@
                                 <div class="tree-item" [class.directory]="deep.isDirectory" [class.selected]="selectedFile?.path === deep.path" (click)="deep.isDirectory ? toggleExpand(deep) : selectFile(deep)">
                                   <span class="tree-icon">
                                     <span *ngIf="deep.isDirectory">
-                                      <svg *ngIf="!deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                      <svg *ngIf="deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                      <svg *ngIf="!deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                      <svg *ngIf="deep.expanded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                     </span>
                                     <span *ngIf="!deep.isDirectory">{{ getFileIcon(deep) }}</span>
                                   </span>
@@ -145,7 +190,19 @@
                     <span class="file-name">{{ previewFileName }}</span>
                     <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
                   </div>
-                  <button class="fv-icon-btn" (click)="downloadFile(selectedFile)" title="Download file"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
+                  <button
+                    type="button"
+                    class="fv-icon-btn"
+                    (click)="downloadFile(selectedFile)"
+                    aria-label="Download file"
+                    appTooltip="Download file"
+                    tooltipPosition="bottom">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
                 </div>
                 <div class="preview-content" #previewContainer>
                   <div class="preview-empty" *ngIf="!selectedFile">
@@ -162,10 +219,20 @@
             </div>
           </div>
 
-          <div class="ctl__empty fv-dropzone" *ngIf="archiveFiles.length === 0 && !loading" [class.fv-dropzone--active]="showDropZone" (click)="openFileDialog()" (dragenter)="onDragEnter()" (dragleave)="onDragLeave()" (drop)="onDrop($event)" aria-live="polite">
-            <p>Drop archive files here or use <strong>Upload</strong> in the toolbar.</p>
-            <p>ZIP, RAR, 7Z, TAR · password support</p>
-          </div>
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="archiveFiles.length === 0 && !loading"
+            [class.fv-dropzone--active]="showDropZone"
+            (click)="openFileDialog()"
+            (dragenter)="onDragEnter()"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+            aria-label="Upload archives by clicking or dragging files here">
+            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+            <p class="fv-dropzone__title">Drop archives here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">ZIP, RAR, 7Z, TAR · password-protected archives supported</p>
+          </button>
         </section>
 
         <section class="ctl__editor ctl__editor--output" *ngIf="previewType === 'text' && previewContent">
@@ -188,13 +255,13 @@
           <div class="ctl__panel-body">
             <ul class="fv-files">
               <li *ngFor="let archive of archiveFiles; let i = index">
-                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentArchiveIndex" (click)="selectArchive(i)">
+                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentArchiveIndex" (click)="selectArchive(i)" [attr.aria-current]="i === currentArchiveIndex ? 'true' : null">
                   <span class="fv-file__info">
                     <strong>{{ archive.name }}<span *ngIf="archive.passwordProtected"> 🔒</span></strong>
                     <span>{{ formatFileSize(archive.size) }} · {{ archive.totalFiles }} files</span>
                   </span>
                 </button>
-                <button type="button" class="fv-file-remove" (click)="removeArchive(i); $event.stopPropagation()" aria-label="Remove">×</button>
+                <button type="button" class="fv-file-remove" (click)="removeArchive(i); $event.stopPropagation()" [attr.aria-label]="'Remove ' + archive.name" appTooltip="Remove archive" tooltipPosition="left">×</button>
               </li>
             </ul>
           </div>
@@ -206,7 +273,7 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Upload archives and browse the file tree in the preview panel.</li>
+        <li>Upload archives using the workflow bar or drop zone.</li>
         <li>Search file paths; preview text and images inline.</li>
         <li>Extract all files or download individual entries.</li>
       </ul>
@@ -218,7 +285,7 @@
   <div class="password-dialog" (click)="$event.stopPropagation()">
     <h3>Password protected archive</h3>
     <p>This archive is password protected. Enter the password to continue.</p>
-    <input type="password" [(ngModel)]="passwordInput" placeholder="Enter password" class="password-input" (keydown.enter)="onPasswordSubmit()">
+    <input type="password" [(ngModel)]="passwordInput" placeholder="Enter password" class="password-input" (keydown.enter)="onPasswordSubmit()" aria-label="Archive password">
     <div class="password-error" *ngIf="passwordError">{{ passwordError }}</div>
     <div class="dialog-actions">
       <button class="btn-secondary" type="button" (click)="closePasswordDialog()">Cancel</button>

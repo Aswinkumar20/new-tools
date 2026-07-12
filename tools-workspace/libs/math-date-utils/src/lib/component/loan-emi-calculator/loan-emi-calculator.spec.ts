@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { LoanEmiCalculatorComponent } from './loan-emi-calculator';
 
 describe('LoanEmiCalculatorComponent', () => {
@@ -7,7 +8,8 @@ describe('LoanEmiCalculatorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LoanEmiCalculatorComponent]
+      imports: [LoanEmiCalculatorComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(LoanEmiCalculatorComponent);

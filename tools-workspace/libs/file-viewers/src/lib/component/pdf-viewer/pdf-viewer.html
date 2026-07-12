@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl fv">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,59 +28,181 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="PDF actions">
-      <label class="ctl__tool-btn" aria-label="Upload PDFs" appTooltip="Upload files" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-        <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" />
-      </label>
-      <button type="button" class="ctl__tool-btn" (click)="downloadPdf()" [disabled]="!currentPdf" aria-label="Download" appTooltip="Download" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="printPdf()" [disabled]="!currentPdf" aria-label="Print" appTooltip="Print" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Print</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="pdfFiles.length === 0" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="fv-workflow" aria-label="PDF viewer controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <label class="ctl__tool-btn" aria-label="Upload PDFs" appTooltip="Upload PDFs" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+          <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" />
+        </label>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="downloadPdf()"
+          [disabled]="!currentPdf"
+          aria-label="Download current PDF"
+          appTooltip="Download current PDF"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="printPdf()"
+          [disabled]="!currentPdf"
+          aria-label="Print PDF"
+          appTooltip="Print PDF"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="6 9 6 2 18 2 18 9" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          <span class="ctl__tool-btn-label">Print</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="pdfFiles.length === 0"
+          aria-label="Clear all PDFs"
+          appTooltip="Clear all PDFs"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+
+      <ng-container *ngIf="currentPdf">
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+
+        <div class="fv-workflow__group fv-workflow__group--nav" role="group" aria-label="Page navigation">
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="previousPage()"
+            [disabled]="currentPage <= 1"
+            aria-label="Previous page"
+            appTooltip="Previous page"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <input type="number" [(ngModel)]="currentPage" (ngModelChange)="goToPage($event)" [min]="1" [max]="totalPages" class="page-input" aria-label="Page number">
+          <span class="ctl__editor-badge fv-workflow__index">/ {{ totalPages }}</span>
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="nextPage()"
+            [disabled]="currentPage >= totalPages"
+            aria-label="Next page"
+            appTooltip="Next page"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+
+        <div class="fv-viewer-controls fv-workflow__group fv-workflow__group--zoom" role="group" aria-label="Zoom controls">
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="zoomOut()"
+            [disabled]="zoomLevel <= 50"
+            aria-label="Zoom out"
+            appTooltip="Zoom out"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+          </button>
+          <span class="ctl__editor-badge fv-workflow__zoom" aria-live="polite">{{ zoomLevel }}%</span>
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="zoomIn()"
+            [disabled]="zoomLevel >= 300"
+            aria-label="Zoom in"
+            appTooltip="Zoom in"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <line x1="11" y1="8" x2="11" y2="14" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="fitToWidth()"
+            aria-label="Fit to width"
+            appTooltip="Fit to width"
+            tooltipPosition="bottom">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="fv-icon-btn"
+            (click)="toggleFullscreen()"
+            [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+            [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+            tooltipPosition="bottom">
+            <svg *ngIf="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+            </svg>
+            <svg *ngIf="isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+            </svg>
+          </button>
+        </div>
+      </ng-container>
     </div>
 
     <div class="ctl__workspace">
       <div class="ctl__editors">
-        <section class="ctl__editor ctl__editor--merged pdf-viewer-panel">
-          <header class="ctl__editor-head">
-            <span>PDF preview</span>
-            <div class="ctl__editor-actions fv-viewer-controls" *ngIf="currentPdf">
-              <button class="fv-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" title="Previous page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-              <input type="number" [(ngModel)]="currentPage" (ngModelChange)="goToPage($event)" [min]="1" [max]="totalPages" class="page-input" aria-label="Page number">
-              <span class="ctl__editor-badge">/ {{ totalPages }}</span>
-              <button class="fv-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" title="Next page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
-              <button class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
-              <span class="ctl__editor-badge">{{ zoomLevel }}%</span>
-              <button class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 300" title="Zoom in"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
-              <button class="fv-icon-btn" (click)="fitToWidth()" title="Fit to width"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
-              <button class="fv-icon-btn" (click)="toggleFullscreen()" title="Fullscreen"><svg *ngIf="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg><svg *ngIf="isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg></button>
-            </div>
-          </header>
-
+        <section class="ctl__editor ctl__editor--merged fv-viewer-panel pdf-viewer-panel" aria-label="PDF preview">
           <div class="fv-loading" *ngIf="loading && !showPasswordDialog"><div class="fv-spinner"></div><p>Loading PDF…</p></div>
           <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage"><p>{{ errorMessage }}</p></div>
 
           <div class="fv-viewer-body" *ngIf="pdfFiles.length > 0">
+            <header class="fv-viewer-bar" *ngIf="currentPdf">
+              <p class="fv-viewer-bar__name" [title]="currentPdf.name">{{ currentPdf.name }}</p>
+              <p class="fv-viewer-bar__hint">Arrow keys (← →) to navigate pages · Press Esc to exit fullscreen</p>
+            </header>
+
             <div class="pdf-canvas-container" #pdfContainer>
-              <button class="pdf-nav-arrow left" *ngIf="totalPages > 0 && currentPage > 1" (click)="previousPage()" title="Previous page">‹</button>
-              <button class="pdf-nav-arrow right" *ngIf="totalPages > 0 && currentPage < totalPages" (click)="nextPage()" title="Next page">›</button>
+              <button class="pdf-nav-arrow left" *ngIf="totalPages > 0 && currentPage > 1" (click)="previousPage()" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="right">‹</button>
+              <button class="pdf-nav-arrow right" *ngIf="totalPages > 0 && currentPage < totalPages" (click)="nextPage()" aria-label="Next page" appTooltip="Next page" tooltipPosition="left">›</button>
               <div class="canvas-wrapper" #canvasContainer></div>
             </div>
           </div>
 
-          <div class="ctl__empty fv-dropzone" *ngIf="pdfFiles.length === 0 && !loading" [class.fv-dropzone--active]="showDropZone" (click)="openFileDialog()" aria-live="polite">
-            <p>Drop PDF files here or use <strong>Upload</strong> in the toolbar.</p>
-            <p>PDF · 100MB max</p>
-          </div>
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="pdfFiles.length === 0 && !loading"
+            [class.fv-dropzone--active]="showDropZone"
+            (click)="openFileDialog()"
+            aria-label="Upload PDFs by clicking or dragging files here">
+            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+            <p class="fv-dropzone__title">Drop PDF files here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">PDF · 100&nbsp;MB max</p>
+          </button>
         </section>
       </div>
 

@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl md">
   <lib-navigation></lib-navigation>
   <main class="ctl__main">
     <div class="ctl__top">
@@ -10,14 +10,15 @@
         <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ form.get('loanType')?.value === 'reducing' ? 'Reducing' : 'Flat' }}</span><span class="ctl__stat-label">Type</span></div>
       </div>
     </div>
-    <div class="ctl__toolbar" aria-label="Loan actions">
+    <div class="md-workflow" aria-label="Loan actions"><div class="md-workflow__group md-workflow__group--actions">
       <button type="button" class="ctl__tool-btn" (click)="submit()" appTooltip="Recalculate" tooltipPosition="bottom" aria-label="Recalculate"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Calculate</span></button>
       <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
       <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!history().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
     </div>
-    <div class="ctl__workspace" [formGroup]="form">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>Loan details</span></header>
           <div class="ctl__editor-body ctl__settings">
             <label class="ctl__field" for="amount"><span>Loan amount</span><input id="amount" type="number" step="0.01" formControlName="amount" /></label>
@@ -37,7 +38,7 @@
             @if (errorMessage()) { <div class="ctl__alert ctl__alert--error">{{ errorMessage() }}</div> }
           </div>
         </section>
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
           <header class="ctl__editor-head"><span>Summary</span>
             <div class="ctl__editor-actions">@if (summary()) { <span class="ctl__editor-badge">Ready</span> }
               <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy summary" tooltipPosition="bottom" aria-label="Copy summary"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
@@ -57,7 +58,15 @@
           } @else { <div class="ctl__empty"><p>Enter loan details to see EMI breakdown.</p></div> }
         </section>
       </div>
-      <aside class="ctl__sidebar" aria-label="Presets and history">
+            <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
         <div class="ctl__panel"><header class="ctl__panel-head">Presets</header><div class="ctl__panel-body"><div class="lec__presets">@for (preset of presets; track trackPreset($index, preset)) {
           <button type="button" class="lec__preset" (click)="applyPreset(preset)"><strong>{{ preset.label }}</strong></button>
         }</div></div></div>
@@ -67,6 +76,7 @@
           <li><button type="button" class="lec__history-item" (click)="restoreHistory(entry)"><strong>{{ formatCurrency(entry.summary.emi) }} EMI</strong><span>{{ entry.amount | number }} @ {{ entry.rate }}%</span></button></li>
         }</ul> } @else { <div class="ctl__panel-empty"><p>Loan calculations appear here.</p></div> }</div></div>
       </aside>
+      </details>
     </div>
     <details class="ctl__help"><summary>How to use</summary><ul><li>Enter loan amount, rate, and tenure.</li><li>Choose reducing balance or flat rate.</li><li>Copy EMI summary or restore from history.</li></ul></details>
   </main>

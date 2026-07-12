@@ -135,39 +135,47 @@ export class HttpHeaderDecoderComponent {
   private parseRawHeaders(raw: string): DecodedHeader[] {
     const lines = raw.split('\n').map((line) => line.trim()).filter((line) => line);
     const headers: DecodedHeader[] = [];
+    let skipped = 0;
 
     for (const line of lines) {
+      if (/^HTTP\/\d/i.test(line)) {
+        headers.push(this.createDecodedHeader('Status-Line', line));
+        continue;
+      }
+
       const colonIndex = line.indexOf(':');
       if (colonIndex === -1) {
+        skipped += 1;
         continue;
       }
 
       const key = line.slice(0, colonIndex).trim();
       const value = line.slice(colonIndex + 1).trim();
 
-      if (key && value) {
+      if (key) {
         headers.push(this.createDecodedHeader(key, value));
       }
+    }
+
+    if (skipped > 0) {
+      this.warnings.set([`${skipped} line(s) ignored (missing ':').`]);
     }
 
     return headers;
   }
 
   private parseKeyValueHeaders(input: string): DecodedHeader[] {
-    // Try to parse as JSON first
     try {
       const json = JSON.parse(input);
       const headers: DecodedHeader[] = [];
 
       for (const [key, value] of Object.entries(json)) {
-        if (typeof value === 'string') {
-          headers.push(this.createDecodedHeader(key, value));
-        }
+        headers.push(this.createDecodedHeader(key, value == null ? '' : String(value)));
       }
 
       return headers;
     } catch {
-      // If not JSON, try key:value format
+      this.warnings.set(['Input was not valid JSON — parsed as raw headers instead.']);
       return this.parseRawHeaders(input);
     }
   }

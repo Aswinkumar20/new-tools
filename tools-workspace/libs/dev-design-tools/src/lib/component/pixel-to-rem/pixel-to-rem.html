@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl dd">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -47,7 +47,7 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Conversion actions">
+    <div class="dd-workflow" aria-label="Conversion actions"><div class="dd-workflow__group dd-workflow__group--actions">
       <button
         type="button"
         class="ctl__tool-btn"
@@ -55,7 +55,7 @@
         aria-label="Reset values"
         appTooltip="Reset values"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Reset</span>
       </button>
       <button
@@ -65,7 +65,7 @@
         aria-label="Swap direction"
         appTooltip="Swap direction"
         tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 5h18"/><polyline points="7 23 3 19 7 15"/><path d="M21 19H3"/></svg>
         <span class="ctl__tool-btn-label">Swap</span>
       </button>
       @if (hasResult() && conversionResult()) {
@@ -81,10 +81,10 @@
         </button>
       }
     </div>
-
-    <div class="ctl__workspace" [formGroup]="form">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dd-editor-panel">
           <header class="ctl__editor-head">
             <span>Conversion result</span>
             @if (hasResult()) {
@@ -116,7 +116,7 @@
           }
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output dd-editor-panel">
           <header class="ctl__editor-head">
             <span>Formula</span>
             <div class="ctl__editor-actions">
@@ -152,111 +152,141 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Converter options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="direction">
-              <span>Conversion direction</span>
-              <select id="direction" formControlName="direction">
-                <option value="px-to-rem">Pixels to REM</option>
-                <option value="rem-to-px">REM to Pixels</option>
-              </select>
-            </label>
-
-            <label class="ctl__field" for="inputValue">
-              <span>{{ form.controls.direction.value === 'px-to-rem' ? 'Pixels' : 'REM' }}</span>
-              <input id="inputValue" type="number" min="0" step="0.01" formControlName="inputValue" />
-            </label>
-
-            <label class="ctl__field" for="baseSize">
-              <span>Base font size (px)</span>
-              <input id="baseSize" type="number" min="1" max="100" formControlName="baseSize" />
-            </label>
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="rememberHistory" />
-              <div>
-                <strong>Remember history</strong>
-                <span>Keep track of recent conversions</span>
-              </div>
-            </label>
-          </div>
+      <section class="dd-primary-panel" aria-label="Conversion controls">
+        <div class="dd-primary-panel__head">
+          <span>Convert</span>
         </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Common sizes</header>
-          <div class="ctl__panel-body">
-            <div class="ptr__presets-grid">
-              @for (size of commonSizes; track size.px) {
-                <button type="button" class="ptr__preset-item" (click)="applyCommonSize(size)">
-                  <div class="ptr__preset-value">
-                    <strong>{{ size.px }}px</strong>
-                    <span>=</span>
-                    <strong>{{ size.rem }}rem</strong>
-                  </div>
-                </button>
+        <div class="dd-primary-panel__grid">
+          <label class="ctl__field" for="direction">
+            <span>Conversion direction</span>
+            <select id="direction" formControlName="direction">
+              <option value="px-to-rem">Pixels to REM</option>
+              <option value="rem-to-px">REM to Pixels</option>
+            </select>
+          </label>
+
+          <label class="ctl__field" for="inputValue">
+            <span>{{ form.controls.direction.value === 'px-to-rem' ? 'Pixels' : 'REM' }}</span>
+            <input id="inputValue" type="number" min="0" step="0.01" formControlName="inputValue" />
+          </label>
+
+          <label class="ctl__field" for="baseSize">
+            <span>Base font size (px)</span>
+            <input id="baseSize" type="number" min="1" max="100" formControlName="baseSize" />
+          </label>
+        </div>
+
+        <div class="dd-primary-panel__row">
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="swapDirection()"
+            aria-label="Swap direction"
+            appTooltip="Swap direction"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 5h18"/><polyline points="7 23 3 19 7 15"/><path d="M21 19H3"/></svg>
+            <span class="ctl__tool-btn-label">Swap</span>
+          </button>
+        </div>
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open more panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Common sizes and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Preferences</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div>
+                  <strong>Remember history</strong>
+                  <span>Keep track of recent conversions</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Common sizes</header>
+            <div class="ctl__panel-body">
+              <div class="ptr__presets-grid">
+                @for (size of commonSizes; track size.px) {
+                  <button type="button" class="ptr__preset-item" (click)="applyCommonSize(size)">
+                    <div class="ptr__preset-value">
+                      <strong>{{ size.px }}px</strong>
+                      <span>=</span>
+                      <strong>{{ getCommonSizeRem(size.px) | number:'1.0-4' }}rem</strong>
+                    </div>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!hasHistory()"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (hasHistory()) {
+                <ul class="ptr__history-list">
+                  @for (entry of history(); track entry.timestamp) {
+                    <li>
+                      <button type="button" (click)="applyHistory(entry)" class="ptr__history-item">
+                        <div class="ptr__history-info">
+                          <strong>
+                            {{ entry.input }}{{ entry.direction === 'px-to-rem' ? 'px' : 'rem' }} →
+                            {{ formatOutput(entry.output) }}{{ entry.direction === 'px-to-rem' ? 'rem' : 'px' }}
+                          </strong>
+                          <span>Base: {{ entry.baseSize }}px • {{ formatTimestamp(entry.timestamp) }}</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        class="ctl__icon-btn"
+                        (click)="removeHistoryEntry(entry.timestamp)"
+                        aria-label="Remove entry"
+                        appTooltip="Remove entry"
+                        tooltipPosition="bottom">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty">
+                  <p>Enable history tracking to keep a list of recent conversions.</p>
+                </div>
               }
             </div>
           </div>
-        </div>
-
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button
-              type="button"
-              class="ctl__icon-btn"
-              (click)="clearHistory()"
-              [disabled]="!hasHistory()"
-              aria-label="Clear history"
-              appTooltip="Clear history"
-              tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <div class="ctl__panel-body">
-            @if (hasHistory()) {
-              <ul class="ptr__history-list">
-                @for (entry of history(); track entry.timestamp) {
-                  <li>
-                    <button type="button" (click)="applyHistory(entry)" class="ptr__history-item">
-                      <div class="ptr__history-info">
-                        <strong>
-                          {{ entry.input }}{{ entry.direction === 'px-to-rem' ? 'px' : 'rem' }} →
-                          {{ formatOutput(entry.output) }}{{ entry.direction === 'px-to-rem' ? 'rem' : 'px' }}
-                        </strong>
-                        <span>Base: {{ entry.baseSize }}px • {{ formatTimestamp(entry.timestamp) }}</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="removeHistoryEntry(entry.timestamp)"
-                      aria-label="Remove entry"
-                      appTooltip="Remove entry"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <div class="ctl__panel-empty">
-                <p>Enable history tracking to keep a list of recent conversions.</p>
-              </div>
-            }
-          </div>
-        </div>
-      </aside>
+        </aside>
+      </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Set the base font size (typically 16px) for accurate rem calculations.</li>
-        <li>Choose conversion direction and enter a pixel or rem value.</li>
-        <li>Click common size presets for standard typography values.</li>
+        <li>Set the base font size and enter a value in the main Convert controls — the result updates live.</li>
+        <li>Use Swap to flip between pixels and rem.</li>
+        <li>Open <strong>More</strong> for common size presets and conversion history.</li>
         <li>Copy the result or formula from the toolbar or output panel.</li>
       </ul>
     </details>

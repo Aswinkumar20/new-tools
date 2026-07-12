@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buToolTestProviders } from '../../shared/bu-tool-test.utils';
 import { StorageViewerComponent } from './storage-viewer';
 
 describe('StorageViewerComponent', () => {
@@ -7,7 +8,8 @@ describe('StorageViewerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [StorageViewerComponent]
+      imports: [StorageViewerComponent],
+      providers: buToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(StorageViewerComponent);

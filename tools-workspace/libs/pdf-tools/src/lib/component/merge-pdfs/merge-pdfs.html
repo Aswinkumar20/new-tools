@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl pt">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,45 +28,55 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Merge actions">
-      <button type="button" class="ctl__tool-btn" (click)="openFileDialog()" aria-label="Add PDFs" appTooltip="Add PDFs" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+    <div class="pt-workflow" aria-label="Merge actions">
+      <div class="pt-workflow__group pt-workflow__group--actions">
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" aria-label="Add PDFs" appTooltip="Add PDFs" tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Add</span>
       </button>
-      <button type="button" class="ctl__tool-btn" (click)="mergePdfs()" [disabled]="loading || pdfFiles.length < 2 || hasFilesNeedingPassword()" aria-label="Merge PDFs" appTooltip="Merge PDFs" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="mergePdfs()" [disabled]="!canMerge" aria-label="Merge PDFs" appTooltip="Merge PDFs" tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" />
+        </svg>
         <span class="ctl__tool-btn-label">{{ loading ? 'Merging…' : 'Merge' }}</span>
       </button>
-      <button type="button" class="ctl__tool-btn" (click)="downloadMergedPdf()" [disabled]="!mergedPdfPreview" aria-label="Download merged PDF" appTooltip="Download" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="18" height="18" />
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadMergedPdf()" [disabled]="!canDownloadMerged" aria-label="Download merged PDF" appTooltip="Download merged PDF" tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
         <span class="ctl__tool-btn-label">Download</span>
       </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="!pdfFiles.length" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="!canClearAll" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
         <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
         <span class="ctl__tool-btn-label">Clear</span>
       </button>
+      </div>
     </div>
-
     <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
 
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    @if (pdfFiles.length) {
+      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsMoreFiles" role="status">
+        <span class="pt-setup-banner__step">{{ needsMoreFiles ? 'Step 1' : 'Tip' }}</span>
+        <p class="pt-setup-banner__text">{{ mergeSetupHint }}</p>
+        @if (pdfFiles.length >= 1) {
+          <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+        }
+      </div>
+    }
+
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor pt-editor-panel">
           <header class="ctl__editor-head">
             <span>PDF files</span>
             <div class="ctl__editor-actions">
-              <button type="button" class="ctl__icon-btn" (click)="openFileDialog()" aria-label="Browse files" appTooltip="Browse" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="16" height="16" />
+              <button type="button" class="pt-icon-btn" (click)="openFileDialog()" aria-label="Browse files" appTooltip="Browse files" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="16" height="16" />
               </button>
             </div>
           </header>
-
-          @if (errorMessage) {
-            <div class="ctl__alert ctl__alert--error"><p>{{ errorMessage }}</p></div>
-          }
-          @if (successMessage) {
-            <div class="ctl__alert ctl__alert--success"><p>{{ successMessage }}</p></div>
-          }
 
           @if (!pdfFiles.length) {
             <button
@@ -98,14 +108,14 @@
                   </span>
                   <span class="ctl-pdf__file-meta">{{ formatFileSize(file.size) }} · {{ file.pageCount || '?' }} pg</span>
                   <div class="ctl-pdf__page-nav">
-                    <button type="button" class="ctl__icon-btn" (click)="moveFileUp(i)" [disabled]="loading || i === 0" aria-label="Move up" appTooltip="Move up" tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" />
+                    <button type="button" class="pt-icon-btn" (click)="moveFileUp(i)" [disabled]="loading || i === 0" aria-label="Move up" appTooltip="Move up" tooltipPosition="bottom">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
                     </button>
-                    <button type="button" class="ctl__icon-btn" (click)="moveFileDown(i)" [disabled]="loading || i === pdfFiles.length - 1" aria-label="Move down" appTooltip="Move down" tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" style="transform: scaleY(-1)" />
+                    <button type="button" class="pt-icon-btn" (click)="moveFileDown(i)" [disabled]="loading || i === pdfFiles.length - 1" aria-label="Move down" appTooltip="Move down" tooltipPosition="bottom">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                     </button>
-                    <button type="button" class="ctl__icon-btn" (click)="removeFile(i)" [disabled]="loading" aria-label="Remove" appTooltip="Remove" tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                    <button type="button" class="pt-icon-btn" (click)="removeFile(i)" [disabled]="loading" aria-label="Remove file" appTooltip="Remove file" tooltipPosition="bottom">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                     </button>
                   </div>
                 </li>
@@ -114,17 +124,22 @@
           }
         </section>
 
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output pt-editor-panel">
           <header class="ctl__editor-head">
             <span>Preview</span>
             @if (mergedPdfPreview) {
               <div class="ctl-pdf__page-nav">
-                <button type="button" class="ctl__icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" />
+                <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
                 <input type="number" class="ctl-pdf__page-input" [ngModel]="previewPage" (ngModelChange)="goToPreviewPage($event)" [min]="1" [max]="totalPages" />
-                <button type="button" class="ctl__icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
-                  <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" style="transform: scaleX(-1)" />
+                <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+                <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                  </svg>
                 </button>
               </div>
             }
@@ -139,37 +154,87 @@
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Merge options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__toggle">
-              <input type="checkbox" [(ngModel)]="preserveBookmarks" [disabled]="loading" />
-              <div><strong>Preserve bookmarks</strong><span>Keep bookmarks from source PDFs.</span></div>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" [(ngModel)]="removeDuplicatePages" [disabled]="loading" />
-              <div><strong>Remove duplicate pages</strong><span>Skip repeated page dimensions.</span></div>
-            </label>
-            <label class="ctl__field">
-              <span>Output filename</span>
-              <input type="text" [(ngModel)]="outputFilename" placeholder="merged-document.pdf" [disabled]="loading" />
-            </label>
+            <div
+              #optionsFlyout
+              class="pt-options-flyout pt-options-flyout--inline"
+              [class.pt-options-flyout--open]="optionsPanelOpen"
+              [class.pt-options-flyout--attention]="needsMoreFiles">
+        <button
+          type="button"
+          class="pt-options-flyout__trigger"
+          [class.pt-options-flyout__trigger--attention]="needsMoreFiles"
+          [attr.aria-expanded]="optionsPanelOpen"
+          (click)="toggleOptionsPanel()"
+          appTooltip="Output filename and merge options"
+          tooltipPosition="left">
+          <svg class="pt-options-flyout__chevron" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Configuration</span>
+          @if (needsMoreFiles) {
+            <span class="pt-options-flyout__badge" aria-hidden="true">!</span>
+          }
+        </button>
+        <button type="button" class="pt-options-flyout__backdrop" aria-label="Close configuration panel" appTooltip="Close configuration" tooltipPosition="left" (click)="optionsPanelOpen = false"></button>
+        <aside class="pt-config-panel pt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Merge configuration">
+          <header class="pt-config-panel__head">
+            <div class="pt-config-panel__head-row">
+              <div class="pt-config-panel__head-brand">
+                <span class="pt-config-panel__icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
+                    <line x1="17" y1="16" x2="23" y2="16" />
+                  </svg>
+                </span>
+                <h2 class="pt-config-panel__bar-title">Configuration</h2>
+              </div>
+              <button type="button" class="pt-config-panel__close" (click)="optionsPanelOpen = false" aria-label="Close configuration">×</button>
+            </div>
+            <p class="pt-config-panel__desc">Set merge options and output filename.</p>
+          </header>
+          <div class="pt-config-panel__scroll">
+            <div class="pt-config-panel__sections">
+              <section class="pt-config-panel__section">
+                <h3 class="pt-config-panel__section-title">Merge options</h3>
+                <label class="ctl__toggle">
+                  <input type="checkbox" [(ngModel)]="preserveBookmarks" [disabled]="loading" />
+                  <div><strong>Preserve bookmarks</strong><span>Keep bookmarks from source PDFs.</span></div>
+                </label>
+                <label class="ctl__toggle">
+                  <input type="checkbox" [(ngModel)]="removeDuplicatePages" [disabled]="loading" />
+                  <div><strong>Remove duplicate pages</strong><span>Skip repeated page dimensions.</span></div>
+                </label>
+              </section>
+              <section class="pt-config-panel__section pt-config-panel__section--output">
+                <h3 class="pt-config-panel__section-title">Output file</h3>
+                <label class="pt-config-field">
+                  <span class="pt-config-field__label">Filename</span>
+                  <input class="pt-config-input" type="text" [(ngModel)]="outputFilename" placeholder="merged-document.pdf" [disabled]="loading" />
+                </label>
+              </section>
+            </div>
           </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Merging runs <strong>locally</strong> — files never leave your browser.</p>
+          <div class="pt-config-panel__trust" role="note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <span>Processed locally in your browser</span>
           </div>
           @if (hasFilesNeedingPassword()) {
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>Some files need a <strong>password</strong> before merging.</p>
+            <div class="pt-config-panel__foot">
+              <p class="pt-config-panel__meta">
+                <span>Some files need a <strong>password</strong> before merging.</span>
+              </p>
             </div>
           }
-        </div>
-      </aside>
+        </aside>
+      </div>
     </div>
 
     <details class="ctl__help">
@@ -181,6 +246,20 @@
       </ul>
     </details>
   </main>
+
+  <lib-pdf-fullscreen-overlay
+    [open]="previewFullscreen"
+    title="Merged PDF preview"
+    (closed)="closePreviewFullscreen()"
+    (ready)="scheduleRenderPreview()">
+    @if (mergedPdfPreview) {
+      <div pdfFsToolbar class="ctl-pdf__page-nav">
+        <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
+        <span class="ctl__editor-badge">{{ previewPage }} / {{ totalPages }}</span>
+        <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+      </div>
+    }
+  </lib-pdf-fullscreen-overlay>
 
   @if (loading) {
     <div class="ctl-pdf__overlay" aria-live="polite">

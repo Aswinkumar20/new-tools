@@ -1,9 +1,13 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import { PDFDocument } from 'pdf-lib';
 import SignaturePad from 'signature_pad';
+import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
+import { downloadBytes } from '../../shared/pdf.utils';
+import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
 
 interface SignaturePosition {
   x: number;
@@ -18,15 +22,21 @@ interface SignaturePosition {
   standalone: true,
   templateUrl: './add-signature.html',
   styleUrls: ['./add-signature.scss'],
-  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective, PdfFullscreenOverlayComponent]
 })
 export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
   @ViewChild('signatureCanvas') signatureCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('pdfPreviewCanvas') pdfPreviewCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('imageInput') imageInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfContainer') pdfContainer!: ElementRef<HTMLDivElement>;
+  @ViewChild('optionsFlyout') optionsFlyout?: ElementRef<HTMLElement>;
+  @ViewChild(PdfFullscreenOverlayComponent) fullscreenOverlay?: PdfFullscreenOverlayComponent;
+
+  previewFullscreen = false;
+  optionsPanelOpen = true;
 
   // PDF state
   pdfFile: File | null = null;
@@ -61,8 +71,30 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   
   // UI state
   loading: boolean = false;
-  errorMessage: string = '';
   showPreview: boolean = false;
+
+  get needsSignatureConfig(): boolean {
+    return !!this.pdfFile && !this.signatureImage;
+  }
+
+  get signatureConfigHint(): string {
+    if (!this.pdfFile) return '';
+    if (!this.signatureImage) {
+      return 'Create or upload a signature in Configuration, then click on the PDF to place it.';
+    }
+    return 'Adjust signature size and placement, then click Save.';
+  }
+
+  openOptionsPanel(): void {
+    this.optionsPanelOpen = true;
+    this.optionsFlyout?.nativeElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    this.cdr.detectChanges();
+  }
+
+  toggleOptionsPanel(): void {
+    this.optionsPanelOpen = !this.optionsPanelOpen;
+    this.cdr.detectChanges();
+  }
   
   // PDF.js for preview
   private pdfjsLib: any = null;
@@ -137,17 +169,16 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async processPdfFile(file: File): Promise<void> {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      this.errorMessage = 'Please select a valid PDF file';
+      pdfNotifyError(this.toast, 'Please select a valid PDF file');
       return;
     }
 
     if (file.size > 50 * 1024 * 1024) {
-      this.errorMessage = 'File size must be less than 50MB';
+      pdfNotifyError(this.toast, 'File size must be less than 50MB');
       return;
     }
 
     this.loading = true;
-    this.errorMessage = '';
     this.pdfFile = file;
 
     try {
@@ -160,9 +191,11 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
       this.pdfDocument = null; // Reset cached PDF document
       
       await this.renderPdfPreview();
+      pdfNotifySuccess(this.toast, 'PDF loaded');
+      this.openOptionsPanel();
       this.cdr.detectChanges();
     } catch (error) {
-      this.errorMessage = `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
       this.pdfFile = null;
       this.pdfDoc = null;
     } finally {
@@ -172,7 +205,16 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async renderPdfPreview(): Promise<void> {
-    if (!this.pdfjsLib || !this.pdfBytes || !this.pdfPreviewCanvas?.nativeElement) return;
+    if (!this.pdfjsLib || !this.pdfBytes) return;
+
+    const canvas = this.previewFullscreen
+      ? this.fullscreenOverlay?.canvasElement
+      : this.pdfPreviewCanvas?.nativeElement;
+
+    if (!canvas) {
+      setTimeout(() => void this.renderPdfPreview(), 50);
+      return;
+    }
 
     try {
       // Load PDF document if not cached
@@ -182,14 +224,16 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       const page = await this.pdfDocument.getPage(this.currentPage);
-      const canvas = this.pdfPreviewCanvas.nativeElement;
       const context = canvas.getContext('2d');
       
       if (!context) return;
 
-      // Get container width for responsive sizing - use 100% of available width
       const container = canvas.parentElement;
-      const containerWidth = container ? container.clientWidth - 32 : 800; // Account for padding
+      const containerWidth = this.previewFullscreen
+        ? fullscreenPreviewWidth()
+        : container
+          ? container.clientWidth - 32
+          : 800;
       const maxWidth = containerWidth;
 
       // Get page viewport at scale 1 to calculate proper scale
@@ -229,6 +273,19 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch (error) {
       console.error('Error rendering PDF preview:', error);
     }
+  }
+
+  togglePreviewFullscreen(): void {
+    if (!this.showPreview) return;
+    this.previewFullscreen = !this.previewFullscreen;
+    this.cdr.detectChanges();
+    setTimeout(() => void this.renderPdfPreview(), 0);
+  }
+
+  closePreviewFullscreen(): void {
+    this.previewFullscreen = false;
+    this.cdr.detectChanges();
+    setTimeout(() => void this.renderPdfPreview(), 0);
   }
 
   async drawSignaturePreview(context: CanvasRenderingContext2D): Promise<void> {
@@ -288,19 +345,17 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   saveSignature(): void {
     if (this.signatureMode === 'draw') {
       if (!this.signaturePad || this.signaturePad.isEmpty()) {
-        this.errorMessage = 'Please draw a signature first';
+        pdfNotifyError(this.toast, 'Please draw a signature first');
         return;
       }
       this.signatureImage = this.signaturePad.toDataURL('image/png');
     } else if (this.signatureMode === 'type') {
       if (!this.typedSignature.trim()) {
-        this.errorMessage = 'Please enter your signature text';
+        pdfNotifyError(this.toast, 'Please enter your signature text');
         return;
       }
       this.createTypedSignature();
     }
-    
-    this.errorMessage = '';
     if (this.showPreview) {
       this.renderPdfPreview();
     }
@@ -332,14 +387,13 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
     if (input.files && input.files.length > 0) {
       const file = input.files[0];
       if (!file.type.startsWith('image/')) {
-        this.errorMessage = 'Please select a valid image file';
+        pdfNotifyError(this.toast, 'Please select a valid image file');
         return;
       }
 
       const reader = new FileReader();
       reader.onload = (e) => {
         this.signatureImage = e.target?.result as string;
-        this.errorMessage = '';
         if (this.showPreview) {
           this.renderPdfPreview();
         }
@@ -498,12 +552,12 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async saveSignedPdf(): Promise<void> {
     if (!this.pdfDoc || !this.signatureImage) {
-      this.errorMessage = 'Please load a PDF and create a signature first';
+      pdfNotifyWarning(this.toast, 'Create a signature in Configuration, then place it on the PDF');
+      this.openOptionsPanel();
       return;
     }
 
     this.loading = true;
-    this.errorMessage = '';
 
     try {
       const pages = this.pdfDoc.getPages();
@@ -531,21 +585,11 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
         height: this.signaturePosition.height,
       });
 
-      const pdfBytes = await this.pdfDoc.save();
-      const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = this.pdfFile?.name.replace('.pdf', '_signed.pdf') || 'signed_document.pdf';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      URL.revokeObjectURL(url);
-      this.errorMessage = '';
+      const pdfBytes = new Uint8Array(await this.pdfDoc.save());
+      downloadBytes(pdfBytes, this.pdfFile?.name.replace('.pdf', '_signed.pdf') || 'signed_document.pdf');
+      pdfNotifySuccess(this.toast, 'Signed PDF downloaded');
     } catch (error) {
-      this.errorMessage = `Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -562,7 +606,6 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
     this.showPreview = false;
     this.signatureImage = null;
     this.clearSignature();
-    this.errorMessage = '';
     this.isPlacingSignature = false;
     this.cdr.detectChanges();
   }

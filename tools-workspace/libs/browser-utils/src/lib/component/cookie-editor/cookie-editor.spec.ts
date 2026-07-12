@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buToolTestProviders } from '../../shared/bu-tool-test.utils';
 import { CookieEditorComponent } from './cookie-editor';
 
 describe('CookieEditorComponent', () => {
@@ -7,7 +8,8 @@ describe('CookieEditorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CookieEditorComponent]
+      imports: [CookieEditorComponent],
+      providers: buToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(CookieEditorComponent);

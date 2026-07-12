@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { mathToolTestProviders } from '../../shared/math-tool-test.utils';
 import { DateToDayOfWeekComponent } from './date-to-day-of-week';
 
 describe('DateToDayOfWeekComponent', () => {
@@ -7,7 +8,8 @@ describe('DateToDayOfWeekComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DateToDayOfWeekComponent]
+      imports: [DateToDayOfWeekComponent],
+      providers: mathToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(DateToDayOfWeekComponent);

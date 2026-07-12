@@ -1,13 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ExcelViewerComponent } from './excel-viewer';
 
+import { fileViewerTestProviders } from '../../shared/file-viewer-test.utils';
+
 describe('ExcelViewerComponent', () => {
   let component: ExcelViewerComponent;
   let fixture: ComponentFixture<ExcelViewerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ExcelViewerComponent]
+      imports: [ExcelViewerComponent],
+      providers: fileViewerTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ExcelViewerComponent);

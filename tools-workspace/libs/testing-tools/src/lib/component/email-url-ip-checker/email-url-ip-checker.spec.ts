@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ttToolTestProviders } from '../../shared/tt-tool-test.utils';
 import { EmailUrlIpCheckerComponent } from './email-url-ip-checker';
 
 describe('EmailUrlIpCheckerComponent', () => {
@@ -7,7 +8,8 @@ describe('EmailUrlIpCheckerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [EmailUrlIpCheckerComponent]
+      imports: [EmailUrlIpCheckerComponent],
+      providers: ttToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(EmailUrlIpCheckerComponent);

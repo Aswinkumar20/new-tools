@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl fv">
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
@@ -28,34 +28,67 @@
       </div>
     </div>
 
-    <div class="ctl__toolbar" aria-label="Font actions">
-      <label class="ctl__tool-btn" *ngIf="fontApiSupported" aria-label="Upload font" appTooltip="Upload font" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Upload</span>
-        <input #fileInput type="file" accept=".ttf,.otf,.woff,.woff2" (change)="onFileInputChange($event)" />
-      </label>
-      <button type="button" class="ctl__tool-btn" (click)="resetPreviewControls()" aria-label="Reset controls" appTooltip="Reset controls" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearFont()" [disabled]="!fontLoaded" aria-label="Clear font" appTooltip="Clear font" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="fv-workflow" aria-label="Font viewer controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <label class="ctl__tool-btn" *ngIf="fontApiSupported" aria-label="Upload font" appTooltip="Upload font" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+          <input #fileInput type="file" accept=".ttf,.otf,.woff,.woff2" (change)="onFileInputChange($event)" />
+        </label>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="downloadFont()"
+          [disabled]="!fontLoaded || !downloadUrl"
+          aria-label="Download font file"
+          appTooltip="Download font file"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="resetPreviewControls()"
+          aria-label="Reset preview controls"
+          appTooltip="Reset preview controls"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polyline points="1 4 1 10 7 10" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+          </svg>
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearFont()"
+          [disabled]="!fontLoaded"
+          aria-label="Clear font"
+          appTooltip="Clear font"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
 
     <div class="ctl__workspace">
       <div class="ctl__editors">
-        <section class="ctl__editor ctl__editor--merged font-viewer-panel">
-          <header class="ctl__editor-head">
-            <span>Live preview</span>
-            <a class="ctl__editor-badge" *ngIf="downloadUrl && fontLoaded" [href]="downloadUrl" download>Download font</a>
-          </header>
-
-          <div class="ctl__alert ctl__alert--error" *ngIf="loadError"><p>{{ loadError }}</p></div>
-          <div class="ctl__alert ctl__alert--warning" *ngIf="!fontApiSupported"><p>FontFace API is not available in this browser. Please use a modern browser.</p></div>
+        <section class="ctl__editor fv-viewer-panel font-viewer-panel" aria-label="Font preview">
+          <div class="ctl__alert ctl__alert--error" *ngIf="loadError" role="alert"><p>{{ loadError }}</p></div>
+          <div class="ctl__alert ctl__alert--warning" *ngIf="!fontApiSupported" role="alert"><p>FontFace API is not available in this browser. Please use a modern browser.</p></div>
 
           <div class="fv-viewer-body font-preview" *ngIf="fontApiSupported && fontLoaded">
+            <header class="fv-viewer-bar" *ngIf="fontMetadata">
+              <p class="fv-viewer-bar__name" [title]="fontMetadata.fileName">{{ fontMetadata.fileName }}</p>
+              <p class="fv-viewer-bar__hint">{{ fontMetadata.family }} · {{ fontMetadata.formatLabel }} · {{ fontMetadata.formattedSize }}</p>
+            </header>
+
             <div class="preview-card__stage" [ngStyle]="previewHostStyles">{{ comparisonPreviewText }}</div>
 
             <div class="comparison-card__body" *ngIf="fontLoaded">
@@ -78,10 +111,21 @@
             </div>
           </div>
 
-          <div class="ctl__empty fv-dropzone" *ngIf="fontApiSupported && !fontLoaded" [class.fv-dropzone--active]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)" (click)="openFileDialog()" aria-live="polite">
-            <p>Drop font files here or use <strong>Upload</strong> in the toolbar.</p>
-            <p>{{ formatHints.join(', ') }} · processed locally</p>
-          </div>
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="fontApiSupported && !fontLoaded"
+            [class.fv-dropzone--active]="isDragOver"
+            (dragenter)="onDragEnter($event)"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event)"
+            (click)="openFileDialog()"
+            aria-label="Upload font by clicking or dragging files here">
+            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+            <p class="fv-dropzone__title">Drop font files here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">{{ formatHints.join(', ') }} · processed locally</p>
+          </button>
         </section>
       </div>
 
@@ -104,15 +148,15 @@
             <label class="ctl__field" for="sampleText">Sample text</label>
             <textarea id="sampleText" rows="3" class="ctl__textarea ctl__textarea--mono" [(ngModel)]="sampleText" (ngModelChange)="onSampleTextInput($event)"></textarea>
             <label class="ctl__field" for="fontSize">Font size: {{ fontSize }}px</label>
-            <input id="fontSize" type="range" min="12" max="144" [(ngModel)]="fontSize" />
+            <input id="fontSize" type="range" min="12" max="144" [(ngModel)]="fontSize" aria-label="Font size" />
             <label class="ctl__field" for="lineHeight">Line height: {{ lineHeight | number: '1.1-2' }}</label>
-            <input id="lineHeight" type="range" min="1" max="2" step="0.05" [(ngModel)]="lineHeight" />
+            <input id="lineHeight" type="range" min="1" max="2" step="0.05" [(ngModel)]="lineHeight" aria-label="Line height" />
             <label class="ctl__field" for="weightSelect">Weight</label>
-            <select id="weightSelect" [(ngModel)]="selectedWeight">
+            <select id="weightSelect" [(ngModel)]="selectedWeight" aria-label="Font weight">
               <option *ngFor="let weight of [100, 200, 300, 400, 500, 600, 700, 800, 900]" [value]="weight">{{ weight }}</option>
             </select>
             <label class="ctl__field" for="comparisonSelect">Reference font</label>
-            <select id="comparisonSelect" [(ngModel)]="comparisonFont">
+            <select id="comparisonSelect" [(ngModel)]="comparisonFont" aria-label="Reference font">
               <option *ngFor="let font of comparisonFonts" [value]="font.value">{{ font.label }}</option>
             </select>
           </div>
@@ -135,8 +179,8 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Upload TTF, OTF, WOFF, or WOFF2 files to preview instantly.</li>
-        <li>Adjust size, spacing, and templates to simulate real UI scenarios.</li>
+        <li>Upload TTF, OTF, WOFF, or WOFF2 files using the workflow bar or drop zone.</li>
+        <li>Adjust size, spacing, and templates in the sidebar to simulate real UI scenarios.</li>
         <li>Compare your font against system typefaces in the preview panel.</li>
       </ul>
     </details>

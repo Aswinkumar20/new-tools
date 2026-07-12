@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { ViewportSizeDetectorComponent } from './viewport-size-detector';
 
 describe('ViewportSizeDetectorComponent', () => {
@@ -7,7 +8,8 @@ describe('ViewportSizeDetectorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ViewportSizeDetectorComponent]
+      imports: [ViewportSizeDetectorComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ViewportSizeDetectorComponent);

@@ -141,8 +141,20 @@ export class PostmanLiteComponent {
         cache: 'no-cache'
       };
 
-      if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      if (body && !['GET', 'HEAD'].includes(method)) {
         fetchOptions.body = body;
+      }
+
+      // Soft-validate JSON body when Content-Type claims JSON
+      const contentTypeHeader = Object.entries(httpHeaders).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? '';
+      if (body && contentTypeHeader.includes('json')) {
+        try {
+          JSON.parse(body);
+        } catch {
+          this.errors.set(['Request body is not valid JSON.']);
+          this.isSending.set(false);
+          return;
+        }
       }
 
       const response = await fetch(url, fetchOptions);
@@ -363,6 +375,9 @@ export class PostmanLiteComponent {
   formatJson(obj: unknown): string {
     if (obj === null || obj === undefined) {
       return '';
+    }
+    if (typeof obj === 'string') {
+      return obj;
     }
     try {
       return JSON.stringify(obj, null, 2);

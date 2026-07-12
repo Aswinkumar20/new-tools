@@ -211,6 +211,16 @@ export class FontViewerComponent implements OnDestroy {
     this.selectedTemplateId = 'custom';
   }
 
+  downloadFont(): void {
+    if (!this.downloadUrl || !this.fontMetadata) {
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = this.downloadUrl;
+    link.download = this.fontMetadata.fileName;
+    link.click();
+  }
+
   resetPreviewControls(): void {
     this.fontSize = 48;
     this.lineHeight = 1.3;

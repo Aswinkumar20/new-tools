@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { cftToolTestProviders } from '../../shared/cft-tool-test.utils';
 import { HtmlEntityEncoderComponent } from './html-entity-encoder';
 
 describe('HtmlEntityEncoderComponent', () => {
@@ -7,7 +8,8 @@ describe('HtmlEntityEncoderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HtmlEntityEncoderComponent]
+      imports: [HtmlEntityEncoderComponent],
+      providers: cftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HtmlEntityEncoderComponent);

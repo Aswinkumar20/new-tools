@@ -2,15 +2,16 @@ import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testin
 import { WordsAndCharacterCounterComponent } from './wordsAndCharacterCounter.component';
 import { DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 
 describe('WordsAndCharacterCounterComponent', () => {
   let component: WordsAndCharacterCounterComponent;
   let fixture: ComponentFixture<WordsAndCharacterCounterComponent>;
-  let clipboardWriteTextSpy: jasmine.Spy;
+  let clipboardWriteTextSpy: jest.Mock;
 
   beforeEach(async () => {
     // Mock clipboard API
-    clipboardWriteTextSpy = jasmine.createSpy('writeText').and.returnValue(Promise.resolve());
+    clipboardWriteTextSpy = jest.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText: clipboardWriteTextSpy },
       writable: true,
@@ -18,19 +19,22 @@ describe('WordsAndCharacterCounterComponent', () => {
     });
 
     // Mock window.gtag for analytics
-    (window as any).gtag = jasmine.createSpy('gtag');
+    (globalThis as { gtag?: jest.Mock }).gtag = jest.fn();
 
     // Mock Worker
     const mockWorker = {
-      postMessage: jasmine.createSpy('postMessage'),
-      terminate: jasmine.createSpy('terminate'),
-      onmessage: null as any,
-      onerror: null as any
+      postMessage: jest.fn(),
+      terminate: jest.fn(),
+      onmessage: null as ((event: MessageEvent) => void) | null,
+      onerror: null as ((event: ErrorEvent) => void) | null,
     };
-    spyOn(window, 'Worker').and.returnValue(mockWorker as any);
+    (globalThis as { Worker: typeof Worker }).Worker = jest
+      .fn()
+      .mockImplementation(() => mockWorker as unknown as Worker);
 
     await TestBed.configureTestingModule({
       imports: [WordsAndCharacterCounterComponent],
+      providers: [...textToolTestProviders()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(WordsAndCharacterCounterComponent);
@@ -39,8 +43,7 @@ describe('WordsAndCharacterCounterComponent', () => {
   });
 
   afterEach(() => {
-    // Clean up any timers
-    if (component['updateTimer']) {
+    if (component?.['updateTimer']) {
       clearTimeout(component['updateTimer']);
     }
   });
@@ -231,7 +234,7 @@ describe('WordsAndCharacterCounterComponent', () => {
       await component.copyAllStats();
 
       expect(clipboardWriteTextSpy).toHaveBeenCalled();
-      const copiedText = clipboardWriteTextSpy.calls.mostRecent().args[0];
+      const copiedText = clipboardWriteTextSpy.mock.calls.at(-1)?.[0] as string;
       expect(copiedText).toContain('Words:');
       expect(copiedText).toContain('Characters:');
       expect(copiedText).toContain('Sentences:');
@@ -324,17 +327,26 @@ describe('WordsAndCharacterCounterComponent', () => {
   });
 
   describe('Download Functions', () => {
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     beforeEach(() => {
-      // Mock document.createElement for download
       const mockAnchor = {
         href: '',
         download: '',
-        click: jasmine.createSpy('click'),
-        remove: jasmine.createSpy('remove')
+        click: jest.fn(),
+        remove: jest.fn(),
       };
-      spyOn(document, 'createElement').and.returnValue(mockAnchor as any);
-      spyOn(URL, 'createObjectURL').and.returnValue('blob:mock-url');
-      spyOn(URL, 'revokeObjectURL');
+      const originalCreateElement = document.createElement.bind(document);
+      jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+        if (tag === 'a') {
+          return mockAnchor as unknown as HTMLElement;
+        }
+        return originalCreateElement(tag);
+      });
+      URL.createObjectURL = jest.fn().mockReturnValue('blob:mock-url');
+      URL.revokeObjectURL = jest.fn();
     });
 
     it('should download TXT file', async () => {
@@ -349,35 +361,32 @@ describe('WordsAndCharacterCounterComponent', () => {
     });
 
     it('should handle PDF download attempt', async () => {
-      // Mock jsPDF
-      (window as any).jspdf = {
-        jsPDF: jasmine.createSpy('jsPDF').and.returnValue({
-          setFontSize: jasmine.createSpy('setFontSize'),
-          text: jasmine.createSpy('text'),
-          splitTextToSize: jasmine.createSpy('splitTextToSize').and.returnValue(['text']),
-          addPage: jasmine.createSpy('addPage'),
-          save: jasmine.createSpy('save'),
-          internal: {
-            pageSize: { width: 595, height: 842 }
-          },
-          autoTable: jasmine.createSpy('autoTable')
-        })
-      };
+      const ensureScript = jest
+        .spyOn(component as WordsAndCharacterCounterComponent & { ensureScript: (src: string) => Promise<void> }, 'ensureScript' as never)
+        .mockResolvedValue(undefined);
 
-      // Mock script loading
-      const mockScript = document.createElement('script');
-      spyOn(document.head, 'appendChild');
-      spyOn(document, 'querySelector').and.returnValue(null);
+      (globalThis as { jspdf?: { jsPDF: jest.Mock } }).jspdf = {
+        jsPDF: jest.fn().mockReturnValue({
+          setFontSize: jest.fn(),
+          text: jest.fn(),
+          splitTextToSize: jest.fn().mockReturnValue(['text']),
+          addPage: jest.fn(),
+          save: jest.fn(),
+          internal: {
+            pageSize: { width: 595, height: 842 },
+          },
+          autoTable: jest.fn(),
+        }),
+      };
 
       component.paragraphControl.setValue('Test text');
       component.updateCounts('Test text');
       fixture.detectChanges();
 
-      // This will fail gracefully and fall back to TXT
       await component.downloadAnalysis('pdf');
-      
-      // Should have attempted to load scripts
-      expect(document.querySelector).toHaveBeenCalled();
+
+      expect(ensureScript).toHaveBeenCalled();
+      expect(component.isGeneratingPdf).toBe(false);
     });
   });
 
@@ -387,7 +396,7 @@ describe('WordsAndCharacterCounterComponent', () => {
       tick(400);
       fixture.detectChanges();
 
-      const wordCountElement = fixture.debugElement.query(By.css('.stat-chip .stat-value'));
+      const wordCountElement = fixture.debugElement.query(By.css('.wcc__stat-value'));
       expect(wordCountElement).toBeTruthy();
       expect(wordCountElement.nativeElement.textContent.trim()).toBe('2');
     }));
@@ -397,7 +406,7 @@ describe('WordsAndCharacterCounterComponent', () => {
       tick(400);
       fixture.detectChanges();
 
-      const charCountElements = fixture.debugElement.queryAll(By.css('.stat-chip .stat-value'));
+      const charCountElements = fixture.debugElement.queryAll(By.css('.wcc__stat-value'));
       expect(charCountElements.length).toBeGreaterThan(0);
     }));
 
@@ -423,7 +432,7 @@ describe('WordsAndCharacterCounterComponent', () => {
       tick(400);
       fixture.detectChanges();
 
-      const frequencyTable = fixture.debugElement.query(By.css('.frequency-table'));
+      const frequencyTable = fixture.debugElement.query(By.css('.wcc__table'));
       expect(frequencyTable).toBeTruthy();
     }));
 
@@ -431,7 +440,7 @@ describe('WordsAndCharacterCounterComponent', () => {
       component.paragraphControl.setValue('');
       fixture.detectChanges();
 
-      const emptyState = fixture.debugElement.query(By.css('.empty-state'));
+      const emptyState = fixture.debugElement.query(By.css('.wcc__empty'));
       expect(emptyState).toBeTruthy();
     });
   });
@@ -466,11 +475,11 @@ describe('WordsAndCharacterCounterComponent', () => {
 
   describe('Component Lifecycle', () => {
     it('should clean up on destroy', () => {
-      spyOn(component, 'ngOnDestroy').and.callThrough();
+      const destroySpy = jest.spyOn(component, 'ngOnDestroy');
       
       component.ngOnDestroy();
       
-      expect(component.ngOnDestroy).toHaveBeenCalled();
+      expect(destroySpy).toHaveBeenCalled();
     });
   });
 

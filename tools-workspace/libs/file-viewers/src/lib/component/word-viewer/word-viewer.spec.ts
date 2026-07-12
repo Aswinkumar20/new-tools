@@ -1,16 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { WordViewerComponent } from './word-viewer';
+import { FileViewerWordViewerComponent } from './word-viewer';
+import { fileViewerTestProviders } from '../../shared/file-viewer-test.utils';
 
-describe('WordViewerComponent', () => {
-  let component: WordViewerComponent;
-  let fixture: ComponentFixture<WordViewerComponent>;
+describe('FileViewerWordViewerComponent', () => {
+  let component: FileViewerWordViewerComponent;
+  let fixture: ComponentFixture<FileViewerWordViewerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [WordViewerComponent]
+      imports: [FileViewerWordViewerComponent],
+      providers: fileViewerTestProviders(),
     }).compileComponents();
 
-    fixture = TestBed.createComponent(WordViewerComponent);
+    fixture = TestBed.createComponent(FileViewerWordViewerComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

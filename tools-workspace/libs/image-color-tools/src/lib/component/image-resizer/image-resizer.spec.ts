@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { ImageResizerComponent } from './image-resizer';
 
 describe('ImageResizerComponent', () => {
@@ -7,7 +8,8 @@ describe('ImageResizerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ImageResizerComponent]
+      imports: [ImageResizerComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ImageResizerComponent);

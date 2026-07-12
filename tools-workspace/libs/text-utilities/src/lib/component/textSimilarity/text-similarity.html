@@ -1,0 +1,94 @@
+<div class="ttool">
+  <lib-navigation></lib-navigation>
+  <main class="ttool__main">
+    <div class="ttool__top">
+      <header class="ttool__header">
+        <h1>Text Similarity</h1>
+        <p>Compare two strings using Levenshtein distance and similarity percentage.</p>
+      </header>
+      <div class="ttool__stats" aria-label="Statistics">
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ similarity }}%</span>
+          <span class="ttool__stat-label">Similar</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ distance }}</span>
+          <span class="ttool__stat-label">Distance</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ inputText.length }}</span>
+          <span class="ttool__stat-label">Text A</span>
+        </div>
+        <div class="ttool__stat">
+          <span class="ttool__stat-value">{{ textB.length }}</span>
+          <span class="ttool__stat-label">Text B</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ttool__workspace">
+      <div class="ttool__editors ttool__editors--triple">
+        <section class="ttool__editor" [class.ttool__editor--dragover]="isDragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          <header class="ttool__editor-head">
+            <span class="ttool__editor-title">Text A</span>
+            <div class="ttool__toolbar">
+              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" appTooltip="Upload file" tooltipPosition="bottom"><img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Upload</span></button>
+              <button type="button" class="ttool__tool-btn" (click)="copyInput()" [disabled]="!hasInput" appTooltip="Copy text A" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Copy</span></button>
+              <button type="button" class="ttool__tool-btn" (click)="undo()" [disabled]="!canUndo" appTooltip="Undo" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Undo</span></button>
+              <button type="button" class="ttool__tool-btn" (click)="redo()" [disabled]="!canRedo" appTooltip="Redo" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Redo</span></button>
+              <button type="button" class="ttool__tool-btn" (click)="clear()" appTooltip="Clear" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Clear</span></button>
+            </div>
+          </header>
+          <textarea #inputTextarea class="ttool__textarea" [(ngModel)]="inputText" (input)="onInputChange()" rows="1" placeholder="Enter first text…"></textarea>
+        </section>
+        <section class="ttool__editor">
+          <header class="ttool__editor-head">
+            <span class="ttool__editor-title">Text B</span>
+            <div class="ttool__toolbar">
+              <button type="button" class="ttool__tool-btn" (click)="copyTextB()" [disabled]="!textB.trim()" appTooltip="Copy text B" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Copy</span></button>
+            </div>
+          </header>
+          <textarea class="ttool__textarea" [(ngModel)]="textB" (input)="onTextBChange()" rows="1" placeholder="Enter second text to compare…"></textarea>
+        </section>
+        <section class="ttool__editor ttool__editor--output">
+          <header class="ttool__editor-head">
+            <div class="ttool__editor-head-left">
+              <span class="ttool__editor-title">Comparison summary</span>
+              @if (inputText || textB) { <span class="ttool__editor-badge">Ready</span> }
+            </div>
+            <div class="ttool__toolbar">
+              <button type="button" class="ttool__tool-btn" (click)="copyOutput()" [disabled]="!inputText && !textB" appTooltip="Copy output" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Copy</span></button>
+              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!inputText && !textB" appTooltip="Download" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">TXT</span></button>
+            </div>
+          </header>
+          @if (inputText || textB) { <textarea class="ttool__textarea ttool__textarea--output ttool__textarea--mono" readonly rows="1" [value]="outputText"></textarea> }
+          @else { <div class="ttool__empty"><p>Enter both texts to see similarity metrics.</p></div> }
+        </section>
+      </div>
+      <aside class="ttool__sidebar">
+        <div class="ttool__info">
+          <div class="ttool__info-item">
+            <span class="ttool__info-dot ttool__info-dot--accent"></span>
+            <p><strong>Similarity:</strong> {{ similarity }}%</p>
+          </div>
+          <div class="ttool__info-item">
+            <span class="ttool__info-dot"></span>
+            <p><strong>Levenshtein distance:</strong> {{ distance }} edits</p>
+          </div>
+          <div class="ttool__info-item">
+            <span class="ttool__info-dot"></span>
+            <p><strong>100%</strong> means identical strings; <strong>0%</strong> means completely different (for equal-length strings).</p>
+          </div>
+        </div>
+        <div class="ttool__panel">
+          <ul class="ttool__tips">
+            <li>Distance counts insertions, deletions, and substitutions.</li>
+            <li>Similarity is normalized by the longer string length.</li>
+            <li>Both empty strings score <strong>100%</strong> similarity.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+    <details class="ttool__help"><summary>How to use</summary><ul><li>Paste text in both fields; similarity and edit distance update live.</li></ul></details>
+  </main>
+</div>

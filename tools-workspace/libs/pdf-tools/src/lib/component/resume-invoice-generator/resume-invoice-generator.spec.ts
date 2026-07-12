@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { ResumeInvoiceGeneratorComponent } from './resume-invoice-generator';
 
 describe('ResumeInvoiceGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('ResumeInvoiceGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ResumeInvoiceGeneratorComponent]
+      imports: [ResumeInvoiceGeneratorComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ResumeInvoiceGeneratorComponent);

@@ -1,4 +1,4 @@
-<div class="ctl">
+<div class="ctl md">
   <lib-navigation></lib-navigation>
   <main class="ctl__main">
     <div class="ctl__top">
@@ -10,14 +10,15 @@
         <div class="ctl__stat"><span class="ctl__stat-value">{{ selectedUnitsCount() }}</span><span class="ctl__stat-label">Units</span></div>
       </div>
     </div>
-    <div class="ctl__toolbar" aria-label="Converter actions">
+    <div class="md-workflow" aria-label="Converter actions"><div class="md-workflow__group md-workflow__group--actions">
       <button type="button" class="ctl__tool-btn" (click)="onConversionSubmit()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Convert</span></button>
       <button type="button" class="ctl__tool-btn" (click)="swapUnits()" appTooltip="Swap units" tooltipPosition="bottom" aria-label="Swap units"><img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Swap</span></button>
       <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
     </div>
-    <div class="ctl__workspace" [formGroup]="conversionForm">
-      <div class="ctl__editors">
-        <section class="ctl__editor">
+    </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="conversionForm">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>{{ selectedCategoryDetails().title }}</span></header>
           <div class="ctl__editor-body ctl__settings">
             <label class="ctl__field" for="input-value"><span>Value</span><input #inputField id="input-value" type="number" inputmode="decimal" formControlName="inputValue" placeholder="0" /></label>
@@ -30,7 +31,7 @@
             @if (conversionError()) { <div class="ctl__alert ctl__alert--error">{{ conversionError() }}</div> }
           </div>
         </section>
-        <section class="ctl__editor ctl__editor--output">
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
           <header class="ctl__editor-head"><span>Result</span>
             <div class="ctl__editor-actions">@if (conversionResult()) { <span class="ctl__editor-badge">Live</span> }
               <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
@@ -41,7 +42,15 @@
           } @else { <div class="ctl__empty"><p>Enter a value to convert.</p></div> }
         </section>
       </div>
-      <aside class="ctl__sidebar" aria-label="Categories and history">
+            <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Categories and history">
         <div class="ctl__panel"><header class="ctl__panel-head">Categories</header><div class="ctl__panel-body">
           <label class="ctl__field" for="category-search"><span>Search</span><input id="category-search" type="search" [value]="searchTerm()" (input)="onCategorySearch($any($event.target).value)" placeholder="Search categories…" /></label>
           <div class="uc__categories">@for (category of filteredCategories(); track trackCategory($index, category)) {
@@ -59,6 +68,7 @@
           }</ul> } @else { <div class="ctl__panel-empty"><p>Recent conversions appear here.</p></div> }
         </div></div>
       </aside>
+      </details>
     </div>
     <details class="ctl__help"><summary>How to use</summary><ul><li>Pick a category and enter a value with from/to units.</li><li>Results update live — swap units or use presets.</li><li>Copy the conversion summary from the toolbar.</li></ul></details>
   </main>

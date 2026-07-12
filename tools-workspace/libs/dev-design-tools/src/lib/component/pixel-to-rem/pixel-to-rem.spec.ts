@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ddToolTestProviders } from '../../shared/dd-tool-test.utils';
 import { PixelToRemComponent } from './pixel-to-rem';
 
 describe('PixelToRemComponent', () => {
@@ -7,7 +8,8 @@ describe('PixelToRemComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PixelToRemComponent]
+      imports: [PixelToRemComponent],
+      providers: ddToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(PixelToRemComponent);

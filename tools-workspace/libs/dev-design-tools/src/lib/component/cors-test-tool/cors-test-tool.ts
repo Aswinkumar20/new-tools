@@ -56,7 +56,7 @@ export class CorsTestToolComponent {
     }),
     method: this.fb.control('GET', { nonNullable: true }),
     headers: this.fb.array<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>>([
-      this.createHeader('Content-Type', 'application/json')
+      this.createHeader('Accept', 'application/json')
     ]),
     body: this.fb.control('', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
@@ -131,7 +131,7 @@ export class CorsTestToolComponent {
         cache: 'no-cache'
       };
 
-      if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      if (body && !['GET', 'HEAD'].includes(method)) {
         fetchOptions.body = body;
       }
 
@@ -170,10 +170,21 @@ export class CorsTestToolComponent {
 
       this.result.set(result);
 
-      // Check for CORS issues
-      if (Object.keys(corsHeaders).length === 0) {
-        this.warnings.set(['No CORS headers found in response. This may indicate a CORS issue.']);
+      const origin = typeof location !== 'undefined' ? location.origin : '';
+      const acao =
+        corsHeaders['access-control-allow-origin'] ??
+        Object.entries(corsHeaders).find(([k]) => k.toLowerCase() === 'access-control-allow-origin')?.[1];
+      const notes: string[] = [
+        `This page origin is ${origin || '(unknown)'}. True CORS blocks usually throw before headers are readable.`
+      ];
+      if (!acao) {
+        notes.push('No Access-Control-Allow-Origin header was exposed. Same-origin responses often omit CORS headers.');
+      } else if (acao !== '*' && origin && acao !== origin) {
+        notes.push(`ACAO "${acao}" does not match this origin ${origin}.`);
+      } else {
+        notes.push(`ACAO looks compatible: ${acao}`);
       }
+      this.warnings.set(notes);
 
       if (this.form.controls.rememberHistory.value) {
         this.addToHistory(url, method, result);
@@ -219,7 +230,7 @@ export class CorsTestToolComponent {
     while (this.headers.length > 1) {
       this.headers.removeAt(1);
     }
-    this.headers.at(0)?.patchValue({ key: 'Content-Type', value: 'application/json' });
+    this.headers.at(0)?.patchValue({ key: 'Accept', value: 'application/json' });
     this.result.set(null);
     this.errors.set([]);
     this.warnings.set([]);
@@ -302,6 +313,9 @@ export class CorsTestToolComponent {
   formatJson(obj: unknown): string {
     if (obj === null || obj === undefined) {
       return '';
+    }
+    if (typeof obj === 'string') {
+      return obj;
     }
     try {
       return JSON.stringify(obj, null, 2);

@@ -111,7 +111,7 @@ export class MockJsonGeneratorComponent {
     return this.fb.group({
       key: this.fb.control(key, { nonNullable: true }),
       type: this.fb.control<FieldType>(type, { nonNullable: true }),
-      value: this.fb.control(value, { nonNullable: true }),
+      value: this.fb.control(type === 'array' && !value ? 'string' : value, { nonNullable: true }),
       arrayLength: this.fb.control(arrayLength, {
         nonNullable: true,
         validators: [Validators.min(1), Validators.max(100)]
@@ -133,11 +133,27 @@ export class MockJsonGeneratorComponent {
     this.errors.set([]);
     this.warnings.set([]);
 
+    if (!this.form.controls.arrayCount.valid) {
+      this.errors.set(['Number of objects must be between 1 and 100.']);
+      return;
+    }
+
     try {
       const { fields, arrayCount } = this.form.getRawValue();
+      const count = Math.min(100, Math.max(1, arrayCount || 1));
+      const keys = fields.map((f) => f.key.trim()).filter(Boolean);
+      if (new Set(keys).size !== keys.length) {
+        this.warnings.set(['Duplicate field names — later fields overwrite earlier ones.']);
+      }
+      if (!keys.length) {
+        this.errors.set(['Add at least one field with a name.']);
+        this.generatedJson.set('');
+        return;
+      }
+
       const result: unknown[] = [];
 
-      for (let i = 0; i < arrayCount; i++) {
+      for (let i = 0; i < count; i++) {
         const obj: Record<string, unknown> = {};
 
         for (const field of fields) {
@@ -151,7 +167,7 @@ export class MockJsonGeneratorComponent {
         result.push(obj);
       }
 
-      const jsonString = arrayCount === 1 ? JSON.stringify(result[0], null, 2) : JSON.stringify(result, null, 2);
+      const jsonString = count === 1 ? JSON.stringify(result[0], null, 2) : JSON.stringify(result, null, 2);
       this.generatedJson.set(jsonString);
 
       if (this.form.controls.rememberHistory.value) {
@@ -168,10 +184,18 @@ export class MockJsonGeneratorComponent {
     switch (field.type) {
       case 'string':
         return field.value || `String ${index + 1}`;
-      case 'number':
-        return field.value ? Number.parseFloat(field.value) || 0 : index + 1;
+      case 'number': {
+        if (!field.value) {
+          return index + 1;
+        }
+        const parsed = Number(field.value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
       case 'boolean':
-        return field.value === 'true' || field.value === '' ? true : false;
+        if (!field.value) {
+          return true;
+        }
+        return ['true', '1', 'yes'].includes(field.value.toLowerCase());
       case 'null':
         return null;
       case 'email':
@@ -227,10 +251,11 @@ export class MockJsonGeneratorComponent {
   }
 
   private parseArrayItemType(value: string): 'string' | 'number' | 'boolean' {
-    if (value.toLowerCase().includes('number') || value.toLowerCase().includes('num')) {
+    const normalized = (value || 'string').toLowerCase().trim();
+    if (normalized === 'number' || normalized.includes('number') || normalized.includes('num')) {
       return 'number';
     }
-    if (value.toLowerCase().includes('boolean') || value.toLowerCase().includes('bool')) {
+    if (normalized === 'boolean' || normalized.includes('boolean') || normalized.includes('bool')) {
       return 'boolean';
     }
     return 'string';

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ictToolTestProviders } from '../../shared/ict-tool-test.utils';
 import { GradientGeneratorComponent } from './gradient-generator';
 
 describe('GradientGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('GradientGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [GradientGeneratorComponent]
+      imports: [GradientGeneratorComponent],
+      providers: ictToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(GradientGeneratorComponent);

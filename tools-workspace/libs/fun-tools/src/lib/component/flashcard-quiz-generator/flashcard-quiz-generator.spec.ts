@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ftToolTestProviders } from '../../shared/ft-tool-test.utils';
 import { FlashcardQuizGeneratorComponent } from './flashcard-quiz-generator';
 
 describe('FlashcardQuizGeneratorComponent', () => {
@@ -7,7 +8,8 @@ describe('FlashcardQuizGeneratorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FlashcardQuizGeneratorComponent]
+      imports: [FlashcardQuizGeneratorComponent],
+      providers: ftToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(FlashcardQuizGeneratorComponent);
