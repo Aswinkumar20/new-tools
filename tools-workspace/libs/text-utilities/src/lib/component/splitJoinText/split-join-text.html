@@ -26,8 +26,20 @@
 
     <div class="ttool__workflow" aria-label="Split and join controls">
       <div class="ttool__mode-group" role="group" aria-label="Mode">
-        <button type="button" class="ttool__chip-btn" [class.ttool__chip-btn--active]="mode === 'split'" (click)="setMode('split')">Split</button>
-        <button type="button" class="ttool__chip-btn" [class.ttool__chip-btn--active]="mode === 'join'" (click)="setMode('join')">Join</button>
+        <button
+          type="button"
+          class="ttool__chip-btn"
+          [class.ttool__chip-btn--active]="mode === 'split'"
+          (click)="setMode('split')">
+          Split
+        </button>
+        <button
+          type="button"
+          class="ttool__chip-btn"
+          [class.ttool__chip-btn--active]="mode === 'join'"
+          (click)="setMode('join')">
+          Join
+        </button>
       </div>
       <button
         type="button"
@@ -43,7 +55,11 @@
         <div class="ttool__options-grid">
           <label class="ttool__field">
             <span>Delimiter</span>
-            <input type="text" [(ngModel)]="delimiter" (ngModelChange)="onOptionsChange()" placeholder="," />
+            <input
+              type="text"
+              [(ngModel)]="delimiter"
+              (ngModelChange)="onOptionsChange()"
+              placeholder="," />
           </label>
           <p class="ttool__panel-hint">
             @if (mode === 'split') {
@@ -64,33 +80,95 @@
           (dragover)="onDragOver($event)"
           (dragleave)="onDragLeave($event)"
           (drop)="onDrop($event)">
-          <header class="ttool__editor-head">
+          <header class="ttool__editor-head" aria-label="Input editor actions">
             <span class="ttool__editor-title">Input</span>
             <div class="ttool__toolbar">
-              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" appTooltip="Upload file" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="uploadTextFile()"
+                [disabled]="isReadingFile"
+                aria-label="Upload file"
+                appTooltip="Upload file"
+                tooltipPosition="bottom">
+                <img
+                  [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')"
+                  alt=""
+                  width="18"
+                  height="18" />
                 <span class="ttool__tool-btn-label">Upload</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="copyInput()" [disabled]="!hasInput" appTooltip="Copy input" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Copy</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="undo()" [disabled]="!canUndo" appTooltip="Undo" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="undo()"
+                [disabled]="!canUndo"
+                aria-label="Undo"
+                appTooltip="Undo"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Undo</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="redo()" [disabled]="!canRedo" appTooltip="Redo" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="redo()"
+                [disabled]="!canRedo"
+                aria-label="Redo"
+                appTooltip="Redo"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Redo</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="clear()" appTooltip="Clear" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="clear()"
+                aria-label="Clear"
+                appTooltip="Clear"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Clear</span>
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="sj__suggest" aria-label="Suggested next step">
+              <div class="sj__suggest-body">
+                <p class="sj__suggest-title">{{ suggestion.title }}</p>
+                <p class="sj__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="sj__suggest-actions">
+                <a class="sj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="sj__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="split-join-source">
+            {{ mode === 'split' ? 'Delimited text to split' : 'Lines to join' }}
+          </label>
           <textarea
             #inputTextarea
+            id="split-join-source"
             class="ttool__textarea"
             [(ngModel)]="inputText"
             (input)="onInputChange()"
@@ -99,7 +177,7 @@
         </section>
 
         <section class="ttool__editor ttool__editor--output" [class.ttool__editor--error]="errorMessage">
-          <header class="ttool__editor-head">
+          <header class="ttool__editor-head" aria-label="Output editor actions">
             <div class="ttool__editor-head-left">
               <span class="ttool__editor-title">Output</span>
               @if (hasOutput) {
@@ -109,15 +187,36 @@
               }
             </div>
             <div class="ttool__toolbar">
-              <button type="button" class="ttool__tool-btn" (click)="copyOutput()" [disabled]="!hasOutput" appTooltip="Copy output" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasOutput"
+                aria-label="Copy output"
+                appTooltip="Copy output"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Copy</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!hasOutput" appTooltip="Download" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="downloadText()"
+                [disabled]="!hasOutput"
+                aria-label="Download"
+                appTooltip="Download"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">TXT</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="useOutputAsInput()" [disabled]="!hasOutput" appTooltip="Use as input" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="useOutputAsInput()"
+                [disabled]="!hasOutput"
+                aria-label="Use as input"
+                appTooltip="Use as input"
+                tooltipPosition="bottom">
                 <span class="ttool__tool-btn-label">→ In</span>
               </button>
             </div>
@@ -125,9 +224,16 @@
           @if (errorMessage) {
             <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div>
           } @else if (hasOutput) {
-            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText"></textarea>
+            <textarea
+              class="ttool__textarea ttool__textarea--output"
+              readonly
+              rows="1"
+              [value]="outputText"
+              aria-label="Transformed text"></textarea>
           } @else {
-            <div class="ttool__empty"><p>Split or joined text appears here as you type.</p></div>
+            <div class="ttool__empty" aria-live="polite">
+              <p>Split or joined text appears here as you type.</p>
+            </div>
           }
         </section>
       </div>
@@ -140,13 +246,27 @@
             <li>Use any delimiter: tab, pipe, semicolon, or multi-character strings.</li>
           </ul>
         </div>
+
+        <div class="ttool__panel sj__related-panel">
+          <header class="sj__panel-head">Related tools</header>
+          <ul class="sj__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="sj__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
       </aside>
     </div>
 
     <details class="ttool__help">
       <summary>How to use</summary>
       <ul>
-        <li>Pick <strong>Split</strong> or <strong>Join</strong> and set the delimiter in the workflow bar.</li>
+        <li>Pick <strong>Split</strong> or <strong>Join</strong> and set the delimiter in Options.</li>
         <li>Paste CSV-style data to split, or line lists to join.</li>
         <li>Use <strong>→ In</strong> to swap the result into input for further editing.</li>
       </ul>

@@ -10,69 +10,112 @@ import {
 } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { Subject } from 'rxjs';
-
-interface DiffStats {
-  originalChars: number;
-  modifiedChars: number;
-  originalLines: number;
-  modifiedLines: number;
-  changes: number;
-  hasContent: boolean;
-}
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  TEXT_DIFF_DEFAULT_FONT_SIZE,
+  TEXT_DIFF_DEFAULT_LANGUAGE,
+  TEXT_DIFF_DEFAULT_MODIFIED,
+  TEXT_DIFF_DEFAULT_ORIGINAL,
+  TEXT_DIFF_DEFAULT_THEME,
+  TEXT_DIFF_LANGUAGES,
+  TEXT_DIFF_MAX_UPLOAD_BYTES,
+  TEXT_DIFF_RELATED_TOOLS,
+  TEXT_DIFF_THEMES,
+} from '../../constants/text-difference.constants';
+import type {
+  DiffEditorModel,
+  DiffStats,
+  TextDiffLanguage,
+  TextDiffTheme,
+} from '../../types/text-difference.types';
+import {
+  clampDiffFontSize,
+  computeDiffStats,
+  isLikelyDiffTextFile,
+  normalizeDiffLanguage,
+  resolveTextDifferenceSuggestion,
+} from '../../utils/text-difference.utils';
 
 @Component({
   selector: 'lib-text-difference',
   standalone: true,
   templateUrl: './text-difference.html',
   styleUrls: ['./text-difference.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, MonacoEditorModule, TooltipDirective],
+  imports: [
+    FormsModule,
+    CommonModule,
+    RouterLink,
+    Navigation,
+    ReactiveFormsModule,
+    MonacoEditorModule,
+    TooltipDirective,
+  ],
 })
 export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
   private readonly toastService = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  readonly themes = ['vs-dark', 'vs-light', 'hc-black'];
-  readonly languages = [
-    'typescript',
-    'javascript',
-    'json',
-    'html',
-    'css',
-    'markdown',
-    'python',
-    'java',
-    'xml',
-    'yaml',
-    'plaintext',
-  ];
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_DIFF_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
+  readonly themes = [...TEXT_DIFF_THEMES];
+  readonly languages = [...TEXT_DIFF_LANGUAGES];
 
   showSidebar = true;
   showSideBySide = true;
   ignoreTrimWhitespace = false;
 
-  editorOptions = {
-    theme: this.themes[0],
-    language: this.languages[0],
+  editorOptions: {
+    theme: TextDiffTheme;
+    language: TextDiffLanguage;
+    readOnly: boolean;
+    originalEditable: boolean;
+    fontSize: number;
+    minimap: { enabled: boolean };
+    scrollBeyondLastLine: boolean;
+    automaticLayout: boolean;
+    wordWrap: 'on';
+    renderSideBySide: boolean;
+    enableSplitViewResizing: boolean;
+    ignoreTrimWhitespace: boolean;
+    renderIndicators: boolean;
+    diffWordWrap: 'on';
+    padding: { top: number; bottom: number };
+    cursorBlinking: 'blink';
+    cursorSmoothCaretAnimation: 'on';
+    cursorStyle: 'line';
+    cursorWidth: number;
+    scrollbar: {
+      vertical: string;
+      horizontal: string;
+      useShadows: boolean;
+      verticalHasArrows: boolean;
+      horizontalHasArrows: boolean;
+    };
+  } = {
+    theme: TEXT_DIFF_DEFAULT_THEME,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
     readOnly: false,
     originalEditable: true,
-    fontSize: 14,
+    fontSize: TEXT_DIFF_DEFAULT_FONT_SIZE,
     minimap: { enabled: typeof window !== 'undefined' && window.innerWidth > 768 },
     scrollBeyondLastLine: false,
     automaticLayout: true,
-    wordWrap: 'on' as const,
+    wordWrap: 'on',
     renderSideBySide: typeof window !== 'undefined' && window.innerWidth > 768,
     enableSplitViewResizing: true,
     ignoreTrimWhitespace: false,
     renderIndicators: true,
-    diffWordWrap: 'on' as const,
+    diffWordWrap: 'on',
     padding: { top: 12, bottom: 12 },
-    cursorBlinking: 'blink' as const,
-    cursorSmoothCaretAnimation: 'on' as const,
-    cursorStyle: 'line' as const,
+    cursorBlinking: 'blink',
+    cursorSmoothCaretAnimation: 'on',
+    cursorStyle: 'line',
     cursorWidth: 2,
     scrollbar: {
       vertical: 'auto',
@@ -83,14 +126,14 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     },
   };
 
-  originalModel = {
-    code: 'heLLo world!\nThis is the original text.',
-    language: this.languages[0],
+  originalModel: DiffEditorModel = {
+    code: TEXT_DIFF_DEFAULT_ORIGINAL,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
   };
 
-  modifiedModel = {
-    code: 'hello world!\nThis is the modified text.',
-    language: this.languages[0],
+  modifiedModel: DiffEditorModel = {
+    code: TEXT_DIFF_DEFAULT_MODIFIED,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
   };
 
   diffStats: DiffStats = {
@@ -103,8 +146,26 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   };
 
   private editor: {
-    getOriginalEditor(): { getValue(): string; setValue(value: string): void; layout(dimensions?: { width: number; height: number }): void; getScrollTop(): number; getScrollLeft(): number; setScrollTop(value: number): void; setScrollLeft(value: number): void; onDidChangeModelContent(listener: () => void): { dispose(): void } };
-    getModifiedEditor(): { getValue(): string; setValue(value: string): void; layout(dimensions?: { width: number; height: number }): void; getScrollTop(): number; getScrollLeft(): number; setScrollTop(value: number): void; setScrollLeft(value: number): void; onDidChangeModelContent(listener: () => void): { dispose(): void } };
+    getOriginalEditor(): {
+      getValue(): string;
+      setValue(value: string): void;
+      layout(dimensions?: { width: number; height: number }): void;
+      getScrollTop(): number;
+      getScrollLeft(): number;
+      setScrollTop(value: number): void;
+      setScrollLeft(value: number): void;
+      onDidChangeModelContent(listener: () => void): { dispose(): void };
+    };
+    getModifiedEditor(): {
+      getValue(): string;
+      setValue(value: string): void;
+      layout(dimensions?: { width: number; height: number }): void;
+      getScrollTop(): number;
+      getScrollLeft(): number;
+      setScrollTop(value: number): void;
+      setScrollLeft(value: number): void;
+      onDidChangeModelContent(listener: () => void): { dispose(): void };
+    };
     updateOptions(options: Record<string, unknown>): void;
     getLineChanges?(): unknown[] | null;
   } | null = null;
@@ -119,7 +180,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   private modifiedChangeDisposable?: { dispose(): void };
   private fileInput?: HTMLInputElement;
   private uploadTarget: 'original' | 'modified' = 'original';
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = TEXT_DIFF_MAX_UPLOAD_BYTES;
 
   @ViewChild('editorContainer', { static: false }) editorContainer?: ElementRef<HTMLElement>;
 
@@ -135,6 +196,27 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   get languageLabel(): string {
     const lang = this.editorOptions.language;
     return lang === 'plaintext' ? 'Plain Text' : lang;
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const original = this.getOriginalContent();
+    const modified = this.getModifiedContent();
+    const suggestion = resolveTextDifferenceSuggestion({
+      hasOriginal: original.length > 0,
+      hasModified: modified.length > 0,
+      areIdentical: original === modified,
+      changeCount: this.diffStats.changes,
+      ignoreTrimWhitespace: this.ignoreTrimWhitespace,
+      charDelta: this.diffStats.modifiedChars - this.diffStats.originalChars,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   ngOnInit(): void {
@@ -185,13 +267,17 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
 
       this.originalChangeDisposable?.dispose();
       this.modifiedChangeDisposable?.dispose();
-      this.originalChangeDisposable = originalEditor.onDidChangeModelContent(() => this.scheduleContentSync());
-      this.modifiedChangeDisposable = modifiedEditor.onDidChangeModelContent(() => this.scheduleContentSync());
+      this.originalChangeDisposable = originalEditor.onDidChangeModelContent(() =>
+        this.scheduleContentSync()
+      );
+      this.modifiedChangeDisposable = modifiedEditor.onDidChangeModelContent(() =>
+        this.scheduleContentSync()
+      );
 
       this.syncContentFromEditor();
       requestAnimationFrame(() => this.refreshEditorLayout());
-    } catch (error) {
-      console.error('Error initializing editor:', error);
+    } catch {
+      // Monaco may not be ready yet
     }
   }
 
@@ -215,13 +301,13 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     this.scheduleLayoutRefresh();
   }
 
-  onThemeChange(theme: string): void {
+  onThemeChange(theme: TextDiffTheme): void {
     this.editorOptions = { ...this.editorOptions, theme };
     this.editor?.updateOptions({ theme });
   }
 
   onLanguageChange(language: string): void {
-    const normalizedLang = language === 'text/plain' ? 'plaintext' : language;
+    const normalizedLang = normalizeDiffLanguage(language);
     this.editorOptions = { ...this.editorOptions, language: normalizedLang };
     this.originalModel = { ...this.originalModel, language: normalizedLang };
     this.modifiedModel = { ...this.modifiedModel, language: normalizedLang };
@@ -229,12 +315,14 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   onFontSizeChange(fontSize: number): void {
-    if (fontSize < 8 || fontSize > 32) return;
-    this.editorOptions = { ...this.editorOptions, fontSize };
-    this.editor?.updateOptions({ fontSize });
+    const clamped = clampDiffFontSize(fontSize);
+    if (clamped === null) return;
+    this.editorOptions = { ...this.editorOptions, fontSize: clamped };
+    this.editor?.updateOptions({ fontSize: clamped });
   }
 
   onIgnoreWhitespaceChange(): void {
+    this.dismissedSuggestionId = null;
     this.editorOptions = { ...this.editorOptions, ignoreTrimWhitespace: this.ignoreTrimWhitespace };
     this.editor?.updateOptions({ ignoreTrimWhitespace: this.ignoreTrimWhitespace });
     this.scheduleContentSync();
@@ -261,6 +349,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   swapSides(): void {
     const original = this.getOriginalContent();
     const modified = this.getModifiedContent();
+    this.dismissedSuggestionId = null;
     this.setOriginalContent(modified);
     this.setModifiedContent(original);
     this.toastService.info('Original and modified swapped');
@@ -275,16 +364,19 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   clearOriginal(): void {
+    this.dismissedSuggestionId = null;
     this.setOriginalContent('');
     this.toastService.info('Original cleared');
   }
 
   clearModified(): void {
+    this.dismissedSuggestionId = null;
     this.setModifiedContent('');
     this.toastService.info('Modified cleared');
   }
 
   clearAll(): void {
+    this.dismissedSuggestionId = null;
     this.setOriginalContent('');
     this.setModifiedContent('');
     this.toastService.info('Both sides cleared');
@@ -328,7 +420,10 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
 
   private scheduleContentSync(): void {
     if (this.contentSyncTimer) clearTimeout(this.contentSyncTimer);
-    this.contentSyncTimer = setTimeout(() => this.syncContentFromEditor(), 200);
+    this.contentSyncTimer = setTimeout(() => {
+      this.dismissedSuggestionId = null;
+      this.syncContentFromEditor();
+    }, 200);
   }
 
   private syncContentFromEditor(): void {
@@ -350,14 +445,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
       changes = 0;
     }
 
-    this.diffStats = {
-      originalChars: original.length,
-      modifiedChars: modified.length,
-      originalLines: original ? original.split('\n').length : 0,
-      modifiedLines: modified ? modified.split('\n').length : 0,
-      changes,
-      hasContent: original.length > 0 || modified.length > 0,
-    };
+    this.diffStats = computeDiffStats(original, modified, changes);
   }
 
   private openFilePicker(): void {
@@ -380,11 +468,13 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
 
   private handleUploadedFile(file: File): void {
     if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
+      this.toastService.error(
+        `File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`
+      );
       return;
     }
 
-    if (!this.isLikelyTextFile(file)) {
+    if (!isLikelyDiffTextFile(file)) {
       this.toastService.error('Please upload a text-based file.');
       return;
     }
@@ -392,6 +482,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     const reader = new FileReader();
     reader.onload = () => {
       const text = typeof reader.result === 'string' ? reader.result : '';
+      this.dismissedSuggestionId = null;
       if (this.uploadTarget === 'original') {
         this.setOriginalContent(text);
       } else {
@@ -403,18 +494,6 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
       this.toastService.error('Could not read the file.');
     };
     reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) return true;
-    const allowed = new Set(['application/json', 'application/xml', 'application/javascript', 'application/octet-stream']);
-    if (allowed.has(file.type)) return true;
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    return new Set(['txt', 'text', 'md', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml', 'ts', 'js', 'css', 'py', 'java', 'csv']).has(ext);
   }
 
   private downloadText(text: string, filename: string): void {
@@ -430,18 +509,23 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
 
   private copyText(text: string, label: string): void {
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.info(`${label} copied to clipboard`);
-    }).catch(() => {
-      this.toastService.error('Failed to copy to clipboard');
-    });
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        this.toastService.info(`${label} copied to clipboard`);
+      })
+      .catch(() => {
+        this.toastService.error('Failed to copy to clipboard');
+      });
   }
 
   private updateEditorLayoutForScreenSize(): void {
     if (typeof window === 'undefined') return;
 
     const shouldBeInline = window.innerWidth <= 768;
-    if (this.isMobile === shouldBeInline && this.editorOptions.renderSideBySide === !shouldBeInline) return;
+    if (this.isMobile === shouldBeInline && this.editorOptions.renderSideBySide === !shouldBeInline) {
+      return;
+    }
 
     this.isMobile = shouldBeInline;
     this.showSideBySide = !shouldBeInline;
@@ -503,8 +587,8 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
         originalEditor.setScrollTop(originalScrollTop);
         originalEditor.setScrollLeft(originalScrollLeft);
       });
-    } catch (e) {
-      console.warn('Error refreshing editor layout:', e);
+    } catch {
+      // Layout can fail briefly while Monaco remounts
     }
   }
 }

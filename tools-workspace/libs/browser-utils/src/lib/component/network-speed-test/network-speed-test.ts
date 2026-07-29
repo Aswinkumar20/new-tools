@@ -1,16 +1,35 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface SpeedTestResult {
-  url: string;
-  bytes: number;
-  durationMs: number;
-  mbps: number;
-  timestamp: number;
-  error?: string;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { buCopyText } from '../../shared/bu-clipboard.util';
+import { buDownloadJson, buDownloadTimestamp } from '../../shared/bu-download.util';
+import {
+  SPEED_TEST_DEFAULT_FORM_VALUES,
+  SPEED_TEST_MAX_RUNS,
+  SPEED_TEST_RELATED_TOOLS,
+  SPEED_TEST_RESULT_LIMIT
+} from '../../constants/network-speed-test.constants';
+import type { BuRelatedToolLink, BuToolSuggestion } from '../../shared/bu-tool-suggestion.model';
+import type { SpeedTestResult } from '../../types/network-speed-test.types';
+import {
+  averageMbps,
+  formatAllSpeedTestResults,
+  formatSpeedBytes,
+  formatSpeedDurationMs,
+  formatSpeedMbps,
+  formatSpeedTimestamp,
+  measureDownloadSpeed,
+  mergeSpeedTestResults,
+  resolveSpeedTestSuggestion,
+  validateSpeedTestConfig
+} from '../../utils/network-speed-test.utils';
 
 type SpeedTestFormGroup = FormGroup<{
   url: FormControl<string>;
@@ -23,145 +42,113 @@ type SpeedTestFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './network-speed-test.html',
   styleUrls: ['./network-speed-test.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class NetworkSpeedTestComponent {
-  private readonly fb = inject(FormBuilder);
+  private readonly formBuilder = inject(FormBuilder);
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
 
-  readonly form: SpeedTestFormGroup = this.fb.group({
-    url: this.fb.control('https://speed.hetzner.de/1MB.bin', { nonNullable: true }),
-    sizeBytes: this.fb.control(1_000_000, { nonNullable: true }),
-    runs: this.fb.control(1, { nonNullable: true })
+  readonly maxRuns = SPEED_TEST_MAX_RUNS;
+  readonly resultLimit = SPEED_TEST_RESULT_LIMIT;
+  readonly relatedTools: ReadonlyArray<BuRelatedToolLink> = SPEED_TEST_RELATED_TOOLS;
+
+  readonly formatMbps = formatSpeedMbps;
+  readonly formatMs = formatSpeedDurationMs;
+  readonly formatTimestamp = formatSpeedTimestamp;
+  readonly formatBytes = formatSpeedBytes;
+
+  readonly form: SpeedTestFormGroup = this.formBuilder.group({
+    url: this.formBuilder.control(SPEED_TEST_DEFAULT_FORM_VALUES.url, { nonNullable: true }),
+    sizeBytes: this.formBuilder.control(SPEED_TEST_DEFAULT_FORM_VALUES.sizeBytes, {
+      nonNullable: true
+    }),
+    runs: this.formBuilder.control(SPEED_TEST_DEFAULT_FORM_VALUES.runs, { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
-  readonly running = signal(false);
+  readonly isRunning = signal(false);
   readonly results = signal<SpeedTestResult[]>([]);
+  readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasResults = computed(() => this.results().length > 0);
   readonly lastResult = computed(() => (this.results().length ? this.results()[0] : null));
-  readonly avgMbps = computed(() => {
-    if (!this.results().length) return 0;
-    const sum = this.results().reduce((acc, r) => acc + r.mbps, 0);
-    return sum / this.results().length;
+  readonly avgMbps = computed(() => averageMbps(this.results()));
+
+  readonly primarySuggestion = computed<BuToolSuggestion | null>(() => {
+    const latestError = this.errors()[0] ?? this.lastResult()?.error ?? null;
+    const suggestion = resolveSpeedTestSuggestion(
+      this.isRunning(),
+      this.results(),
+      latestError
+    );
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
   });
 
   async runTest(): Promise<void> {
     this.errors.set([]);
 
-    const { url, sizeBytes, runs } = this.form.getRawValue();
-    if (!url.trim()) {
-      this.errors.set(['Enter a URL to download from.']);
-      return;
-    }
-    if (sizeBytes <= 0) {
-      this.errors.set(['Expected size must be greater than 0 bytes.']);
-      return;
-    }
-    if (runs < 1 || runs > 5) {
-      this.errors.set(['Runs must be between 1 and 5.']);
+    const values = this.form.getRawValue();
+    const validationError = validateSpeedTestConfig(values);
+    if (validationError) {
+      this.errors.set([validationError]);
       return;
     }
 
-    this.running.set(true);
+    this.isRunning.set(true);
     const newResults: SpeedTestResult[] = [];
 
     try {
-      for (let i = 0; i < runs; i++) {
-        const start = performance.now();
-        let bytesDownloaded = 0;
-        let error: string | undefined;
+      for (let runIndex = 0; runIndex < values.runs; runIndex++) {
+        const result = await measureDownloadSpeed(values.url.trim(), values.sizeBytes);
+        newResults.unshift(result);
 
-        try {
-          const response = await fetch(url, { cache: 'no-store' });
-          const reader = response.body?.getReader();
-          if (!reader) {
-            throw new Error('Response body not readable.');
-          }
-          // Consume the stream to measure bytes
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            bytesDownloaded += value?.length ?? 0;
-          }
-        } catch (e) {
-          error = e instanceof Error ? e.message : 'Unknown error during download.';
-        }
-
-        const durationMs = performance.now() - start;
-        const usedBytes = bytesDownloaded || sizeBytes;
-        const mbps = durationMs > 0 ? (usedBytes * 8) / (durationMs / 1000) / 1_000_000 : 0;
-
-        newResults.unshift({
-          url,
-          bytes: usedBytes,
-          durationMs,
-          mbps,
-          timestamp: Date.now(),
-          ...(error ? { error } : {})
-        });
-
-        if (error) {
-          this.errors.set([`Run ${i + 1} failed: ${error}`]);
+        if (result.error) {
+          this.errors.set([`Run ${runIndex + 1} failed: ${result.error}`]);
           break;
         }
       }
 
       if (newResults.length) {
-        this.results.set([...newResults, ...this.results()].slice(0, 20));
+        this.results.set(mergeSpeedTestResults(newResults, this.results()));
+        const hadError = newResults.some((result) => !!result.error);
+        if (!hadError) {
+          this.toast.success(
+            newResults.length === 1 ? 'Speed test complete' : `${newResults.length} runs complete`
+          );
+        }
       }
     } finally {
-      this.running.set(false);
+      this.isRunning.set(false);
     }
   }
 
   clearResults(): void {
     this.results.set([]);
     this.errors.set([]);
+    this.toast.info('Results cleared');
   }
 
-  formatMbps(mbps: number): string {
-    return `${mbps.toFixed(2)} Mbps`;
-  }
-
-  formatMs(ms: number): string {
-    return `${ms.toFixed(0)} ms`;
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  }
-
-  formatBytes(bytes: number): string {
-    if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(2)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-    return `${bytes.toFixed(0)} B`;
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   copyResults(): void {
-    const text = this.results()
-      .map((r) => {
-        const parts = [
-          `${this.formatMbps(r.mbps)}`,
-          this.formatMs(r.durationMs),
-          this.formatBytes(r.bytes),
-          r.url,
-          this.formatTimestamp(r.timestamp),
-        ];
-        if (r.error) parts.push(`Error: ${r.error}`);
-        return parts.join(' · ');
-      })
-      .join('\n');
-    this.copyText(text, 'Speed test results');
+    buCopyText(this.toast, formatAllSpeedTestResults(this.results()), 'Speed test results');
   }
 
-  private copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard!`);
-    });
+  downloadResults(): void {
+    if (!this.results().length) return;
+
+    try {
+      buDownloadJson(this.results(), `network-speed-results-${buDownloadTimestamp()}.json`);
+      this.toast.success('Results downloaded');
+    } catch {
+      this.toast.error('Failed to download results');
+    }
   }
 }

@@ -1,19 +1,34 @@
 import { Component } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
-import { unicodeEscape, unicodeUnescape } from '../../shared/text-transform.utils';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  UNICODE_ESCAPE_DEFAULT_MODE,
+  UNICODE_ESCAPE_RELATED_TOOLS,
+} from '../../constants/unicode-escape-unescape.constants';
+import type { UnicodeEscapeConversionMode } from '../../types/unicode-escape-unescape.types';
+import {
+  convertUnicodeEscapeText,
+  inputHasNonAsciiCharacters,
+  inputLooksLikeUnicodeEscaped,
+  resolveUnicodeEscapeSuggestion,
+} from '../../utils/unicode-escape-unescape.utils';
 
 @Component({
   selector: 'lib-unicode-escape-unescape',
   standalone: true,
   templateUrl: './unicode-escape-unescape.html',
   styleUrls: ['./unicode-escape-unescape.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class UnicodeEscapeUnescapeComponent extends TextToolBase {
-  mode: 'encode' | 'decode' = 'encode';
+  mode: UnicodeEscapeConversionMode = UNICODE_ESCAPE_DEFAULT_MODE;
+
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = UNICODE_ESCAPE_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
 
   get modeLabel(): string {
     return this.mode === 'encode' ? 'Escape' : 'Unescape';
@@ -27,10 +42,35 @@ export class UnicodeEscapeUnescapeComponent extends TextToolBase {
     return this.mode === 'encode' ? 'Escaped output' : 'Plain text';
   }
 
-  selectMode(selectedMode: 'encode' | 'decode'): void {
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveUnicodeEscapeSuggestion({
+      mode: this.mode,
+      hasInput: this.hasInput,
+      hasOutput: this.hasOutput,
+      inputLooksLikeEscaped: inputLooksLikeUnicodeEscaped(this.inputText),
+      inputHasNonAscii: inputHasNonAsciiCharacters(this.inputText),
+      outputUnchanged: this.hasOutput && this.outputText === this.inputText,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+  }
+
+  override onInputChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onInputChange();
+  }
+
+  selectMode(selectedMode: UnicodeEscapeConversionMode): void {
     if (this.mode === selectedMode) return;
     const previousOutput = this.hasOutput ? this.outputText : '';
     this.mode = selectedMode;
+    this.dismissedSuggestionId = null;
     if (previousOutput) {
       this.applyInputState(previousOutput);
       this.pushToUndoStack(previousOutput);
@@ -46,8 +86,9 @@ export class UnicodeEscapeUnescapeComponent extends TextToolBase {
   }
 
   protected process(): void {
-    this.outputText = this.mode === 'encode'
-      ? unicodeEscape(this.inputText)
-      : unicodeUnescape(this.inputText);
+    this.outputText = convertUnicodeEscapeText({
+      mode: this.mode,
+      inputText: this.inputText,
+    }).output;
   }
 }

@@ -1,252 +1,133 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-type StrengthLevel = 'very-weak' | 'weak' | 'medium' | 'strong' | 'very-strong';
-
-interface RuleConfig {
-  id: string;
-  label: string;
-  description: string;
-  enabled: boolean;
-  optional?: boolean;
-}
-
-interface RuleStatus extends RuleConfig {
-  passed: boolean;
-}
-
-type PasswordRuleFormGroup = FormGroup<{
-  password: FormControl<string>;
-  minLength: FormControl<number>;
-  requireUppercase: FormControl<boolean>;
-  requireLowercase: FormControl<boolean>;
-  requireNumber: FormControl<boolean>;
-  requireSymbol: FormControl<boolean>;
-  noSpaces: FormControl<boolean>;
-  noCommon: FormControl<boolean>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { TtRelatedToolLink } from '../../shared/tt-tool-suggestion.model';
+import { ttCopyText } from '../../shared/tt-clipboard.util';
+import {
+  PASSWORD_RULE_DEFAULT_FORM,
+  PASSWORD_RULE_RELATED_TOOLS
+} from '../../constants/password-rule-validator.constants';
+import type {
+  PasswordRuleFormGroup,
+  PasswordRuleFormValues
+} from '../../types/password-rule-validator.types';
+import {
+  buildPasswordRuleChecklistText,
+  evaluatePasswordRuleForm,
+  resolvePasswordRuleSuggestion
+} from '../../utils/password-rule-validator.utils';
 
 @Component({
   selector: 'lib-password-rule-validator',
   standalone: true,
   templateUrl: './password-rule-validator.html',
   styleUrls: ['./password-rule-validator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PasswordRuleValidatorComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly assetService = inject(AssetService);
 
+  readonly relatedTools: ReadonlyArray<TtRelatedToolLink> = PASSWORD_RULE_RELATED_TOOLS;
   readonly showPassword = signal(false);
+  readonly formSnapshot = signal<PasswordRuleFormValues>(PASSWORD_RULE_DEFAULT_FORM);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly form: PasswordRuleFormGroup = this.fb.group({
-    password: this.fb.control('', { nonNullable: true }),
-    minLength: this.fb.control(12, { nonNullable: true }),
-    requireUppercase: this.fb.control(true, { nonNullable: true }),
-    requireLowercase: this.fb.control(true, { nonNullable: true }),
-    requireNumber: this.fb.control(true, { nonNullable: true }),
-    requireSymbol: this.fb.control(true, { nonNullable: true }),
-    noSpaces: this.fb.control(true, { nonNullable: true }),
-    noCommon: this.fb.control(true, { nonNullable: true })
+    password: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.password, { nonNullable: true }),
+    minLength: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.minLength, { nonNullable: true }),
+    requireUppercase: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.requireUppercase, {
+      nonNullable: true
+    }),
+    requireLowercase: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.requireLowercase, {
+      nonNullable: true
+    }),
+    requireNumber: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.requireNumber, {
+      nonNullable: true
+    }),
+    requireSymbol: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.requireSymbol, {
+      nonNullable: true
+    }),
+    noSpaces: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.noSpaces, { nonNullable: true }),
+    noCommon: this.fb.control(PASSWORD_RULE_DEFAULT_FORM.noCommon, { nonNullable: true })
   });
 
-  readonly commonPasswords = [
-    'password',
-    '123456',
-    '123456789',
-    'qwerty',
-    '12345678',
-    '111111',
-    '123123',
-    'password1',
-    'iloveyou'
-  ];
+  private readonly evaluation = computed(() => evaluatePasswordRuleForm(this.formSnapshot()));
 
-  readonly baseRules: RuleConfig[] = [
-    {
-      id: 'minLength',
-      label: 'Minimum length',
-      description: 'Password should meet the minimum length requirement.',
-      enabled: true
-    },
-    {
-      id: 'uppercase',
-      label: 'Uppercase letter',
-      description: 'At least one uppercase letter (A–Z).',
-      enabled: true
-    },
-    {
-      id: 'lowercase',
-      label: 'Lowercase letter',
-      description: 'At least one lowercase letter (a–z).',
-      enabled: true
-    },
-    {
-      id: 'number',
-      label: 'Number',
-      description: 'At least one digit (0–9).',
-      enabled: true
-    },
-    {
-      id: 'symbol',
-      label: 'Symbol',
-      description: 'At least one symbol (e.g. !@#$%^&*).',
-      enabled: true
-    },
-    {
-      id: 'noSpaces',
-      label: 'No spaces',
-      description: 'Password should not contain spaces.',
-      enabled: true
-    },
-    {
-      id: 'noCommon',
-      label: 'Not common',
-      description: 'Password should not be a very common password.',
-      enabled: true
-    }
-  ];
+  readonly rules = computed(() => this.evaluation().rules);
+  readonly passedCount = computed(() => this.evaluation().passedCount);
+  readonly totalCount = computed(() => this.evaluation().totalCount);
+  readonly strengthLevel = computed(() => this.evaluation().strengthLevel);
+  readonly strengthLabel = computed(() => this.evaluation().strengthLabel);
+  readonly strengthPercent = computed(() => this.evaluation().strengthPercent);
+  readonly hasInput = computed(() => !!this.formSnapshot().password.length);
+  readonly allPassed = computed(() => this.evaluation().allPassed);
+  readonly passwordLength = computed(() => this.formSnapshot().password.length);
 
-  readonly errors = signal<string[]>([]);
-
-  readonly rules = computed<RuleStatus[]>(() => {
-    const pwd = this.form.controls.password.value;
-    const { minLength, requireUppercase, requireLowercase, requireNumber, requireSymbol, noSpaces, noCommon } =
-      this.form.getRawValue();
-
-    const statuses: RuleStatus[] = [];
-
-    statuses.push({
-      ...this.baseRules.find((r) => r.id === 'minLength')!,
-      passed: pwd.length >= minLength
+  readonly primarySuggestion = computed(() => {
+    const evaluation = this.evaluation();
+    const suggestion = resolvePasswordRuleSuggestion({
+      hasInput: this.hasInput(),
+      allPassed: evaluation.allPassed,
+      failedRuleIds: evaluation.rules.filter((rule) => !rule.passed).map((rule) => rule.id),
+      strengthLevel: evaluation.strengthLevel
     });
 
-    if (requireUppercase) {
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'uppercase')!,
-        passed: /[A-Z]/.test(pwd)
-      });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
     }
-
-    if (requireLowercase) {
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'lowercase')!,
-        passed: /[a-z]/.test(pwd)
-      });
-    }
-
-    if (requireNumber) {
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'number')!,
-        passed: /[0-9]/.test(pwd)
-      });
-    }
-
-    if (requireSymbol) {
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'symbol')!,
-        passed: /[^A-Za-z0-9\s]/.test(pwd)
-      });
-    }
-
-    if (noSpaces) {
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'noSpaces')!,
-        passed: !/\s/.test(pwd)
-      });
-    }
-
-    if (noCommon) {
-      const lower = pwd.toLowerCase();
-      statuses.push({
-        ...this.baseRules.find((r) => r.id === 'noCommon')!,
-        passed: !this.commonPasswords.includes(lower)
-      });
-    }
-
-    return statuses;
+    return suggestion;
   });
 
-  readonly passedCount = computed(() => this.rules().filter((r) => r.passed).length);
-  readonly totalCount = computed(() => this.rules().length);
-
-  readonly strengthLevel = computed<StrengthLevel>(() => {
-    const pwd = this.form.controls.password.value;
-    if (!pwd) {
-      return 'very-weak';
-    }
-    const lengthScore = Math.min(pwd.length / 4, 4); // 0–4
-    let varietyScore = 0;
-    if (/[A-Z]/.test(pwd)) varietyScore++;
-    if (/[a-z]/.test(pwd)) varietyScore++;
-    if (/[0-9]/.test(pwd)) varietyScore++;
-    if (/[^A-Za-z0-9\s]/.test(pwd)) varietyScore++;
-
-    const ruleScore = this.totalCount() === 0 ? 0 : (this.passedCount() / this.totalCount()) * 4;
-
-    const score = lengthScore + varietyScore + ruleScore; // 0–12
-
-    if (score >= 10) return 'very-strong';
-    if (score >= 8) return 'strong';
-    if (score >= 6) return 'medium';
-    if (score >= 3) return 'weak';
-    return 'very-weak';
-  });
-
-  readonly strengthLabel = computed(() => {
-    switch (this.strengthLevel()) {
-      case 'very-weak':
-        return 'Very weak';
-      case 'weak':
-        return 'Weak';
-      case 'medium':
-        return 'Medium';
-      case 'strong':
-        return 'Strong';
-      case 'very-strong':
-        return 'Very strong';
-    }
-  });
-
-  readonly strengthPercent = computed(() => {
-    const levels: StrengthLevel[] = ['very-weak', 'weak', 'medium', 'strong', 'very-strong'];
-    const index = levels.indexOf(this.strengthLevel());
-    return ((index + 1) / levels.length) * 100;
-  });
-
-  readonly hasInput = computed(() => !!this.form.controls.password.value.length);
-
-  readonly allPassed = computed(
-    () => this.hasInput() && this.passedCount() === this.totalCount() && this.totalCount() > 0
-  );
+  constructor() {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.formSnapshot.set(this.form.getRawValue());
+      this.dismissedSuggestionId.set(null);
+    });
+  }
 
   toggleShowPassword(): void {
-    this.showPassword.update((v) => !v);
+    this.showPassword.update((visible) => !visible);
   }
 
   clear(): void {
     this.form.controls.password.setValue('');
     this.showPassword.set(false);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('Cleared');
   }
 
-  copyInput(): void {
-    this.copyText(this.form.controls.password.value, 'Password');
+  async copyInput(): Promise<void> {
+    await ttCopyText(this.toast, this.form.controls.password.value, 'Password');
   }
 
-  copyOutput(): void {
-    const lines = this.rules().map((r) => `${r.passed ? '✓' : '✗'} ${r.label}: ${r.description}`);
-    lines.unshift(`Strength: ${this.strengthLabel()}`);
-    lines.unshift(`Rules: ${this.passedCount()}/${this.totalCount()} passed`);
-    this.copyText(lines.join('\n'), 'Rule checklist');
+  async copyOutput(): Promise<void> {
+    await ttCopyText(
+      this.toast,
+      buildPasswordRuleChecklistText(this.evaluation()),
+      'Rule checklist'
+    );
   }
 
-  private copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard!`);
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 }

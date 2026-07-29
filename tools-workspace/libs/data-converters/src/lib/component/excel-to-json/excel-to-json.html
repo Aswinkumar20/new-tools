@@ -70,6 +70,20 @@
               <span class="ctl__editor-badge">{{ fileName }}</span>
             }
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="etj__suggest" aria-label="Suggested next step">
+              <div class="etj__suggest-body">
+                <p class="etj__suggest-title">{{ suggestion.title }}</p>
+                <p class="etj__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="etj__suggest-actions">
+                <a class="etj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="etj__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           @if (sheetPreview.length) {
             <div class="ctl__editor-body etj-preview">
               <table>
@@ -111,7 +125,7 @@
             </div>
           </header>
           @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
           }
           @if (conversionResult && conversionStatus.status !== 'error') {
             <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="conversionResult" rows="1" #resultsTextarea></textarea>
@@ -195,6 +209,22 @@
             </div>
           </div>
         }
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head"><span>Related tools</span></header>
+          <div class="ctl__panel-body etj__related">
+            <ul class="etj__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="etj__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
       </aside>
       </details>
     </div>

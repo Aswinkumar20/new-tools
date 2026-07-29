@@ -1,92 +1,107 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-import { debounceTime, distinctUntilChanged } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  CORS_HTTP_METHODS,
+  CORS_TEST_DEFAULT_ACCEPT,
+  CORS_TEST_DEFAULT_METHOD,
+  CORS_TEST_DEFAULT_URL,
+  CORS_TEST_RELATED_TOOLS,
+  CORS_URL_PATTERN
+} from '../../constants/cors-test-tool.constants';
+import type {
+  CorsHistoryEntry,
+  CorsTestResult
+} from '../../types/cors-test-tool.types';
+import {
+  buildCorsAnalysisNotes,
+  corsHeadersToList,
+  executeCorsRequest,
+  formatDuration,
+  formatJson,
+  formatRelativeTimestamp,
+  hasHeaderEntries,
+  headersToList,
+  prependCorsHistory,
+  resolveCorsTestSuggestion,
+  tryParseJson
+} from '../../utils/cors-test-tool.utils';
 
-interface CorsTestResult {
-  success: boolean;
-  status: number | null;
-  statusText: string;
-  headers: Record<string, string>;
-  corsHeaders: Record<string, string>;
-  body: string | null;
-  error: string | null;
-  timestamp: number;
-  duration: number;
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  url: string;
-  method: string;
-  success: boolean;
-  status: number | null;
-  corsHeaders: Record<string, string>;
-}
+type CorsHeaderFormGroup = FormGroup<{
+  key: FormControl<string>;
+  value: FormControl<string>;
+}>;
 
 type CorsTestFormGroup = FormGroup<{
   url: FormControl<string>;
   method: FormControl<string>;
-  headers: FormArray<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>>;
+  headers: FormArray<CorsHeaderFormGroup>;
   body: FormControl<string>;
   rememberHistory: FormControl<boolean>;
 }>;
-
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
 @Component({
   selector: 'lib-cors-test-tool',
   standalone: true,
   templateUrl: './cors-test-tool.html',
   styleUrls: ['./cors-test-tool.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CorsTestToolComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly destroyRef = inject(DestroyRef);
   readonly assetService = inject(AssetService);
 
   readonly form: CorsTestFormGroup = this.fb.group({
-    url: this.fb.control('https://api.github.com', {
+    url: this.fb.control(CORS_TEST_DEFAULT_URL, {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^https?:\/\/.+/)]
+      validators: [Validators.required, Validators.pattern(CORS_URL_PATTERN)]
     }),
-    method: this.fb.control('GET', { nonNullable: true }),
-    headers: this.fb.array<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>>([
-      this.createHeader('Accept', 'application/json')
+    method: this.fb.control(CORS_TEST_DEFAULT_METHOD, { nonNullable: true }),
+    headers: this.fb.array<CorsHeaderFormGroup>([
+      this.createHeader('Accept', CORS_TEST_DEFAULT_ACCEPT)
     ]),
     body: this.fb.control('', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly methods = HTTP_METHODS;
+  readonly methods = CORS_HTTP_METHODS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = CORS_TEST_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly result = signal<CorsTestResult | null>(null);
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly history = signal<CorsHistoryEntry[]>([]);
   readonly isTesting = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
   readonly headersFormArray = computed(() => this.form.controls.headers);
-  readonly Object = Object;
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveCorsTestSuggestion({
+      result: this.result(),
+      requestHeaders: this.form.controls.headers.getRawValue()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
-  constructor() {
-    // Component initialization
-  }
-
-  get headers(): FormArray<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>> {
+  get headers(): FormArray<CorsHeaderFormGroup> {
     return this.form.controls.headers;
   }
 
-  private createHeader(key: string = '', value: string = ''): FormGroup<{ key: FormControl<string>; value: FormControl<string> }> {
-    return this.fb.group({
-      key: this.fb.control(key, { nonNullable: true }),
-      value: this.fb.control(value, { nonNullable: true })
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   addHeader(): void {
@@ -102,6 +117,7 @@ export class CorsTestToolComponent {
   async testCors(): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
     this.isTesting.set(true);
 
     const { url, method, headers, body } = this.form.getRawValue();
@@ -112,131 +128,45 @@ export class CorsTestToolComponent {
       return;
     }
 
-    const startTime = Date.now();
+    const result = await executeCorsRequest({ url, method, headers, body });
+    this.result.set(result);
 
-    try {
-      // Build headers object
-      const httpHeaders: Record<string, string> = {};
-      for (const header of headers) {
-        if (header.key && header.value) {
-          httpHeaders[header.key] = header.value;
-        }
+    if (result.status === null && result.error) {
+      this.errors.set([`Request failed: ${result.error}`]);
+      if (result.error.includes('CORS') || result.error.includes('Access-Control')) {
+        this.warnings.set([
+          'This appears to be a CORS error. The server may not allow requests from this origin.'
+        ]);
       }
-
-      // Make the request using fetch API
-      const fetchOptions: RequestInit = {
-        method,
-        headers: httpHeaders,
-        mode: 'cors',
-        cache: 'no-cache'
-      };
-
-      if (body && !['GET', 'HEAD'].includes(method)) {
-        fetchOptions.body = body;
-      }
-
-      const response = await fetch(url, fetchOptions);
-      const duration = Date.now() - startTime;
-
-      // Extract all headers
-      const allHeaders: Record<string, string> = {};
-      const corsHeaders: Record<string, string> = {};
-
-      response.headers.forEach((value, key) => {
-        allHeaders[key] = value;
-        if (key.toLowerCase().startsWith('access-control-')) {
-          corsHeaders[key] = value;
-        }
-      });
-
-      let responseBody: string | null = null;
-      try {
-        responseBody = await response.text();
-      } catch {
-        responseBody = null;
-      }
-
-      const result: CorsTestResult = {
-        success: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        headers: allHeaders,
-        corsHeaders,
-        body: responseBody,
-        error: response.ok ? null : `HTTP ${response.status}: ${response.statusText}`,
-        timestamp: Date.now(),
-        duration
-      };
-
-      this.result.set(result);
-
+    } else {
       const origin = typeof location !== 'undefined' ? location.origin : '';
-      const acao =
-        corsHeaders['access-control-allow-origin'] ??
-        Object.entries(corsHeaders).find(([k]) => k.toLowerCase() === 'access-control-allow-origin')?.[1];
-      const notes: string[] = [
-        `This page origin is ${origin || '(unknown)'}. True CORS blocks usually throw before headers are readable.`
-      ];
-      if (!acao) {
-        notes.push('No Access-Control-Allow-Origin header was exposed. Same-origin responses often omit CORS headers.');
-      } else if (acao !== '*' && origin && acao !== origin) {
-        notes.push(`ACAO "${acao}" does not match this origin ${origin}.`);
-      } else {
-        notes.push(`ACAO looks compatible: ${acao}`);
-      }
-      this.warnings.set(notes);
-
-      if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(url, method, result);
-      }
-    } catch (error: unknown) {
-      const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
-      const result: CorsTestResult = {
-        success: false,
-        status: null,
-        statusText: '',
-        headers: {},
-        corsHeaders: {},
-        body: null,
-        error: errorMessage,
-        timestamp: Date.now(),
-        duration
-      };
-
-      this.result.set(result);
-      this.errors.set([`Request failed: ${errorMessage}`]);
-
-      // Check if it's a CORS error
-      if (errorMessage.includes('CORS') || errorMessage.includes('Access-Control')) {
-        this.warnings.set(['This appears to be a CORS error. The server may not allow requests from this origin.']);
-      }
-
-      if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(url, method, result);
-      }
-    } finally {
-      this.isTesting.set(false);
+      this.warnings.set(buildCorsAnalysisNotes(result.corsHeaders, origin));
     }
+
+    if (this.form.controls.rememberHistory.value) {
+      this.addToHistory(url, method, result);
+    }
+
+    this.isTesting.set(false);
   }
 
   clear(): void {
+    this.dismissedSuggestionId.set(null);
     this.form.patchValue({
-      url: 'https://api.github.com',
-      method: 'GET',
+      url: CORS_TEST_DEFAULT_URL,
+      method: CORS_TEST_DEFAULT_METHOD,
       body: ''
     });
     while (this.headers.length > 1) {
       this.headers.removeAt(1);
     }
-    this.headers.at(0)?.patchValue({ key: 'Accept', value: 'application/json' });
+    this.headers.at(0)?.patchValue({ key: 'Accept', value: CORS_TEST_DEFAULT_ACCEPT });
     this.result.set(null);
     this.errors.set([]);
     this.warnings.set([]);
   }
 
-  applyHistory(entry: HistoryEntry): void {
+  applyHistory(entry: CorsHistoryEntry): void {
     this.form.patchValue({
       url: entry.url,
       method: entry.method
@@ -251,8 +181,43 @@ export class CorsTestToolComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
+  formatTimestamp(timestamp: number): string {
+    return formatRelativeTimestamp(timestamp);
+  }
+
+  formatDuration(ms: number): string {
+    return formatDuration(ms);
+  }
+
+  tryParseJson(text: string | null): unknown {
+    return tryParseJson(text);
+  }
+
+  formatJson(obj: unknown): string {
+    return formatJson(obj);
+  }
+
+  getCorsHeadersList(headers: Record<string, string>) {
+    return corsHeadersToList(headers);
+  }
+
+  getHeadersList(headers: Record<string, string>) {
+    return headersToList(headers);
+  }
+
+  hasHeaders(headers: Record<string, string>): boolean {
+    return hasHeaderEntries(headers);
+  }
+
+  private createHeader(key = '', value = ''): CorsHeaderFormGroup {
+    return this.fb.group({
+      key: this.fb.control(key, { nonNullable: true }),
+      value: this.fb.control(value, { nonNullable: true })
+    });
+  }
+
   private addToHistory(url: string, method: string, result: CorsTestResult): void {
-    const entry: HistoryEntry = {
+    const entry: CorsHistoryEntry = {
       timestamp: result.timestamp,
       url,
       method,
@@ -261,76 +226,6 @@ export class CorsTestToolComponent {
       corsHeaders: result.corsHeaders
     };
 
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.url === entry.url && e.method === entry.method && e.timestamp === entry.timestamp);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 10);
-    });
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
-  }
-
-  formatDuration(ms: number): string {
-    if (ms < 1000) {
-      return `${ms}ms`;
-    }
-    return `${(ms / 1000).toFixed(2)}s`;
-  }
-
-  tryParseJson(text: string | null): unknown {
-    if (!text) {
-      return null;
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  }
-
-  formatJson(obj: unknown): string {
-    if (obj === null || obj === undefined) {
-      return '';
-    }
-    if (typeof obj === 'string') {
-      return obj;
-    }
-    try {
-      return JSON.stringify(obj, null, 2);
-    } catch {
-      return String(obj);
-    }
-  }
-
-  getCorsHeadersList(headers: Record<string, string>): Array<{ key: string; value: string }> {
-    return Object.entries(headers)
-      .filter(([key]) => key.toLowerCase().startsWith('access-control-'))
-      .map(([key, value]) => ({ key, value }));
-  }
-
-  getHeadersList(headers: Record<string, string>): Array<{ key: string; value: string }> {
-    return Object.entries(headers).map(([key, value]) => ({ key, value }));
+    this.history.update((entries) => prependCorsHistory(entries, entry));
   }
 }

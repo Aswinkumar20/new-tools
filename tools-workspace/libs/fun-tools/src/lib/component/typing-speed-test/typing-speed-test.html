@@ -28,26 +28,65 @@
       </div>
     </div>
 
-    <div class="ft-workflow" aria-label="Test actions"><div class="ft-workflow__group ft-workflow__group--actions">
-      <select class="ctl__tool-btn tst-select" [value]="selectedTextIndex()" (change)="loadText(+$any($event.target).value)" [disabled]="isActive()" aria-label="Sample text">
-        @for (text of SAMPLE_TEXTS; track $index) {
-          <option [value]="$index">Text {{ $index + 1 }}</option>
-        }
-      </select>
-      <button type="button" class="ctl__tool-btn" (click)="reset()" [disabled]="!isActive() && typedText().length === 0" appTooltip="Reset test" tooltipPosition="bottom" aria-label="Reset test">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearResults()" [disabled]="!hasResults()" appTooltip="Clear results" tooltipPosition="bottom" aria-label="Clear results">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="ft-workflow" aria-label="Test actions">
+      <div class="ft-workflow__group ft-workflow__group--actions">
+        <select
+          class="ctl__tool-btn tst-select"
+          [value]="selectedTextIndex()"
+          (change)="loadText(+$any($event.target).value)"
+          [disabled]="isActive()"
+          aria-label="Sample text">
+          @for (text of sampleTexts; track $index) {
+            <option [value]="$index">Text {{ $index + 1 }}</option>
+          }
+        </select>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="reset()"
+          [disabled]="!isActive() && typedText().length === 0"
+          appTooltip="Reset test"
+          tooltipPosition="bottom"
+          aria-label="Reset test">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearResults()"
+          [disabled]="!hasResults()"
+          appTooltip="Clear results"
+          tooltipPosition="bottom"
+          aria-label="Clear results">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ft-editor-panel">
           <header class="ctl__editor-head"><span>Sample text</span></header>
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="tst__suggest" aria-label="Suggested next step">
+              <div class="tst__suggest-body">
+                <p class="tst__suggest-title">{{ suggestion.title }}</p>
+                <p class="tst__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="tst__suggest-actions">
+                <a class="tst__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="tst__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
           <div class="ctl__editor-body tst-sample" aria-label="Text to type">
             @for (char of currentText(); track $index) {
               <span [class]="getCharacterClass($index)">{{ char === ' ' ? '·' : char }}</span>
@@ -57,19 +96,39 @@
         <section class="ctl__editor ft-editor-panel">
           <header class="ctl__editor-head">
             <span>Your input</span>
-            <button type="button" class="ctl__icon-btn" (click)="copyTypedText()" [disabled]="!typedText()" appTooltip="Copy typed text" tooltipPosition="bottom" aria-label="Copy typed text">
+            <button
+              type="button"
+              class="ctl__icon-btn"
+              (click)="copyTypedText()"
+              [disabled]="!typedText()"
+              appTooltip="Copy typed text"
+              tooltipPosition="bottom"
+              aria-label="Copy typed text">
               <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
             </button>
           </header>
           <label class="sr-only" for="tst-input">Type here</label>
-          <textarea id="tst-input" class="ctl__textarea" [value]="typedText()" (input)="onInput($event)" [disabled]="isComplete()" rows="1" placeholder="Start typing here…"></textarea>
+          <textarea
+            id="tst-input"
+            class="ctl__textarea"
+            [value]="typedText()"
+            (input)="onInput($event)"
+            [disabled]="isComplete()"
+            rows="1"
+            placeholder="Start typing here…"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"></textarea>
           @if (isComplete()) {
-            <div class="ctl__alert ctl__alert--success tst-done">Test complete — {{ currentStats().wpm }} WPM at {{ currentStats().accuracy }}% accuracy</div>
+            <div class="ctl__alert ctl__alert--success tst-done" role="status">
+              Test complete — {{ currentStats().wpm }} WPM at {{ currentStats().accuracy }}% accuracy
+            </div>
           }
         </section>
       </div>
 
-            <details class="ft-options-flyout">
+      <details class="ft-options-flyout">
         <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -78,36 +137,62 @@
         </summary>
         <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Test results">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            Results
-            <button type="button" class="ctl__icon-btn" (click)="copyResults()" [disabled]="!hasResults()" appTooltip="Copy results" tooltipPosition="bottom" aria-label="Copy results">
-              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="14" height="14" />
-            </button>
-          </header>
-          @if (hasResults()) {
-            <div class="ctl__panel-body">
-              <ul class="tst-results">
-                @for (result of testResults(); track result.timestamp) {
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              Results
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyResults()"
+                [disabled]="!hasResults()"
+                appTooltip="Copy results"
+                tooltipPosition="bottom"
+                aria-label="Copy results">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="14" height="14" />
+              </button>
+            </header>
+            @if (hasResults()) {
+              <div class="ctl__panel-body">
+                <ul class="tst-results">
+                  @for (result of testResults(); track result.timestamp) {
+                    <li>
+                      <strong>{{ result.wpm }} WPM</strong>
+                      <span>{{ result.accuracy }}% · {{ formatTime(result.time) }}</span>
+                      <span class="tst-results__detail">{{ result.correct }}/{{ result.characters }} correct</span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <div class="ctl__panel-empty"><p>Complete a test to see results.</p></div>
+            }
+          </div>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>
+                Chars: <strong>{{ currentStats().characters }}</strong> · Correct:
+                <strong>{{ currentStats().correct }}</strong> · Errors:
+                <strong>{{ currentStats().incorrect }}</strong>
+              </p>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body tst__related">
+              <ul class="tst__related-list">
+                @for (tool of relatedTools; track tool.path) {
                   <li>
-                    <strong>{{ result.wpm }} WPM</strong>
-                    <span>{{ result.accuracy }}% · {{ formatTime(result.time) }}</span>
-                    <span class="tst-results__detail">{{ result.correct }}/{{ result.characters }} correct</span>
+                    <a class="tst__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
             </div>
-          } @else {
-            <div class="ctl__panel-empty"><p>Complete a test to see results.</p></div>
-          }
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Chars: <strong>{{ currentStats().characters }}</strong> · Correct: <strong>{{ currentStats().correct }}</strong> · Errors: <strong>{{ currentStats().incorrect }}</strong></p>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

@@ -1,8 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { TextReversalAndPalindromeCheckerComponent } from './text-reversal-and-palindrome-checker';
-import { AssetService, ToastService } from '@tools-workspace/features-home';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 
 describe('TextReversalAndPalindromeCheckerComponent', () => {
   let component: TextReversalAndPalindromeCheckerComponent;
@@ -11,12 +10,7 @@ describe('TextReversalAndPalindromeCheckerComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TextReversalAndPalindromeCheckerComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
-        { provide: ToastService, useValue: { info: jest.fn(), error: jest.fn() } },
-      ],
+      providers: [...textToolTestProviders(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TextReversalAndPalindromeCheckerComponent);
@@ -24,8 +18,11 @@ describe('TextReversalAndPalindromeCheckerComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create with get-started suggestion and related tools', () => {
     expect(component).toBeTruthy();
+    expect(component.primarySuggestion?.id).toBe('trp-get-started');
+    expect(component.relatedTools.length).toBeGreaterThan(0);
+    expect(component.samples.length).toBe(3);
   });
 
   it('detects palindromes', () => {
@@ -33,6 +30,15 @@ describe('TextReversalAndPalindromeCheckerComponent', () => {
     component.inputText = 'Never odd or even';
     component.onInputChange();
     expect(component.palindromeStatus).toBe(true);
+    expect(component.primarySuggestion?.id).toBe('trp-is-palindrome');
+  });
+
+  it('rejects non-palindromes', () => {
+    component.setMode('palindrome');
+    component.inputText = 'Hello, world!';
+    component.onInputChange();
+    expect(component.palindromeStatus).toBe(false);
+    expect(component.primarySuggestion?.id).toBe('trp-not-palindrome');
   });
 
   it('reverses text in reverse mode', () => {
@@ -40,6 +46,7 @@ describe('TextReversalAndPalindromeCheckerComponent', () => {
     component.inputText = 'drawer';
     component.onInputChange();
     expect(component.resultText).toBe('reward');
+    expect(component.primarySuggestion?.id).toBe('trp-reversed');
   });
 
   it('swaps input and output in reverse mode', () => {
@@ -57,5 +64,21 @@ describe('TextReversalAndPalindromeCheckerComponent', () => {
     component.clear();
     expect(component.inputText).toBe('');
     expect(component.resultText).toBe('');
+    expect(component.primarySuggestion?.id).toBe('trp-get-started');
+  });
+
+  it('dismisses contextual suggestions', () => {
+    const suggestion = component.primarySuggestion;
+    expect(suggestion).toBeTruthy();
+    if (suggestion) {
+      component.dismissSuggestion(suggestion.id);
+      expect(component.primarySuggestion).toBeNull();
+    }
+  });
+
+  it('loads a sample from constants', () => {
+    component.loadSample(component.samples[0].text);
+    expect(component.inputText).toBe('Never odd or even');
+    expect(component.palindromeStatus).toBe(true);
   });
 });

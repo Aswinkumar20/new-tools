@@ -33,7 +33,7 @@
         <label class="ctl__tool-btn" aria-label="Upload PDFs" appTooltip="Upload PDFs" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" />
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
         </label>
         <button
           type="button"
@@ -117,7 +117,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomOut()"
-            [disabled]="zoomLevel <= 50"
+            [disabled]="zoomLevel <= minZoom"
             aria-label="Zoom out"
             appTooltip="Zoom out"
             tooltipPosition="bottom">
@@ -132,7 +132,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomIn()"
-            [disabled]="zoomLevel >= 300"
+            [disabled]="zoomLevel >= maxZoom"
             aria-label="Zoom in"
             appTooltip="Zoom in"
             tooltipPosition="bottom">
@@ -179,6 +179,23 @@
           <div class="fv-loading" *ngIf="loading && !showPasswordDialog"><div class="fv-spinner"></div><p>Loading PDF…</p></div>
           <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage"><p>{{ errorMessage }}</p></div>
 
+          <aside class="pv__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="pv__suggest-body">
+              <p class="pv__suggest-title">{{ suggestion.title }}</p>
+              <p class="pv__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="pv__suggest-actions">
+              <a class="pv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="pv__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+
           <div class="fv-viewer-body" *ngIf="pdfFiles.length > 0">
             <header class="fv-viewer-bar" *ngIf="currentPdf">
               <p class="fv-viewer-bar__name" [title]="currentPdf.name">{{ currentPdf.name }}</p>
@@ -201,7 +218,7 @@
             aria-label="Upload PDFs by clicking or dragging files here">
             <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
             <p class="fv-dropzone__title">Drop PDF files here or <strong>browse files</strong></p>
-            <p class="fv-dropzone__formats">PDF · 100&nbsp;MB max</p>
+            <p class="fv-dropzone__formats">PDF · {{ maxFileSizeLabel }} max</p>
           </button>
         </section>
       </div>
@@ -219,6 +236,19 @@
                   </span>
                 </button>
                 <button type="button" class="fv-file-remove" (click)="removePdf(i)" aria-label="Remove">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body pv__related">
+            <ul class="pv__related-list">
+              <li *ngFor="let tool of relatedTools">
+                <a class="pv__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
               </li>
             </ul>
           </div>
@@ -278,9 +308,9 @@
       <button class="btn-icon" (click)="nextPage()" [disabled]="currentPage >= totalPages" title="Next page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
     </div>
     <div class="fullscreen-zoom-controls">
-      <button class="btn-icon" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+      <button class="btn-icon" (click)="zoomOut()" [disabled]="zoomLevel <= minZoom" title="Zoom out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
       <span class="zoom-level">{{ zoomLevel }}%</span>
-      <button class="btn-icon" (click)="zoomIn()" [disabled]="zoomLevel >= 300" title="Zoom in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+      <button class="btn-icon" (click)="zoomIn()" [disabled]="zoomLevel >= maxZoom" title="Zoom in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
       <button class="btn-icon" (click)="fitToWidth()" title="Fit to width"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
     </div>
   </div>

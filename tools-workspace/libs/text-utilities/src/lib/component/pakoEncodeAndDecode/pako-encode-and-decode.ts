@@ -1,47 +1,56 @@
 import { Component } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
+  PAKO_DEFAULT_ENCODING,
+  PAKO_DEFAULT_FORMAT,
+  PAKO_DEFAULT_LEVEL,
+  PAKO_DEFAULT_MODE,
+  PAKO_RELATED_TOOLS
+} from '../../constants/pako-encode-and-decode.constants';
+import type {
   PakoBinaryEncoding,
-  PakoFormat,
-  pakoCompress,
-  pakoDecompress,
-} from '../../shared/pako-compression.utils';
+  PakoConversionMode,
+  PakoFormat
+} from '../../types/pako-encode-and-decode.types';
+import {
+  clampPakoCompressionLevel,
+  convertPakoText,
+  inputLooksLikePakoEncoded,
+  pakoFormatLabel,
+  resolvePakoSuggestion
+} from '../../utils/pako-encode-and-decode.utils';
 
 @Component({
   selector: 'lib-pako-encode-and-decode',
   standalone: true,
   templateUrl: './pako-encode-and-decode.html',
   styleUrls: ['./pako-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
 })
 export class PakoEncodeAndDecodeComponent extends TextToolBase {
-  mode: 'encode' | 'decode' = 'encode';
-  compressionFormat: PakoFormat = 'deflate';
-  binaryEncoding: PakoBinaryEncoding = 'base64';
-  compressionLevel = 6;
+  mode: PakoConversionMode = PAKO_DEFAULT_MODE;
+  compressionFormat: PakoFormat = PAKO_DEFAULT_FORMAT;
+  binaryEncoding: PakoBinaryEncoding = PAKO_DEFAULT_ENCODING;
+  compressionLevel = PAKO_DEFAULT_LEVEL;
 
   inputBytes = 0;
   outputBytes = 0;
   compressionRatio = 0;
+
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = PAKO_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
 
   get modeLabel(): string {
     return this.mode === 'encode' ? 'Compress' : 'Decompress';
   }
 
   get formatLabel(): string {
-    switch (this.compressionFormat) {
-      case 'deflate':
-        return 'Deflate';
-      case 'deflateRaw':
-        return 'Raw';
-      case 'gzip':
-        return 'Gzip';
-      default:
-        return this.compressionFormat;
-    }
+    return pakoFormatLabel(this.compressionFormat);
   }
 
   get inputLabel(): string {
@@ -54,10 +63,37 @@ export class PakoEncodeAndDecodeComponent extends TextToolBase {
       : 'Decompressed text';
   }
 
-  selectMode(selectedMode: 'encode' | 'decode'): void {
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolvePakoSuggestion({
+      mode: this.mode,
+      hasInput: this.hasInput,
+      hasOutput: this.hasOutput,
+      errorMessage: this.errorMessage,
+      binaryEncoding: this.binaryEncoding,
+      compressionRatio: this.compressionRatio,
+      inputLooksEncoded: inputLooksLikePakoEncoded(this.inputText, this.binaryEncoding)
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  override onInputChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onInputChange();
+  }
+
+  override onOptionsChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onOptionsChange();
+  }
+
+  selectMode(selectedMode: PakoConversionMode): void {
     if (this.mode === selectedMode) return;
     const previousOutput = this.hasOutput ? this.outputText : '';
     this.mode = selectedMode;
+    this.dismissedSuggestionId = null;
     if (previousOutput) {
       this.applyInputState(previousOutput);
       this.pushToUndoStack(previousOutput);
@@ -86,7 +122,7 @@ export class PakoEncodeAndDecodeComponent extends TextToolBase {
   }
 
   onLevelChange(): void {
-    this.compressionLevel = Math.min(9, Math.max(0, Math.round(this.compressionLevel)));
+    this.compressionLevel = clampPakoCompressionLevel(this.compressionLevel);
     this.onOptionsChange();
   }
 
@@ -107,27 +143,28 @@ export class PakoEncodeAndDecodeComponent extends TextToolBase {
   }
 
   protected process(): void {
-    if (this.mode === 'encode') {
-      const result = pakoCompress(
-        this.inputText,
-        this.compressionFormat,
-        this.binaryEncoding,
-        this.compressionLevel,
-      );
-      this.outputText = result.output;
-      this.inputBytes = result.inputBytes;
-      this.outputBytes = result.outputBytes;
-      this.compressionRatio = result.ratio;
-    } else {
-      this.outputText = pakoDecompress(
-        this.inputText,
-        this.compressionFormat,
-        this.binaryEncoding,
-      );
-      this.inputBytes = 0;
-      this.outputBytes = 0;
-      this.compressionRatio = 0;
+    const result = convertPakoText({
+      mode: this.mode,
+      inputText: this.inputText,
+      compressionFormat: this.compressionFormat,
+      binaryEncoding: this.binaryEncoding,
+      compressionLevel: this.compressionLevel
+    });
+    if (result.errorMessage) {
+      throw new Error(result.errorMessage);
     }
+    this.outputText = result.output;
+    this.inputBytes = result.inputBytes;
+    this.outputBytes = result.outputBytes;
+    this.compressionRatio = result.compressionRatio;
+  }
+
+  protected override resetDerivedState(): void {
+    this.resetStats();
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   private resetStats(): void {

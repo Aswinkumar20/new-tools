@@ -28,30 +28,32 @@
       </div>
     </div>
 
-    <div class="ft-workflow" aria-label="Generator actions"><div class="ft-workflow__group ft-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="generate()"
-        aria-label="Generate text"
-        appTooltip="Generate text"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-        <span class="ctl__tool-btn-label">Generate</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearText()"
-        [disabled]="!hasGeneratedText()"
-        aria-label="Clear output"
-        appTooltip="Clear output"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="ft-workflow" aria-label="Generator actions">
+      <div class="ft-workflow__group ft-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="generate()"
+          aria-label="Generate text"
+          appTooltip="Generate text"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+          <span class="ctl__tool-btn-label">Generate</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearText()"
+          [disabled]="!hasGeneratedText()"
+          aria-label="Clear output"
+          appTooltip="Clear output"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ctl__editor--merged">
@@ -74,13 +76,31 @@
             </div>
           </header>
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
                 }
               </ul>
             </div>
+          }
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="lig__suggest" aria-label="Suggested next step">
+              <div class="lig__suggest-body">
+                <p class="lig__suggest-title">{{ suggestion.title }}</p>
+                <p class="lig__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="lig__suggest-actions">
+                <a class="lig__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="lig__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
           }
           @if (hasGeneratedText()) {
             <textarea
@@ -97,7 +117,7 @@
         </section>
       </div>
 
-            <details class="ft-options-flyout">
+      <details class="ft-options-flyout">
         <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -106,42 +126,57 @@
         </summary>
         <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Generation options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="type">
-              <span>Generation type</span>
-              <select id="type" formControlName="type">
-                <option value="paragraphs">Paragraphs</option>
-                <option value="words">Words</option>
-                <option value="sentences">Sentences</option>
-              </select>
-            </label>
-            <label class="ctl__field" for="count">
-              <span>Count</span>
-              <input
-                id="count"
-                type="number"
-                formControlName="count"
-                [min]="1"
-                [max]="form.controls.type.value === 'paragraphs' ? 50 : form.controls.type.value === 'words' ? 1000 : 200" />
-            </label>
-            <label class="ctl__field" for="startWith">
-              <span>Start with</span>
-              <select id="startWith" formControlName="startWith">
-                <option value="lorem">Lorem ipsum</option>
-                <option value="random">Random words</option>
-              </select>
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="type">
+                <span>Generation type</span>
+                <select id="type" formControlName="type">
+                  <option value="paragraphs">Paragraphs</option>
+                  <option value="words">Words</option>
+                  <option value="sentences">Sentences</option>
+                </select>
+              </label>
+              <label class="ctl__field" for="count">
+                <span>Count</span>
+                <input
+                  id="count"
+                  type="number"
+                  formControlName="count"
+                  [min]="1"
+                  [max]="countMax()" />
+              </label>
+              <label class="ctl__field" for="startWith">
+                <span>Start with</span>
+                <select id="startWith" formControlName="startWith">
+                  <option value="lorem">Lorem ipsum</option>
+                  <option value="random">Random words</option>
+                </select>
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Max limits: <strong>50 paragraphs</strong>, <strong>1000 words</strong>, or <strong>200 sentences</strong>.</p>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Max limits: <strong>50 paragraphs</strong>, <strong>1000 words</strong>, or <strong>200 sentences</strong>.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body lig__related">
+              <ul class="lig__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="lig__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 

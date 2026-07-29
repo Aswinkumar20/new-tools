@@ -70,7 +70,7 @@
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
@@ -80,13 +80,26 @@
         }
 
         @if (warnings().length) {
-          <div class="ctl__alert ctl__alert--warning">
+          <div class="ctl__alert ctl__alert--warning" role="status">
             <ul>
               @for (message of warnings(); track message) {
                 <li>{{ message }}</li>
               }
             </ul>
           </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="ctt__suggest" aria-label="Suggested next step">
+            <div class="ctt__suggest-body">
+              <p class="ctt__suggest-title">{{ suggestion.title }}</p>
+              <p class="ctt__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="ctt__suggest-actions">
+              <a class="ctt__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button type="button" class="ctt__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+            </div>
+          </aside>
         }
 
         @if (hasResult() && result(); as result) {
@@ -117,7 +130,7 @@
               </div>
             }
 
-            @if (Object.keys(result.corsHeaders).length > 0) {
+            @if (hasHeaders(result.corsHeaders)) {
               <div class="ctt__cors-headers">
                 <h4>CORS headers</h4>
                 <div class="ctt__headers-display">
@@ -135,7 +148,7 @@
               </div>
             }
 
-            @if (Object.keys(result.headers).length > 0) {
+            @if (hasHeaders(result.headers)) {
               <div class="ctt__all-headers">
                 <h4>All response headers</h4>
                 <div class="ctt__headers-display">
@@ -291,8 +304,8 @@
                         <span>
                           {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
                         </span>
-                        @if (Object.keys(entry.corsHeaders).length > 0) {
-                          <span class="ctt__history-cors">CORS headers: {{ Object.keys(entry.corsHeaders).length }}</span>
+                        @if (hasHeaders(entry.corsHeaders)) {
+                          <span class="ctt__history-cors">CORS headers: {{ getCorsHeadersList(entry.corsHeaders).length }}</span>
                         }
                       </div>
                     </button>
@@ -311,6 +324,20 @@
             } @else {
               <div class="ctl__empty"><p>Enable history to keep recent CORS tests.</p></div>
             }
+          </div>
+
+          <div class="ctl__panel ctt__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="ctt__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="ctt__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

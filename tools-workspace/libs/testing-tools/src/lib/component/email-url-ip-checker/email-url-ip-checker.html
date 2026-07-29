@@ -28,31 +28,33 @@
       </div>
     </div>
 
-    <div class="tt-workflow" aria-label="Checker actions"><div class="tt-workflow__group tt-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="analyze()"
-        [disabled]="!hasInput()"
-        aria-label="Analyze values"
-        appTooltip="Analyze values"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Analyze</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        [disabled]="!hasInput() && !hasResults()"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="tt-workflow" aria-label="Checker actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="analyze()"
+          [disabled]="!hasInput()"
+          aria-label="Analyze values"
+          appTooltip="Analyze values"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Analyze</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput() && !hasResults()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor tt-editor-panel">
@@ -71,8 +73,9 @@
               </button>
             </div>
           </header>
+
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -80,8 +83,9 @@
               </ul>
             </div>
           }
+
           @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning">
+            <div class="ctl__alert ctl__alert--warning" role="status">
               <ul>
                 @for (message of warnings(); track message) {
                   <li>{{ message }}</li>
@@ -89,6 +93,26 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="eui__suggest" aria-label="Suggested next step">
+              <div class="eui__suggest-body">
+                <p class="eui__suggest-title">{{ suggestion.title }}</p>
+                <p class="eui__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="eui__suggest-actions">
+                <a class="eui__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="eui__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="values">Values to validate</label>
           <textarea
             id="values"
@@ -122,11 +146,22 @@
           @if (hasResults()) {
             <div class="ctl__editor-body eui-results">
               @for (result of results(); track result.value + i; let i = $index) {
-                <article class="eui-result" [class.eui-result--valid]="result.valid" [class.eui-result--invalid]="!result.valid">
+                <article
+                  class="eui-result"
+                  [class.eui-result--valid]="result.valid"
+                  [class.eui-result--invalid]="!result.valid">
                   <header class="eui-result-head">
                     <span class="eui-result-index">#{{ i + 1 }}</span>
                     <span class="eui-result-type eui-result-type--{{ result.type }}">
-                      {{ result.type === 'email' ? 'Email' : result.type === 'url' ? 'URL' : result.type === 'ip' ? 'IP' : 'Unknown' }}
+                      {{
+                        result.type === 'email'
+                          ? 'Email'
+                          : result.type === 'url'
+                            ? 'URL'
+                            : result.type === 'ip'
+                              ? 'IP'
+                              : 'Unknown'
+                      }}
                     </span>
                     <span class="eui-result-status">{{ result.valid ? 'Valid' : 'Invalid' }}</span>
                   </header>
@@ -135,9 +170,9 @@
                     <span>Mode: {{ result.modeUsed }}</span>
                     <span>Length: {{ result.trimmed.length }}</span>
                   </div>
-                  @if (Object.keys(result.info).length) {
+                  @if (infoKeys(result.info).length) {
                     <div class="eui-info">
-                      @for (entryKey of Object.keys(result.info); track entryKey) {
+                      @for (entryKey of infoKeys(result.info); track entryKey) {
                         <div class="eui-info-row">
                           <span>{{ entryKey }}</span>
                           <span>{{ formatInfoValue(result.info[entryKey]) }}</span>
@@ -163,59 +198,86 @@
         </section>
       </div>
 
-            <details class="tt-options-flyout">
+      <details class="tt-options-flyout">
         <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="tt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Checker options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="mode">
-              <span>Detection mode</span>
-              <select id="mode" formControlName="mode" (change)="onOptionChange()">
-                <option value="auto">Auto-detect</option>
-                <option value="email">Email only</option>
-                <option value="url">URL only</option>
-                <option value="ip">IP only</option>
-              </select>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="allowMultiple" (change)="onOptionChange()" />
-              <div>
-                <strong>Multiple lines</strong>
-                <span>Each line is treated as a separate value.</span>
-              </div>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="ignoreEmpty" (change)="onOptionChange()" />
-              <div>
-                <strong>Ignore empty lines</strong>
-                <span>Skip blank lines during analysis.</span>
-              </div>
-            </label>
-          </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Analysis runs <strong>locally</strong> — no values are sent to a server.</p>
-          </div>
-          @if (hasResults()) {
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>
-                Types: {{ typeCounts().email }} email · {{ typeCounts().url }} URL ·
-                {{ typeCounts().ip }} IP · {{ typeCounts().unknown }} unknown
-              </p>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="mode">
+                <span>Detection mode</span>
+                <select id="mode" formControlName="mode" (change)="onOptionChange()">
+                  <option value="auto">Auto-detect</option>
+                  <option value="email">Email only</option>
+                  <option value="url">URL only</option>
+                  <option value="ip">IP only</option>
+                </select>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="allowMultiple" (change)="onOptionChange()" />
+                <div>
+                  <strong>Multiple lines</strong>
+                  <span>Each line is treated as a separate value.</span>
+                </div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="ignoreEmpty" (change)="onOptionChange()" />
+                <div>
+                  <strong>Ignore empty lines</strong>
+                  <span>Skip blank lines during analysis.</span>
+                </div>
+              </label>
             </div>
-          }
-        </div>
-      </aside>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body eui__related">
+              <ul class="eui__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="eui__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Analysis runs <strong>locally</strong> — no values are sent to a server.</p>
+            </div>
+            @if (hasResults()) {
+              <div class="ctl__info-item">
+                <span class="ctl__info-dot"></span>
+                <p>
+                  Types: {{ typeCounts().email }} email · {{ typeCounts().url }} URL ·
+                  {{ typeCounts().ip }} IP · {{ typeCounts().unknown }} unknown
+                </p>
+              </div>
+            }
+          </div>
+        </aside>
       </details>
     </div>
 

@@ -28,29 +28,31 @@
       </div>
     </div>
 
-    <div class="ft-workflow" aria-label="Converter actions"><div class="ft-workflow__group ft-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="useCurrentTime()"
-        aria-label="Use current time"
-        appTooltip="Use current time"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span class="ctl__tool-btn-label">Now</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="swapTimezones()"
-        aria-label="Swap timezones"
-        appTooltip="Swap timezones"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 5h18"/><polyline points="7 23 3 19 7 15"/><path d="M21 19H3"/></svg>
-        <span class="ctl__tool-btn-label">Swap</span>
-      </button>
+    <div class="ft-workflow" aria-label="Converter actions">
+      <div class="ft-workflow__group ft-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="useCurrentTime()"
+          aria-label="Use current time"
+          appTooltip="Use current time"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span class="ctl__tool-btn-label">Now</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="swapTimezones()"
+          aria-label="Swap timezones"
+          appTooltip="Swap timezones"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 5h18"/><polyline points="7 23 3 19 7 15"/><path d="M21 19H3"/></svg>
+          <span class="ctl__tool-btn-label">Swap</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ft-editor-panel">
@@ -110,8 +112,26 @@
               </button>
             </div>
           </header>
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="tzc__suggest" aria-label="Suggested next step">
+              <div class="tzc__suggest-body">
+                <p class="tzc__suggest-title">{{ suggestion.title }}</p>
+                <p class="tzc__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="tzc__suggest-actions">
+                <a class="tzc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="tzc__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
           @if (hasConversion() && convertedTime(); as conversion) {
-            <div class="ctl__editor-body tzc-cards">
+            <div class="ctl__editor-body tzc-cards" aria-live="polite">
               <div class="tzc-card">
                 <span class="tzc-card__label">Source</span>
                 <strong class="tzc-card__time">{{ conversion.source.time }}</strong>
@@ -134,7 +154,7 @@
         </section>
       </div>
 
-            <details class="ft-options-flyout">
+      <details class="ft-options-flyout">
         <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -143,19 +163,34 @@
         </summary>
         <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Conversion info">
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Conversions update <strong>live</strong> as you change inputs.</p>
-          </div>
-          @if (hasConversion() && convertedTime(); as conversion) {
+          <div class="ctl__info">
             <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>Time difference: <strong>{{ conversion.difference }}</strong></p>
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Conversions update <strong>live</strong> as you change inputs.</p>
             </div>
-          }
-        </div>
-      </aside>
+            @if (hasConversion() && convertedTime(); as conversion) {
+              <div class="ctl__info-item">
+                <span class="ctl__info-dot"></span>
+                <p>Time difference: <strong>{{ conversion.difference }}</strong></p>
+              </div>
+            }
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body tzc__related">
+              <ul class="tzc__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="tzc__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 

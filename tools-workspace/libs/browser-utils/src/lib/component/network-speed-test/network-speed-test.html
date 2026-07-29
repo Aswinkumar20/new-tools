@@ -22,65 +22,88 @@
           <span class="ctl__stat-label">Duration</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ running() ? 'Running' : 'Idle' }}</span>
+          <span class="ctl__stat-value">{{ isRunning() ? 'Running' : 'Idle' }}</span>
           <span class="ctl__stat-label">Status</span>
         </div>
       </div>
     </div>
 
-    <div class="bu-workflow" aria-label="Speed test actions"><div class="bu-workflow__group bu-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="runTest()"
-        [disabled]="running()"
-        aria-label="Run speed test"
-        appTooltip="Run speed test"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span class="ctl__tool-btn-label">{{ running() ? 'Running…' : 'Run test' }}</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="copyResults()"
-        [disabled]="!hasResults()"
-        aria-label="Copy results"
-        appTooltip="Copy results"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearResults()"
-        [disabled]="!hasResults()"
-        aria-label="Clear results"
-        appTooltip="Clear results"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="bu-workflow" aria-label="Speed test actions">
+      <div class="bu-workflow__group bu-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="runTest()"
+          [disabled]="isRunning()"
+          aria-label="Run speed test"
+          appTooltip="Run speed test"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span class="ctl__tool-btn-label">{{ isRunning() ? 'Running…' : 'Run test' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyResults()"
+          [disabled]="!hasResults()"
+          aria-label="Copy results"
+          appTooltip="Copy results"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearResults()"
+          [disabled]="!hasResults()"
+          aria-label="Clear results"
+          appTooltip="Clear results"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
       <section class="ctl__editor bu-viewer-panel">
         <header class="ctl__editor-head">
           <span>Results</span>
           @if (hasResults()) {
             <span class="ctl__editor-badge">{{ results().length }}</span>
+          } @else if (isRunning()) {
+            <span class="ctl__editor-badge">Live</span>
           }
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
               }
             </ul>
           </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="nst__suggest" aria-label="Suggested next step">
+            <div class="nst__suggest-body">
+              <p class="nst__suggest-title">{{ suggestion.title }}</p>
+              <p class="nst__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="nst__suggest-actions">
+              <a class="nst__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="nst__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
         }
 
         @if (hasResults()) {
@@ -104,6 +127,8 @@
               }
             </ul>
           </div>
+        } @else if (isRunning()) {
+          <div class="ctl__empty"><p>Measuring download speed…</p></div>
         } @else {
           <div class="ctl__empty">
             <p>Configure a test URL and tap Run test to measure download speed.</p>
@@ -111,7 +136,7 @@
         }
       </section>
 
-            <details class="bu-options-flyout">
+      <details class="bu-options-flyout">
         <summary class="bu-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -120,35 +145,73 @@
         </summary>
         <button type="button" class="bu-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar bu-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Test configuration">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Configuration</header>
-          <div class="ctl__settings">
-            <div class="ctl__field">
-              <span>Test URL</span>
-              <input id="url" type="url" formControlName="url" placeholder="https://example.com/file.bin" />
-            </div>
-            <div class="ctl__field">
-              <span>Expected size (bytes)</span>
-              <input id="sizeBytes" type="number" formControlName="sizeBytes" min="1" />
-            </div>
-            <div class="ctl__field">
-              <span>Runs (max 5)</span>
-              <input id="runs" type="number" formControlName="runs" min="1" max="5" />
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Configuration</header>
+            <div class="ctl__settings">
+              <div class="ctl__field">
+                <label for="speed-test-url">Test URL</label>
+                <input id="speed-test-url" type="url" formControlName="url" placeholder="https://example.com/file.bin" />
+              </div>
+              <div class="ctl__field">
+                <label for="speed-test-size">Expected size (bytes)</label>
+                <input id="speed-test-size" type="number" formControlName="sizeBytes" min="1" />
+              </div>
+              <div class="ctl__field">
+                <label for="speed-test-runs">Runs (max {{ maxRuns }})</label>
+                <input id="speed-test-runs" type="number" formControlName="runs" min="1" [max]="maxRuns" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Use a URL with <strong>CORS enabled</strong> and a 1–10 MB file for reliable results.</p>
+          @if (hasResults()) {
+            <div class="ctl__panel">
+              <header class="ctl__panel-head">
+                <span>Export</span>
+                <button
+                  type="button"
+                  class="ctl__icon-btn"
+                  (click)="downloadResults()"
+                  aria-label="Download results JSON"
+                  appTooltip="Download results JSON"
+                  tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+              </header>
+              <div class="ctl__panel-empty">
+                <p>Keeps the last {{ resultLimit }} runs for copy or JSON download.</p>
+              </div>
+            </div>
+          }
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body nst__related">
+              <ul class="nst__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="nst__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Results vary with caching, server load, and network conditions.</p>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Use a URL with <strong>CORS enabled</strong> and a 1–10 MB file for reliable results.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Results vary with caching, server load, and network conditions.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 
@@ -157,8 +220,9 @@
       <ul>
         <li>Enter a downloadable URL that allows cross-origin requests.</li>
         <li>Set expected file size as a fallback if the response size is unknown.</li>
-        <li>Run multiple times (up to 5) to compare average speed.</li>
-        <li>Copy results to share or log measurements.</li>
+        <li>Run multiple times (up to {{ maxRuns }}) to compare average speed.</li>
+        <li>Copy results or download JSON to share or log measurements.</li>
+        <li>Follow suggestions when CORS blocks a download or when you want related QA tools.</li>
       </ul>
     </details>
   </main>

@@ -33,7 +33,7 @@
         <label class="ctl__tool-btn" aria-label="Upload presentations" appTooltip="Upload presentations" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" (change)="onFileSelected($event)" />
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
         </label>
         <button
           type="button"
@@ -94,8 +94,18 @@
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <input type="number" [(ngModel)]="currentSlide" (ngModelChange)="goToSlide($event)" [min]="1" [max]="totalSlides" class="page-input" aria-label="Slide number">
-          <span class="ctl__editor-badge fv-workflow__index">/ {{ totalSlides }}</span>
+          <div class="page-input-group">
+            <input
+              type="number"
+              [(ngModel)]="currentSlide"
+              (ngModelChange)="goToSlide($event)"
+              [min]="1"
+              [max]="totalSlides"
+              class="page-input"
+              aria-label="Slide number" />
+            <span class="page-separator">/</span>
+            <span class="total-pages">{{ totalSlides }}</span>
+          </div>
           <button
             type="button"
             class="fv-icon-btn"
@@ -117,7 +127,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomOut()"
-            [disabled]="zoomLevel <= 50"
+            [disabled]="zoomLevel <= minZoom"
             aria-label="Zoom out"
             appTooltip="Zoom out"
             tooltipPosition="bottom">
@@ -132,7 +142,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomIn()"
-            [disabled]="zoomLevel >= 300"
+            [disabled]="zoomLevel >= maxZoom"
             aria-label="Zoom in"
             appTooltip="Zoom in"
             tooltipPosition="bottom">
@@ -182,13 +192,80 @@
             <button type="button" class="ctl__icon-btn" (click)="closeError()" aria-label="Dismiss">×</button>
           </div>
 
-          <div class="fv-viewer-body" *ngIf="presentationFiles.length > 0">
+          <aside class="pp__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="pp__suggest-body">
+              <p class="pp__suggest-title">{{ suggestion.title }}</p>
+              <p class="pp__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="pp__suggest-actions">
+              <a class="pp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="pp__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+
+          <div class="fv-viewer-body ppt-viewer-body" *ngIf="presentationFiles.length > 0">
             <header class="fv-viewer-bar" *ngIf="currentPresentation">
               <p class="fv-viewer-bar__name" [title]="currentPresentation.name">{{ currentPresentation.name }}</p>
-              <p class="fv-viewer-bar__hint">Arrow keys to navigate slides · Press Esc to exit fullscreen</p>
+              <p class="fv-viewer-bar__hint">← → navigate · scroll to pan zoomed slides · Esc exits fullscreen</p>
             </header>
 
-            <div class="slide-container-wrapper" #slideContainer></div>
+            <div class="ppt-stage-shell">
+              <button
+                type="button"
+                class="ppt-nav-fab ppt-nav-fab--prev"
+                (click)="previousSlide()"
+                [disabled]="currentSlide <= 1"
+                aria-label="Previous slide">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              <div
+                class="slide-container-wrapper"
+                #slideContainer
+                tabindex="0"
+                aria-label="Slide canvas. Scroll to view zoomed content."></div>
+
+              <button
+                type="button"
+                class="ppt-nav-fab ppt-nav-fab--next"
+                (click)="nextSlide()"
+                [disabled]="currentSlide >= totalSlides"
+                aria-label="Next slide">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+
+            <section class="ppt-text-panel" *ngIf="currentSlideTextItems.length > 0" aria-label="Slide text content">
+              <header class="ppt-text-panel__head">Slide {{ currentSlide }} text</header>
+              <div class="ppt-text-panel__body">
+                <p class="ppt-text-panel__line" *ngFor="let line of currentSlideTextItems">{{ line }}</p>
+              </div>
+            </section>
+
+            <ul class="ppt-thumbs" *ngIf="currentPresentation" aria-label="Slide thumbnails">
+              <li *ngFor="let slide of currentPresentation.slides; let i = index">
+                <button
+                  type="button"
+                  class="ppt-thumb"
+                  [class.ppt-thumb--active]="currentSlide === i + 1"
+                  (click)="goToSlide(i + 1)"
+                  [attr.aria-label]="'Go to slide ' + (i + 1)"
+                  [attr.aria-current]="currentSlide === i + 1 ? 'true' : null">
+                  <span class="ppt-thumb__num">{{ i + 1 }}</span>
+                  <span class="ppt-thumb__label">{{ getSlidePreviewLabel(i) }}</span>
+                </button>
+              </li>
+            </ul>
           </div>
 
           <button
@@ -197,10 +274,14 @@
             *ngIf="presentationFiles.length === 0 && !loading"
             [class.fv-dropzone--active]="showDropZone"
             (click)="openFileDialog()"
+            (dragenter)="onDragEnter()"
+            (dragover)="onDragEnter()"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
             aria-label="Upload presentations by clicking or dragging files here">
             <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
             <p class="fv-dropzone__title">Drop PPTX files here or <strong>browse files</strong></p>
-            <p class="fv-dropzone__formats">PPTX · 100&nbsp;MB max</p>
+            <p class="fv-dropzone__formats">PPTX · {{ maxFileSizeLabel }} max</p>
           </button>
         </section>
       </div>
@@ -219,6 +300,19 @@
             </ul>
           </div>
         </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body pp__related">
+            <ul class="pp__related-list">
+              <li *ngFor="let tool of relatedTools">
+                <a class="pp__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
         <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Presentations are rendered <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
       </aside>
     </div>
@@ -226,36 +320,77 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Upload PPTX files and navigate slides with arrow keys or controls.</li>
-        <li>Zoom from 50% to 300% for detailed slide review.</li>
+        <li>Upload PPTX files and navigate slides with arrow keys, side buttons, or thumbnails.</li>
+        <li>Zoom from 50% to 300% — scroll inside the slide area to see the full content.</li>
         <li>Press <kbd>Esc</kbd> to exit fullscreen mode.</li>
       </ul>
     </details>
   </main>
 </div>
 
-<div class="fullscreen-overlay" *ngIf="isFullscreen" #fullscreenContainer [class.fullscreen-active]="isFullscreen">
-  <button class="fullscreen-close-btn" (click)="exitFullscreen()" title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+<div class="fullscreen-overlay" *ngIf="isFullscreen" #fullscreenContainer>
+  <button type="button" class="fullscreen-close-btn" (click)="exitFullscreen()" title="Exit fullscreen (Esc)" aria-label="Exit fullscreen">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
   </button>
+
+  <button
+    type="button"
+    class="ppt-nav-fab ppt-nav-fab--prev ppt-nav-fab--fs"
+    (click)="previousSlide()"
+    [disabled]="currentSlide <= 1"
+    aria-label="Previous slide">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  </button>
+
   <div class="fullscreen-slide-container">
-    <div class="fullscreen-slide-wrapper" #fullscreenSlideContainer></div>
+    <div class="fullscreen-slide-wrapper" #fullscreenSlideContainer tabindex="0" aria-label="Fullscreen slide canvas"></div>
   </div>
+
+  <button
+    type="button"
+    class="ppt-nav-fab ppt-nav-fab--next ppt-nav-fab--fs"
+    (click)="nextSlide()"
+    [disabled]="currentSlide >= totalSlides"
+    aria-label="Next slide">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  </button>
+
   <div class="fullscreen-controls-bar">
     <div class="fullscreen-info">
       <span class="fullscreen-pres-name" *ngIf="currentPresentation">{{ currentPresentation.name }}</span>
       <span class="fullscreen-slide-info" *ngIf="totalSlides > 0">Slide {{ currentSlide }} of {{ totalSlides }}</span>
     </div>
     <div class="fullscreen-slide-nav">
-      <button class="btn-icon" (click)="previousSlide()" [disabled]="currentSlide <= 1" title="Previous slide"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
-      <input type="number" [(ngModel)]="currentSlide" (ngModelChange)="goToSlide($event)" [min]="1" [max]="totalSlides" class="fullscreen-slide-input" aria-label="Slide number">
-      <button class="btn-icon" (click)="nextSlide()" [disabled]="currentSlide >= totalSlides" title="Next slide"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+      <button type="button" class="btn-icon" (click)="previousSlide()" [disabled]="currentSlide <= 1" title="Previous slide" aria-label="Previous slide">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="page-input-group page-input-group--fs">
+        <input type="number" [(ngModel)]="currentSlide" (ngModelChange)="goToSlide($event)" [min]="1" [max]="totalSlides" class="fullscreen-slide-input" aria-label="Slide number">
+        <span class="page-separator">/</span>
+        <span class="total-pages">{{ totalSlides }}</span>
+      </div>
+      <button type="button" class="btn-icon" (click)="nextSlide()" [disabled]="currentSlide >= totalSlides" title="Next slide" aria-label="Next slide">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
     </div>
     <div class="fullscreen-zoom-controls">
-      <button class="btn-icon" (click)="zoomOut()" [disabled]="zoomLevel <= 50" title="Zoom out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+      <button type="button" class="btn-icon" (click)="zoomOut()" [disabled]="zoomLevel <= minZoom" title="Zoom out" aria-label="Zoom out">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      </button>
       <span class="zoom-level">{{ zoomLevel }}%</span>
-      <button class="btn-icon" (click)="zoomIn()" [disabled]="zoomLevel >= 300" title="Zoom in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
-      <button class="btn-icon" (click)="fitToWidth()" title="Fit to width"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg></button>
+      <button type="button" class="btn-icon" (click)="zoomIn()" [disabled]="zoomLevel >= maxZoom" title="Zoom in" aria-label="Zoom in">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      </button>
+      <button type="button" class="btn-icon" (click)="fitToWidth()" title="Reset zoom" aria-label="Reset zoom">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+      </button>
     </div>
   </div>
 </div>

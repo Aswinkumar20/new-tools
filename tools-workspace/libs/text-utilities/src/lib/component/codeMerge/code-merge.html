@@ -53,6 +53,25 @@
       </button>
     </div>
 
+    @if (primarySuggestion; as suggestion) {
+      <aside class="cm__suggest" aria-label="Suggested next step">
+        <div class="cm__suggest-body">
+          <p class="cm__suggest-title">{{ suggestion.title }}</p>
+          <p class="cm__suggest-reason">{{ suggestion.reason }}</p>
+        </div>
+        <div class="cm__suggest-actions">
+          <a class="cm__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+          <button
+            type="button"
+            class="cm__suggest-dismiss"
+            (click)="dismissSuggestion(suggestion.id)"
+            aria-label="Dismiss suggestion">
+            Dismiss
+          </button>
+        </div>
+      </aside>
+    }
+
     <div class="cm__workspace">
       <div class="cm__editors" aria-label="Branch inputs and merged output">
         <div class="cm__branch-grid">
@@ -77,6 +96,7 @@
               id="merge-left"
               class="cm__textarea"
               [(ngModel)]="leftBranch"
+              (input)="onBranchInput()"
               rows="1"
               placeholder="Paste base branch content…"></textarea>
           </section>
@@ -102,6 +122,7 @@
               id="merge-right"
               class="cm__textarea"
               [(ngModel)]="rightBranch"
+              (input)="onBranchInput()"
               rows="1"
               placeholder="Paste incoming branch content…"></textarea>
           </section>
@@ -154,10 +175,24 @@
               <input type="text" [(ngModel)]="incomingLabel" placeholder="Incoming" />
             </label>
             <label class="cm__toggle">
-              <input type="checkbox" [(ngModel)]="includeConflictMarkers" />
+              <input type="checkbox" [(ngModel)]="includeConflictMarkers" (change)="onBranchInput()" />
               <span>Include conflict markers</span>
             </label>
           </div>
+        </div>
+
+        <div class="cm__panel cm__panel--related">
+          <header class="cm__panel-head">Related tools</header>
+          <ul class="cm__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="cm__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
 
         <div class="cm__info">

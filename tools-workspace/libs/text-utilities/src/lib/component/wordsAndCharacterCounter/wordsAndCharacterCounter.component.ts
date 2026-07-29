@@ -1,53 +1,67 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
-import { READING_WPM, SPEAKING_WPM, STOP_WORDS } from './wordsAndCharacterCounter.constants';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  READING_WPM,
+  SPEAKING_WPM,
+  STOP_WORDS,
+  WCC_FREQUENCY_DISPLAY_LIMIT,
+  WCC_MAX_HISTORY_ENTRIES,
+  WCC_MAX_STORED_ENTRY_LENGTH,
+  WCC_MAX_UPLOAD_BYTES,
+  WCC_PDF_FREQUENCY_LIMIT,
+  WCC_PHRASE_DISPLAY_LIMIT,
+  WCC_RELATED_TOOLS,
+  WCC_TAG_CLOUD_LIMIT,
+  WCC_USE_WORKER_THRESHOLD,
+} from '../../constants/words-and-character-counter.constants';
+import type {
+  WccDensityItem,
+  WccFreqItem,
+  WccInsightTab,
+  WccPhraseItem,
+  WccTextBreakdown,
+  WccWorkerMessage,
+} from '../../types/words-and-character-counter.types';
+import {
+  calculateAdvancedMetrics,
+  calculateFleschKincaidGrade as computeFleschKincaidGrade,
+  calculateFleschReadingEase as computeFleschReadingEase,
+  calculateNGrams,
+  calculateSentenceLengths,
+  calculateTextBreakdown,
+  calculateWordFrequency as computeWordFrequency,
+  countCharsNoSpaces,
+  countLines,
+  countSyllables as computeSyllableCount,
+  countWordMatches,
+  escapeHtml,
+  escapeRegex,
+  formatReadingDuration,
+  hashString,
+  hashWords,
+  interpretReadabilityScore,
+  resolveWccSuggestion,
+  roundMetric,
+} from '../../utils/words-and-character-counter.utils';
 
-// Import Google Analytics Service - use optional injection to avoid errors if not available
-// In a library, we need to check if the service exists
 declare const window: any;
 
-// Simple GA tracking function that works even if service isn't available
 function trackGAEvent(eventName: string, params?: any): void {
   if (typeof window !== 'undefined' && window.gtag) {
     window.gtag('event', eventName, params);
   }
 }
 
-type InsightTab = 'frequency' | 'phrases' | 'breakdown' | 'readability';
-
-type TextBreakdown = {
-  letters: number;
-  digits: number;
-  punctuation: number;
-  spaces: number;
-  uppercase: number;
-  lowercase: number;
-  other: number;
-};
-
-type FreqItem = { word: string; count: number };
-type PhraseItem = { phrase: string; count: number };
-type DensityItem = { word: string; count: number; density: number };
-type WorkerMessage = {
-  words: string[];
-  syllables: number;
-  wordFrequency: { word: string; count: number }[];
-  sentenceLengths?: number[];
-  advanced?: {
-    gunningFog: number;
-    smog: number;
-    colemanLiau: number;
-  };
-};
-
 @Component({
   selector: 'lib-words-and-character-counter',
   standalone: true,
   templateUrl: './wordsAndCharacterCounter.component.html',
   styleUrls: ['./wordsAndCharacterCounter.component.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   @ViewChild('textInput') textInputRef?: ElementRef<HTMLTextAreaElement>;
@@ -80,10 +94,10 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   lineCount = 0;
   uniqueWordCount = 0;
   fleschKincaidGrade = 0;
-  wordFrequency: FreqItem[] = [];
-  phraseFrequency2: PhraseItem[] = [];
-  phraseFrequency3: PhraseItem[] = [];
-  textBreakdown: TextBreakdown = { letters: 0, digits: 0, punctuation: 0, spaces: 0, uppercase: 0, lowercase: 0, other: 0 };
+  wordFrequency: WccFreqItem[] = [];
+  phraseFrequency2: WccPhraseItem[] = [];
+  phraseFrequency3: WccPhraseItem[] = [];
+  textBreakdown: WccTextBreakdown = { letters: 0, digits: 0, punctuation: 0, spaces: 0, uppercase: 0, lowercase: 0, other: 0 };
   readabilityScore = 0;
   // Advanced metrics
   gunningFog = 0;
@@ -121,9 +135,32 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   get historyLimit(): number {
     return this.maxHistoryEntries;
   }
+
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = WCC_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveWccSuggestion({
+      hasContent: this.hasContent,
+      wordCount: this.wordCount,
+      sentenceCount: this.sentenceCount,
+      readabilityScore: this.readabilityScore,
+      uniqueWordCount: this.uniqueWordCount,
+      excludeStopWords: this.excludeStopWords,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+  }
+
   // History safety caps to avoid memory blowup on huge pasted texts
-  private maxHistoryEntries = 30;
-  private maxStoredEntryLength = 100000; // store at most 100k chars per history entry
+  private maxHistoryEntries = WCC_MAX_HISTORY_ENTRIES;
+  private maxStoredEntryLength = WCC_MAX_STORED_ENTRY_LENGTH;
   // Undo/Redo
   private history: string[] = [];
   private historyIndex = -1;
@@ -133,7 +170,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   private lastWordFrequencyHash: number | null = null;
   // Web Worker
   private analysisWorker?: Worker;
-  useWorkerThreshold = 2000; // characters threshold to start using worker (lowered to offload sooner)
+  useWorkerThreshold = WCC_USE_WORKER_THRESHOLD;
   // Adaptive debounce
   private updateTimer: any = null;
   private pendingText = '';
@@ -149,38 +186,34 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   activePhraseSize: 2 | 3 = 2;
   highlightedWord: string | null = null;
   highlightMatchCount = 0;
-  activeInsightTab: InsightTab = 'frequency';
-  /** Max upload size — 10 MB */
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  activeInsightTab: WccInsightTab = 'frequency';
+  readonly maxUploadBytes = WCC_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
-  /** Max rows in the frequency table — keeps DOM light for long pasted text */
-  readonly frequencyDisplayLimit = 100;
-  /** Max tags in the word cloud */
-  readonly tagCloudLimit = 30;
-  /** Max word-frequency rows in PDF export — avoids browser hang on huge texts */
-  readonly pdfFrequencyLimit = 300;
-  readonly phraseDisplayLimit = 50;
+  readonly frequencyDisplayLimit = WCC_FREQUENCY_DISPLAY_LIMIT;
+  readonly tagCloudLimit = WCC_TAG_CLOUD_LIMIT;
+  readonly pdfFrequencyLimit = WCC_PDF_FREQUENCY_LIMIT;
+  readonly phraseDisplayLimit = WCC_PHRASE_DISPLAY_LIMIT;
 
   get readingTimeLabel(): string {
-    return this.formatDuration(this.wordCount / READING_WPM);
+    return formatReadingDuration(this.wordCount / READING_WPM, this.wordCount);
   }
 
   get speakingTimeLabel(): string {
-    return this.formatDuration(this.wordCount / SPEAKING_WPM);
+    return formatReadingDuration(this.wordCount / SPEAKING_WPM, this.wordCount);
   }
 
-  get filteredWordFrequency(): FreqItem[] {
+  get filteredWordFrequency(): WccFreqItem[] {
     if (!this.excludeStopWords) {
       return this.wordFrequency;
     }
     return this.wordFrequency.filter((item) => !STOP_WORDS.has(item.word));
   }
 
-  get displayWordFrequency(): FreqItem[] {
+  get displayWordFrequency(): WccFreqItem[] {
     return this.filteredWordFrequency.slice(0, this.frequencyDisplayLimit);
   }
 
-  get keywordDensityList(): DensityItem[] {
+  get keywordDensityList(): WccDensityItem[] {
     return this.displayWordFrequency.map((item) => ({
       word: item.word,
       count: item.count,
@@ -188,7 +221,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     }));
   }
 
-  get tagCloudWords(): FreqItem[] {
+  get tagCloudWords(): WccFreqItem[] {
     return this.filteredWordFrequency.slice(0, this.tagCloudLimit);
   }
 
@@ -204,7 +237,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     return this.filteredWordFrequency.length > this.frequencyDisplayLimit;
   }
 
-  get activePhraseList(): PhraseItem[] {
+  get activePhraseList(): WccPhraseItem[] {
     const list = this.activePhraseSize === 2 ? this.phraseFrequency2 : this.phraseFrequency3;
     return list.slice(0, this.phraseDisplayLimit);
   }
@@ -221,10 +254,10 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   get highlightedBackdropHtml(): string {
     const text = this.paragraphControl.value || '';
     if (!this.highlightedWord || !text) {
-      return this.escapeHtml(text) + '\n';
+      return escapeHtml(text) + '\n';
     }
-    const pattern = new RegExp(`\\b(${this.escapeRegex(this.highlightedWord)})\\b`, 'gi');
-    return this.escapeHtml(text).replace(pattern, '<mark>$1</mark>') + '\n';
+    const pattern = new RegExp(`\\b(${escapeRegex(this.highlightedWord)})\\b`, 'gi');
+    return escapeHtml(text).replace(pattern, '<mark>$1</mark>') + '\n';
   }
 
   get breakdownItems(): { label: string; value: number; pct: number }[] {
@@ -241,7 +274,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     ];
   }
 
-  setInsightTab(tab: InsightTab): void {
+  setInsightTab(tab: WccInsightTab): void {
     this.activeInsightTab = tab;
   }
 
@@ -309,6 +342,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
 
   private scheduleUpdate(text: string) {
     this.pendingText = text;
+    this.dismissedSuggestionId = null;
     if (this.updateTimer) {
       clearTimeout(this.updateTimer);
     }
@@ -373,9 +407,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
 
     // Characters
     this.charCount = text.length;
-    this.charCountNoSpaces = this.countCharsNoSpaces(text);
-    this.lineCount = this.countLines(text);
-    this.textBreakdown = this.calculateTextBreakdown(text);
+    this.charCountNoSpaces = countCharsNoSpaces(text);
+    this.lineCount = countLines(text);
+    this.textBreakdown = calculateTextBreakdown(text);
 
     // Sentences
     const sentences = trimmed.split(/[\.\!\?]+(?:\s|$)/).filter((s) => s.trim().length > 0);
@@ -386,21 +420,21 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     this.paragraphCount = paragraphs.length;
 
     if (this.highlightedWord) {
-      this.highlightMatchCount = this.countWordMatches(text, this.highlightedWord);
+      this.highlightMatchCount = countWordMatches(text, this.highlightedWord);
     }
 
     // Word Frequency
     // Use memoization with hashes: if unchanged, skip heavy calc
-    const textHash = this.hashString(text);
-    const wordsHash = this.hashWords(words);
+    const textHash = hashString(text);
+    const wordsHash = hashWords(words);
     if (this.lastTextHash === textHash && this.lastWordFrequencyHash === wordsHash) {
       // nothing changed
     } else {
       this.lastTextHash = textHash;
       this.lastWordFrequencyHash = wordsHash;
       if (text.length > this.useWorkerThreshold && typeof Worker !== 'undefined') {
-        this.phraseFrequency2 = this.calculateNGrams(words, 2);
-        this.phraseFrequency3 = this.calculateNGrams(words, 3);
+        this.phraseFrequency2 = calculateNGrams(words, 2);
+        this.phraseFrequency3 = calculateNGrams(words, 3);
         this.runWorkerAnalysis(words, text);
       } else {
         this.applyFullAnalysis(words, trimmed);
@@ -433,34 +467,34 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   }
 
   private applyFullAnalysis(words: string[], trimmed: string): void {
-    this.wordFrequency = this.calculateWordFrequency(words);
+    this.wordFrequency = computeWordFrequency(words);
     this.uniqueWordCount = this.wordFrequency.length;
-    this.phraseFrequency2 = this.calculateNGrams(words, 2);
-    this.phraseFrequency3 = this.calculateNGrams(words, 3);
-    const syllableCount = this.countSyllables(words);
-    this.readabilityScore = this.calculateFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
-    this.fleschKincaidGrade = this.calculateFleschKincaidGrade(this.wordCount, this.sentenceCount, syllableCount);
+    this.phraseFrequency2 = calculateNGrams(words, 2);
+    this.phraseFrequency3 = calculateNGrams(words, 3);
+    const syllableCount = computeSyllableCount(words);
+    this.readabilityScore = computeFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
+    this.fleschKincaidGrade = computeFleschKincaidGrade(this.wordCount, this.sentenceCount, syllableCount);
 
-    const advanced = this.calculateAdvancedMetrics(words, syllableCount);
+    const advanced = calculateAdvancedMetrics(words, this.sentenceCount, syllableCount);
     this.gunningFog = advanced.gunningFog;
     this.smogIndex = advanced.smog;
     this.colemanLiau = advanced.colemanLiau;
-    this.readabilityInterpretation = this.interpretScore(this.readabilityScore);
-    this.sentenceLengths = this.calculateSentenceLengths(trimmed);
+    this.readabilityInterpretation = interpretReadabilityScore(this.readabilityScore);
+    this.sentenceLengths = calculateSentenceLengths(trimmed);
     this.averageSentenceLength = this.sentenceLengths.length
       ? Math.round((this.sentenceLengths.reduce((a, b) => a + b, 0) / this.sentenceLengths.length) * 10) / 10
       : 0;
   }
 
-  private applyWorkerResults(data: WorkerMessage, syllableCount: number): void {
+  private applyWorkerResults(data: WccWorkerMessage, syllableCount: number): void {
     this.wordFrequency = data.wordFrequency || [];
     this.uniqueWordCount = this.wordFrequency.length;
-    this.readabilityScore = this.calculateFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
-    this.fleschKincaidGrade = this.calculateFleschKincaidGrade(this.wordCount, this.sentenceCount, syllableCount);
-    this.gunningFog = this.roundMetric(data.advanced?.gunningFog || 0);
-    this.smogIndex = this.roundMetric(data.advanced?.smog || 0);
-    this.colemanLiau = this.roundMetric(data.advanced?.colemanLiau || 0);
-    this.readabilityInterpretation = this.interpretScore(this.readabilityScore);
+    this.readabilityScore = computeFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
+    this.fleschKincaidGrade = computeFleschKincaidGrade(this.wordCount, this.sentenceCount, syllableCount);
+    this.gunningFog = roundMetric(data.advanced?.gunningFog || 0);
+    this.smogIndex = roundMetric(data.advanced?.smog || 0);
+    this.colemanLiau = roundMetric(data.advanced?.colemanLiau || 0);
+    this.readabilityInterpretation = interpretReadabilityScore(this.readabilityScore);
     this.sentenceLengths = data.sentenceLengths || [];
     this.averageSentenceLength = this.sentenceLengths.length
       ? Math.round((this.sentenceLengths.reduce((a, b) => a + b, 0) / this.sentenceLengths.length) * 10) / 10
@@ -506,12 +540,12 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         this.analysisWorker = new Worker(URL.createObjectURL(blob));
         this.analysisWorker.onmessage = (ev: MessageEvent) => {
-          const data: WorkerMessage = ev.data as WorkerMessage;
+          const data: WccWorkerMessage = ev.data as WccWorkerMessage;
           const syllableCount = data.syllables || 0;
           this.applyWorkerResults(data, syllableCount);
         };
-      } catch (err) {
-        console.warn('Worker not available, falling back to main thread analysis', err);
+      } catch {
+        // Worker unavailable — fall back to main-thread analysis on next update
       }
     }
     if (this.analysisWorker) {
@@ -519,97 +553,25 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     }
   }
 
-  private countCharsNoSpaces(text: string): number {
-    let count = 0;
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i);
-      if (code !== 32 && code !== 9 && code !== 10 && code !== 13) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  private calculateSentenceLengths(text: string): number[] {
-    const sentences = text ? text.split(/[\.\!\?]+(?:\s|$)/).filter((s) => s.trim().length > 0) : [];
-    return sentences.map((s) => s.trim().split(/\s+/).filter(Boolean).length);
-  }
-
-  // Lightweight hash for a string. Processes full string but uses a simple algorithm and returns 32-bit int.
-  private hashString(s: string): number {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++) {
-      h = (h * 33) ^ s.charCodeAt(i);
-    }
-    return h >>> 0;
-  }
-
-  // Hash words array without joining to avoid huge temporary strings
-  private hashWords(words: string[]): number {
-    let h = 5381;
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      for (let j = 0; j < w.length; j++) {
-        h = (h * 33) ^ w.charCodeAt(j);
-      }
-      // separator
-      h = (h * 33) ^ 124; // '|'
-    }
-    return h >>> 0;
-  }
-
-  private calculateAdvancedMetrics(words: string[], syllables: number) {
-    const wordsCount = words.length || 1;
-    const sentencesCount = this.sentenceCount || 1;
-    const complexWords = words.filter((w) => w.replace(/[^a-z]/gi, '').length > 6).length;
-    const gunningFog = Math.round(0.4 * ((wordsCount / sentencesCount) + 100 * (complexWords / wordsCount)) * 10) / 10;
-    const smog = Math.round((1.043 * Math.sqrt((complexWords * (30 / sentencesCount)) || 0) + 3.1291) * 10) / 10;
-    const letters = words.join('').replace(/[^A-Za-z]/g, '').length;
-    const L = (letters / wordsCount) * 100;
-    const S = (sentencesCount / wordsCount) * 100;
-    const colemanLiau = Math.round((0.0588 * L - 0.296 * S - 15.8) * 10) / 10;
-    return { gunningFog, smog, colemanLiau };
-  }
- 
-
-  private roundMetric(value: number, decimals = 1): number {
-    if (!Number.isFinite(value)) return 0;
-    const factor = Math.pow(10, decimals);
-    return Math.round(value * factor) / factor;
-  }
-
   calculateWordFrequency(words: string[]): { word: string; count: number }[] {
-    const freqMap: { [key: string]: number } = {};
-    for (const word of words) {
-      const w = word.toLowerCase().replace(/[^a-z0-9]/gi, '');
-      if (!w) continue;
-      freqMap[w] = (freqMap[w] || 0) + 1;
-    }
-    return Object.entries(freqMap)
-      .map(([word, count]) => ({ word, count }))
-      .sort((a, b) => b.count - a.count);
+    return computeWordFrequency(words);
   }
 
   countSyllables(words: string[]): number {
-    let syllables = 0;
-    for (const word of words) {
-      const clean = word.toLowerCase().replace(/[^a-z]/g, '');
-      if (!clean) continue;
-
-      const matches = clean.match(/[aeiouy]{1,2}/g);
-      syllables += matches ? matches.length : 1;
-    }
-    return syllables;
+    return computeSyllableCount(words);
   }
 
   interpretScore(score: number) {
-    if (score >= 90) return 'Very Easy';
-    if (score >= 80) return 'Easy';
-    if (score >= 60) return 'Fairly Easy';
-    if (score >= 30) return 'Difficult';
-    return 'Very Difficult';
+    return interpretReadabilityScore(score);
   }
 
+  calculateFleschReadingEase(words: number, sentences: number, syllables: number): number {
+    return computeFleschReadingEase(words, sentences, syllables);
+  }
+
+  calculateFleschKincaidGrade(words: number, sentences: number, syllables: number): number {
+    return computeFleschKincaidGrade(words, sentences, syllables);
+  }
 
   // Download analysis as PDF (default) or TXT (fallback)
   async downloadAnalysis(as: 'pdf' | 'txt' = 'pdf') {
@@ -929,94 +891,10 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     return Math.round(11 + ratio * 7);
   }
 
-  // Charts removed to keep UI minimal. Chart generation methods were removed.
-
-  calculateFleschReadingEase(words: number, sentences: number, syllables: number): number {
-    if (words === 0 || sentences === 0) return 0;
-    const score = 206.835 - 1.015 * (words / sentences) - 84.6 * (syllables / words);
-    return Math.round(score * 10) / 10;
-  }
-
-  calculateFleschKincaidGrade(words: number, sentences: number, syllables: number): number {
-    if (words === 0 || sentences === 0) return 0;
-    const grade = 0.39 * (words / sentences) + 11.8 * (syllables / words) - 15.59;
-    return Math.round(grade * 10) / 10;
-  }
-
-  private countLines(text: string): number {
-    if (!text) return 0;
-    return text.split(/\r\n|\r|\n/).length;
-  }
-
-  private calculateTextBreakdown(text: string): TextBreakdown {
-    const breakdown: TextBreakdown = { letters: 0, digits: 0, punctuation: 0, spaces: 0, uppercase: 0, lowercase: 0, other: 0 };
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      const code = ch.charCodeAt(0);
-      if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122)) {
-        breakdown.letters++;
-        if (code >= 65 && code <= 90) breakdown.uppercase++;
-        else breakdown.lowercase++;
-      } else if (code >= 48 && code <= 57) {
-        breakdown.digits++;
-      } else if (code === 32 || code === 9 || code === 10 || code === 13) {
-        breakdown.spaces++;
-      } else if (/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/.test(ch)) {
-        breakdown.punctuation++;
-      } else {
-        breakdown.other++;
-      }
-    }
-    return breakdown;
-  }
-
-  private calculateNGrams(words: string[], n: number): PhraseItem[] {
-    if (words.length < n) return [];
-    const normalized = words.map((w) => w.toLowerCase().replace(/[^a-z0-9]/gi, '')).filter(Boolean);
-    if (normalized.length < n) return [];
-    const freqMap: Record<string, number> = {};
-    for (let i = 0; i <= normalized.length - n; i++) {
-      const slice = normalized.slice(i, i + n);
-      if (slice.length < n || slice.some((part) => !part)) continue;
-      const phrase = slice.join(' ');
-      freqMap[phrase] = (freqMap[phrase] || 0) + 1;
-    }
-    return Object.entries(freqMap)
-      .map(([phrase, count]) => ({ phrase, count }))
-      .sort((a, b) => b.count - a.count);
-  }
-
-  private formatDuration(minutes: number): string {
-    if (!this.wordCount) return '—';
-    if (minutes < 1) return `${Math.max(1, Math.round(minutes * 60))} sec`;
-    if (minutes < 60) return `${Math.round(minutes * 10) / 10} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return mins ? `${hours}h ${mins}m` : `${hours}h`;
-  }
-
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  private escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  private countWordMatches(text: string, word: string): number {
-    if (!text || !word) return 0;
-    const pattern = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'gi');
-    return (text.match(pattern) || []).length;
-  }
-
   highlightWord(word: string): void {
     const text = this.paragraphControl.value || '';
     this.highlightedWord = word;
-    this.highlightMatchCount = this.countWordMatches(text, word);
+    this.highlightMatchCount = countWordMatches(text, word);
     this.scrollToWord(word);
     this.trackEvent('tool_action', {
       event_category: this.TOOL_CATEGORY,
@@ -1035,7 +913,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     const textarea = this.textInputRef?.nativeElement;
     if (!textarea || !word) return;
     const text = textarea.value;
-    const pattern = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'i');
+    const pattern = new RegExp(`\\b${escapeRegex(word)}\\b`, 'i');
     const match = pattern.exec(text);
     if (!match || match.index === undefined) return;
     textarea.focus();

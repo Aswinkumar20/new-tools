@@ -57,6 +57,25 @@
       </button>
     </div>
 
+    @if (primarySuggestion; as suggestion) {
+      <aside class="td__suggest" aria-label="Suggested next step">
+        <div class="td__suggest-body">
+          <p class="td__suggest-title">{{ suggestion.title }}</p>
+          <p class="td__suggest-reason">{{ suggestion.reason }}</p>
+        </div>
+        <div class="td__suggest-actions">
+          <a class="td__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+          <button
+            type="button"
+            class="td__suggest-dismiss"
+            (click)="dismissSuggestion(suggestion.id)"
+            aria-label="Dismiss suggestion">
+            Dismiss
+          </button>
+        </div>
+      </aside>
+    }
+
     <div class="td__workspace" [class.td__workspace--sidebar-hidden]="!showSidebar">
       <section class="td__editor-panel" aria-label="Side-by-side diff">
         <header class="td__editor-head" aria-label="Diff editor actions">
@@ -249,6 +268,20 @@
               <span class="td__info-dot"></span>
               <p><kbd>Ctrl+F</kbd> opens in-editor search within each pane.</p>
             </div>
+          </div>
+
+          <div class="td__related-panel">
+            <header class="td__panel-head">Related tools</header>
+            <ul class="td__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="td__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       }

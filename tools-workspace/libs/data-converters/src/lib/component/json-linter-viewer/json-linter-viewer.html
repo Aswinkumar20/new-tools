@@ -97,6 +97,20 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="jlv__suggest" aria-label="Suggested next step">
+              <div class="jlv__suggest-body">
+                <p class="jlv__suggest-title">{{ suggestion.title }}</p>
+                <p class="jlv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="jlv__suggest-actions">
+                <a class="jlv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="jlv__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
@@ -118,7 +132,7 @@
             </div>
           </header>
           @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
           }
           @if (resultOutput && conversionStatus.status !== 'error') {
             <div class="ctl__editor-wrap">
@@ -172,6 +186,19 @@
           } @else {
             <div class="ctl__panel-empty"><p>Diagnostics appear here after validation.</p></div>
           }
+        </div>
+        <div class="ctl__panel jlv__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="jlv__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="jlv__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
       </details>

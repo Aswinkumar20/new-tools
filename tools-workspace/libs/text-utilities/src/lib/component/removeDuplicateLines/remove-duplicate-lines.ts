@@ -1,28 +1,38 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
+  DEFAULT_DEDUP_OPTIONS,
+  REMOVE_DUPLICATE_LINES_RELATED_TOOLS,
+  REMOVE_DUPLICATE_MAX_UPLOAD_BYTES,
+} from '../../constants/remove-duplicate-lines.constants';
+import type {
   CsvDedupeMode,
   DedupMode,
   DedupOptions,
   DedupResult,
-  DEFAULT_DEDUP_OPTIONS,
   EmptyLineMode,
   KeepOccurrence,
+  RemoveDuplicateSidebarTab,
   UnicodeForm,
+} from '../../types/remove-duplicate-lines.types';
+import {
+  countExactDuplicateLines,
   deduplicateText,
   escapeHtml,
-} from './remove-duplicate-lines.utils';
-
-type SidebarTab = 'highlights' | 'duplicates' | 'phrases' | 'diff';
+  inputLooksLikeCsvRows,
+  resolveRemoveDuplicateLinesSuggestion,
+} from '../../utils/remove-duplicate-lines.utils';
 
 @Component({
   selector: 'lib-remove-duplicate-lines',
   standalone: true,
   templateUrl: './remove-duplicate-lines.html',
   styleUrls: ['./remove-duplicate-lines.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
@@ -31,9 +41,12 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
   readonly assetService = inject(AssetService);
   private readonly toastService = inject(ToastService);
 
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = REMOVE_DUPLICATE_LINES_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
   inputText = '';
   result: DedupResult | null = null;
-  activeSidebarTab: SidebarTab = 'highlights';
+  activeSidebarTab: RemoveDuplicateSidebarTab = 'highlights';
   showOptionsPanel = false;
   showSourceHighlights = true;
   editorFontSize = 16;
@@ -62,7 +75,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
 
   isReadingFile = false;
   isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = REMOVE_DUPLICATE_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
 
   get hasInput(): boolean {
@@ -171,6 +184,27 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     }
   }
 
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveRemoveDuplicateLinesSuggestion({
+      hasInput: this.hasInput,
+      mode: this.dedupMode,
+      csvMode: this.csvMode,
+      removedCount: this.removedCount,
+      duplicateCount: this.duplicateCount,
+      reductionPct: this.reductionPct,
+      inputLooksLikeCsv: inputLooksLikeCsvRows(this.inputText),
+      exactDuplicateLineCount: countExactDuplicateLines(this.inputText),
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+  }
+
   @HostListener('document:keydown', ['$event'])
   handleKeyboard(evt: KeyboardEvent): void {
     if (!this.isSourceEditorFocused()) return;
@@ -211,16 +245,18 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     this.redoStack = [];
   }
 
-  setSidebarTab(tab: SidebarTab): void {
+  setSidebarTab(tab: RemoveDuplicateSidebarTab): void {
     this.activeSidebarTab = tab;
   }
 
   onOptionsChange(): void {
+    this.dismissedSuggestionId = null;
     this.processInput();
   }
 
   setDedupMode(mode: DedupMode): void {
     this.dedupMode = mode;
+    this.dismissedSuggestionId = null;
     this.processInput();
   }
 
@@ -252,6 +288,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
 
   onInputChange(value: string): void {
     if (this.isRestoringHistory) return;
+    this.dismissedSuggestionId = null;
     this.inputText = value;
     this.selectionPreview = null;
     this.processInput();
@@ -419,6 +456,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     this.applyInputState('');
     this.seedHistory('');
     this.result = null;
+    this.dismissedSuggestionId = null;
     this.toastService.info('Text cleared');
   }
 
@@ -456,6 +494,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
         clearTimeout(this.historyTimer);
         this.historyTimer = null;
       }
+      this.dismissedSuggestionId = null;
       this.applyInputState(text);
       this.pushToUndoStack(text);
       this.isReadingFile = false;

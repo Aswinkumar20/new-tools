@@ -23,8 +23,8 @@
             <span class="ctl__stat-label">DPR</span>
           </div>
           <div class="ctl__stat ctl__stat--mode">
-            <span class="ctl__stat-value" [style.color]="getBreakpointColor(activeBreakpoint())">
-              {{ formatBreakpointName(activeBreakpoint()) }}
+            <span class="ctl__stat-value" [style.color]="breakpointColor(activeBreakpoint())">
+              {{ formatBreakpointLabel(activeBreakpoint()) }}
             </span>
             <span class="ctl__stat-label">Breakpoint</span>
           </div>
@@ -73,18 +73,37 @@
         <header class="ctl__editor-head">
           <span>Detailed metrics</span>
           @if (viewportInfo(); as info) {
-            <span class="ctl__editor-badge">{{ info.orientation === 'portrait' ? 'Portrait' : info.orientation === 'landscape' ? 'Landscape' : 'Square' }}</span>
+            <span class="ctl__editor-badge">{{ orientationLabel(info.orientation) }}</span>
           }
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
               }
             </ul>
           </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="vsd__suggest" aria-label="Suggested next step">
+            <div class="vsd__suggest-body">
+              <p class="vsd__suggest-title">{{ suggestion.title }}</p>
+              <p class="vsd__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="vsd__suggest-actions">
+              <a class="vsd__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="vsd__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
         }
 
         @if (viewportInfo(); as info) {
@@ -103,7 +122,7 @@
             </div>
             <div class="vsd__info-item">
               <span class="vsd__info-label">Orientation</span>
-              <strong>{{ info.orientation === 'portrait' ? 'Portrait' : info.orientation === 'landscape' ? 'Landscape' : 'Square' }}</strong>
+              <strong>{{ orientationLabel(info.orientation) }}</strong>
             </div>
             <div class="vsd__info-item">
               <span class="vsd__info-label">Screen width</span>
@@ -123,13 +142,12 @@
                 <strong>{{ info.visualViewportWidth | number:'1.0-0' }} × {{ info.visualViewportHeight | number:'1.0-0' }} px</strong>
               </div>
             }
-            <div class="vsd__info-item">
-              <span class="vsd__info-label">Effective resolution</span>
-              <strong>
-                {{ Math.round(info.screenWidth * info.devicePixelRatio) }} ×
-                {{ Math.round(info.screenHeight * info.devicePixelRatio) }} px
-              </strong>
-            </div>
+            @if (effectivePixelSize(); as effective) {
+              <div class="vsd__info-item">
+                <span class="vsd__info-label">Effective resolution</span>
+                <strong>{{ effective.width }} × {{ effective.height }} px</strong>
+              </div>
+            }
           </div>
         } @else {
           <div class="ctl__empty">
@@ -138,7 +156,7 @@
         }
       </section>
 
-            <details class="dd-options-flyout">
+      <details class="dd-options-flyout">
         <summary class="dd-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -147,95 +165,109 @@
         </summary>
         <button type="button" class="dd-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Breakpoint preview">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Viewport preview</header>
-          <div class="ctl__panel-body vsd__preview-wrap">
-            @if (viewportInfo(); as info) {
-              <div class="vsd__preview-screen">
-                <div
-                  class="vsd__preview-viewport"
-                  [style.aspect-ratio]="info.aspectRatio">
-                  <div class="vsd__preview-label vsd__preview-label--top">
-                    {{ info.viewportWidth }} × {{ info.viewportHeight }} px
-                  </div>
-                  <div class="vsd__preview-label vsd__preview-label--side">
-                    {{ info.aspectRatio.toFixed(2) }}:1
-                  </div>
-                </div>
-              </div>
-            }
-            <p class="vsd__note">
-              Values come from browser APIs and may differ from physical display characteristics due to zoom or scaling.
-            </p>
-          </div>
-        </div>
-
-        @if (activeBreakpoint(); as bp) {
           <div class="ctl__panel">
-            <header class="ctl__panel-head">Active breakpoint</header>
-            <div class="vsd__breakpoint-display" [style.background-color]="getBreakpointColor(bp)">
-              <strong>{{ formatBreakpointName(bp) }}</strong>
-              <span>Viewport width: {{ viewportInfo()?.viewportWidth }}px</span>
-            </div>
-            <div class="vsd__breakpoints-list">
-              @for (breakpoint of breakpoints; track breakpoint.name) {
-                <div
-                  class="vsd__breakpoint-item"
-                  [class.vsd__breakpoint-item--active]="activeBreakpoint() && activeBreakpoint()!.name === breakpoint.name"
-                  [style.border-color]="getBreakpointColor(breakpoint)">
-                  <div class="vsd__breakpoint-color" [style.background-color]="getBreakpointColor(breakpoint)"></div>
-                  <div class="vsd__breakpoint-info">
-                    <strong>{{ breakpoint.name }}</strong>
-                    <span>
-                      @if (breakpoint.max === Infinity) {
-                        {{ breakpoint.min }}+px
-                      } @else {
-                        {{ breakpoint.min }}-{{ breakpoint.max }}px
-                      }
-                    </span>
+            <header class="ctl__panel-head">Viewport preview</header>
+            <div class="ctl__panel-body vsd__preview-wrap">
+              @if (viewportInfo(); as info) {
+                <div class="vsd__preview-screen">
+                  <div
+                    class="vsd__preview-viewport"
+                    [style.aspect-ratio]="info.aspectRatio">
+                    <div class="vsd__preview-label vsd__preview-label--top">
+                      {{ info.viewportWidth }} × {{ info.viewportHeight }} px
+                    </div>
+                    <div class="vsd__preview-label vsd__preview-label--side">
+                      {{ info.aspectRatio.toFixed(2) }}:1
+                    </div>
                   </div>
-                  @if (activeBreakpoint() && activeBreakpoint()!.name === breakpoint.name) {
-                    <span class="vsd__breakpoint-active">Active</span>
-                  }
                 </div>
               }
+              <p class="vsd__note">
+                Values come from browser APIs and may differ from physical display characteristics due to zoom or scaling.
+              </p>
             </div>
           </div>
-        }
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Viewport history</header>
-          <label class="vsd__toggle">
-            <input type="checkbox" formControlName="rememberHistory" />
-            <span>Remember size changes</span>
-          </label>
-          @if (hasHistory()) {
-            <ul class="vsd__history-list">
-              @for (entry of history(); track entry.timestamp) {
-                <li>
-                  <div class="vsd__history-info">
-                    <strong>{{ entry.width }} × {{ entry.height }}px</strong>
-                    <span>{{ entry.aspectRatio.toFixed(2) }}:1 • {{ formatTimestamp(entry.timestamp) }}</span>
+          @if (activeBreakpoint(); as bp) {
+            <div class="ctl__panel">
+              <header class="ctl__panel-head">Active breakpoint</header>
+              <div class="vsd__breakpoint-display" [style.background-color]="breakpointColor(bp)">
+                <strong>{{ formatBreakpointLabel(bp) }}</strong>
+                <span>Viewport width: {{ viewportInfo()?.viewportWidth }}px</span>
+              </div>
+              <div class="vsd__breakpoints-list">
+                @for (breakpoint of breakpoints; track breakpoint.name) {
+                  <div
+                    class="vsd__breakpoint-item"
+                    [class.vsd__breakpoint-item--active]="activeBreakpoint()?.name === breakpoint.name"
+                    [style.border-color]="breakpointColor(breakpoint)">
+                    <div class="vsd__breakpoint-color" [style.background-color]="breakpointColor(breakpoint)"></div>
+                    <div class="vsd__breakpoint-info">
+                      <strong>{{ breakpoint.name }}</strong>
+                      <span>
+                        @if (isOpenEnded(breakpoint)) {
+                          {{ breakpoint.min }}+px
+                        } @else {
+                          {{ breakpoint.min }}-{{ breakpoint.max }}px
+                        }
+                      </span>
+                    </div>
+                    @if (activeBreakpoint()?.name === breakpoint.name) {
+                      <span class="vsd__breakpoint-active">Active</span>
+                    }
                   </div>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="removeHistoryEntry(entry.timestamp)"
-                    aria-label="Remove entry"
-                    appTooltip="Remove"
-                    tooltipPosition="bottom">
-                    ×
-                  </button>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Viewport history</header>
+            <label class="vsd__toggle">
+              <input type="checkbox" formControlName="rememberHistory" />
+              <span>Remember size changes</span>
+            </label>
+            @if (hasHistory()) {
+              <ul class="vsd__history-list">
+                @for (entry of history(); track entry.timestamp) {
+                  <li>
+                    <div class="vsd__history-info">
+                      <strong>{{ entry.width }} × {{ entry.height }}px</strong>
+                      <span>{{ entry.aspectRatio.toFixed(2) }}:1 • {{ formatTimestamp(entry.timestamp) }}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="ctl__icon-btn"
+                      (click)="removeHistoryEntry(entry.timestamp)"
+                      aria-label="Remove entry"
+                      appTooltip="Remove"
+                      tooltipPosition="bottom">
+                      ×
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__empty">
+                <p>Enable history to track recent viewport sizes.</p>
+              </div>
+            }
+          </div>
+
+          <div class="ctl__panel vsd__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="vsd__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="vsd__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
                 </li>
               }
             </ul>
-          } @else {
-            <div class="ctl__empty">
-              <p>Enable history to track recent viewport sizes.</p>
-            </div>
-          }
-        </div>
-      </aside>
+          </div>
+        </aside>
       </details>
     </div>
 

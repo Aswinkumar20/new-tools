@@ -1,61 +1,159 @@
 <div class="ctl md">
   <lib-navigation></lib-navigation>
+
   <main class="ctl__main">
     <div class="ctl__top">
-      <header class="ctl__header"><h1>Day of Week Finder</h1><p>Reveal the weekday and calendar insights for any date.</p></header>
+      <header class="ctl__header">
+        <h1>Day of Week Finder</h1>
+        <p>Reveal the weekday and calendar insights for any date.</p>
+      </header>
       <div class="ctl__stats" aria-label="Date statistics">
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ details()?.dayName ?? '—' }}</span><span class="ctl__stat-label">Day</span></div>
-        <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ details()?.relativeLabel ?? '—' }}</span><span class="ctl__stat-label">Relative</span></div>
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ history().length }}</span><span class="ctl__stat-label">History</span></div>
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ details()?.weekNumber ?? '—' }}</span><span class="ctl__stat-label">Week</span></div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ details()?.dayName ?? '—' }}</span>
+          <span class="ctl__stat-label">Day</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ details()?.relativeLabel ?? '—' }}</span>
+          <span class="ctl__stat-label">Relative</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ details()?.weekNumber ?? '—' }}</span>
+          <span class="ctl__stat-label">Week</span>
+        </div>
       </div>
     </div>
-    <div class="md-workflow" aria-label="Date actions"><div class="md-workflow__group md-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="presetDate('today')" appTooltip="Today" tooltipPosition="bottom" aria-label="Today"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Today</span></button>
-      <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!details()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
-      <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!hasHistory()" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+
+    <div class="md-workflow" aria-label="Date actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="presetDate('today')" appTooltip="Today" tooltipPosition="bottom" aria-label="Today">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Today</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!details()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!hasHistory()" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>Date</span></header>
           <div class="ctl__editor-body ctl__settings">
-            <label class="ctl__field" for="dt-date"><span>Date</span><input id="dt-date" type="date" formControlName="inputDate" /></label>
-            <label class="ctl__field" for="dt-timezone"><span>Time zone</span>
-              <select id="dt-timezone" formControlName="timezone">@for (zone of timezones; track zone.value) { <option [value]="zone.value">{{ zone.label }}</option> }</select>
+            <label class="ctl__field" for="dt-date">
+              <span>Date</span>
+              <input id="dt-date" type="date" formControlName="inputDate" />
             </label>
-            <label class="ctl__field" for="dt-locale"><span>Locale</span>
-              <select id="dt-locale" formControlName="locale">@for (item of locales; track item.value) { <option [value]="item.value">{{ item.label }}</option> }</select>
+            <label class="ctl__field" for="dt-timezone">
+              <span>Time zone</span>
+              <select id="dt-timezone" formControlName="timezone">
+                @for (zone of timezones; track zone.value) {
+                  <option [value]="zone.value">{{ zone.label }}</option>
+                }
+              </select>
             </label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="rememberHistory" /><div><strong>Remember lookups</strong><span>Store in session history.</span></div></label>
+            <label class="ctl__field" for="dt-locale">
+              <span>Locale</span>
+              <select id="dt-locale" formControlName="locale">
+                @for (item of locales; track item.value) {
+                  <option [value]="item.value">{{ item.label }}</option>
+                }
+              </select>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="rememberHistory" />
+              <div>
+                <strong>Remember lookups</strong>
+                <span>Store in session history.</span>
+              </div>
+            </label>
             <div class="dt__quick">
               <button type="button" class="dt__quick-btn" (click)="presetDate('tomorrow')">Tomorrow</button>
               <button type="button" class="dt__quick-btn" (click)="presetDate('yesterday')">Yesterday</button>
             </div>
           </div>
         </section>
+
         <section class="ctl__editor ctl__editor--output md-editor-panel">
-          <header class="ctl__editor-head"><span>Insights</span>
-            <div class="ctl__editor-actions">@if (details()) { <span class="ctl__editor-badge">Ready</span> }
-              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!details()" appTooltip="Copy insights" tooltipPosition="bottom" aria-label="Copy insights"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
+          <header class="ctl__editor-head">
+            <span>Insights</span>
+            <div class="ctl__editor-actions">
+              @if (details()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!details()" appTooltip="Copy insights" tooltipPosition="bottom" aria-label="Copy insights">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
           </header>
-          @if (details(); as current) {
-            <div class="ctl__editor-body dt__results">
-              <div class="dt__pill"><strong>{{ current.dayName }}</strong><span>{{ current.displayDate }}</span></div>
-              <div class="dt__grid">
-                <div><span>Status</span><strong>{{ current.isWeekend ? 'Weekend' : 'Weekday' }}</strong></div>
-                <div><span>Week</span><strong>{{ current.weekNumber }} / {{ current.isoWeekday }}</strong></div>
-                <div><span>Day of year</span><strong>{{ current.dayOfYear }} / {{ current.totalDaysInYear }}</strong></div>
-                <div><span>Season</span><strong>{{ current.seasonLabel }}</strong></div>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="dt__suggest" aria-label="Suggested next step">
+              <div class="dt__suggest-body">
+                <p class="dt__suggest-title">{{ suggestion.title }}</p>
+                <p class="dt__suggest-reason">{{ suggestion.reason }}</p>
               </div>
-              <ul class="dt__insights">@for (item of insights(); track item) { <li>{{ item }}</li> }</ul>
+              <div class="dt__suggest-actions">
+                <a class="dt__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="dt__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          @if (details(); as current) {
+            <div class="ctl__editor-body dt__results" aria-live="polite">
+              <div class="dt__pill">
+                <strong>{{ current.dayName }}</strong>
+                <span>{{ current.displayDate }}</span>
+              </div>
+              <div class="dt__grid">
+                <div>
+                  <span>Status</span>
+                  <strong>{{ current.isWeekend ? 'Weekend' : 'Weekday' }}</strong>
+                </div>
+                <div>
+                  <span>Week</span>
+                  <strong>{{ current.weekNumber }} / {{ current.isoWeekday }}</strong>
+                </div>
+                <div>
+                  <span>Day of year</span>
+                  <strong>{{ current.dayOfYear }} / {{ current.totalDaysInYear }}</strong>
+                </div>
+                <div>
+                  <span>Season</span>
+                  <strong>{{ current.seasonLabel }}</strong>
+                </div>
+              </div>
+              <ul class="dt__insights">
+                @for (item of insights(); track item) {
+                  <li>{{ item }}</li>
+                }
+              </ul>
             </div>
-          } @else { <div class="ctl__empty"><p>Choose a date to unlock day-of-week insights.</p></div> }
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Choose a date to unlock day-of-week insights.</p>
+            </div>
+          }
         </section>
       </div>
-            <details class="md-options-flyout">
+
+      <details class="md-options-flyout">
         <summary class="md-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -64,17 +162,69 @@
         </summary>
         <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Upcoming and history">
-        <div class="ctl__panel"><header class="ctl__panel-head">Upcoming</header><div class="ctl__panel-body"><div class="dt__upcoming">@for (item of upcomingWeekdays(); track item.date) {
-          <button type="button" class="dt__upcoming-item" (click)="form.patchValue({ inputDate: item.date })"><strong>{{ item.label }}</strong><span>{{ item.date }}</span></button>
-        }</div></div></div>
-        <div class="ctl__panel"><header class="ctl__panel-head"><span>History</span>
-          <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!hasHistory()" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" /></button>
-        </header><div class="ctl__panel-body">@if (hasHistory()) { <ul class="dt__history">@for (entry of history(); track entry.computedAt) {
-          <li><button type="button" class="dt__history-item" (click)="applyHistory(entry)"><strong>{{ entry.isoDate }} · {{ entry.dayName }}</strong><span>{{ entry.relativeLabel }}</span></button></li>
-        }</ul> } @else { <div class="ctl__panel-empty"><p>Enable history to build a timeline.</p></div> }</div></div>
-      </aside>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Upcoming</header>
+            <div class="ctl__panel-body">
+              <div class="dt__upcoming">
+                @for (item of upcomingWeekdays(); track item.date) {
+                  <button type="button" class="dt__upcoming-item" (click)="selectUpcomingDate(item.date)">
+                    <strong>{{ item.label }}</strong>
+                    <span>{{ item.date }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!hasHistory()" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (hasHistory()) {
+                <ul class="dt__history">
+                  @for (entry of history(); track entry.computedAt) {
+                    <li>
+                      <button type="button" class="dt__history-item" (click)="applyHistory(entry)">
+                        <strong>{{ entry.isoDate }} · {{ entry.dayName }}</strong>
+                        <span>{{ entry.relativeLabel }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Enable history to build a timeline.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body dt__related">
+              <ul class="dt__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="dt__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
-    <details class="ctl__help"><summary>How to use</summary><ul><li>Pick a date, timezone, and locale.</li><li>Use quick presets for today, tomorrow, or yesterday.</li><li>Copy insights or restore from history.</li></ul></details>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Pick a date, timezone, and locale.</li>
+        <li>Use quick presets for today, tomorrow, or yesterday.</li>
+        <li>Copy insights or restore from history.</li>
+      </ul>
+    </details>
   </main>
 </div>

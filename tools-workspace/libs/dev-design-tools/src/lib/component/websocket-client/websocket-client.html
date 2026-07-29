@@ -15,7 +15,7 @@
             [class.wsc__status--connected]="isConnected()"
             [class.wsc__status--connecting]="isConnecting()"
             [class.wsc__status--error]="hasError()">
-            {{ connectionStatus() === 'connected' ? 'Connected' : connectionStatus() === 'connecting' ? 'Connecting' : connectionStatus() === 'error' ? 'Error' : 'Disconnected' }}
+            {{ statusLabel() }}
           </span>
           <span class="ctl__stat-label">Status</span>
         </div>
@@ -93,7 +93,7 @@
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
@@ -103,13 +103,32 @@
         }
 
         @if (warnings().length) {
-          <div class="ctl__alert ctl__alert--warning">
+          <div class="ctl__alert ctl__alert--warning" role="status">
             <ul>
               @for (message of warnings(); track message) {
                 <li>{{ message }}</li>
               }
             </ul>
           </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="wsc__suggest" aria-label="Suggested next step">
+            <div class="wsc__suggest-body">
+              <p class="wsc__suggest-title">{{ suggestion.title }}</p>
+              <p class="wsc__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="wsc__suggest-actions">
+              <a class="wsc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="wsc__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
         }
 
         <div class="wsc__message-compose">
@@ -156,7 +175,7 @@
                 </div>
                 <div class="wsc__message-content">
                   @if (isJson(msg.content)) {
-                    <pre class="wsc__message-json">{{ formatMessageContent(msg.content) }}</pre>
+                    <pre class="wsc__message-json">{{ formatJsonContent(msg.content) }}</pre>
                   } @else {
                     <code class="wsc__message-text">{{ msg.content }}</code>
                   }
@@ -248,6 +267,20 @@
               <span class="ctl__info-dot"></span>
               <p>JSON messages are automatically formatted in the log.</p>
             </div>
+          </div>
+
+          <div class="ctl__panel wsc__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="wsc__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="wsc__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

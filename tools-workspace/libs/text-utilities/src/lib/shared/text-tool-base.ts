@@ -1,5 +1,6 @@
 import { OnDestroy, OnInit, HostListener, inject, ViewChild, ElementRef, Directive } from '@angular/core';
 import { AssetService, ToastService } from '@tools-workspace/features-home';
+import { tuCopyText } from './tu-clipboard.util';
 
 @Directive()
 export abstract class TextToolBase implements OnInit, OnDestroy {
@@ -15,13 +16,13 @@ export abstract class TextToolBase implements OnInit, OnDestroy {
   undoStack: string[] = [''];
   redoStack: string[] = [];
   protected isRestoringHistory = false;
-  private historyTimer: ReturnType<typeof setTimeout> | null = null;
+  protected historyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingHistoryValue = '';
 
   isReadingFile = false;
   isDragOver = false;
   readonly maxUploadBytes = 10 * 1024 * 1024;
-  private fileInput?: HTMLInputElement;
+  protected fileInput?: HTMLInputElement;
 
   get hasInput(): boolean {
     return !!this.inputText?.trim();
@@ -262,11 +263,6 @@ export abstract class TextToolBase implements OnInit, OnDestroy {
   }
 
   protected copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.info(`${label} copied to clipboard`);
-    }).catch(() => {
-      this.toastService.error('Failed to copy to clipboard');
-    });
+    void tuCopyText(this.toastService, text, label);
   }
 }

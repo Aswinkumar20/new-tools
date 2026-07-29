@@ -1,140 +1,140 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface UuidEntry {
-  value: string;
-  createdAt: number;
-}
-
-type UuidFormGroup = FormGroup<{
-  uppercase: FormControl<boolean>;
-  withBraces: FormControl<boolean>;
-  withHyphens: FormControl<boolean>;
-  count: FormControl<number>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { StRelatedToolLink } from '../../shared/st-tool-suggestion.model';
+import { stCopyText } from '../../shared/st-clipboard.util';
+import {
+  UUID_GENERATOR_DEFAULT_FORM,
+  UUID_GENERATOR_RELATED_TOOLS
+} from '../../constants/uuid-generator.constants';
+import type {
+  UuidEntry,
+  UuidGeneratorFormGroup,
+  UuidGeneratorFormValues
+} from '../../types/uuid-generator.types';
+import {
+  generateUuidEntries,
+  joinUuidValues,
+  mergeUuidHistory,
+  resolveUuidFormatLabel,
+  resolveUuidSuggestion,
+  shortenUuidDisplay
+} from '../../utils/uuid-generator.utils';
 
 @Component({
   selector: 'lib-uuid-generator',
   standalone: true,
   templateUrl: './uuid-generator.html',
   styleUrls: ['./uuid-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UuidGeneratorComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly assetService = inject(AssetService);
 
-  readonly form: UuidFormGroup = this.fb.group({
-    uppercase: this.fb.control(false, { nonNullable: true }),
-    withBraces: this.fb.control(false, { nonNullable: true }),
-    withHyphens: this.fb.control(true, { nonNullable: true }),
-    count: this.fb.control(1, { nonNullable: true })
+  readonly relatedTools: ReadonlyArray<StRelatedToolLink> = UUID_GENERATOR_RELATED_TOOLS;
+
+  readonly form: UuidGeneratorFormGroup = this.fb.group({
+    uppercase: this.fb.control(UUID_GENERATOR_DEFAULT_FORM.uppercase, { nonNullable: true }),
+    withBraces: this.fb.control(UUID_GENERATOR_DEFAULT_FORM.withBraces, { nonNullable: true }),
+    withHyphens: this.fb.control(UUID_GENERATOR_DEFAULT_FORM.withHyphens, { nonNullable: true }),
+    count: this.fb.control(UUID_GENERATOR_DEFAULT_FORM.count, { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
   readonly uuids = signal<UuidEntry[]>([]);
+  readonly formSnapshot = signal<UuidGeneratorFormValues>(this.readFormValues());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasUuids = computed(() => this.uuids().length > 0);
   readonly lastUuid = computed(() => (this.uuids().length ? this.uuids()[0].value : ''));
+  readonly allUuidsText = computed(() => joinUuidValues(this.uuids()));
+  readonly formatLabel = computed(() => resolveUuidFormatLabel(this.formSnapshot()));
+  readonly lastUuidShort = computed(() => shortenUuidDisplay(this.lastUuid()));
 
-  readonly allUuidsText = computed(() => this.uuids().map((u) => u.value).join('\n'));
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveUuidSuggestion({
+      hasUuids: this.hasUuids(),
+      uuidCount: this.uuids().length,
+      batchCount: this.formSnapshot().count,
+      withHyphens: this.formSnapshot().withHyphens,
+      errorMessage: this.errors()[0] ?? null
+    });
 
-  formatLabel(): string {
-    const { uppercase, withHyphens, withBraces } = this.form.getRawValue();
-    const parts: string[] = [];
-    if (withHyphens) parts.push('hyphen');
-    if (uppercase) parts.push('upper');
-    if (withBraces) parts.push('brace');
-    return parts.length ? parts.join('+') : 'plain';
-  }
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
-  lastUuidShort(): string {
-    const uuid = this.lastUuid();
-    if (!uuid) return '—';
-    return uuid.length > 12 ? `${uuid.slice(0, 8)}…` : uuid;
+  constructor() {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+    });
   }
 
   generate(): void {
-    this.errors.set([]);
-    const { uppercase, withBraces, withHyphens, count } = this.form.getRawValue();
-
-    if (count < 1 || count > 50) {
-      this.errors.set(['Count must be between 1 and 50.']);
+    this.dismissedSuggestionId.set(null);
+    const options = this.form.getRawValue();
+    const { entries, errors } = generateUuidEntries(options);
+    this.errors.set(errors);
+    if (errors.length) {
       return;
     }
+    this.uuids.set(mergeUuidHistory(entries, this.uuids()));
+  }
 
-    const items: UuidEntry[] = [];
-    for (let i = 0; i < count; i++) {
-      let uuid = this.createUuid();
-
-      if (!withHyphens) {
-        uuid = uuid.replace(/-/g, '');
-      }
-      if (uppercase) {
-        uuid = uuid.toUpperCase();
-      }
-      if (withBraces) {
-        uuid = `{${uuid}}`;
-      }
-
-      items.push({ value: uuid, createdAt: Date.now() });
+  async copy(value: string): Promise<void> {
+    if (!value) {
+      return;
     }
-
-    this.uuids.set([...items, ...this.uuids()].slice(0, 100));
-  }
-
-  copy(value: string): void {
-    if (!value) return;
-    navigator.clipboard.writeText(value).then(() => {
-      alert('UUID copied to clipboard!');
-    }).catch(() => {
+    const copied = await stCopyText(this.toast, value, 'UUID');
+    if (!copied) {
       this.errors.set(['Failed to copy UUID to clipboard.']);
-    });
+    }
   }
 
-  copyAll(): void {
+  async copyAll(): Promise<void> {
     const text = this.allUuidsText();
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert('All UUIDs copied to clipboard!');
-    }).catch(() => {
+    if (!text) {
+      return;
+    }
+    const copied = await stCopyText(this.toast, text, 'All UUIDs');
+    if (!copied) {
       this.errors.set(['Failed to copy UUIDs to clipboard.']);
-    });
+    }
   }
 
   clearList(): void {
     this.uuids.set([]);
     this.errors.set([]);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('UUID list cleared');
   }
 
-  formatTimestamp(timestamp: number): string {
-    return new Date(timestamp).toLocaleString();
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
-  private createUuid(): string {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return crypto.randomUUID();
-    }
-
-    const bytes = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(bytes);
-
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-    const hex = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    return [
-      hex.slice(0, 8),
-      hex.slice(8, 12),
-      hex.slice(12, 16),
-      hex.slice(16, 20),
-      hex.slice(20)
-    ].join('-');
+  private readFormValues(): UuidGeneratorFormValues {
+    return this.form.getRawValue();
   }
 }

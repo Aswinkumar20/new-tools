@@ -1,81 +1,120 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, EffectRef, inject, OnDestroy, signal, Signal, WritableSignal, effect } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
+import { RouterLink } from '@angular/router';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
+import { debounceTime } from 'rxjs';
+import {
+  PERCENTAGE_ADVANCED_OPTIONS,
+  PERCENTAGE_DEFAULT_FORM,
+  PERCENTAGE_HISTORY_LIMIT,
+  PERCENTAGE_MODES,
+  PERCENTAGE_PRESETS,
+  PERCENTAGE_RELATED_TOOLS
+} from '../../constants/percentage-calculator.constants';
+import { mdCopyText } from '../../shared/md-clipboard.util';
+import type { MdRelatedToolLink } from '../../shared/md-tool-suggestion.model';
+import type {
+  CalculationHistory,
+  CalculationResult,
+  CalculatorMode,
+  ModeDefinition,
+  PercentageCalculatorFormGroup,
+  PercentageCalculatorFormValues,
+  PresetDefinition
+} from '../../types/percentage-calculator.types';
+import {
+  computePercentage,
+  formatPercentageNumber,
+  getPercentageModeLabel,
+  mapPercentageCalculationError,
+  numberValidator,
+  resolvePercentageMode,
+  resolvePercentageSuggestion,
+  toNumber
+} from '../../utils/percentage-calculator.utils';
 
 @Component({
   selector: 'lib-percentage-calculator',
   standalone: true,
   templateUrl: './percentage-calculator.html',
   styleUrls: ['./percentage-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective]
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class PercentageCalculatorComponent implements OnDestroy {
+export class PercentageCalculatorComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
-  private readonly calculationSubscription: Subscription;
-  private readonly effectRefs: EffectRef[] = [];
 
-  readonly modes = MODES;
-  readonly presets = PRESETS;
-  readonly advancedOptions = ADVANCED_OPTIONS;
+  readonly modes = PERCENTAGE_MODES;
+  readonly presets = PERCENTAGE_PRESETS;
+  readonly advancedOptions = PERCENTAGE_ADVANCED_OPTIONS;
+  readonly relatedTools: ReadonlyArray<MdRelatedToolLink> = PERCENTAGE_RELATED_TOOLS;
 
-  readonly form = this.fb.group({
-    mode: this.fb.control<CalculatorMode>('percentageOf', { nonNullable: true }),
-    baseValue: this.fb.control('120', [Validators.required, numberValidator]),
-    percentageValue: this.fb.control('20', [Validators.required, numberValidator]),
-    resultValue: this.fb.control('24', [numberValidator]),
-    increaseDecreaseValue: this.fb.control('15', [numberValidator]),
-    decimalPlaces: this.fb.control(2, { nonNullable: true }),
-    showSteps: this.fb.control(true, { nonNullable: true }),
-    roundResult: this.fb.control(false, { nonNullable: true }),
-    includeDifference: this.fb.control(true, { nonNullable: true })
+  readonly form: PercentageCalculatorFormGroup = this.fb.group({
+    mode: this.fb.control<CalculatorMode>(PERCENTAGE_DEFAULT_FORM.mode, { nonNullable: true }),
+    baseValue: this.fb.control(PERCENTAGE_DEFAULT_FORM.baseValue, [
+      Validators.required,
+      numberValidator
+    ]),
+    percentageValue: this.fb.control(PERCENTAGE_DEFAULT_FORM.percentageValue, [
+      Validators.required,
+      numberValidator
+    ]),
+    resultValue: this.fb.control(PERCENTAGE_DEFAULT_FORM.resultValue, [numberValidator]),
+    increaseDecreaseValue: this.fb.control(PERCENTAGE_DEFAULT_FORM.increaseDecreaseValue, [
+      numberValidator
+    ]),
+    decimalPlaces: this.fb.control(PERCENTAGE_DEFAULT_FORM.decimalPlaces, { nonNullable: true }),
+    showSteps: this.fb.control(PERCENTAGE_DEFAULT_FORM.showSteps, { nonNullable: true }),
+    roundResult: this.fb.control(PERCENTAGE_DEFAULT_FORM.roundResult, { nonNullable: true }),
+    includeDifference: this.fb.control(PERCENTAGE_DEFAULT_FORM.includeDifference, {
+      nonNullable: true
+    })
   });
 
-  readonly activeMode: Signal<ModeDefinition> = computed(
-    () => this.modes.find((mode) => mode.id === this.form.get('mode')!.value) ?? MODES[0]
-  );
-
-  readonly result: WritableSignal<CalculationResult | null> = signal(null);
-  readonly history: WritableSignal<CalculationHistory[]> = signal([]);
-  readonly statusMessage = signal<string | null>(null);
+  readonly result = signal<CalculationResult | null>(null);
+  readonly history = signal<CalculationHistory[]>([]);
   readonly errorMessage = signal<string | null>(null);
-  readonly isCopied = signal(false);
+  readonly formSnapshot = signal<PercentageCalculatorFormValues>(this.readFormValues());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
+
+  readonly activeMode = computed(() => resolvePercentageMode(this.formSnapshot().mode));
 
   readonly formattedResult = computed(() => {
     const current = this.result();
     if (!current) {
       return '';
     }
-
-    const digits = this.form.get('decimalPlaces')?.value ?? 2;
-    return formatNumber(current.value, digits, this.form.get('roundResult')?.value ?? false);
+    const snapshot = this.formSnapshot();
+    return formatPercentageNumber(current.value, snapshot.decimalPlaces, snapshot.roundResult);
   });
 
   readonly differenceResult = computed(() => {
     const current = this.result();
     const difference = current?.difference;
-
     if (difference === undefined) {
       return null;
     }
-
-    const digits = this.form.get('decimalPlaces')?.value ?? 2;
-    return formatNumber(difference, digits, this.form.get('roundResult')?.value ?? false);
+    const snapshot = this.formSnapshot();
+    return formatPercentageNumber(difference, snapshot.decimalPlaces, snapshot.roundResult);
   });
 
-  readonly displaySteps = computed(() => {
-    const current = this.result();
-    return current?.steps ?? [];
-  });
+  readonly displaySteps = computed(() => this.result()?.steps ?? []);
 
   readonly chartData = computed(() => {
     const current = this.result();
     if (!current) {
       return null;
     }
-
     return {
       slices: [
         { label: 'Base', value: current.baseValue },
@@ -85,48 +124,52 @@ export class PercentageCalculatorComponent implements OnDestroy {
     };
   });
 
-  readonly requiresPercentageValue = computed(() => this.activeMode().requiredFields.includes('percentageValue'));
-  readonly requiresResultValue = computed(() => this.activeMode().requiredFields.includes('resultValue'));
-  readonly requiresIncreaseDecreaseValue = computed(() => this.activeMode().requiredFields.includes('increaseDecreaseValue'));
-  readonly requiresBaseValue = computed(() => this.activeMode().requiredFields.includes('baseValue'));
+  readonly requiresPercentageValue = computed(() =>
+    this.activeMode().requiredFields.includes('percentageValue')
+  );
+  readonly requiresResultValue = computed(() =>
+    this.activeMode().requiredFields.includes('resultValue')
+  );
+  readonly requiresIncreaseDecreaseValue = computed(() =>
+    this.activeMode().requiredFields.includes('increaseDecreaseValue')
+  );
+  readonly requiresBaseValue = computed(() =>
+    this.activeMode().requiredFields.includes('baseValue')
+  );
+
+  readonly primarySuggestion = computed(() => {
+    const current = this.result();
+    const snapshot = this.formSnapshot();
+    const suggestion = resolvePercentageSuggestion({
+      hasResult: current !== null,
+      hasError: this.errorMessage() !== null,
+      mode: snapshot.mode,
+      percentageValue: toNumber(snapshot.percentageValue),
+      baseValue: toNumber(snapshot.baseValue),
+      resultValue: toNumber(snapshot.resultValue)
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
-    this.calculationSubscription = this.form.valueChanges
-      .pipe(debounceTime(80), distinctUntilChanged())
-      .subscribe(() => this.calculate());
-
-    this.effectRefs.push(
-      effect(() => {
-        const current = this.activeMode();
-        if (!current) {
-          return;
-        }
-
-        for (const field of current.requiredFields) {
-          const control = this.form.get(field);
-          if (control) {
-            control.addValidators([Validators.required, numberValidator]);
-          }
-        }
-      })
-    );
+    this.form.valueChanges.pipe(debounceTime(80), takeUntilDestroyed()).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+      this.calculate();
+    });
 
     this.calculate();
   }
 
-  ngOnDestroy(): void {
-    this.calculationSubscription.unsubscribe();
-    for (const ref of this.effectRefs) {
-      ref.destroy();
-    }
-  }
-
   setMode(mode: CalculatorMode): void {
-    if (mode === this.form.get('mode')!.value) {
+    if (mode === this.form.controls.mode.value) {
       return;
     }
     this.form.patchValue({ mode }, { emitEvent: true });
-    this.notify(`Mode switched to ${this.activeMode().label}.`);
+    this.toast.info(`Mode switched to ${getPercentageModeLabel(mode)}.`);
   }
 
   applyPreset(preset: PresetDefinition): void {
@@ -135,37 +178,28 @@ export class PercentageCalculatorComponent implements OnDestroy {
         mode: preset.mode,
         baseValue: preset.baseValue,
         percentageValue: preset.percentageValue,
-        resultValue: preset.resultValue ?? this.form.get('resultValue')!.value,
-        increaseDecreaseValue: preset.increaseDecreaseValue ?? this.form.get('increaseDecreaseValue')!.value
+        resultValue: preset.resultValue ?? this.form.controls.resultValue.value,
+        increaseDecreaseValue:
+          preset.increaseDecreaseValue ?? this.form.controls.increaseDecreaseValue.value
       },
       { emitEvent: true }
     );
-    this.notify(`${preset.label} preset applied.`);
+    this.toast.info(`${preset.label} preset applied.`);
   }
 
   submit(): void {
     this.calculate();
-    this.notify('Calculation refreshed.');
+    this.toast.info('Calculation refreshed.');
   }
 
   clearHistory(): void {
     this.history.set([]);
-    this.notify('History cleared.');
+    this.toast.info('History cleared.');
   }
 
   resetToDefault(): void {
-    this.form.patchValue({
-      mode: 'percentageOf',
-      baseValue: '120',
-      percentageValue: '20',
-      resultValue: '24',
-      increaseDecreaseValue: '15',
-      decimalPlaces: 2,
-      showSteps: true,
-      roundResult: false,
-      includeDifference: true
-    }, { emitEvent: true });
-    this.notify('Reset to default values.');
+    this.form.patchValue({ ...PERCENTAGE_DEFAULT_FORM }, { emitEvent: true });
+    this.toast.info('Reset to default values.');
   }
 
   restoreHistory(entry: CalculationHistory): void {
@@ -183,67 +217,67 @@ export class PercentageCalculatorComponent implements OnDestroy {
       },
       { emitEvent: true }
     );
-    this.notify('History entry restored.');
+    this.toast.info('History entry restored.');
   }
 
-  copyResult(): void {
+  async copyResult(): Promise<void> {
     const value = this.formattedResult();
     if (!value) {
-      this.notify('No result to copy yet.');
+      this.toast.info('No result to copy yet.');
       return;
     }
-
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(value)
-        .then(() => {
-          this.isCopied.set(true);
-          this.notify('Result copied to clipboard.');
-        })
-        .catch(() => this.notify('Clipboard unavailable.'));
-      return;
-    }
-
-    this.notify('Clipboard unavailable in this environment.');
+    await mdCopyText(this.toast, value, 'Result');
   }
 
-  private calculate(): void {
-    const mode = this.form.get('mode')!.value ?? 'percentageOf';
-    const baseValue = toNumber(this.form.get('baseValue')!.value);
-    const percentageValue = toNumber(this.form.get('percentageValue')!.value);
-    const resultValue = toNumber(this.form.get('resultValue')!.value);
-    const increaseDecreaseValue = toNumber(this.form.get('increaseDecreaseValue')!.value);
-    const includeDifference = this.form.get('includeDifference')?.value ?? true;
-    const showSteps = this.form.get('showSteps')?.value ?? true;
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
 
+  formatDisplay(value: number, digits: number, round: boolean): string {
+    return formatPercentageNumber(value, digits, round);
+  }
+
+  getModeLabel(mode: CalculatorMode): string {
+    return getPercentageModeLabel(mode);
+  }
+
+  readonly trackMode = (_: number, mode: ModeDefinition): CalculatorMode => mode.id;
+  readonly trackPreset = (_: number, preset: PresetDefinition): string => preset.label;
+  readonly trackStep = (_: number, step: string): string => step;
+  readonly trackHistory = (_: number, entry: CalculationHistory): string =>
+    `${entry.mode}-${entry.timestamp}`;
+
+  private calculate(): void {
+    const snapshot = this.readFormValues();
     this.errorMessage.set(null);
 
     try {
-      const calculator = new PercentageCalculator();
-      const calculation = calculator.compute({
-        mode,
-        baseValue,
-        percentageValue,
-        resultValue,
-        increaseDecreaseValue,
-        includeDifference,
-        showSteps
+      const calculation = computePercentage({
+        mode: snapshot.mode,
+        baseValue: toNumber(snapshot.baseValue),
+        percentageValue: toNumber(snapshot.percentageValue),
+        resultValue: toNumber(snapshot.resultValue),
+        increaseDecreaseValue: toNumber(snapshot.increaseDecreaseValue),
+        includeDifference: snapshot.includeDifference,
+        showSteps: snapshot.showSteps
       });
 
       this.result.set(calculation);
-      this.pushHistory(calculation);
+      this.pushHistory(calculation, snapshot);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to complete calculation.';
-      this.errorMessage.set(message);
+      this.errorMessage.set(mapPercentageCalculationError(error));
       this.result.set(null);
     }
   }
 
-  private pushHistory(entry: CalculationResult): void {
+  private pushHistory(
+    entry: CalculationResult,
+    snapshot: PercentageCalculatorFormValues
+  ): void {
     const historyEntry: CalculationHistory = {
       ...entry,
-      decimalPlaces: this.form.get('decimalPlaces')?.value ?? 2,
-      roundResult: this.form.get('roundResult')?.value ?? false
+      decimalPlaces: snapshot.decimalPlaces,
+      roundResult: snapshot.roundResult
     };
 
     this.history.update((current) => {
@@ -255,270 +289,21 @@ export class PercentageCalculatorComponent implements OnDestroy {
             item.mode === historyEntry.mode
           )
       );
-      const next = [historyEntry, ...filtered];
-      return next.slice(0, 10);
+      return [historyEntry, ...filtered].slice(0, PERCENTAGE_HISTORY_LIMIT);
     });
   }
 
-  private notify(message: string): void {
-    this.statusMessage.set(message);
-    setTimeout(() => this.statusMessage.set(null), 3000);
-  }
-
-  formatDisplay(value: number, digits: number, round: boolean): string {
-    return formatNumber(value, digits, round);
-  }
-
-  getModeLabel(mode: CalculatorMode): string {
-    return this.modes.find((item) => item.id === mode)?.label ?? mode;
-  }
-
-  readonly trackMode = (_: number, mode: ModeDefinition) => mode.id;
-  readonly trackPreset = (_: number, preset: PresetDefinition) => preset.label;
-  readonly trackStep = (_: number, step: string) => step;
-  readonly trackHistory = (_: number, entry: CalculationHistory) => `${entry.mode}-${entry.timestamp}`;
-}
-
-type CalculatorMode = 'percentageOf' | 'isWhatPercent' | 'percentageChange' | 'percentageIncrease' | 'percentageDecrease';
-
-interface ModeDefinition {
-  id: CalculatorMode;
-  label: string;
-  description: string;
-  icon: string;
-  requiredFields: Array<'baseValue' | 'percentageValue' | 'resultValue' | 'increaseDecreaseValue'>;
-}
-
-interface PresetDefinition {
-  label: string;
-  mode: CalculatorMode;
-  baseValue: string;
-  percentageValue: string;
-  resultValue?: string;
-  increaseDecreaseValue?: string;
-}
-
-type AdvancedOptionId = 'roundResult' | 'includeDifference' | 'showSteps';
-
-interface AdvancedOption {
-  id: AdvancedOptionId;
-  label: string;
-  description: string;
-}
-
-interface PercentageCalculatorOptions {
-  mode: CalculatorMode;
-  baseValue: number;
-  percentageValue: number;
-  resultValue: number;
-  increaseDecreaseValue: number;
-  includeDifference: boolean;
-  showSteps: boolean;
-}
-
-interface CalculationResult extends PercentageCalculatorOptions {
-  value: number;
-  difference?: number;
-  steps?: string[];
-  timestamp: number;
-}
-
-interface CalculationHistory extends CalculationResult {
-  decimalPlaces: number;
-  roundResult: boolean;
-}
-
-const MODES: ModeDefinition[] = [
-  {
-    id: 'percentageOf',
-    label: 'Find percentage of a value',
-    description: 'e.g. 20% of 80',
-    icon: '🎯',
-    requiredFields: ['baseValue', 'percentageValue']
-  },
-  {
-    id: 'isWhatPercent',
-    label: 'What percent of',
-    description: 'e.g. 30 is what percent of 120',
-    icon: '📊',
-    requiredFields: ['baseValue', 'resultValue']
-  },
-  {
-    id: 'percentageChange',
-    label: 'Percentage change',
-    description: 'Find increase/decrease from original',
-    icon: '📈',
-    requiredFields: ['baseValue', 'resultValue']
-  },
-  {
-    id: 'percentageIncrease',
-    label: 'Percentage increase',
-    description: 'Add percentage to base value',
-    icon: '➕',
-    requiredFields: ['baseValue', 'percentageValue']
-  },
-  {
-    id: 'percentageDecrease',
-    label: 'Percentage decrease',
-    description: 'Subtract percentage from base value',
-    icon: '➖',
-    requiredFields: ['baseValue', 'percentageValue']
-  }
-];
-
-const PRESETS: PresetDefinition[] = [
-  { label: 'Sales tax (8.25%)', mode: 'percentageOf', baseValue: '89.99', percentageValue: '8.25' },
-  { label: 'Discount (25%)', mode: 'percentageDecrease', baseValue: '120', percentageValue: '25' },
-  { label: 'Tip (18%)', mode: 'percentageOf', baseValue: '56.40', percentageValue: '18' },
-  { label: 'Progress completion', mode: 'isWhatPercent', baseValue: '200', resultValue: '65', percentageValue: '0' },
-  { label: 'Salary raise', mode: 'percentageIncrease', baseValue: '65000', percentageValue: '12' }
-];
-
-const ADVANCED_OPTIONS: AdvancedOption[] = [
-  { id: 'roundResult', label: 'Round result', description: 'Round to nearest integer after applying decimal precision.' },
-  { id: 'includeDifference', label: 'Show difference', description: 'Show absolute change in addition to the percentage value.' },
-  { id: 'showSteps', label: 'Display steps', description: 'Show formula steps for the calculation.' }
-];
-
-class PercentageCalculator {
-  compute(options: PercentageCalculatorOptions): CalculationResult {
-    switch (options.mode) {
-      case 'percentageOf':
-        return this.calculatePercentageOf(options);
-      case 'isWhatPercent':
-        return this.calculateIsWhatPercent(options);
-      case 'percentageChange':
-        return this.calculatePercentageChange(options);
-      case 'percentageIncrease':
-        return this.calculatePercentageIncrease(options);
-      case 'percentageDecrease':
-        return this.calculatePercentageDecrease(options);
-      default:
-        throw new Error('Unsupported calculation mode.');
-    }
-  }
-
-  private calculatePercentageOf(options: PercentageCalculatorOptions): CalculationResult {
-    const value = (options.baseValue * options.percentageValue) / 100;
-    const difference = options.includeDifference ? value : undefined;
-
+  private readFormValues(): PercentageCalculatorFormValues {
     return {
-      ...options,
-      value,
-      difference,
-      steps: [
-        `Input: ${options.percentageValue}% of ${options.baseValue}`,
-        `Formula: (percentage ÷ 100) × base`,
-        `Calculation: (${options.percentageValue} ÷ 100) × ${options.baseValue} = ${value}`
-      ],
-      timestamp: Date.now()
+      mode: this.form.controls.mode.value,
+      baseValue: this.form.controls.baseValue.value ?? '',
+      percentageValue: this.form.controls.percentageValue.value ?? '',
+      resultValue: this.form.controls.resultValue.value ?? '',
+      increaseDecreaseValue: this.form.controls.increaseDecreaseValue.value ?? '',
+      decimalPlaces: this.form.controls.decimalPlaces.value,
+      showSteps: this.form.controls.showSteps.value,
+      roundResult: this.form.controls.roundResult.value,
+      includeDifference: this.form.controls.includeDifference.value
     };
   }
-
-  private calculateIsWhatPercent(options: PercentageCalculatorOptions): CalculationResult {
-    if (options.baseValue === 0) {
-      throw new Error('Base value cannot be zero for this calculation.');
-    }
-
-    const value = (options.resultValue / options.baseValue) * 100;
-    const difference = options.includeDifference ? options.resultValue - options.baseValue : undefined;
-
-    return {
-      ...options,
-      value,
-      difference,
-      steps: [
-        `Input: What percent is ${options.resultValue} of ${options.baseValue}?`,
-        `Formula: (result ÷ base) × 100`,
-        `Calculation: (${options.resultValue} ÷ ${options.baseValue}) × 100 = ${value}`
-      ],
-      timestamp: Date.now()
-    };
-  }
-
-  private calculatePercentageChange(options: PercentageCalculatorOptions): CalculationResult {
-    if (options.baseValue === 0) {
-      throw new Error('Original value cannot be zero for percentage change.');
-    }
-
-    const difference = options.resultValue - options.baseValue;
-    const value = (difference / options.baseValue) * 100;
-
-    return {
-      ...options,
-      value,
-      difference,
-      steps: [
-        `Input: Change from ${options.baseValue} to ${options.resultValue}`,
-        `Formula: ((new - original) ÷ original) × 100`,
-        `Calculation: ((${options.resultValue} - ${options.baseValue}) ÷ ${options.baseValue}) × 100 = ${value}`
-      ],
-      timestamp: Date.now()
-    };
-  }
-
-  private calculatePercentageIncrease(options: PercentageCalculatorOptions): CalculationResult {
-    const increase = (options.percentageValue / 100) * options.baseValue;
-    const resultValue = options.baseValue + increase;
-
-    return {
-      ...options,
-      value: resultValue,
-      difference: options.includeDifference ? increase : undefined,
-      steps: [
-        `Input: Increase ${options.baseValue} by ${options.percentageValue}%`,
-        `Increase amount: ${options.baseValue} × ${options.percentageValue}% = ${increase}`,
-        `Result: ${options.baseValue} + ${increase} = ${resultValue}`
-      ],
-      timestamp: Date.now()
-    };
-  }
-
-  private calculatePercentageDecrease(options: PercentageCalculatorOptions): CalculationResult {
-    const decrease = (options.percentageValue / 100) * options.baseValue;
-    const resultValue = options.baseValue - decrease;
-
-    return {
-      ...options,
-      value: resultValue,
-      difference: options.includeDifference ? decrease : undefined,
-      steps: [
-        `Input: Decrease ${options.baseValue} by ${options.percentageValue}%`,
-        `Decrease amount: ${options.baseValue} × ${options.percentageValue}% = ${decrease}`,
-        `Result: ${options.baseValue} - ${decrease} = ${resultValue}`
-      ],
-      timestamp: Date.now()
-    };
-  }
-}
-
-function toNumber(value: string | number | null | undefined): number {
-  if (typeof value === 'number') {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const normalised = value.split(',').join('').trim();
-    return normalised ? Number(normalised) : 0;
-  }
-
-  return 0;
-}
-
-function numberValidator(control: import('@angular/forms').AbstractControl) {
-  const value = control.value;
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? null : { number: true };
-}
-
-function formatNumber(value: number, digits: number, shouldRound: boolean): string {
-  const precisionValue = shouldRound ? Math.round(value) : Number(value.toFixed(digits));
-  return precisionValue.toLocaleString(undefined, {
-    minimumFractionDigits: shouldRound ? 0 : digits,
-    maximumFractionDigits: shouldRound ? 0 : digits
-  });
 }

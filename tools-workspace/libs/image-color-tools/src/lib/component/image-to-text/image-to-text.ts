@@ -1,161 +1,138 @@
-import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import {
+  AssetService,
+  Navigation,
+  ToastService,
+  TooltipDirective
+} from '@tools-workspace/features-home';
+import {
+  IMAGE_TO_TEXT_DEFAULT_LANGUAGE,
+  IMAGE_TO_TEXT_DEFAULT_OEM,
+  IMAGE_TO_TEXT_DEFAULT_PSM,
+  IMAGE_TO_TEXT_ERROR,
+  IMAGE_TO_TEXT_LANGUAGES,
+  IMAGE_TO_TEXT_MAX_FILE_SIZE,
+  IMAGE_TO_TEXT_PSM_OPTIONS,
+  IMAGE_TO_TEXT_RELATED_TOOLS
+} from '../../constants/image-to-text.constants';
+import { ictCopyText } from '../../shared/ict-clipboard.util';
+import { ictFormatBytes } from '../../shared/ict-format.util';
+import type { IctRelatedToolLink } from '../../shared/ict-tool-suggestion.model';
+import type {
+  ImageToTextExtractionResult,
+  ImageToTextFormGroup,
+  ImageToTextHistoryEntry
+} from '../../types/image-to-text.types';
+import {
+  buildExtractedTextFilename,
+  computeImageToTextStats,
+  createImageToTextHistoryEntry,
+  getImageToTextFallbackMessage,
+  prependImageToTextHistory,
+  resolveImageToTextLanguageName,
+  resolveImageToTextSuggestion,
+  validateImageToTextFile
+} from '../../utils/image-to-text.utils';
 
-interface TextExtractionResult {
-  text: string;
-  confidence: number;
-  words: number;
-  characters: number;
-  lines: number;
-  previewUrl: SafeUrl;
-  filename: string | null;
-  processingTime: number;
+/** Minimal Tesseract worker surface used by this tool. */
+interface TesseractWorkerLike {
+  loadLanguage(lang: string): Promise<unknown>;
+  initialize(lang: string): Promise<unknown>;
+  setParameters(params: Record<string, string>): Promise<unknown>;
+  recognize(file: File): Promise<{ data: { text?: string; confidence?: number } }>;
+  terminate(): Promise<unknown>;
 }
-
-interface HistoryEntry {
-  timestamp: number;
-  filename: string | null;
-  text: string;
-  words: number;
-  preview: string;
-}
-
-type TextFormGroup = FormGroup<{
-  language: FormControl<string>;
-  psm: FormControl<number>;
-  oem: FormControl<number>;
-  rememberHistory: FormControl<boolean>;
-}>;
-
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-const SUPPORTED_LANGUAGES = [
-  { code: 'eng', name: 'English' },
-  { code: 'spa', name: 'Spanish' },
-  { code: 'fra', name: 'French' },
-  { code: 'deu', name: 'German' },
-  { code: 'ita', name: 'Italian' },
-  { code: 'por', name: 'Portuguese' },
-  { code: 'rus', name: 'Russian' },
-  { code: 'chi_sim', name: 'Chinese (Simplified)' },
-  { code: 'jpn', name: 'Japanese' },
-  { code: 'kor', name: 'Korean' },
-  { code: 'ara', name: 'Arabic' },
-  { code: 'hin', name: 'Hindi' }
-];
-
-// PSM (Page Segmentation Mode) options
-const PSM_OPTIONS = [
-  { value: 3, label: 'Fully automatic (default)' },
-  { value: 6, label: 'Single uniform block' },
-  { value: 7, label: 'Single text line' },
-  { value: 8, label: 'Single word' },
-  { value: 11, label: 'Sparse text' },
-  { value: 12, label: 'Sparse text with OSD' }
-];
 
 @Component({
   selector: 'lib-image-to-text',
   standalone: true,
   templateUrl: './image-to-text.html',
   styleUrls: ['./image-to-text.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageToTextComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   @ViewChild('fileInput', { static: false }) fileInput!: ElementRef<HTMLInputElement>;
 
-  readonly form: TextFormGroup = this.fb.group({
-    language: this.fb.control('eng', { nonNullable: true }),
-    psm: this.fb.control(3, { nonNullable: true }),
-    oem: this.fb.control(3, { nonNullable: true }),
+  readonly form: ImageToTextFormGroup = this.fb.group({
+    language: this.fb.control(IMAGE_TO_TEXT_DEFAULT_LANGUAGE, { nonNullable: true }),
+    psm: this.fb.control(IMAGE_TO_TEXT_DEFAULT_PSM, { nonNullable: true }),
+    oem: this.fb.control(IMAGE_TO_TEXT_DEFAULT_OEM, { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly languages = SUPPORTED_LANGUAGES;
-  readonly psmOptions = PSM_OPTIONS;
-  readonly maxFileSize = MAX_FILE_SIZE;
-  
+  readonly languages = IMAGE_TO_TEXT_LANGUAGES;
+  readonly psmOptions = IMAGE_TO_TEXT_PSM_OPTIONS;
+  readonly maxFileSize = IMAGE_TO_TEXT_MAX_FILE_SIZE;
+  readonly relatedTools: ReadonlyArray<IctRelatedToolLink> = IMAGE_TO_TEXT_RELATED_TOOLS;
+
   readonly selectedFile = signal<File | null>(null);
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly result: WritableSignal<TextExtractionResult | null> = signal(null);
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly result = signal<ImageToTextExtractionResult | null>(null);
+  readonly history = signal<ImageToTextHistoryEntry[]>([]);
   readonly isProcessing = signal(false);
   readonly progress = signal(0);
   readonly dragActive = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
+  private readonly lastErrorWasOversized = signal(false);
+  private readonly tesseractUnavailable = signal(false);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
-  readonly extractedText = computed(() => this.result()?.text ?? '');
-  readonly wordCount = computed(() => this.result()?.words ?? 0);
-  readonly charCount = computed(() => this.result()?.characters ?? 0);
-  readonly currentLanguageName = computed(() => {
-    const lang = this.languages.find(l => l.code === this.form.controls.language.value);
-    return lang?.name ?? 'English';
+  readonly currentLanguageName = computed(() =>
+    resolveImageToTextLanguageName(this.form.controls.language.value, this.languages)
+  );
+
+  readonly primarySuggestion = computed(() => {
+    const current = this.result();
+    const suggestion = resolveImageToTextSuggestion({
+      hasFile: !!this.selectedFile(),
+      hasResult: current !== null,
+      hasError: this.errors().length > 0,
+      isOversizedHint: this.lastErrorWasOversized(),
+      tesseractUnavailable: this.tesseractUnavailable(),
+      emptyText: !!current && !current.text.trim(),
+      lowConfidence: !!current && current.confidence > 0 && current.confidence < 60
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
   });
 
-  private tesseractWorker: any = null;
+  private tesseractWorker: TesseractWorkerLike | null = null;
   private tesseractAvailable = false;
+  private previewObjectUrl: string | null = null;
+  private progressIntervalId: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
-    // Initialize Tesseract.js worker lazily
     this.initializeTesseract();
   }
 
   ngOnDestroy(): void {
-    // Clean up Tesseract worker to prevent memory leaks
+    this.clearProgressInterval();
+    this.revokePreviewUrl();
     this.terminateWorker();
-  }
-
-  private async terminateWorker(): Promise<void> {
-    if (this.tesseractWorker) {
-      try {
-        await this.tesseractWorker.terminate();
-        this.tesseractWorker = null;
-        this.tesseractAvailable = false;
-      } catch (error) {
-        console.warn('Error terminating Tesseract worker:', error);
-      }
-    }
-  }
-
-  private async initializeTesseract(): Promise<void> {
-    try {
-      // Dynamic import of Tesseract.js
-      const tesseractModule = await import('tesseract.js');
-      this.tesseractWorker = await tesseractModule.createWorker();
-      
-      // Load and initialize with the default language
-      const language = this.form.controls.language.value;
-      await this.tesseractWorker.loadLanguage(language);
-      await this.tesseractWorker.initialize(language);
-      
-      // Set PSM and OEM parameters
-      await this.tesseractWorker.setParameters({
-        tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
-        tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
-      });
-      
-      this.tesseractAvailable = true;
-      // Clear any previous warnings if initialization succeeds
-      this.warnings.set([]);
-      console.log('Tesseract.js initialized successfully');
-    } catch (error) {
-      console.error('Tesseract.js initialization failed:', error);
-      this.tesseractAvailable = false;
-      const errorMessage = (error as Error)?.message ?? 'Unknown error';
-      this.warnings.set([
-        `Tesseract.js OCR library not loaded: ${errorMessage}`,
-        'Please ensure tesseract.js is installed: npm install tesseract.js'
-      ]);
-    }
   }
 
   onDragOver(event: DragEvent): void {
@@ -190,19 +167,15 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
   async handleFile(file: File): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.revokePreviewUrl();
     this.result.set(null);
     this.progress.set(0);
+    this.lastErrorWasOversized.set(false);
 
-    if (!file.type.startsWith('image/')) {
-      this.errors.set(['Please select a valid image file.']);
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      this.errors.set([
-        `File size ${this.formatBytes(file.size)} exceeds the ${this.formatBytes(MAX_FILE_SIZE)} limit.`,
-        'Consider compressing the image before processing.'
-      ]);
+    const validation = validateImageToTextFile(file);
+    if (validation.errors) {
+      this.errors.set(validation.errors);
+      this.lastErrorWasOversized.set(validation.isOversized);
       return;
     }
 
@@ -213,101 +186,88 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
   async extractText(file: File): Promise<void> {
     this.isProcessing.set(true);
     this.progress.set(0);
+    this.clearProgressInterval();
 
     try {
-      // If Tesseract is not available, try to initialize it again
       if (!this.tesseractAvailable || !this.tesseractWorker) {
         this.progress.set(5);
         await this.initializeTesseract();
       }
 
       const startTime = Date.now();
-      const previewUrl = this.sanitizer.bypassSecurityTrustUrl(URL.createObjectURL(file));
+      this.revokePreviewUrl();
+      const objectUrl = URL.createObjectURL(file);
+      this.previewObjectUrl = objectUrl;
+      const previewUrl = this.sanitizer.bypassSecurityTrustUrl(objectUrl);
 
       let extractedText = '';
       let confidence = 0;
 
       if (this.tesseractAvailable && this.tesseractWorker) {
         try {
-          // Update PSM and OEM parameters before recognition
           await this.tesseractWorker.setParameters({
             tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
             tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
           });
-          
-          // Set initial progress
+
           this.progress.set(20);
-          
-          // Use Tesseract.js for OCR without logger to avoid DataCloneError
-          // The logger function cannot be cloned for Web Workers
+
+          // No logger callback — logger functions cannot be cloned for Web Workers.
           const recognizePromise = this.tesseractWorker.recognize(file);
-          
-          // Simulate progress updates during recognition
-          // OCR can take time, so we show gradual progress
+
           let currentProgress = 20;
-          const progressInterval = setInterval(() => {
+          this.progressIntervalId = setInterval(() => {
             currentProgress = Math.min(currentProgress + 3, 90);
             this.progress.set(currentProgress);
           }, 300);
-          
+
           const { data } = await recognizePromise;
-          
-          // Clear progress interval and set to 100%
-          clearInterval(progressInterval);
+
+          this.clearProgressInterval();
           this.progress.set(100);
-          
+
           extractedText = data.text || '';
           confidence = data.confidence || 0;
-          
-          // If no text was extracted, show a warning but don't fail
+
           if (!extractedText.trim()) {
-            this.warnings.set(['No text detected in the image. Try adjusting the page segmentation mode or ensure the image contains clear text.']);
+            this.warnings.set([IMAGE_TO_TEXT_ERROR.noText]);
           }
         } catch (error) {
-          console.error('Tesseract OCR failed:', error);
           const errorMessage = (error as Error)?.message ?? 'Unknown error';
           this.warnings.set([`OCR processing failed: ${errorMessage}`]);
-          extractedText = await this.basicTextExtraction(file);
+          extractedText = await this.basicTextExtraction();
         }
       } else {
-        // Fallback: Show error message
-        extractedText = await this.basicTextExtraction(file);
+        extractedText = await this.basicTextExtraction();
       }
 
       const processingTime = Date.now() - startTime;
-      const words = extractedText.trim() ? extractedText.trim().split(/\s+/).length : 0;
-      const characters = extractedText.length;
-      const lines = extractedText.trim() ? extractedText.split('\n').filter(line => line.trim()).length : 0;
+      const stats = computeImageToTextStats(extractedText);
 
-      const result: TextExtractionResult = {
+      const extractionResult: ImageToTextExtractionResult = {
         text: extractedText,
         confidence: Math.round(confidence),
-        words,
-        characters,
-        lines,
+        words: stats.words,
+        characters: stats.characters,
+        lines: stats.lines,
         previewUrl,
         filename: file.name || null,
         processingTime
       };
 
-      this.result.set(result);
+      this.result.set(extractionResult);
 
       if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(result);
+        this.addToHistory(extractionResult);
       }
     } catch (error) {
       this.errors.set([`Failed to extract text: ${(error as Error)?.message ?? 'Unknown error'}`]);
       this.result.set(null);
     } finally {
+      this.clearProgressInterval();
       this.isProcessing.set(false);
       this.progress.set(0);
     }
-  }
-
-  private async basicTextExtraction(file: File): Promise<string> {
-    // Basic fallback - just return a message
-    // In a real implementation, you might use canvas-based text detection
-    return 'Text extraction requires Tesseract.js library. Please install tesseract.js package for OCR functionality.\n\nTo install: npm install tesseract.js';
   }
 
   async copyToClipboard(): Promise<void> {
@@ -315,11 +275,9 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
     if (!current) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(current.text);
-      // Could show success toast
-    } catch (error) {
-      this.errors.set([`Unable to copy: ${(error as Error)?.message ?? 'Clipboard access denied.'}`]);
+    const ok = await ictCopyText(this.toast, current.text, 'Extracted text');
+    if (!ok) {
+      this.errors.set([`Unable to copy: ${IMAGE_TO_TEXT_ERROR.clipboardDenied}`]);
     }
   }
 
@@ -332,29 +290,32 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${current.filename?.replace(/\.[^/.]+$/, '') ?? 'extracted-text'}.txt`;
+    anchor.download = buildExtractedTextFilename(current.filename);
     anchor.click();
     URL.revokeObjectURL(url);
+    this.toast.info('Extracted text downloaded');
   }
 
   clear(): void {
+    this.revokePreviewUrl();
     this.selectedFile.set(null);
     this.result.set(null);
     this.errors.set([]);
     this.warnings.set([]);
     this.progress.set(0);
+    this.lastErrorWasOversized.set(false);
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
     }
   }
 
-  applyHistory(entry: HistoryEntry): void {
-    const result: TextExtractionResult = {
+  applyHistory(entry: ImageToTextHistoryEntry): void {
+    const result: ImageToTextExtractionResult = {
       text: entry.text,
       confidence: 0,
       words: entry.words,
       characters: entry.text.length,
-      lines: entry.text.split('\n').filter(line => line.trim()).length,
+      lines: entry.text.split('\n').filter((line) => line.trim()).length,
       previewUrl: this.sanitizer.bypassSecurityTrustUrl(entry.preview),
       filename: entry.filename,
       processingTime: 0
@@ -370,36 +331,12 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  private addToHistory(result: TextExtractionResult): void {
-    // Get the URL string from SafeUrl
-    const previewUrl = typeof result.previewUrl === 'string' 
-      ? result.previewUrl 
-      : (result.previewUrl as any)?.changingThisBreaksApplicationSecurity || '';
-    
-    const entry: HistoryEntry = {
-      timestamp: Date.now(),
-      filename: result.filename,
-      text: result.text,
-      words: result.words,
-      preview: previewUrl
-    };
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.text === entry.text && e.filename === entry.filename);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 10);
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   formatBytes(value: number): string {
-    if (value === 0) {
-      return '0 B';
-    }
-    const UNITS = ['B', 'KB', 'MB', 'GB'];
-    const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), UNITS.length - 1);
-    const scaled = value / Math.pow(1024, exponent);
-    return `${scaled.toFixed(scaled >= 10 || exponent === 0 ? 0 : 1)} ${UNITS[exponent]}`;
+    return ictFormatBytes(value);
   }
 
   async onLanguageChange(): Promise<void> {
@@ -408,18 +345,15 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
       try {
         this.isProcessing.set(true);
         this.progress.set(0);
-        
-        // Reload language
+
         await this.tesseractWorker.loadLanguage(language);
         await this.tesseractWorker.initialize(language);
-        
-        // Update parameters
+
         await this.tesseractWorker.setParameters({
           tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
           tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
         });
-        
-        // Re-extract text with new language
+
         const file = this.selectedFile();
         if (file) {
           await this.extractText(file);
@@ -434,20 +368,84 @@ export class ImageToTextComponent implements OnInit, OnDestroy {
   async onPsmChange(): Promise<void> {
     if (this.tesseractAvailable && this.tesseractWorker && this.selectedFile()) {
       try {
-        // Update PSM parameter
         await this.tesseractWorker.setParameters({
           tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
           tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
         });
-        
-        // Re-extract text with new PSM setting
+
         const file = this.selectedFile();
         if (file) {
           await this.extractText(file);
         }
       } catch (error) {
-        this.errors.set([`Failed to update settings: ${(error as Error)?.message ?? 'Unknown error'}`]);
+        this.errors.set([
+          `Failed to update settings: ${(error as Error)?.message ?? 'Unknown error'}`
+        ]);
       }
+    }
+  }
+
+  private async terminateWorker(): Promise<void> {
+    if (this.tesseractWorker) {
+      try {
+        await this.tesseractWorker.terminate();
+      } catch {
+        // Ignore terminate failures during teardown.
+      }
+      this.tesseractWorker = null;
+      this.tesseractAvailable = false;
+      this.tesseractUnavailable.set(true);
+    }
+  }
+
+  private async initializeTesseract(): Promise<void> {
+    try {
+      const tesseractModule = await import('tesseract.js');
+      this.tesseractWorker = (await tesseractModule.createWorker()) as unknown as TesseractWorkerLike;
+
+      const language = this.form.controls.language.value;
+      await this.tesseractWorker.loadLanguage(language);
+      await this.tesseractWorker.initialize(language);
+
+      await this.tesseractWorker.setParameters({
+        tessedit_pageseg_mode: this.form.controls.psm.value.toString(),
+        tessedit_ocr_engine_mode: this.form.controls.oem.value.toString()
+      });
+
+      this.tesseractAvailable = true;
+      this.tesseractUnavailable.set(false);
+      this.warnings.set([]);
+    } catch (error) {
+      this.tesseractAvailable = false;
+      this.tesseractUnavailable.set(true);
+      const errorMessage = (error as Error)?.message ?? 'Unknown error';
+      this.warnings.set([
+        `Tesseract.js OCR library not loaded: ${errorMessage}`,
+        'Please ensure tesseract.js is installed: npm install tesseract.js'
+      ]);
+    }
+  }
+
+  private async basicTextExtraction(): Promise<string> {
+    return getImageToTextFallbackMessage();
+  }
+
+  private addToHistory(result: ImageToTextExtractionResult): void {
+    const entry = createImageToTextHistoryEntry(result);
+    this.history.update((entries) => prependImageToTextHistory(entries, entry));
+  }
+
+  private revokePreviewUrl(): void {
+    if (this.previewObjectUrl) {
+      URL.revokeObjectURL(this.previewObjectUrl);
+      this.previewObjectUrl = null;
+    }
+  }
+
+  private clearProgressInterval(): void {
+    if (this.progressIntervalId !== null) {
+      clearInterval(this.progressIntervalId);
+      this.progressIntervalId = null;
     }
   }
 }

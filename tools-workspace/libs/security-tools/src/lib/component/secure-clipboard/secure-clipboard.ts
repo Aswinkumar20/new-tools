@@ -1,178 +1,204 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface ClipboardState {
-  stored: string | null;
-  expiresAt: number | null;
-}
-
-type SecureClipboardFormGroup = FormGroup<{
-  text: FormControl<string>;
-  password: FormControl<string>;
-  ttlSeconds: FormControl<number>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { StRelatedToolLink } from '../../shared/st-tool-suggestion.model';
+import { stCopyText } from '../../shared/st-clipboard.util';
+import { stEncryptAesGcm } from '../../shared/st-aes-gcm.util';
+import {
+  SECURE_CLIPBOARD_DEFAULT_FORM,
+  SECURE_CLIPBOARD_EMPTY_STATE,
+  SECURE_CLIPBOARD_EXPIRED_WARNING,
+  SECURE_CLIPBOARD_RELATED_TOOLS,
+  SECURE_CLIPBOARD_STORED_WARNING,
+  SECURE_CLIPBOARD_TIMER_MS
+} from '../../constants/secure-clipboard.constants';
+import type {
+  SecureClipboardFormGroup,
+  SecureClipboardFormValues,
+  SecureClipboardState
+} from '../../types/secure-clipboard.types';
+import {
+  computeSecureClipboardRemainingSeconds,
+  formatSecureClipboardExpiresAt,
+  isSecureClipboardExpired,
+  mapSecureClipboardError,
+  resolveSecureClipboardStatusLabel,
+  resolveSecureClipboardSuggestion,
+  validateSecureClipboardStore
+} from '../../utils/secure-clipboard.utils';
 
 @Component({
   selector: 'lib-secure-clipboard',
   standalone: true,
   templateUrl: './secure-clipboard.html',
   styleUrls: ['./secure-clipboard.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SecureClipboardComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   private intervalId: number | null = null;
   readonly assetService = inject(AssetService);
 
+  readonly relatedTools: ReadonlyArray<StRelatedToolLink> = SECURE_CLIPBOARD_RELATED_TOOLS;
+
   readonly form: SecureClipboardFormGroup = this.fb.group({
-    text: this.fb.control('', { nonNullable: true }),
-    password: this.fb.control('', { nonNullable: true }),
-    ttlSeconds: this.fb.control(60, { nonNullable: true })
+    text: this.fb.control(SECURE_CLIPBOARD_DEFAULT_FORM.text, { nonNullable: true }),
+    password: this.fb.control(SECURE_CLIPBOARD_DEFAULT_FORM.password, { nonNullable: true }),
+    ttlSeconds: this.fb.control(SECURE_CLIPBOARD_DEFAULT_FORM.ttlSeconds, {
+      nonNullable: true
+    })
   });
 
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly state = signal<ClipboardState>({ stored: null, expiresAt: null });
+  readonly state = signal<SecureClipboardState>({ ...SECURE_CLIPBOARD_EMPTY_STATE });
+  readonly formSnapshot = signal<SecureClipboardFormValues>(this.readFormValues());
+  /** Drives remaining-seconds recompute under OnPush without changing TTL rules. */
+  private readonly nowMs = signal(Date.now());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasStored = computed(() => this.state().stored !== null);
-  readonly isExpired = computed(() => {
-    const expiresAt = this.state().expiresAt;
-    if (!expiresAt) return false;
-    return Date.now() >= expiresAt;
-  });
-  readonly remainingSeconds = computed(() => {
-    const expiresAt = this.state().expiresAt;
-    if (!expiresAt) return 0;
-    const diff = Math.max(0, expiresAt - Date.now());
-    return Math.floor(diff / 1000);
-  });
+
+  readonly isExpired = computed(() =>
+    isSecureClipboardExpired(this.state().expiresAt, this.nowMs())
+  );
+
+  readonly remainingSeconds = computed(() =>
+    computeSecureClipboardRemainingSeconds(this.state().expiresAt, this.nowMs())
+  );
 
   readonly canStore = computed(() => {
-    return !!this.form.controls.text.value.trim() && !!this.form.controls.password.value;
+    const { text, password } = this.formSnapshot();
+    return !!text.trim() && !!password;
+  });
+
+  readonly hasText = computed(() => !!this.formSnapshot().text);
+
+  readonly statusLabel = computed(() =>
+    resolveSecureClipboardStatusLabel(this.hasStored(), this.isExpired())
+  );
+
+  readonly expiresAtLabel = computed(() =>
+    formatSecureClipboardExpiresAt(this.state().expiresAt)
+  );
+
+  readonly primarySuggestion = computed(() => {
+    const snapshot = this.formSnapshot();
+    const suggestion = resolveSecureClipboardSuggestion({
+      hasText: !!snapshot.text.trim(),
+      hasPassword: !!snapshot.password,
+      hasStored: this.hasStored(),
+      isActive: this.hasStored() && !this.isExpired(),
+      ttlSeconds: snapshot.ttlSeconds,
+      errorMessage: this.errors()[0] ?? null,
+      warningMessage: this.warnings()[0] ?? null
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
   });
 
   constructor() {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+    });
     this.startTimer();
   }
 
   ngOnDestroy(): void {
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-    }
-  }
-
-  statusLabel(): string {
-    if (!this.hasStored()) return 'Empty';
-    return this.isExpired() ? 'Expired' : 'Active';
+    this.stopTimer();
   }
 
   async copyToSecureClipboard(): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
 
     const { text, password, ttlSeconds } = this.form.getRawValue();
-
-    if (!text.trim()) {
-      this.errors.set(['Enter some text to copy to the secure clipboard.']);
-      return;
-    }
-    if (!password) {
-      this.errors.set(['Enter a password to encrypt the clipboard content.']);
-      return;
-    }
-    if (ttlSeconds <= 0) {
-      this.errors.set(['Time to live must be greater than 0 seconds.']);
+    const validationErrors = validateSecureClipboardStore(text, password, ttlSeconds);
+    if (validationErrors.length) {
+      this.errors.set(validationErrors);
       return;
     }
 
     try {
-      const encrypted = await this.encrypt(text, password);
+      const encrypted = await stEncryptAesGcm(text, password);
       const expiresAt = Date.now() + ttlSeconds * 1000;
       this.state.set({ stored: encrypted, expiresAt });
+      this.nowMs.set(Date.now());
 
       await navigator.clipboard.writeText(text);
-      this.warnings.set([
-        'Text copied to system clipboard and encrypted in memory. It will clear when the timer ends.'
-      ]);
+      this.warnings.set([SECURE_CLIPBOARD_STORED_WARNING]);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error while copying or encrypting.';
-      this.errors.set([`Failed to use secure clipboard: ${msg}`]);
+      this.errors.set([mapSecureClipboardError(e)]);
     }
   }
 
   clearClipboard(): void {
-    this.state.set({ stored: null, expiresAt: null });
+    this.state.set({ ...SECURE_CLIPBOARD_EMPTY_STATE });
     this.errors.set([]);
     this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('Secure store cleared');
   }
 
   clearText(): void {
     this.form.controls.text.setValue('');
+    this.toast.info('Text cleared');
   }
 
-  copyText(): void {
+  async copyText(): Promise<void> {
     const text = this.form.controls.text.value;
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert('Text copied to clipboard!');
-    });
+    if (!text) {
+      return;
+    }
+    await stCopyText(this.toast, text, 'Text');
   }
 
-  formatExpiresAt(): string {
-    const expiresAt = this.state().expiresAt;
-    if (!expiresAt) return 'N/A';
-    return new Date(expiresAt).toLocaleTimeString();
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   private startTimer(): void {
     this.intervalId = window.setInterval(() => {
+      this.nowMs.set(Date.now());
       const current = this.state();
       if (current.expiresAt && Date.now() >= current.expiresAt) {
-        this.state.set({ stored: null, expiresAt: null });
-        this.warnings.set(['Secure clipboard content has expired and was cleared.']);
+        this.state.set({ ...SECURE_CLIPBOARD_EMPTY_STATE });
+        this.warnings.set([SECURE_CLIPBOARD_EXPIRED_WARNING]);
       }
-    }, 1000);
+    }, SECURE_CLIPBOARD_TIMER_MS);
   }
 
-  private async encrypt(plainText: string, password: string): Promise<string> {
-    const enc = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+  private stopTimer(): void {
+    if (this.intervalId !== null) {
+      window.clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
 
-    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, [
-      'deriveKey'
-    ]);
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-
-    const cipherBuffer = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv
-      },
-      key,
-      enc.encode(plainText)
-    );
-
-    const combined = new Uint8Array(salt.length + iv.length + cipherBuffer.byteLength);
-    combined.set(salt, 0);
-    combined.set(iv, salt.length);
-    combined.set(new Uint8Array(cipherBuffer), salt.length + iv.length);
-
-    return btoa(String.fromCharCode(...combined));
+  private readFormValues(): SecureClipboardFormValues {
+    return this.form.getRawValue();
   }
 }

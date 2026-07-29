@@ -72,11 +72,25 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="htj__suggest" aria-label="Suggested next step">
+              <div class="htj__suggest-body">
+                <p class="htj__suggest-title">{{ suggestion.title }}</p>
+                <p class="htj__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="htj__suggest-actions">
+                <a class="htj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="htj__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
             </div>
-            <textarea class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="htmlInput" (ngModelChange)="onHtmlInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder="&lt;table&gt;…&lt;/table&gt;" #htmlTextarea></textarea>
+            <textarea class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="htmlInput" (ngModelChange)="onHtmlInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder="&lt;table&gt;…&lt;/table&gt;"></textarea>
           </div>
         </section>
 
@@ -93,14 +107,14 @@
             </div>
           </header>
           @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
           }
           @if (resultOutput && conversionStatus.status !== 'error') {
             <div class="ctl__editor-wrap">
               <div class="ctl__line-numbers" #outputLineNumbers aria-hidden="true">
                 <span *ngFor="let line of resultLines" class="ctl__line-number">{{ line }}</span>
               </div>
-              <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="resultOutput" (scroll)="onResultsScroll($event)" rows="1" #resultsTextarea></textarea>
+              <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="resultOutput" (scroll)="onResultsScroll($event)" rows="1" aria-label="JSON conversion result"></textarea>
             </div>
           } @else if (conversionStatus.status !== 'error') {
             <div class="ctl__empty"><p>Run a conversion to inspect the JSON output here.</p></div>
@@ -108,7 +122,7 @@
         </section>
       </div>
 
-            <details class="dc-options-flyout">
+      <details class="dc-options-flyout">
         <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -117,35 +131,51 @@
         </summary>
         <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Table options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Detection</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="selectionMode">
-              <span>Table mode</span>
-              <select id="selectionMode" [(ngModel)]="selectionMode" (ngModelChange)="onSelectionModeChange($event)">
-                <option *ngFor="let mode of selectionModes" [value]="mode.id">{{ mode.label }}</option>
-              </select>
-            </label>
-            @if (selectionMode === 'custom') {
-              <label class="ctl__field" for="selectorInput">
-                <span>CSS selector</span>
-                <input id="selectorInput" type="text" [(ngModel)]="customSelector" placeholder=".pricing-table" />
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Detection</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="selectionMode">
+                <span>Table mode</span>
+                <select id="selectionMode" [(ngModel)]="selectionMode" (ngModelChange)="onSelectionModeChange($event)">
+                  <option *ngFor="let mode of selectionModes" [value]="mode.id">{{ mode.label }}</option>
+                </select>
               </label>
-            }
-            @if (selectionMode !== 'body') {
-              <label class="ctl__field" for="headerRows">
-                <span>Header rows</span>
-                <input id="headerRows" type="number" min="0" max="10" step="1" [(ngModel)]="headerRows" />
-              </label>
-            }
-            <label class="ctl__toggle"><input type="checkbox" [checked]="trimCells" (change)="toggleTrimCells()" /><div><strong>Trim cells</strong><span>Strip whitespace in cells.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="includeEmptyCells" (change)="toggleIncludeEmptyCells()" /><div><strong>Empty cells</strong><span>Keep empty cell values.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="compactArrays" (change)="toggleCompactArrays()" /><div><strong>Compact arrays</strong><span>Use arrays when headers missing.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="detectNumbers" (change)="toggleDetectNumbers()" /><div><strong>Detect numbers</strong><span>Coerce numeric strings.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="detectDates" (change)="toggleDetectDates()" /><div><strong>Detect dates</strong><span>Parse ISO date strings.</span></div></label>
+              @if (selectionMode === 'custom') {
+                <label class="ctl__field" for="selectorInput">
+                  <span>CSS selector</span>
+                  <input id="selectorInput" type="text" [(ngModel)]="customSelector" placeholder=".pricing-table" />
+                </label>
+              }
+              @if (selectionMode !== 'body') {
+                <label class="ctl__field" for="headerRows">
+                  <span>Header rows</span>
+                  <input id="headerRows" type="number" min="0" max="10" step="1" [(ngModel)]="headerRows" />
+                </label>
+              }
+              <label class="ctl__toggle"><input type="checkbox" [checked]="trimCells" (change)="toggleTrimCells()" /><div><strong>Trim cells</strong><span>Strip whitespace in cells.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" [checked]="includeEmptyCells" (change)="toggleIncludeEmptyCells()" /><div><strong>Empty cells</strong><span>Keep empty cell values.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" [checked]="compactArrays" (change)="toggleCompactArrays()" /><div><strong>Compact arrays</strong><span>Use arrays when headers missing.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" [checked]="detectNumbers" (change)="toggleDetectNumbers()" /><div><strong>Detect numbers</strong><span>Coerce numeric strings.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" [checked]="detectDates" (change)="toggleDetectDates()" /><div><strong>Detect dates</strong><span>Parse ISO date strings.</span></div></label>
+            </div>
           </div>
-        </div>
-      </aside>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head"><span>Related tools</span></header>
+            <div class="ctl__panel-body htj__related">
+              <ul class="htj__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="htj__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 

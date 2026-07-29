@@ -10,11 +10,11 @@
 
       <div class="ctl__stats" aria-label="Orientation statistics">
         <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ supported ? 'Yes' : 'No' }}</span>
+          <span class="ctl__stat-value">{{ isSupported() ? 'Yes' : 'No' }}</span>
           <span class="ctl__stat-label">Support</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ listening() ? 'Active' : 'Stopped' }}</span>
+          <span class="ctl__stat-value">{{ isListening() ? 'Active' : 'Stopped' }}</span>
           <span class="ctl__stat-label">Listening</span>
         </div>
         <div class="ctl__stat">
@@ -28,70 +28,93 @@
       </div>
     </div>
 
-    <div class="bu-workflow" aria-label="Orientation actions"><div class="bu-workflow__group bu-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="start()"
-        [disabled]="!supported || listening()"
-        aria-label="Start logging"
-        appTooltip="Start logging"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span class="ctl__tool-btn-label">Start</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="stop()"
-        [disabled]="!listening()"
-        aria-label="Stop logging"
-        appTooltip="Stop logging"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="6" width="12" height="12"/></svg>
-        <span class="ctl__tool-btn-label">Stop</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="copyLatest()"
-        [disabled]="!samples().length"
-        aria-label="Copy latest sample"
-        appTooltip="Copy latest sample"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        [disabled]="!samples().length"
-        aria-label="Clear samples"
-        appTooltip="Clear samples"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="bu-workflow" aria-label="Orientation actions">
+      <div class="bu-workflow__group bu-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="start()"
+          [disabled]="!isSupported() || isListening()"
+          aria-label="Start logging"
+          appTooltip="Start logging"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span class="ctl__tool-btn-label">Start</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="stop()"
+          [disabled]="!isListening()"
+          aria-label="Stop logging"
+          appTooltip="Stop logging"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="6" width="12" height="12"/></svg>
+          <span class="ctl__tool-btn-label">Stop</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyLatest()"
+          [disabled]="!hasSamples()"
+          aria-label="Copy latest sample"
+          appTooltip="Copy latest sample"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasSamples()"
+          aria-label="Clear samples"
+          appTooltip="Clear samples"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--viewer">
       <section class="ctl__editor bu-viewer-panel">
         <header class="ctl__editor-head">
           <span>Latest reading</span>
-          @if (listening()) {
+          @if (isListening()) {
             <span class="ctl__editor-badge">Live</span>
+          } @else if (hasSamples()) {
+            <span class="ctl__editor-badge">Paused</span>
           }
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
               }
             </ul>
           </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="dol__suggest" aria-label="Suggested next step">
+            <div class="dol__suggest-body">
+              <p class="dol__suggest-title">{{ suggestion.title }}</p>
+              <p class="dol__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="dol__suggest-actions">
+              <a class="dol__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="dol__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
         }
 
         @if (latestSample(); as sample) {
@@ -121,7 +144,7 @@
         }
       </section>
 
-            <details class="bu-options-flyout">
+      <details class="bu-options-flyout">
         <summary class="bu-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -130,73 +153,107 @@
         </summary>
         <button type="button" class="bu-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar bu-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Orientation stream">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>Stream ({{ samples().length }})</span>
-            @if (samples().length) {
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyAllSamples()"
-                aria-label="Copy all samples"
-                appTooltip="Copy all samples"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            }
-          </header>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Stream ({{ samples().length }})</span>
+              @if (hasSamples()) {
+                <div class="dol__panel-actions">
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="copyAllSamples()"
+                    aria-label="Copy all samples"
+                    appTooltip="Copy all samples"
+                    tooltipPosition="bottom">
+                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                  </button>
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="downloadSamples()"
+                    aria-label="Download samples JSON"
+                    appTooltip="Download samples JSON"
+                    tooltipPosition="bottom">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </button>
+                </div>
+              }
+            </header>
 
-          @if (samples().length) {
-            <div class="ctl__panel-body dol__stream">
-              <ul class="dol__list">
-                @for (sample of samples(); track sample.timestamp) {
-                  <li class="dol__item">
-                    <div class="dol__item-header">
-                      <span>{{ formatTimestamp(sample.timestamp) }}</span>
-                      <span class="dol__item-absolute">{{ sample.absolute ? 'Absolute' : 'Relative' }}</span>
-                    </div>
-                    <div class="dol__value-grid dol__value-grid--compact">
-                      <div class="dol__value">
-                        <span class="dol__value-label">α</span>
-                        <strong>{{ formatAngle(sample.alpha) }}</strong>
+            @if (hasSamples()) {
+              <div class="ctl__panel-body dol__stream">
+                <ul class="dol__list">
+                  @for (sample of samples(); track sample.timestamp) {
+                    <li class="dol__item">
+                      <div class="dol__item-header">
+                        <span>{{ formatTimestamp(sample.timestamp) }}</span>
+                        <span class="dol__item-absolute">{{ sample.absolute ? 'Absolute' : 'Relative' }}</span>
                       </div>
-                      <div class="dol__value">
-                        <span class="dol__value-label">β</span>
-                        <strong>{{ formatAngle(sample.beta) }}</strong>
+                      <div class="dol__value-grid dol__value-grid--compact">
+                        <div class="dol__value">
+                          <span class="dol__value-label">α</span>
+                          <strong>{{ formatAngle(sample.alpha) }}</strong>
+                        </div>
+                        <div class="dol__value">
+                          <span class="dol__value-label">β</span>
+                          <strong>{{ formatAngle(sample.beta) }}</strong>
+                        </div>
+                        <div class="dol__value">
+                          <span class="dol__value-label">γ</span>
+                          <strong>{{ formatAngle(sample.gamma) }}</strong>
+                        </div>
                       </div>
-                      <div class="dol__value">
-                        <span class="dol__value-label">γ</span>
-                        <strong>{{ formatAngle(sample.gamma) }}</strong>
-                      </div>
-                    </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <div class="ctl__panel-empty">
+                <p>Orientation samples will appear here (up to {{ sampleLimit }}).</p>
+              </div>
+            }
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body dol__related">
+              <ul class="dol__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="dol__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
             </div>
-          } @else {
-            <div class="ctl__panel-empty">
-              <p>Orientation samples will appear here (up to 50).</p>
-            </div>
-          }
-        </div>
-
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>iOS may prompt for <strong>motion permission</strong> before logging starts.</p>
           </div>
-        </div>
-      </aside>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>iOS may prompt for <strong>motion permission</strong> before logging starts.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Updates run <strong>locally</strong> on this device — nothing is uploaded.</p>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Use a mobile device with orientation:orientation support for best results.</li>
+        <li>Use a mobile device with DeviceOrientation support for best results.</li>
         <li>Tap <strong>Start</strong> and grant permission if prompted.</li>
         <li>Rotate or tilt the device to generate alpha, beta, and gamma readings.</li>
-        <li>Copy the latest sample or the full stream for debugging.</li>
+        <li>Copy the latest sample, the full stream, or download JSON for debugging.</li>
+        <li>Follow the suggested next tool to complete a device QA workflow.</li>
       </ul>
     </details>
   </main>

@@ -1,8 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 import { WordWrapUnwrapComponent } from './word-wrap-unwrap';
-import { AssetService, ToastService } from '@tools-workspace/features-home';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 
 describe('WordWrapUnwrapComponent', () => {
   let component: WordWrapUnwrapComponent;
@@ -11,12 +10,7 @@ describe('WordWrapUnwrapComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [WordWrapUnwrapComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
-        { provide: ToastService, useValue: { info: jest.fn(), error: jest.fn() } },
-      ],
+      providers: [...textToolTestProviders(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(WordWrapUnwrapComponent);
@@ -24,8 +18,10 @@ describe('WordWrapUnwrapComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create with get-started suggestion and related tools', () => {
     expect(component).toBeTruthy();
+    expect(component.primarySuggestion?.id).toBe('wwu-get-started');
+    expect(component.relatedTools.length).toBeGreaterThan(0);
   });
 
   it('wraps text at column width', () => {
@@ -35,6 +31,7 @@ describe('WordWrapUnwrapComponent', () => {
     component.onInputChange();
     expect(component.outputText).toContain('\n');
     expect(component.hasOutput).toBe(true);
+    expect(component.primarySuggestion?.id).toBe('wwu-wrapped');
   });
 
   it('unwraps hard line breaks', () => {
@@ -42,5 +39,29 @@ describe('WordWrapUnwrapComponent', () => {
     component.inputText = 'hello\nworld';
     component.onInputChange();
     expect(component.outputText).toBe('hello world');
+    expect(component.primarySuggestion?.id).toBe('wwu-unwrapped');
+  });
+
+  it('suggests already-short when lines fit the width', () => {
+    component.setMode('wrap');
+    component.wrapWidth = 80;
+    component.inputText = 'short line';
+    component.onInputChange();
+    expect(component.primarySuggestion?.id).toBe('wwu-already-short');
+  });
+
+  it('clamps wrap width on change', () => {
+    component.wrapWidth = 999;
+    component.onWrapWidthChange();
+    expect(component.wrapWidth).toBe(500);
+  });
+
+  it('dismisses contextual suggestions', () => {
+    const suggestion = component.primarySuggestion;
+    expect(suggestion).toBeTruthy();
+    if (suggestion) {
+      component.dismissSuggestion(suggestion.id);
+      expect(component.primarySuggestion).toBeNull();
+    }
   });
 });

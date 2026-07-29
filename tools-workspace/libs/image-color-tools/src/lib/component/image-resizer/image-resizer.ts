@@ -1,110 +1,123 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
-import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-interface ResizePreset {
-  label: string;
-  description: string;
-  width: number;
-  height: number;
-  lockAspect: boolean;
-}
-
-interface ResizeOptions {
-  width: number;
-  height: number;
-  keepAspect: boolean;
-  interpolation: 'pixelated' | 'smooth';
-  background: string | null;
-  format: 'image/png' | 'image/jpeg' | 'image/webp';
-  quality: number;
-}
-
-interface ResizeResult {
-  originalName: string | null;
-  originalSize: number;
-  originalDimensions: { width: number; height: number };
-  resizedSize: number;
-  resizedDimensions: { width: number; height: number };
-  ratioChange: number;
-  previewUrl: SafeUrl;
-  downloadUrl: string;
-  format: ResizeOptions['format'];
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  name: string | null;
-  originalDimensions: string;
-  resizedDimensions: string;
-  format: string;
-  sizeDiff: string;
-}
-
-type ResizeFormGroup = FormGroup<{
-  width: FormControl<number | null>;
-  height: FormControl<number | null>;
-  keepAspect: FormControl<boolean>;
-  interpolation: FormControl<'pixelated' | 'smooth'>;
-  background: FormControl<string | null>;
-  format: FormControl<'image/png' | 'image/jpeg' | 'image/webp'>;
-  quality: FormControl<number>;
-  rememberHistory: FormControl<boolean>;
-}>;
-
-const PRESETS: ResizePreset[] = [
-  { label: '1080p HD', description: '1920 × 1080', width: 1920, height: 1080, lockAspect: true },
-  { label: 'Instagram Post', description: '1080 × 1080', width: 1080, height: 1080, lockAspect: true },
-  { label: 'Instagram Story', description: '1080 × 1920', width: 1080, height: 1920, lockAspect: true },
-  { label: 'Twitter Header', description: '1500 × 500', width: 1500, height: 500, lockAspect: true },
-  { label: 'YouTube Thumbnail', description: '1280 × 720', width: 1280, height: 720, lockAspect: true },
-  { label: 'Favicon', description: '64 × 64', width: 64, height: 64, lockAspect: false }
-];
-
-const MAX_DIMENSION = 8000;
-const MAX_FILE_SIZE = 35 * 1024 * 1024;
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import {
+  AssetService,
+  Navigation,
+  ToastService,
+  TooltipDirective
+} from '@tools-workspace/features-home';
+import {
+  IMAGE_RESIZER_DEFAULT_QUALITY,
+  IMAGE_RESIZER_ERROR,
+  IMAGE_RESIZER_MAX_DIMENSION,
+  IMAGE_RESIZER_MAX_FILE_SIZE,
+  IMAGE_RESIZER_PRESETS,
+  IMAGE_RESIZER_RELATED_TOOLS
+} from '../../constants/image-resizer.constants';
+import { ictFormatBytes } from '../../shared/ict-format.util';
+import type { IctRelatedToolLink } from '../../shared/ict-tool-suggestion.model';
+import type {
+  ImageResizePreset,
+  ImageResizeResult,
+  ImageResizerFormGroup,
+  ImageResizerFormat,
+  ImageResizerHistoryEntry,
+  ImageResizerInterpolation
+} from '../../types/image-resizer.types';
+import {
+  buildImageResizeOptions,
+  buildResizedFilename,
+  canvasToResizerBlob,
+  createImageResizerHistoryEntry,
+  prependImageResizerHistory,
+  renderResizerCanvas,
+  resolveImageResizerSuggestion,
+  syncImageResizerAspect,
+  validateImageResizerFile
+} from '../../utils/image-resizer.utils';
 
 @Component({
   selector: 'lib-image-resizer',
   standalone: true,
   templateUrl: './image-resizer.html',
   styleUrls: ['./image-resizer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ImageResizerComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
-  readonly form: ResizeFormGroup = this.fb.group({
-    width: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(MAX_DIMENSION)]),
-    height: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(MAX_DIMENSION)]),
+  readonly form: ImageResizerFormGroup = this.fb.group({
+    width: this.fb.control<number | null>(null, [
+      Validators.min(1),
+      Validators.max(IMAGE_RESIZER_MAX_DIMENSION)
+    ]),
+    height: this.fb.control<number | null>(null, [
+      Validators.min(1),
+      Validators.max(IMAGE_RESIZER_MAX_DIMENSION)
+    ]),
     keepAspect: this.fb.control<boolean>(true, { nonNullable: true }),
-    interpolation: this.fb.control<'pixelated' | 'smooth'>('smooth', { nonNullable: true }),
+    interpolation: this.fb.control<ImageResizerInterpolation>('smooth', { nonNullable: true }),
     background: this.fb.control<string | null>(null),
-    format: this.fb.control<'image/png' | 'image/jpeg' | 'image/webp'>('image/png', { nonNullable: true }),
-    quality: this.fb.control<number>(0.92, { nonNullable: true, validators: [Validators.min(0.1), Validators.max(1)] }),
+    format: this.fb.control<ImageResizerFormat>('image/png', { nonNullable: true }),
+    quality: this.fb.control<number>(IMAGE_RESIZER_DEFAULT_QUALITY, {
+      nonNullable: true,
+      validators: [Validators.min(0.1), Validators.max(1)]
+    }),
     rememberHistory: this.fb.control<boolean>(true, { nonNullable: true })
   });
 
-  readonly presets = PRESETS;
+  readonly presets = IMAGE_RESIZER_PRESETS;
+  readonly relatedTools: ReadonlyArray<IctRelatedToolLink> = IMAGE_RESIZER_RELATED_TOOLS;
+  readonly maxFileSize = IMAGE_RESIZER_MAX_FILE_SIZE;
+
   readonly selectedFile = signal<File | null>(null);
   readonly originalImage = signal<HTMLImageElement | null>(null);
   readonly previewUrl = signal<SafeUrl | null>(null);
-  readonly result: WritableSignal<ResizeResult | null> = signal(null);
+  readonly result = signal<ImageResizeResult | null>(null);
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly isProcessing = signal(false);
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly history = signal<ImageResizerHistoryEntry[]>([]);
   readonly dragActive = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
+  private readonly lastErrorWasOversized = signal(false);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly canResize = computed(() => !!this.selectedFile() && !!this.originalImage());
+
+  readonly primarySuggestion = computed(() => {
+    const current = this.result();
+    const suggestion = resolveImageResizerSuggestion({
+      hasFile: !!this.selectedFile(),
+      hasResult: current !== null,
+      hasError: this.errors().length > 0,
+      isOversizedHint: this.lastErrorWasOversized(),
+      targetWidth: this.form.controls.width.value,
+      targetHeight: this.form.controls.height.value,
+      resizedWidth: current?.resizedDimensions.width ?? null,
+      resizedHeight: current?.resizedDimensions.height ?? null
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((value) => {
@@ -142,7 +155,7 @@ export class ImageResizerComponent {
     }
   }
 
-  applyPreset(preset: ResizePreset): void {
+  applyPreset(preset: ImageResizePreset): void {
     this.form.patchValue({
       width: preset.width,
       height: preset.height,
@@ -156,17 +169,14 @@ export class ImageResizerComponent {
   async loadFile(file: File): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.revokeResultUrl();
     this.result.set(null);
+    this.lastErrorWasOversized.set(false);
 
-    if (!file.type.startsWith('image/')) {
-      this.errors.set(['Please upload a valid image file.']);
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      this.errors.set([
-        `File size ${this.formatBytes(file.size)} exceeds the ${this.formatBytes(MAX_FILE_SIZE)} limit.`,
-        'Compress or resize externally before importing.'
-      ]);
+    const validationErrors = validateImageResizerFile(file);
+    if (validationErrors) {
+      this.errors.set(validationErrors);
+      this.lastErrorWasOversized.set(file.size > IMAGE_RESIZER_MAX_FILE_SIZE);
       return;
     }
 
@@ -180,8 +190,9 @@ export class ImageResizerComponent {
       this.initializeDimensions(image);
     };
     image.onerror = () => {
-      this.errors.set(['Unable to load the selected image.']);
+      this.errors.set([IMAGE_RESIZER_ERROR.loadFailed]);
       this.selectedFile.set(null);
+      this.lastErrorWasOversized.set(false);
     };
 
     const reader = new FileReader();
@@ -197,38 +208,43 @@ export class ImageResizerComponent {
     if (!file || !image) {
       return;
     }
-    const options = this.getOptions();
+
+    const options = buildImageResizeOptions(this.form.getRawValue());
     if (!options.width || !options.height) {
-      this.errors.set(['Please provide valid target width and height.']);
+      this.errors.set([IMAGE_RESIZER_ERROR.invalidDimensions]);
+      this.lastErrorWasOversized.set(false);
       return;
     }
 
     this.isProcessing.set(true);
+    this.errors.set([]);
+    this.lastErrorWasOversized.set(false);
     try {
-      const canvas = await this.renderCanvas(image, options);
-      const blob = await this.canvasToBlob(canvas, options.format, options.quality);
+      const canvas = await renderResizerCanvas(image, options);
+      const blob = await canvasToResizerBlob(canvas, options.format, options.quality);
       if (!blob) {
-        throw new Error('Unable to encode resized image.');
+        throw new Error(IMAGE_RESIZER_ERROR.encodeFailed);
       }
+
+      this.revokeResultUrl();
       const downloadUrl = URL.createObjectURL(blob);
       const sanitizedPreview = this.sanitizer.bypassSecurityTrustUrl(downloadUrl);
-      const resizedSize = blob.size;
 
-      const result: ResizeResult = {
+      const resizeResult: ImageResizeResult = {
         originalName: file.name,
         originalSize: file.size,
         originalDimensions: { width: image.naturalWidth, height: image.naturalHeight },
-        resizedSize,
+        resizedSize: blob.size,
         resizedDimensions: { width: options.width, height: options.height },
-        ratioChange: resizedSize / file.size,
+        ratioChange: blob.size / file.size,
         previewUrl: sanitizedPreview,
         downloadUrl,
         format: options.format
       };
 
-      this.result.set(result);
+      this.result.set(resizeResult);
       if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(result);
+        this.addToHistory(resizeResult);
       }
     } catch (error) {
       this.errors.set([`Resize failed: ${(error as Error)?.message ?? 'Unknown error'}`]);
@@ -245,24 +261,25 @@ export class ImageResizerComponent {
     }
     const anchor = document.createElement('a');
     anchor.href = current.downloadUrl;
-    let extension = 'png';
-    if (current.format === 'image/jpeg') {
-      extension = 'jpg';
-    } else if (current.format === 'image/webp') {
-      extension = 'webp';
-    }
-    const name = current.originalName ? current.originalName.replace(/\.[^.]+$/, '') : 'resized-image';
-    anchor.download = `${name}-${current.resizedDimensions.width}x${current.resizedDimensions.height}.${extension}`;
+    anchor.download = buildResizedFilename(
+      current.originalName,
+      current.resizedDimensions.width,
+      current.resizedDimensions.height,
+      current.format
+    );
     anchor.click();
+    this.toast.info('Resized image downloaded');
   }
 
   clear(): void {
+    this.revokeResultUrl();
     this.selectedFile.set(null);
     this.originalImage.set(null);
     this.previewUrl.set(null);
     this.result.set(null);
     this.errors.set([]);
     this.warnings.set([]);
+    this.lastErrorWasOversized.set(false);
     this.form.patchValue({
       width: null,
       height: null,
@@ -284,34 +301,12 @@ export class ImageResizerComponent {
     }
   }
 
-  private renderCanvas(image: HTMLImageElement, options: ResizeOptions): Promise<HTMLCanvasElement> {
-    return new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = options.width;
-      canvas.height = options.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Unable to create rendering context.'));
-        return;
-      }
-
-      ctx.imageSmoothingEnabled = options.interpolation === 'smooth';
-      ctx.imageSmoothingQuality = options.interpolation === 'smooth' ? 'high' : 'low';
-
-      if (options.background) {
-        ctx.fillStyle = options.background;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas);
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
-  private canvasToBlob(canvas: HTMLCanvasElement, format: ResizeOptions['format'], quality: number): Promise<Blob | null> {
-    return new Promise((resolve) => {
-      canvas.toBlob(resolve, format, quality);
-    });
+  formatBytes(value: number): string {
+    return ictFormatBytes(value);
   }
 
   private initializeDimensions(image: HTMLImageElement): void {
@@ -330,58 +325,29 @@ export class ImageResizerComponent {
     if (!image || !this.form.controls.keepAspect.value) {
       return;
     }
-    const widthControl = this.form.controls.width;
-    const heightControl = this.form.controls.height;
-    const originalAspect = image.naturalWidth / image.naturalHeight;
+    const synced = syncImageResizerAspect(
+      source,
+      image.naturalWidth,
+      image.naturalHeight,
+      this.form.controls.width.value,
+      this.form.controls.height.value
+    );
     if (source === 'width') {
-      const width = widthControl.value;
-      if (width) {
-        const nextHeight = Math.round(width / originalAspect);
-        heightControl.setValue(nextHeight, { emitEvent: false });
-      }
+      this.form.controls.height.setValue(synced.height, { emitEvent: false });
     } else {
-      const height = heightControl.value;
-      if (height) {
-        const nextWidth = Math.round(height * originalAspect);
-        widthControl.setValue(nextWidth, { emitEvent: false });
-      }
+      this.form.controls.width.setValue(synced.width, { emitEvent: false });
     }
   }
 
-  private getOptions(): ResizeOptions {
-    const { width, height, keepAspect, interpolation, background, format, quality } = this.form.getRawValue();
-    const safeWidth = Math.min(Math.max(width ?? 0, 1), MAX_DIMENSION);
-    const safeHeight = Math.min(Math.max(height ?? 0, 1), MAX_DIMENSION);
-    return {
-      width: safeWidth,
-      height: safeHeight,
-      keepAspect: !!keepAspect,
-      interpolation,
-      background: background?.trim() ? background : null,
-      format,
-      quality
-    };
+  private addToHistory(result: ImageResizeResult): void {
+    const entry = createImageResizerHistoryEntry(result);
+    this.history.update((entries) => prependImageResizerHistory(entries, entry));
   }
 
-  private addToHistory(result: ResizeResult): void {
-    const entry: HistoryEntry = {
-      timestamp: Date.now(),
-      name: result.originalName,
-      originalDimensions: `${result.originalDimensions.width}×${result.originalDimensions.height}`,
-      resizedDimensions: `${result.resizedDimensions.width}×${result.resizedDimensions.height}`,
-      format: result.format,
-      sizeDiff: `${this.formatBytes(result.originalSize)} → ${this.formatBytes(result.resizedSize)}`
-    };
-    this.history.update((entries) => [entry, ...entries].slice(0, 10));
-  }
-
-  formatBytes(value: number): string {
-    if (value === 0) {
-      return '0 B';
+  private revokeResultUrl(): void {
+    const current = this.result();
+    if (current?.downloadUrl) {
+      URL.revokeObjectURL(current.downloadUrl);
     }
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-    const scaled = value / Math.pow(1024, exponent);
-    return `${scaled.toFixed(scaled >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
   }
 }

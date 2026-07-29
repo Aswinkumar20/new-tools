@@ -43,6 +43,25 @@
       <button type="button" class="rdl__chip-btn" (click)="showOptionsPanel = !showOptionsPanel" [class.rdl__chip-btn--active]="showOptionsPanel">Options</button>
     </div>
 
+    @if (primarySuggestion; as suggestion) {
+      <aside class="rdl__suggest" aria-label="Suggested next step">
+        <div class="rdl__suggest-body">
+          <p class="rdl__suggest-title">{{ suggestion.title }}</p>
+          <p class="rdl__suggest-reason">{{ suggestion.reason }}</p>
+        </div>
+        <div class="rdl__suggest-actions">
+          <a class="rdl__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+          <button
+            type="button"
+            class="rdl__suggest-dismiss"
+            (click)="dismissSuggestion(suggestion.id)"
+            aria-label="Dismiss suggestion">
+            Dismiss
+          </button>
+        </div>
+      </aside>
+    }
+
     @if (showOptionsPanel) {
       <section class="rdl__options" aria-label="Dedup options">
         <div class="rdl__options-grid">
@@ -310,6 +329,20 @@
             <span class="rdl__info-dot"></span>
             <p><strong>Apply</strong> replaces source with cleaned output in one click.</p>
           </div>
+        </div>
+
+        <div class="rdl__related-panel">
+          <header class="rdl__panel-head">Related tools</header>
+          <ul class="rdl__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="rdl__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
     </div>

@@ -1,6 +1,116 @@
 @use '../../../../../../apps/tools-site/src/app/compact-tool-layout.scss';
 @use '../../styles/bu-ctl';
 
+$dol-accent-soft: rgba(0, 123, 255, 0.04);
+$dol-accent-border: rgba(0, 123, 255, 0.18);
+$dol-accent-border-strong: rgba(0, 123, 255, 0.28);
+$dol-focus: rgba(0, 123, 255, 0.35);
+$dol-card-border: var(--border-color, rgba(15, 23, 42, 0.08));
+$dol-absolute: #0f766e;
+
+@mixin dol-focus-ring($offset: 2px) {
+  outline: 2px solid $dol-focus;
+  outline-offset: $offset;
+}
+
+@mixin dol-micro-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+@mixin dol-card-surface {
+  border: 1px solid $dol-card-border;
+  background: var(--bg);
+}
+
+.dol__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0.875rem 0;
+  padding: 0.75rem 0.875rem;
+  border-radius: 10px;
+  border: 1px solid $dol-accent-border;
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.06), rgba(0, 123, 255, 0.02));
+
+  &-body {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  &-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--text);
+  }
+
+  &-reason {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  &-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+  }
+
+  &-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid $dol-accent-border-strong;
+    background: rgba(0, 123, 255, 0.1);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      background: rgba(0, 123, 255, 0.16);
+      border-color: rgba(0, 123, 255, 0.4);
+    }
+
+    &:focus-visible {
+      @include dol-focus-ring;
+    }
+  }
+
+  &-dismiss {
+    min-height: 2rem;
+    padding: 0.35rem 0.625rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.04);
+    }
+
+    &:focus-visible {
+      @include dol-focus-ring;
+    }
+  }
+}
+
 .dol__latest {
   display: flex;
   flex-direction: column;
@@ -31,8 +141,7 @@
   gap: 0.15rem;
   padding: 0.5rem 0.625rem;
   border-radius: 10px;
-  border: 1px solid var(--border-color, rgba(15, 23, 42, 0.08));
-  background: var(--bg);
+  @include dol-card-surface;
   text-align: center;
 
   strong {
@@ -42,17 +151,19 @@
 }
 
 .dol__value-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  @include dol-micro-label;
 }
 
 .dol__meta {
   margin: 0;
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.dol__panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .dol__stream {
@@ -71,8 +182,7 @@
 .dol__item {
   padding: 0.5rem 0.625rem;
   border-radius: 10px;
-  border: 1px solid var(--border-color, rgba(15, 23, 42, 0.08));
-  background: var(--bg);
+  @include dol-card-surface;
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
@@ -89,5 +199,49 @@
 
 .dol__item-absolute {
   font-weight: 600;
-  color: #0f766e;
+  color: $dol-absolute;
+}
+
+.dol__related {
+  padding: 0.5rem 0.625rem 0.75rem;
+}
+
+.dol__related-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.dol__related-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  @include dol-card-surface;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  strong {
+    font-size: 0.8125rem;
+    color: var(--text);
+  }
+
+  span {
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+
+  &:hover {
+    border-color: $dol-accent-border-strong;
+    background: $dol-accent-soft;
+  }
+
+  &:focus-visible {
+    @include dol-focus-ring(1px);
+  }
 }

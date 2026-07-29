@@ -1,14 +1,32 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  TEXT_REVERSAL_DEFAULT_MODE,
+  TEXT_REVERSAL_MAX_UPLOAD_BYTES,
+  TEXT_REVERSAL_RELATED_TOOLS,
+  TEXT_REVERSAL_SAMPLES,
+} from '../../constants/text-reversal-and-palindrome-checker.constants';
+import type {
+  TextReversalMode,
+  TextReversalSample,
+} from '../../types/text-reversal-and-palindrome-checker.types';
+import {
+  analyzeTextReversal,
+  normalizeForPalindrome,
+  resolveTextReversalSuggestion,
+  reverseString,
+} from '../../utils/text-reversal-and-palindrome-checker.utils';
 
 @Component({
   selector: 'lib-text-reversal-and-palindrome-checker',
   standalone: true,
   templateUrl: './text-reversal-and-palindrome-checker.html',
   styleUrls: ['./text-reversal-and-palindrome-checker.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
@@ -16,8 +34,12 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
   readonly assetService = inject(AssetService);
   private readonly toastService = inject(ToastService);
 
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_REVERSAL_RELATED_TOOLS;
+  readonly samples: ReadonlyArray<TextReversalSample> = TEXT_REVERSAL_SAMPLES;
+  private dismissedSuggestionId: string | null = null;
+
   inputText = '';
-  isPalindromeMode = true;
+  isPalindromeMode = TEXT_REVERSAL_DEFAULT_MODE === 'palindrome';
   resultText = '';
   palindromeStatus: boolean | null = null;
 
@@ -29,7 +51,7 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
 
   isReadingFile = false;
   isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = TEXT_REVERSAL_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
 
   get hasInput(): boolean {
@@ -44,9 +66,13 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
     return this.redoStack.length > 0;
   }
 
+  get currentMode(): TextReversalMode {
+    return this.isPalindromeMode ? 'palindrome' : 'reverse';
+  }
+
   get normalizedLength(): number {
     if (!this.inputText) return 0;
-    return this.inputText.toLowerCase().replace(/[\W_]/g, '').length;
+    return normalizeForPalindrome(this.inputText).length;
   }
 
   get outputLength(): number {
@@ -56,6 +82,25 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
 
   get modeLabel(): string {
     return this.isPalindromeMode ? 'Palindrome' : 'Reverse';
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveTextReversalSuggestion({
+      mode: this.currentMode,
+      hasInput: this.hasInput,
+      hasResult: !!this.resultText,
+      palindromeStatus: this.palindromeStatus,
+      normalizedLength: this.normalizedLength,
+      inputEqualsReversed: !this.isPalindromeMode && this.inputText === this.resultText,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -113,14 +158,12 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
   }
 
   private runAnalysis(): void {
-    if (this.isPalindromeMode) {
-      this.checkPalindrome();
-    } else {
-      this.reverseText();
-    }
+    const analysis = analyzeTextReversal(this.inputText, this.currentMode);
+    this.resultText = analysis.resultText;
+    this.palindromeStatus = analysis.palindromeStatus;
   }
 
-  setMode(mode: 'palindrome' | 'reverse'): void {
+  setMode(mode: TextReversalMode): void {
     const nextIsPalindrome = mode === 'palindrome';
     if (this.isPalindromeMode === nextIsPalindrome) return;
     this.isPalindromeMode = nextIsPalindrome;
@@ -187,7 +230,7 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
         this.toastService.info('Nothing to reverse');
         return;
       }
-      const reversed = this.inputText.split('').reverse().join('');
+      const reversed = reverseString(this.inputText);
       this.applyInputState(reversed);
       this.pushToUndoStack(reversed);
       this.toastService.info('Input reversed');
@@ -377,17 +420,5 @@ export class TextReversalAndPalindromeCheckerComponent implements OnInit, OnDest
     }).catch(() => {
       this.toastService.error('Failed to copy to clipboard');
     });
-  }
-
-  private reverseText(): void {
-    this.resultText = this.inputText.split('').reverse().join('');
-    this.palindromeStatus = null;
-  }
-
-  private checkPalindrome(): void {
-    const normalized = this.inputText.toLowerCase().replace(/[\W_]/g, '');
-    const reversed = normalized.split('').reverse().join('');
-    this.palindromeStatus = normalized.length > 0 && normalized === reversed;
-    this.resultText = '';
   }
 }

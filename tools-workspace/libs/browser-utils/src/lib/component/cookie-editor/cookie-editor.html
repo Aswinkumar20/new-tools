@@ -28,51 +28,53 @@
       </div>
     </div>
 
-    <div class="bu-workflow" aria-label="Cookie actions"><div class="bu-workflow__group bu-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="saveCookie()"
-        aria-label="Save cookie"
-        appTooltip="Save cookie"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        <span class="ctl__tool-btn-label">{{ editingCookie() ? 'Update' : 'Create' }}</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="refresh()"
-        aria-label="Refresh cookies"
-        appTooltip="Refresh cookies"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        <span class="ctl__tool-btn-label">Refresh</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearEditor()"
-        [disabled]="!editingCookie() && !form.value.name"
-        aria-label="Clear editor"
-        appTooltip="Clear editor"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="deleteAllCookies()"
-        [disabled]="!hasCookies()"
-        aria-label="Delete all cookies"
-        appTooltip="Delete all cookies"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        <span class="ctl__tool-btn-label">Delete all</span>
-      </button>
+    <div class="bu-workflow" aria-label="Cookie actions">
+      <div class="bu-workflow__group bu-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="saveCookie()"
+          aria-label="Save cookie"
+          appTooltip="Save cookie"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span class="ctl__tool-btn-label">{{ editingCookie() ? 'Update' : 'Create' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="refresh()"
+          aria-label="Refresh cookies"
+          appTooltip="Refresh cookies"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <span class="ctl__tool-btn-label">Refresh</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearEditor()"
+          [disabled]="!editingCookie() && !form.value.name"
+          aria-label="Clear editor"
+          appTooltip="Clear editor"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="deleteAllCookies()"
+          [disabled]="!hasCookies()"
+          aria-label="Delete all cookies"
+          appTooltip="Delete all cookies"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span class="ctl__tool-btn-label">Delete all</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor bu-editor-panel">
@@ -81,7 +83,7 @@
           </header>
 
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -90,36 +92,61 @@
             </div>
           }
 
+          @if (needsSecureForSameSiteNone()) {
+            <output class="ctl__alert ctl__alert--warning">
+              SameSite=None cookies are typically rejected without the Secure flag. Enable Secure for HTTPS-only delivery.
+            </output>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ce__suggest" aria-label="Suggested next step">
+              <div class="ce__suggest-body">
+                <p class="ce__suggest-title">{{ suggestion.title }}</p>
+                <p class="ce__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ce__suggest-actions">
+                <a class="ce__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="ce__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-body ce__form">
             <div class="ctl__field">
-              <span>Name</span>
-              <input id="name" type="text" formControlName="name" placeholder="cookie-name" />
+              <label for="cookie-name">Name</label>
+              <input id="cookie-name" type="text" formControlName="name" placeholder="cookie-name" autocomplete="off" />
             </div>
             <div class="ctl__field">
-              <span>Value</span>
-              <textarea id="value" class="ctl__textarea ctl__textarea--mono" formControlName="value" rows="3" placeholder="cookie value"></textarea>
+              <label for="cookie-value">Value</label>
+              <textarea id="cookie-value" class="ctl__textarea ctl__textarea--mono" formControlName="value" rows="3" placeholder="cookie value"></textarea>
             </div>
             <div class="ce__field-row">
               <div class="ctl__field">
-                <span>Domain</span>
-                <input id="domain" type="text" formControlName="domain" placeholder="example.com" />
+                <label for="cookie-domain">Domain</label>
+                <input id="cookie-domain" type="text" formControlName="domain" placeholder="example.com" autocomplete="off" />
               </div>
               <div class="ctl__field">
-                <span>Path</span>
-                <input id="path" type="text" formControlName="path" placeholder="/" />
+                <label for="cookie-path">Path</label>
+                <input id="cookie-path" type="text" formControlName="path" placeholder="/" autocomplete="off" />
               </div>
             </div>
             <div class="ce__field-row">
               <div class="ctl__field">
-                <span>Days to expire</span>
-                <input id="daysToExpire" type="number" formControlName="daysToExpire" min="0" placeholder="7" />
+                <label for="cookie-days">Days to expire</label>
+                <input id="cookie-days" type="number" formControlName="daysToExpire" min="0" placeholder="7" />
               </div>
               <div class="ctl__field">
-                <span>SameSite</span>
-                <select id="sameSite" formControlName="sameSite">
-                  <option value="Lax">Lax</option>
-                  <option value="Strict">Strict</option>
-                  <option value="None">None</option>
+                <label for="cookie-samesite">SameSite</label>
+                <select id="cookie-samesite" formControlName="sameSite">
+                  @for (option of sameSiteOptions; track option) {
+                    <option [value]="option">{{ option }}</option>
+                  }
                 </select>
               </div>
             </div>
@@ -152,8 +179,9 @@
 
           <div class="ctl__editor-body ce__list-wrap">
             <div class="ctl__field">
-              <span class="sr-only">Filter cookies</span>
+              <label class="sr-only" for="cookie-filter">Filter cookies</label>
               <input
+                id="cookie-filter"
                 type="text"
                 placeholder="Filter by name or value…"
                 [value]="filterQuery()"
@@ -233,7 +261,7 @@
         </section>
       </div>
 
-            <details class="bu-options-flyout">
+      <details class="bu-options-flyout">
         <summary class="bu-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -242,17 +270,35 @@
         </summary>
         <button type="button" class="bu-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar bu-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Cookie info">
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Only cookies for the <strong>current domain</strong> are visible.</p>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body ce__related">
+              <ul class="ce__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="ce__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p><strong>HttpOnly</strong> cookies cannot be read or modified from JavaScript.</p>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Only cookies for the <strong>current domain</strong> are visible.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p><strong>HttpOnly</strong> cookies cannot be read or modified from JavaScript.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 
@@ -263,6 +309,7 @@
         <li>Click a cookie in the list to load it into the editor for changes.</li>
         <li>Use copy icons to grab individual values or the full cookie list.</li>
         <li>Set days to expire to 0 for a session cookie.</li>
+        <li>Follow suggestions when a value looks like JWT/Base64 or when you need Storage Viewer.</li>
       </ul>
     </details>
   </main>

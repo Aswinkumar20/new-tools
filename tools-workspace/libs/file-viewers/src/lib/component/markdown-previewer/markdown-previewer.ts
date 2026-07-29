@@ -1,149 +1,91 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-// Marked library types
-interface MarkedOptions {
-  breaks?: boolean;
-  gfm?: boolean;
-  headerIds?: boolean;
-  mangle?: boolean;
-  pedantic?: boolean;
-  sanitize?: boolean;
-  silent?: boolean;
-  smartLists?: boolean;
-  smartypants?: boolean;
-  xhtml?: boolean;
-}
-
-declare const marked: {
-  parse(markdown: string, options?: MarkedOptions): string;
-  setOptions(options: MarkedOptions): void;
-};
-
-// DOMPurify for sanitization
-declare const DOMPurify: {
-  sanitize(dirty: string, config?: any): string;
-};
-
-// Load marked library dynamically from CDN
-async function loadMarked(): Promise<typeof marked> {
-  if (globalThis.window === undefined) {
-    throw new TypeError('Marked can only be loaded in browser environment');
-  }
-
-  // Check if already loaded
-  if ((globalThis as any).marked) {
-    return (globalThis as any).marked;
-  }
-
-  // Load marked from CDN
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js';
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const markedLib = (globalThis as any).marked;
-      (globalThis as any).marked = markedLib;
-      // Configure marked options
-      markedLib.setOptions({
-        breaks: true,
-        gfm: true,
-        headerIds: true,
-        mangle: false
-      });
-      resolve(markedLib);
-    };
-    script.onerror = () => reject(new Error('Failed to load marked library'));
-  });
-}
-
-// Load DOMPurify for sanitization
-async function loadDOMPurify(): Promise<typeof DOMPurify> {
-  if (globalThis.window === undefined) {
-    throw new TypeError('DOMPurify can only be loaded in browser environment');
-  }
-
-  // Check if already loaded
-  if ((globalThis as any).DOMPurify) {
-    return (globalThis as any).DOMPurify;
-  }
-
-  // Load DOMPurify from CDN
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js';
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const purify = (globalThis as any).DOMPurify;
-      (globalThis as any).DOMPurify = purify;
-      resolve(purify);
-    };
-    script.onerror = () => reject(new Error('Failed to load DOMPurify library'));
-  });
-}
-
-interface MarkdownFile {
-  name: string;
-  file: File;
-  url: string;
-  size: number;
-  content: string;
-  htmlContent: string;
-  lines: number;
-  lastModified: Date;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { fvCopyText } from '../../shared/fv-clipboard.util';
+import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
+import {
+  MARKDOWN_ACCEPT_ATTR,
+  MARKDOWN_DEFAULT_ZOOM,
+  MARKDOWN_FULLSCREEN_ENTER_DELAY_MS,
+  MARKDOWN_FULLSCREEN_EVENTS,
+  MARKDOWN_FULLSCREEN_FIT_MS,
+  MARKDOWN_MAX_FILE_SIZE_BYTES,
+  MARKDOWN_MAX_ZOOM,
+  MARKDOWN_MIN_ZOOM,
+  MARKDOWN_RELATED_TOOLS,
+  MARKDOWN_RENDER_DELAY_MS,
+  MARKDOWN_RENDER_MAX_ATTEMPTS,
+  MARKDOWN_RENDER_RETRY_MS,
+  MARKDOWN_SUPPORTED_EXTENSIONS
+} from '../../constants/markdown-previewer.constants';
+import type {
+  DomPurifyLibrary,
+  MarkdownFile,
+  MarkdownRenderMode,
+  MarkedLibrary
+} from '../../types/markdown-previewer.types';
+import {
+  createMarkdownFileRecord,
+  formatMarkdownFileSize,
+  isFullscreenActive,
+  loadDomPurifyLibrary,
+  loadMarkedLibrary,
+  parseAndSanitizeMarkdown,
+  resolveMarkdownSuggestion,
+  safeRevokeObjectUrl,
+  stepMarkdownZoom,
+  validateMarkdownFiles
+} from '../../utils/markdown-previewer.utils';
 
 @Component({
   selector: 'lib-markdown-previewer',
   standalone: true,
   templateUrl: './markdown-previewer.html',
   styleUrls: ['./markdown-previewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective]
 })
 export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewContainer') previewContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenPreviewContainer') fullscreenPreviewContainer!: ElementRef<HTMLDivElement>;
-  
+
+  readonly acceptAttr = MARKDOWN_ACCEPT_ATTR;
+  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = MARKDOWN_RELATED_TOOLS;
+  readonly minZoom = MARKDOWN_MIN_ZOOM;
+  readonly maxZoom = MARKDOWN_MAX_ZOOM;
+  readonly supportedFormats = MARKDOWN_SUPPORTED_EXTENSIONS;
+  readonly maxFileSize = MARKDOWN_MAX_FILE_SIZE_BYTES;
+
   markdownFiles: MarkdownFile[] = [];
-  currentFileIndex: number = -1;
-  loading: boolean = false;
-  errorMessage: string = '';
-  showDropZone: boolean = false;
-  zoomLevel: number = 100;
-  isFullscreen: boolean = false;
-  renderMode: 'preview' | 'source' | 'split' = 'preview';
-  
-  // Drag and drop handlers
+  currentFileIndex = -1;
+  loading = false;
+  errorMessage = '';
+  showDropZone = false;
+  zoomLevel = MARKDOWN_DEFAULT_ZOOM;
+  isFullscreen = false;
+  renderMode: MarkdownRenderMode = 'preview';
+  dismissedSuggestionId: string | null = null;
+
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
   private readonly fullscreenChangeHandler = () => this.onFullscreenChange();
-  
-  readonly supportedFormats = ['.md', '.markdown', '.mdown', '.mkdn', '.mkd'];
-  readonly maxFileSize = 10 * 1024 * 1024; // 10MB
 
   constructor(private readonly cdr: ChangeDetectorRef) {}
-
-  ngOnInit(): void {
-    this.setupDragAndDrop();
-    this.setupFullscreenListeners();
-  }
-
-  ngAfterViewInit(): void {
-    // Pre-load libraries
-    Promise.all([loadMarked(), loadDOMPurify()]).catch(err => {
-      console.warn('Failed to pre-load markdown libraries:', err);
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.cleanup();
-  }
 
   get currentFile(): MarkdownFile | null {
     return this.currentFileIndex >= 0 && this.currentFileIndex < this.markdownFiles.length
@@ -155,6 +97,37 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     return this.markdownFiles.length;
   }
 
+  get primarySuggestion() {
+    const suggestion = resolveMarkdownSuggestion({
+      hasFiles: this.markdownFiles.length > 0,
+      hasError: !!this.errorMessage,
+      currentFileName: this.currentFile?.name || '',
+      lineCount: this.currentFile?.lines || 0
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  ngOnInit(): void {
+    this.setupDragAndDrop();
+    this.setupFullscreenListeners();
+  }
+
+  ngAfterViewInit(): void {
+    Promise.all([loadMarkedLibrary(), loadDomPurifyLibrary()]).catch(() => undefined);
+  }
+
+  ngOnDestroy(): void {
+    this.cleanup();
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+    this.cdr.detectChanges();
+  }
+
   setupDragAndDrop(): void {
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -163,8 +136,7 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   }
 
   setupFullscreenListeners(): void {
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+    for (const eventName of MARKDOWN_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }
   }
@@ -186,7 +158,7 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      this.processFiles(Array.from(files));
+      void this.processFiles(Array.from(files));
     }
   }
 
@@ -197,21 +169,21 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.processFiles(Array.from(input.files));
+      void this.processFiles(Array.from(input.files));
     }
   }
 
   async processFiles(files: File[]): Promise<void> {
     this.errorMessage = '';
     this.loading = true;
+    this.dismissedSuggestionId = null;
     this.cdr.detectChanges();
-    
-    // Load libraries
-    let markedLib: typeof marked;
-    let purify: typeof DOMPurify;
-    
+
+    let markedLib: MarkedLibrary;
+    let purify: DomPurifyLibrary;
+
     try {
-      [markedLib, purify] = await Promise.all([loadMarked(), loadDOMPurify()]);
+      [markedLib, purify] = await Promise.all([loadMarkedLibrary(), loadDomPurifyLibrary()]);
     } catch (error) {
       this.loading = false;
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -219,33 +191,11 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
       this.cdr.detectChanges();
       return;
     }
-    
-    const validFiles: File[] = [];
-    const errors: string[] = [];
 
-    for (const file of files) {
-      const fileName = file.name.toLowerCase();
-      const isMarkdown = this.supportedFormats.some(ext => fileName.endsWith(ext)) ||
-                        file.type === 'text/markdown' ||
-                        file.type === 'text/x-markdown';
-      
-      if (!isMarkdown) {
-        errors.push(`${file.name}: Unsupported file format. Only Markdown files (.md, .markdown) are supported.`);
-        continue;
-      }
-      
-      if (file.size > this.maxFileSize) {
-        errors.push(`${file.name}: File too large (max ${this.formatFileSize(this.maxFileSize)})`);
-        continue;
-      }
-      
-      if (file.size === 0) {
-        errors.push(`${file.name}: File is empty`);
-        continue;
-      }
-      
-      validFiles.push(file);
-    }
+    const { validFiles, errors } = validateMarkdownFiles(files, {
+      maxFileSize: this.maxFileSize,
+      formatFileSize: formatMarkdownFileSize
+    });
 
     if (errors.length > 0) {
       this.errorMessage = errors.join('\n');
@@ -255,62 +205,31 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
       try {
         const url = URL.createObjectURL(file);
         const content = await file.text();
-        
-        // Validate content is not empty after trimming
+
         if (!content.trim()) {
           errors.push(`${file.name}: File contains no content`);
-          URL.revokeObjectURL(url);
+          safeRevokeObjectUrl(url);
           continue;
         }
-        
-        // Parse markdown to HTML
-        let htmlContent = '';
-        try {
-          const rawHtml = markedLib.parse(content);
-          // Sanitize HTML to prevent XSS attacks
-          htmlContent = purify.sanitize(rawHtml, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
-                          'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a', 'img', 'hr', 
-                          'table', 'thead', 'tbody', 'tr', 'th', 'td', 'del', 'ins', 'sub', 'sup'],
-            ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id']
-          });
-        } catch (parseError) {
-          console.warn('Markdown parsing error:', parseError);
-          htmlContent = `<div class="markdown-error">
-            <p><strong>Error parsing Markdown:</strong></p>
-            <p>${this.escapeHtml(parseError instanceof Error ? parseError.message : 'Unknown parsing error')}</p>
-            <p>The file may contain invalid Markdown syntax. Showing raw content below:</p>
-            <pre>${this.escapeHtml(content)}</pre>
-          </div>`;
-        }
-        
-        const lines = content.split('\n').length;
-        
-        const markdownFile: MarkdownFile = {
-          name: file.name,
-          file: file,
-          url: url,
-          size: file.size,
-          content: content,
-          htmlContent: htmlContent,
-          lines: lines,
-          lastModified: new Date(file.lastModified)
-        };
-        
+
+        const htmlContent = parseAndSanitizeMarkdown(content, markedLib, purify);
+        const markdownFile = createMarkdownFileRecord(file, url, content, htmlContent);
+
         this.markdownFiles.push(markdownFile);
-        
         this.cdr.detectChanges();
-        
+
         if (this.currentFileIndex === -1) {
           this.currentFileIndex = this.markdownFiles.length - 1;
           requestAnimationFrame(() => {
             setTimeout(() => {
-              this.renderMarkdown(markdownFile);
+              void this.renderMarkdown(markdownFile);
             }, 50);
           });
         }
       } catch (error) {
-        errors.push(`${file.name}: Failed to load file - ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(
+          `${file.name}: Failed to load file - ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     }
 
@@ -318,11 +237,11 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     if (errors.length > 0) {
       this.errorMessage = errors.join('\n');
     }
-    
+
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
     }
-    
+
     this.cdr.detectChanges();
   }
 
@@ -332,67 +251,57 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
       this.cdr.detectChanges();
       return;
     }
-    
+
     this.cdr.detectChanges();
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    await new Promise((resolve) => setTimeout(resolve, MARKDOWN_RENDER_DELAY_MS));
+
     const getContentDiv = (): HTMLDivElement | null => {
       if (this.isFullscreen) {
-        // For fullscreen, use the fullscreen preview container directly
         return this.fullscreenPreviewContainer?.nativeElement || null;
-      } else {
-        // For normal view, find the content div inside the container
-        const container = this.previewContainer?.nativeElement;
-        if (container) {
-          let contentDiv = container.querySelector('.markdown-preview-content') as HTMLDivElement;
-          if (!contentDiv) {
-            // Create the content div if it doesn't exist
-            contentDiv = document.createElement('div');
-            contentDiv.className = 'markdown-preview-content';
-            container.appendChild(contentDiv);
-          }
-          return contentDiv;
-        }
-        return document.querySelector('.markdown-preview-content') as HTMLDivElement;
       }
+
+      const container = this.previewContainer?.nativeElement;
+      if (container) {
+        let contentDiv = container.querySelector('.markdown-preview-content') as HTMLDivElement;
+        if (!contentDiv) {
+          contentDiv = document.createElement('div');
+          contentDiv.className = 'markdown-preview-content';
+          container.appendChild(contentDiv);
+        }
+        return contentDiv;
+      }
+      return document.querySelector('.markdown-preview-content') as HTMLDivElement;
     };
-    
+
     let attempts = 0;
-    const maxAttempts = 30;
-    let renderComplete = false;
-    
+
     const tryRender = (): void => {
       attempts++;
       const contentDiv = getContentDiv();
-      
+
       if (contentDiv) {
-        // Clear and set content
         contentDiv.innerHTML = markdownFile.htmlContent;
-        // Apply zoom to the content div
         this.updateZoom(contentDiv);
         this.cdr.detectChanges();
-        // Scroll container to top
-        const container = this.isFullscreen 
+        const container = this.isFullscreen
           ? this.fullscreenContainer?.nativeElement?.querySelector('.fullscreen-preview-container')
           : this.previewContainer?.nativeElement;
         if (container) {
-          container.scrollTop = 0;
+          (container as HTMLElement).scrollTop = 0;
         }
-        renderComplete = true;
         return;
       }
-      
-      if (attempts < maxAttempts) {
+
+      if (attempts < MARKDOWN_RENDER_MAX_ATTEMPTS) {
         this.cdr.detectChanges();
-        setTimeout(tryRender, 50);
+        setTimeout(tryRender, MARKDOWN_RENDER_RETRY_MS);
       } else {
-        console.error('Preview content div not found after multiple attempts');
-        this.errorMessage = 'Failed to render markdown: container not available. Please try uploading again.';
+        this.errorMessage =
+          'Failed to render markdown: container not available. Please try uploading again.';
         this.cdr.detectChanges();
       }
     };
-    
+
     tryRender();
   }
 
@@ -407,17 +316,13 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   removeFile(index: number): void {
     if (index >= 0 && index < this.markdownFiles.length) {
       const markdownFile = this.markdownFiles[index];
-      
-      if (markdownFile.url) {
-        URL.revokeObjectURL(markdownFile.url);
-      }
-      
+      safeRevokeObjectUrl(markdownFile.url);
       this.markdownFiles.splice(index, 1);
-      
+
       if (this.currentFileIndex === index) {
         if (this.markdownFiles.length > 0) {
           this.currentFileIndex = Math.min(index, this.markdownFiles.length - 1);
-          this.renderMarkdown(this.markdownFiles[this.currentFileIndex]);
+          void this.renderMarkdown(this.markdownFiles[this.currentFileIndex]);
         } else {
           this.currentFileIndex = -1;
           if (this.previewContainer?.nativeElement) {
@@ -427,7 +332,7 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
       } else if (this.currentFileIndex > index) {
         this.currentFileIndex--;
       }
-      
+
       this.cdr.detectChanges();
     }
   }
@@ -436,24 +341,23 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     if (this.isFullscreen) {
       this.exitFullscreen();
     }
-    
+
     for (const markdownFile of this.markdownFiles) {
-      if (markdownFile.url) {
-        URL.revokeObjectURL(markdownFile.url);
-      }
+      safeRevokeObjectUrl(markdownFile.url);
     }
-    
+
     this.markdownFiles = [];
     this.currentFileIndex = -1;
-    
+    this.dismissedSuggestionId = null;
+
     if (this.previewContainer?.nativeElement) {
       this.previewContainer.nativeElement.innerHTML = '';
     }
-    
+
     if (this.fullscreenPreviewContainer?.nativeElement) {
       this.fullscreenPreviewContainer.nativeElement.innerHTML = '';
     }
-    
+
     this.cdr.detectChanges();
   }
 
@@ -466,39 +370,40 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
       this.renderMode = 'preview';
     }
     if (this.currentFile) {
-      this.renderMarkdown(this.currentFile);
+      void this.renderMarkdown(this.currentFile);
     }
   }
 
   zoomIn(): void {
-    if (this.zoomLevel < 200) {
-      this.zoomLevel = Math.min(this.zoomLevel + 25, 200);
+    if (this.zoomLevel < MARKDOWN_MAX_ZOOM) {
+      this.zoomLevel = stepMarkdownZoom(this.zoomLevel, 1);
       this.updateZoom();
     }
   }
 
   zoomOut(): void {
-    if (this.zoomLevel > 50) {
-      this.zoomLevel = Math.max(this.zoomLevel - 25, 50);
+    if (this.zoomLevel > MARKDOWN_MIN_ZOOM) {
+      this.zoomLevel = stepMarkdownZoom(this.zoomLevel, -1);
       this.updateZoom();
     }
   }
 
   resetZoom(): void {
-    this.zoomLevel = 100;
+    this.zoomLevel = MARKDOWN_DEFAULT_ZOOM;
     this.updateZoom();
   }
 
   updateZoom(container?: HTMLDivElement): void {
-    const targetContainer = container || (() => {
-      if (this.isFullscreen) {
-        return this.fullscreenPreviewContainer?.nativeElement;
-      } else {
+    const targetContainer =
+      container ||
+      (() => {
+        if (this.isFullscreen) {
+          return this.fullscreenPreviewContainer?.nativeElement;
+        }
         const previewContainer = this.previewContainer?.nativeElement;
         return previewContainer?.querySelector('.markdown-preview-content') as HTMLDivElement;
-      }
-    })();
-    
+      })();
+
     if (targetContainer) {
       targetContainer.style.fontSize = `${this.zoomLevel}%`;
     }
@@ -513,11 +418,13 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   }
 
   enterFullscreen(): void {
-    if (!this.currentFile) return;
-    
+    if (!this.currentFile) {
+      return;
+    }
+
     this.isFullscreen = true;
     this.cdr.detectChanges();
-    
+
     requestAnimationFrame(() => {
       setTimeout(() => {
         const container = this.fullscreenContainer?.nativeElement;
@@ -527,107 +434,102 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
           return;
         }
 
-        const requestFullscreen = () => {
-          if (container.requestFullscreen) {
-            container.requestFullscreen().then(() => {
-              setTimeout(() => {
-                if (this.currentFile) {
-                  this.renderMarkdown(this.currentFile);
-                }
-              }, 150);
-            }).catch(() => {
+        const extended = container as HTMLElement & {
+          webkitRequestFullscreen?: () => void;
+          mozRequestFullScreen?: () => void;
+          msRequestFullscreen?: () => void;
+        };
+
+        const afterEnter = () => {
+          setTimeout(() => {
+            if (this.currentFile) {
+              void this.renderMarkdown(this.currentFile);
+            }
+          }, MARKDOWN_FULLSCREEN_FIT_MS);
+        };
+
+        if (container.requestFullscreen) {
+          container
+            .requestFullscreen()
+            .then(afterEnter)
+            .catch(() => {
               this.isFullscreen = false;
               this.cdr.detectChanges();
             });
-          } else if ((container as any).webkitRequestFullscreen) {
-            (container as any).webkitRequestFullscreen();
-            setTimeout(() => {
-              if (this.currentFile) {
-                this.renderMarkdown(this.currentFile);
-              }
-            }, 150);
-          } else if ((container as any).mozRequestFullScreen) {
-            (container as any).mozRequestFullScreen();
-            setTimeout(() => {
-              if (this.currentFile) {
-                this.renderMarkdown(this.currentFile);
-              }
-            }, 150);
-          } else if ((container as any).msRequestFullscreen) {
-            (container as any).msRequestFullscreen();
-            setTimeout(() => {
-              if (this.currentFile) {
-                this.renderMarkdown(this.currentFile);
-              }
-            }, 150);
-          } else {
-            container.classList.add('fullscreen-active');
-            setTimeout(() => {
-              if (this.currentFile) {
-                this.renderMarkdown(this.currentFile);
-              }
-            }, 150);
-          }
-        };
-
-        requestFullscreen();
-      }, 50);
+        } else if (extended.webkitRequestFullscreen) {
+          extended.webkitRequestFullscreen();
+          afterEnter();
+        } else if (extended.mozRequestFullScreen) {
+          extended.mozRequestFullScreen();
+          afterEnter();
+        } else if (extended.msRequestFullscreen) {
+          extended.msRequestFullscreen();
+          afterEnter();
+        } else {
+          container.classList.add('fullscreen-active');
+          afterEnter();
+        }
+      }, MARKDOWN_FULLSCREEN_ENTER_DELAY_MS);
     });
   }
 
   exitFullscreen(): void {
     this.isFullscreen = false;
-    
+
+    const extended = document as Document & {
+      webkitExitFullscreen?: () => void;
+      mozCancelFullScreen?: () => void;
+      msExitFullscreen?: () => void;
+    };
+
     if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if ((document as any).webkitExitFullscreen) {
-      (document as any).webkitExitFullscreen();
-    } else if ((document as any).mozCancelFullScreen) {
-      (document as any).mozCancelFullScreen();
-    } else if ((document as any).msExitFullscreen) {
-      (document as any).msExitFullscreen();
+      document.exitFullscreen().catch(() => undefined);
+    } else if (extended.webkitExitFullscreen) {
+      extended.webkitExitFullscreen();
+    } else if (extended.mozCancelFullScreen) {
+      extended.mozCancelFullScreen();
+    } else if (extended.msExitFullscreen) {
+      extended.msExitFullscreen();
     }
-    
+
     if (this.fullscreenContainer?.nativeElement) {
       this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
     }
-    
+
     setTimeout(() => {
       if (this.currentFile) {
-        this.renderMarkdown(this.currentFile);
+        void this.renderMarkdown(this.currentFile);
       }
       this.cdr.detectChanges();
-    }, 150);
+    }, MARKDOWN_FULLSCREEN_FIT_MS);
   }
 
   onFullscreenChange(): void {
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement
-    );
-    
-    if (!isCurrentlyFullscreen && this.isFullscreen) {
+    if (!isFullscreenActive() && this.isFullscreen) {
       this.isFullscreen = false;
       this.cdr.detectChanges();
     }
   }
 
   downloadFile(): void {
-    if (!this.currentFile) return;
-    
+    if (!this.currentFile) {
+      return;
+    }
+
     const link = document.createElement('a');
     link.href = this.currentFile.url;
     link.download = this.currentFile.name;
     document.body.appendChild(link);
     link.click();
     link.remove();
+    this.toast.info(`Downloaded ${this.currentFile.name}`);
   }
 
   printFile(): void {
-    if (!this.currentFile) return;
-    
+    if (!this.currentFile) {
+      return;
+    }
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
@@ -664,30 +566,20 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     }
   }
 
-  copyToClipboard(): void {
-    if (!this.currentFile) return;
-    
-    navigator.clipboard.writeText(this.currentFile.content).then(() => {
-      // Could show a toast notification here
-    }).catch(err => {
-      console.error('Failed to copy to clipboard:', err);
+  async copyToClipboard(): Promise<void> {
+    if (!this.currentFile) {
+      return;
+    }
+
+    const copied = await fvCopyText(this.toast, this.currentFile.content, 'Markdown source');
+    if (!copied) {
       this.errorMessage = 'Failed to copy to clipboard';
       this.cdr.detectChanges();
-    });
+    }
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  }
-
-  escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return formatMarkdownFileSize(bytes);
   }
 
   closeError(): void {
@@ -698,7 +590,10 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
       return;
     }
 
@@ -711,17 +606,16 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
     if (this.isFullscreen) {
       this.exitFullscreen();
     }
-    
+
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);
       document.body.removeEventListener(eventName, this.preventDefaultsFn, false);
     }
-    
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+
+    for (const eventName of MARKDOWN_FULLSCREEN_EVENTS) {
       document.removeEventListener(eventName, this.fullscreenChangeHandler);
     }
-    
+
     this.clearAll();
   }
 }

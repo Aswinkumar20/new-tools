@@ -88,7 +88,7 @@
           </header>
 
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -98,7 +98,7 @@
           }
 
           @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning">
+            <div class="ctl__alert ctl__alert--warning" role="status">
               <ul>
                 @for (message of warnings(); track message) {
                   <li>{{ message }}</li>
@@ -107,9 +107,28 @@
             </div>
           }
 
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="pl__suggest" aria-label="Suggested next step">
+              <div class="pl__suggest-body">
+                <p class="pl__suggest-title">{{ suggestion.title }}</p>
+                <p class="pl__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="pl__suggest-actions">
+                <a class="pl__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="pl__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-body pl__request-builder">
             <div class="pl__method-url-row">
-              <select class="pl__select pl__select--method" formControlName="method">
+              <select class="pl__select pl__select--method" formControlName="method" aria-label="HTTP method">
                 @for (method of methods; track method) {
                   <option [value]="method">{{ method }}</option>
                 }
@@ -119,6 +138,17 @@
                 class="pl__input pl__input--url"
                 formControlName="url"
                 placeholder="https://api.example.com/endpoint"
+                aria-label="Request URL"
+              />
+            </div>
+
+            <div class="pl__name-row">
+              <input
+                type="text"
+                class="pl__input pl__input--name"
+                formControlName="requestName"
+                placeholder="Request name (optional, used when saving)"
+                aria-label="Saved request name"
               />
             </div>
 
@@ -222,7 +252,7 @@
                 </div>
               }
 
-              @if (Object.keys(result.headers).length > 0) {
+              @if (hasHeaders(result.headers)) {
                 <div class="pl__response-headers">
                   <h4>Response headers</h4>
                   <div class="pl__headers-display">
@@ -352,6 +382,20 @@
             </div>
           }
         </div>
+
+        <div class="ctl__panel pl__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="pl__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="pl__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
       </aside>
       </details>
     </div>
@@ -361,7 +405,7 @@
       <ul>
         <li>Enter a URL and choose an HTTP method, then tap Send.</li>
         <li>Add custom headers or a JSON body for POST, PUT, and PATCH requests.</li>
-        <li>Save frequently used requests for quick access from the sidebar.</li>
+        <li>Optionally name a request, then tap Save for quick access from More.</li>
         <li>Enable history to replay recent requests.</li>
       </ul>
     </details>

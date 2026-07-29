@@ -33,7 +33,7 @@
         <label class="ctl__tool-btn" aria-label="Upload spreadsheets" appTooltip="Upload spreadsheets" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.fods" (change)="onFileSelected($event)" />
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
         </label>
         <button
           type="button"
@@ -86,7 +86,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomOut()"
-            [disabled]="zoomLevel <= 50"
+            [disabled]="zoomLevel <= minZoom"
             aria-label="Zoom out"
             appTooltip="Zoom out"
             tooltipPosition="bottom">
@@ -101,7 +101,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomIn()"
-            [disabled]="zoomLevel >= 200"
+            [disabled]="zoomLevel >= maxZoom"
             aria-label="Zoom in"
             appTooltip="Zoom in"
             tooltipPosition="bottom">
@@ -146,8 +146,25 @@
     <div class="ctl__workspace">
       <div class="ctl__editors">
         <section class="ctl__editor ctl__editor--merged fv-viewer-panel excel-viewer-panel" aria-label="Spreadsheet preview">
-          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner"></div><p>Loading spreadsheet…</p></div>
-          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage"><p>{{ errorMessage }}</p></div>
+          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner" aria-hidden="true"></div><p>Loading spreadsheet…</p></div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p></div>
+
+          <aside class="ev__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="ev__suggest-body">
+              <p class="ev__suggest-title">{{ suggestion.title }}</p>
+              <p class="ev__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="ev__suggest-actions">
+              <a class="ev__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="ev__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
 
           <div class="fv-viewer-body" *ngIf="excelFiles.length > 0">
             <header class="fv-viewer-bar" *ngIf="currentFileIndex >= 0">
@@ -157,7 +174,7 @@
 
             <div class="search-toolbar" *ngIf="currentFileIndex >= 0">
               <div class="search-box">
-                <input type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Search in sheet…" class="search-input">
+                <input type="text" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Search in sheet…" class="search-input" aria-label="Search in sheet">
                 <div class="search-results" *ngIf="searchText && searchResults.length > 0">{{ currentSearchIndex + 1 }} / {{ searchResults.length }}</div>
                 <button class="fv-icon-btn" *ngIf="searchText && searchResults.length > 0" (click)="previousSearchResult()" aria-label="Previous search result" appTooltip="Previous search result" tooltipPosition="bottom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
                 <button class="fv-icon-btn" *ngIf="searchText && searchResults.length > 0" (click)="nextSearchResult()" aria-label="Next search result" appTooltip="Next search result" tooltipPosition="bottom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
@@ -219,6 +236,17 @@
               <button *ngFor="let sheetName of getCurrentSheets(); let i = index" type="button" class="sheet-tab" [class.active]="i === currentSheetIndex" (click)="selectSheet(i)" [title]="sheetName">{{ sheetName }}</button>
             </div>
           </div>
+        </div>
+        <div class="ctl__panel ev__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="ev__related-list">
+            <li *ngFor="let tool of relatedTools">
+              <a class="ev__related-link" [routerLink]="tool.path">
+                <strong>{{ tool.label }}</strong>
+                <span>{{ tool.description }}</span>
+              </a>
+            </li>
+          </ul>
         </div>
         <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Spreadsheets are parsed <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
       </aside>

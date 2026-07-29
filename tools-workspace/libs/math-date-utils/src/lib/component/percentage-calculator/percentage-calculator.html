@@ -28,50 +28,92 @@
       </div>
     </div>
 
-    <div class="md-workflow" aria-label="Calculator actions"><div class="md-workflow__group md-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Calculate" appTooltip="Calculate" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Calculate</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!formattedResult()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="md-workflow" aria-label="Calculator actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Calculate" appTooltip="Calculate" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Calculate</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!formattedResult()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>Inputs</span></header>
           <div class="ctl__editor-body ctl__settings">
-            <div class="pc__modes">
+            <div class="pc__modes" role="group" aria-label="Calculation mode">
               @for (mode of modes; track trackMode($index, mode)) {
-                <button type="button" class="pc__mode" [class.pc__mode--active]="form.get('mode')?.value === mode.id" (click)="setMode(mode.id)">
+                <button
+                  type="button"
+                  class="pc__mode"
+                  [class.pc__mode--active]="formSnapshot().mode === mode.id"
+                  [attr.aria-pressed]="formSnapshot().mode === mode.id"
+                  (click)="setMode(mode.id)">
                   <span>{{ mode.icon }}</span> {{ mode.label }}
                 </button>
               }
             </div>
             @if (requiresBaseValue()) {
-              <label class="ctl__field" for="baseValue"><span>Base value</span><input id="baseValue" type="text" formControlName="baseValue" /></label>
+              <label class="ctl__field" for="baseValue">
+                <span>Base value</span>
+                <input id="baseValue" type="text" formControlName="baseValue" />
+              </label>
             }
             @if (requiresPercentageValue()) {
-              <label class="ctl__field" for="percentageValue"><span>Percentage (%)</span><input id="percentageValue" type="text" formControlName="percentageValue" /></label>
+              <label class="ctl__field" for="percentageValue">
+                <span>Percentage (%)</span>
+                <input id="percentageValue" type="text" formControlName="percentageValue" />
+              </label>
             }
             @if (requiresResultValue()) {
-              <label class="ctl__field" for="resultValue"><span>Result value</span><input id="resultValue" type="text" formControlName="resultValue" /></label>
+              <label class="ctl__field" for="resultValue">
+                <span>Result value</span>
+                <input id="resultValue" type="text" formControlName="resultValue" />
+              </label>
             }
             @if (requiresIncreaseDecreaseValue()) {
-              <label class="ctl__field" for="increaseDecreaseValue"><span>Increase/decrease</span><input id="increaseDecreaseValue" type="text" formControlName="increaseDecreaseValue" /></label>
+              <label class="ctl__field" for="increaseDecreaseValue">
+                <span>Increase/decrease</span>
+                <input id="increaseDecreaseValue" type="text" formControlName="increaseDecreaseValue" />
+              </label>
             }
-            <label class="ctl__field" for="decimalPlaces"><span>Decimal places</span><input id="decimalPlaces" type="number" min="0" max="8" formControlName="decimalPlaces" /></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="showSteps" /><div><strong>Show steps</strong><span>Display calculation steps.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="roundResult" /><div><strong>Round result</strong><span>Round to decimal places.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="includeDifference" /><div><strong>Include difference</strong><span>Show change amount.</span></div></label>
-            @if (errorMessage()) { <div class="ctl__alert ctl__alert--error">{{ errorMessage() }}</div> }
+            <label class="ctl__field" for="decimalPlaces">
+              <span>Decimal places</span>
+              <input id="decimalPlaces" type="number" min="0" max="8" formControlName="decimalPlaces" />
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="showSteps" />
+              <div>
+                <strong>Show steps</strong>
+                <span>Display calculation steps.</span>
+              </div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="roundResult" />
+              <div>
+                <strong>Round result</strong>
+                <span>Round to decimal places.</span>
+              </div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeDifference" />
+              <div>
+                <strong>Include difference</strong>
+                <span>Show change amount.</span>
+              </div>
+            </label>
+            @if (errorMessage()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            }
           </div>
         </section>
 
@@ -79,34 +121,77 @@
           <header class="ctl__editor-head">
             <span>Result</span>
             <div class="ctl__editor-actions">
-              @if (result()) { <span class="ctl__editor-badge">Ready</span> }
+              @if (result()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
               <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!formattedResult()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="pc__suggest" aria-label="Suggested next step">
+              <div class="pc__suggest-body">
+                <p class="pc__suggest-title">{{ suggestion.title }}</p>
+                <p class="pc__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="pc__suggest-actions">
+                <a class="pc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="pc__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           @if (result()) {
-            <div class="ctl__editor-body pc__results">
-              <div class="pc__headline"><span>Result</span><strong>{{ formattedResult() }}</strong></div>
+            <div class="ctl__editor-body pc__results" aria-live="polite">
+              <div class="pc__headline">
+                <span>Result</span>
+                <strong>{{ formattedResult() }}</strong>
+              </div>
               <div class="pc__grid">
-                <div class="pc__metric"><span>Base</span><strong>{{ result()?.baseValue | number:'1.0-4' }}</strong></div>
-                <div class="pc__metric"><span>Percent</span><strong>{{ result()?.percentageValue | number:'1.0-4' }}%</strong></div>
-                <div class="pc__metric"><span>Value</span><strong>{{ result()?.value | number:'1.0-4' }}</strong></div>
+                <div class="pc__metric">
+                  <span>Base</span>
+                  <strong>{{ result()?.baseValue | number:'1.0-4' }}</strong>
+                </div>
+                <div class="pc__metric">
+                  <span>Percent</span>
+                  <strong>{{ result()?.percentageValue | number:'1.0-4' }}%</strong>
+                </div>
+                <div class="pc__metric">
+                  <span>Value</span>
+                  <strong>{{ result()?.value | number:'1.0-4' }}</strong>
+                </div>
                 @if (differenceResult()) {
-                  <div class="pc__metric pc__metric--accent"><span>Diff</span><strong>{{ differenceResult() }}</strong></div>
+                  <div class="pc__metric pc__metric--accent">
+                    <span>Diff</span>
+                    <strong>{{ differenceResult() }}</strong>
+                  </div>
                 }
               </div>
-              @if (displaySteps().length > 0 && form.get('showSteps')?.value) {
-                <ol class="pc__steps">@for (step of displaySteps(); track trackStep($index, step)) { <li>{{ step }}</li> }</ol>
+              @if (displaySteps().length > 0 && formSnapshot().showSteps) {
+                <ol class="pc__steps">
+                  @for (step of displaySteps(); track trackStep($index, step)) {
+                    <li>{{ step }}</li>
+                  }
+                </ol>
               }
             </div>
           } @else {
-            <div class="ctl__empty"><p>Enter values to preview your calculation.</p></div>
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter values to preview your calculation.</p>
+            </div>
           }
         </section>
       </div>
 
-            <details class="md-options-flyout">
+      <details class="md-options-flyout">
         <summary class="md-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -115,44 +200,59 @@
         </summary>
         <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Quick presets</header>
-          <div class="ctl__panel-body">
-            <div class="pc__presets">
-              @for (preset of presets; track trackPreset($index, preset)) {
-                <button type="button" class="pc__preset" (click)="applyPreset(preset)">
-                  <strong>{{ preset.label }}</strong>
-                  <small>{{ getModeLabel(preset.mode) }}</small>
-                </button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Quick presets</header>
+            <div class="ctl__panel-body">
+              <div class="pc__presets">
+                @for (preset of presets; track trackPreset($index, preset)) {
+                  <button type="button" class="pc__preset" (click)="applyPreset(preset)">
+                    <strong>{{ preset.label }}</strong>
+                    <small>{{ getModeLabel(preset.mode) }}</small>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length > 0) {
+                <ul class="pc__history">
+                  @for (entry of history(); track trackHistory($index, entry)) {
+                    <li>
+                      <button type="button" class="pc__history-item" (click)="restoreHistory(entry)">
+                        <strong>{{ getModeLabel(entry.mode) }} · {{ formatDisplay(entry.value, entry.decimalPlaces, entry.roundResult) }}</strong>
+                        <span>{{ entry.timestamp | date:'short' }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Run a calculation to populate history.</p></div>
               }
             </div>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <div class="ctl__panel-body">
-            @if (history().length > 0) {
-              <ul class="pc__history">
-                @for (entry of history(); track trackHistory($index, entry)) {
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body pc__related">
+              <ul class="pc__related-list">
+                @for (tool of relatedTools; track tool.path) {
                   <li>
-                    <button type="button" class="pc__history-item" (click)="restoreHistory(entry)">
-                      <strong>{{ getModeLabel(entry.mode) }} · {{ formatDisplay(entry.value, entry.decimalPlaces, entry.roundResult) }}</strong>
-                      <span>{{ entry.timestamp | date:'short' }}</span>
-                    </button>
+                    <a class="pc__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
-            } @else {
-              <div class="ctl__panel-empty"><p>Run a calculation to populate history.</p></div>
-            }
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

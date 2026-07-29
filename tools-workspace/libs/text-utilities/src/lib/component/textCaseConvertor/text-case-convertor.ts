@@ -1,41 +1,52 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   AP_SMALL_WORDS,
   CHICAGO_SMALL_WORDS,
   DEFAULT_FAVORITES,
   DEFAULT_TITLE_EXCEPTIONS,
   PROGRAMMING_CYCLE,
-} from './text-case-convertor.constants';
-import {
-  ALL_PRESETS,
+  TEXT_CASE_DEFAULT_CASE,
+  TEXT_CASE_MAX_UPLOAD_BYTES,
+  TEXT_CASE_RELATED_TOOLS,
+} from '../../constants/text-case-convertor.constants';
+import type {
   CaseId,
   CasePreset,
   ConvertOptions,
   CustomRule,
   EscapeMode,
   UnicodeForm,
+} from '../../types/text-case-convertor.types';
+import {
+  ALL_PRESETS,
   convertCase,
   detectCase,
   getPresetsByCategory,
   isValidIdentifier,
-} from './text-case-convertor.converters';
+  resolveTextCaseSuggestion,
+} from '../../utils/text-case-convertor.utils';
 
 @Component({
   selector: 'lib-text-case-convertor',
   standalone: true,
   templateUrl: './text-case-convertor.html',
   styleUrls: ['./text-case-convertor.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class TextCaseConvertorComponent implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
 
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_CASE_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
   inputText = '';
   convertedText = '';
-  selectedCase: CaseId = 'upper';
+  selectedCase: CaseId = TEXT_CASE_DEFAULT_CASE;
   screenReaderMessage = '';
 
   charCount = 0;
@@ -49,7 +60,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
 
   isReadingFile = false;
   isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = TEXT_CASE_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
 
   activePresetTab: 'standard' | 'programming' | 'fun' | 'favorites' = 'standard';
@@ -185,6 +196,27 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     return 'Zalgo works best on shorter text (200+ chars may be slow)';
   }
 
+  get primarySuggestion(): TuToolSuggestion | null {
+    const sample = this.inputText.trim().split(/\n/)[0]?.trim() ?? '';
+    const suggestion = resolveTextCaseSuggestion({
+      hasInput: this.hasContent,
+      hasOutput: !!this.convertedText,
+      selectedCase: this.selectedCase,
+      detectedCase: detectCase(sample),
+      identifierWarning: this.identifierWarning,
+      zalgoLengthWarning: this.zalgoLengthWarning,
+      inputLength: this.inputText.length,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+  }
+
   getPresetLabel(id: CaseId): string {
     return ALL_PRESETS.find((p) => p.id === id)?.label ?? id;
   }
@@ -274,6 +306,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.dismissedSuggestionId = null;
     this.inputText = value;
     this.selectionPreview = null;
     this.refreshOutput();
@@ -365,6 +398,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
 
   onCaseChange(caseType: CaseId): void {
     this.selectedCase = caseType;
+    this.dismissedSuggestionId = null;
     this.trackRecent(caseType);
     this.refreshOutput();
     this.syncPresetTab();
@@ -373,12 +407,13 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
 
   cycleProgrammingCase(): void {
     const idx = PROGRAMMING_CYCLE.indexOf(this.selectedCase);
-    const next = PROGRAMMING_CYCLE[(idx + 1) % PROGRAMMING_CYCLE.length] as CaseId;
+    const next = PROGRAMMING_CYCLE[(idx + 1) % PROGRAMMING_CYCLE.length];
     this.onCaseChange(next);
     this.toastService.info(`Switched to ${ALL_PRESETS.find((p) => p.id === next)?.label ?? next}`);
   }
 
   onOptionsChange(): void {
+    this.dismissedSuggestionId = null;
     this.refreshOutput();
   }
 
@@ -476,6 +511,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     }
     this.applyInputState('');
     this.seedHistory('');
+    this.dismissedSuggestionId = null;
     this.updateShareUrl();
     this.toastService.info('Text cleared');
   }
@@ -522,6 +558,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
         clearTimeout(this.historyTimer);
         this.historyTimer = null;
       }
+      this.dismissedSuggestionId = null;
       this.applyInputState(text);
       this.pushToUndoStack(text);
       this.updateShareUrl();

@@ -2,47 +2,123 @@
   <lib-navigation></lib-navigation>
   <main class="ctl__main">
     <div class="ctl__top">
-      <header class="ctl__header"><h1>Unit Converter</h1><p>Convert length, mass, temperature, and more with presets and history.</p></header>
+      <header class="ctl__header">
+        <h1>Unit Converter</h1>
+        <p>Convert length, mass, temperature, and more with presets and history.</p>
+      </header>
       <div class="ctl__stats" aria-label="Converter statistics">
-        <div class="ctl__stat ctl__stat--mode"><span class="ctl__stat-value">{{ selectedCategoryDetails().title }}</span><span class="ctl__stat-label">Category</span></div>
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ formattedOutputValue() || '—' }}</span><span class="ctl__stat-label">Result</span></div>
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ historyCount() }}</span><span class="ctl__stat-label">History</span></div>
-        <div class="ctl__stat"><span class="ctl__stat-value">{{ selectedUnitsCount() }}</span><span class="ctl__stat-label">Units</span></div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ selectedCategoryDetails().title }}</span>
+          <span class="ctl__stat-label">Category</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ formattedOutputValue() || '—' }}</span>
+          <span class="ctl__stat-label">Result</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ historyCount() }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ selectedUnitsCount() }}</span>
+          <span class="ctl__stat-label">Units</span>
+        </div>
       </div>
     </div>
-    <div class="md-workflow" aria-label="Converter actions"><div class="md-workflow__group md-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="onConversionSubmit()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert"><img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Convert</span></button>
-      <button type="button" class="ctl__tool-btn" (click)="swapUnits()" appTooltip="Swap units" tooltipPosition="bottom" aria-label="Swap units"><img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Swap</span></button>
-      <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Copy</span></button>
+
+    <div class="md-workflow" aria-label="Converter actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="onConversionSubmit()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Convert</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="swapUnits()" appTooltip="Swap units" tooltipPosition="bottom" aria-label="Swap units">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Swap</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="conversionForm">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>{{ selectedCategoryDetails().title }}</span></header>
           <div class="ctl__editor-body ctl__settings">
-            <label class="ctl__field" for="input-value"><span>Value</span><input #inputField id="input-value" type="number" inputmode="decimal" formControlName="inputValue" placeholder="0" /></label>
-            <label class="ctl__field" for="input-unit"><span>From</span>
-              <select id="input-unit" formControlName="inputUnit">@for (unit of categoryMeta().units; track trackUnit($index, unit)) { <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option> }</select>
+            <label class="ctl__field" for="input-value">
+              <span>Value</span>
+              <input #inputField id="input-value" type="number" inputmode="decimal" formControlName="inputValue" placeholder="0" />
             </label>
-            <label class="ctl__field" for="output-unit"><span>To</span>
-              <select id="output-unit" formControlName="outputUnit">@for (unit of categoryMeta().units; track trackUnit($index, unit)) { <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option> }</select>
+            <label class="ctl__field" for="input-unit">
+              <span>From</span>
+              <select id="input-unit" formControlName="inputUnit">
+                @for (unit of categoryMeta().units; track trackUnit($index, unit)) {
+                  <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option>
+                }
+              </select>
             </label>
-            @if (conversionError()) { <div class="ctl__alert ctl__alert--error">{{ conversionError() }}</div> }
+            <label class="ctl__field" for="output-unit">
+              <span>To</span>
+              <select id="output-unit" formControlName="outputUnit">
+                @for (unit of categoryMeta().units; track trackUnit($index, unit)) {
+                  <option [value]="unit.id">{{ formatUnitLabel(unit) }}</option>
+                }
+              </select>
+            </label>
+            @if (conversionError()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionError() }}</div>
+            }
           </div>
         </section>
+
         <section class="ctl__editor ctl__editor--output md-editor-panel">
-          <header class="ctl__editor-head"><span>Result</span>
-            <div class="ctl__editor-actions">@if (conversionResult()) { <span class="ctl__editor-badge">Live</span> }
-              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" /></button>
+          <header class="ctl__editor-head">
+            <span>Result</span>
+            <div class="ctl__editor-actions">
+              @if (conversionResult()) {
+                <span class="ctl__editor-badge">Live</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
           </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="uc__suggest" aria-label="Suggested next step">
+              <div class="uc__suggest-body">
+                <p class="uc__suggest-title">{{ suggestion.title }}</p>
+                <p class="uc__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="uc__suggest-actions">
+                <a class="uc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="uc__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           @if (conversionSummary()) {
-            <div class="ctl__editor-body"><p class="uc__summary">{{ conversionSummary() }}</p></div>
-          } @else { <div class="ctl__empty"><p>Enter a value to convert.</p></div> }
+            <div class="ctl__editor-body" aria-live="polite">
+              <p class="uc__summary">{{ conversionSummary() }}</p>
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter a value to convert.</p>
+            </div>
+          }
         </section>
       </div>
-            <details class="md-options-flyout">
+
+      <details class="md-options-flyout">
         <summary class="md-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -51,25 +127,94 @@
         </summary>
         <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Categories and history">
-        <div class="ctl__panel"><header class="ctl__panel-head">Categories</header><div class="ctl__panel-body">
-          <label class="ctl__field" for="category-search"><span>Search</span><input id="category-search" type="search" [value]="searchTerm()" (input)="onCategorySearch($any($event.target).value)" placeholder="Search categories…" /></label>
-          <div class="uc__categories">@for (category of filteredCategories(); track trackCategory($index, category)) {
-            <button type="button" class="uc__category" [class.uc__category--active]="category.id === selectedCategory()" (click)="setCategory(category.id)"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></button>
-          }</div>
-        </div></div>
-        @if (quickPresetChips().length) {
-          <div class="ctl__panel"><header class="ctl__panel-head">Presets</header><div class="ctl__panel-body"><div class="uc__presets">@for (preset of quickPresetChips(); track trackPreset($index, preset)) {
-            <button type="button" class="uc__preset" (click)="onPresetChipClick(preset)">{{ preset.name }}</button>
-          }</div></div></div>
-        }
-        <div class="ctl__panel" #historySection><header class="ctl__panel-head">History</header><div class="ctl__panel-body">
-          @if (historyEntries().length) { <ul class="uc__history">@for (entry of historyEntries(); track trackHistory($index, entry)) {
-            <li><span class="uc__history-item">{{ formatNumber(entry.inputValue, entry.precision ?? 6) }} {{ entry.inputUnit.symbol ?? entry.inputUnit.label }} → {{ formatNumber(entry.outputValue, entry.precision ?? 6) }} {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}</span><small>{{ formatHistoryMeta(entry) }}</small></li>
-          }</ul> } @else { <div class="ctl__panel-empty"><p>Recent conversions appear here.</p></div> }
-        </div></div>
-      </aside>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Categories</header>
+            <div class="ctl__panel-body">
+              <label class="ctl__field" for="category-search">
+                <span>Search</span>
+                <input
+                  id="category-search"
+                  type="search"
+                  [value]="searchTerm()"
+                  (input)="onCategorySearch($any($event.target).value)"
+                  placeholder="Search categories…" />
+              </label>
+              <div class="uc__categories" role="listbox" aria-label="Unit categories">
+                @for (category of filteredCategories(); track trackCategory($index, category)) {
+                  <button
+                    type="button"
+                    class="uc__category"
+                    role="option"
+                    [attr.aria-selected]="category.id === selectedCategory()"
+                    [class.uc__category--active]="category.id === selectedCategory()"
+                    (click)="setCategory(category.id)">
+                    <strong>{{ category.title }}</strong>
+                    <small>{{ category.description }}</small>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          @if (quickPresetChips().length) {
+            <div class="ctl__panel">
+              <header class="ctl__panel-head">Presets</header>
+              <div class="ctl__panel-body">
+                <div class="uc__presets">
+                  @for (preset of quickPresetChips(); track trackPreset($index, preset)) {
+                    <button type="button" class="uc__preset" (click)="onPresetChipClick(preset)">{{ preset.name }}</button>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+          <div class="ctl__panel" #historySection>
+            <header class="ctl__panel-head">History</header>
+            <div class="ctl__panel-body">
+              @if (historyEntries().length) {
+                <ul class="uc__history">
+                  @for (entry of historyEntries(); track trackHistory($index, entry)) {
+                    <li>
+                      <span class="uc__history-item">
+                        {{ formatNumber(entry.inputValue, entry.precision ?? 6) }}
+                        {{ entry.inputUnit.symbol ?? entry.inputUnit.label }} →
+                        {{ formatNumber(entry.outputValue, entry.precision ?? 6) }}
+                        {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}
+                      </span>
+                      <small>{{ formatHistoryMeta(entry) }}</small>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Recent conversions appear here.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body uc__related">
+              <ul class="uc__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="uc__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
-    <details class="ctl__help"><summary>How to use</summary><ul><li>Pick a category and enter a value with from/to units.</li><li>Results update live — swap units or use presets.</li><li>Copy the conversion summary from the toolbar.</li></ul></details>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Pick a category and enter a value with from/to units.</li>
+        <li>Results update live — swap units or use presets.</li>
+        <li>Copy the conversion summary from the toolbar.</li>
+      </ul>
+    </details>
   </main>
 </div>

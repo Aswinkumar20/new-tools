@@ -115,6 +115,26 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="trp__suggest" aria-label="Suggested next step">
+              <div class="trp__suggest-body">
+                <p class="trp__suggest-title">{{ suggestion.title }}</p>
+                <p class="trp__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="trp__suggest-actions">
+                <a class="trp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="trp__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="analysis-input">Input text to analyse</label>
           <textarea
             #inputTextarea
@@ -219,23 +239,36 @@
         </section>
       </div>
 
-      <aside class="trp__sidebar" aria-label="Samples and tips">
+      <aside class="trp__sidebar" aria-label="Samples and related tools">
         <div class="trp__panel">
           <header class="trp__panel-head">Sample cases</header>
           <div class="trp__samples">
-            <button type="button" class="trp__sample" (click)="loadSample('Never odd or even')">
-              <code>Never odd or even</code>
-              <span class="trp__sample-badge trp__sample-badge--yes">Palindrome</span>
-            </button>
-            <button type="button" class="trp__sample" (click)="loadSample('Hello, world!')">
-              <code>Hello, world!</code>
-              <span class="trp__sample-badge trp__sample-badge--no">Not palindrome</span>
-            </button>
-            <button type="button" class="trp__sample" (click)="loadSample('drawer')">
-              <code>drawer</code>
-              <span class="trp__sample-badge">→ reward</span>
-            </button>
+            @for (sample of samples; track sample.text) {
+              <button type="button" class="trp__sample" (click)="loadSample(sample.text)">
+                <code>{{ sample.text }}</code>
+                <span
+                  class="trp__sample-badge"
+                  [class.trp__sample-badge--yes]="sample.badgeKind === 'yes'"
+                  [class.trp__sample-badge--no]="sample.badgeKind === 'no'">
+                  {{ sample.badge }}
+                </span>
+              </button>
+            }
           </div>
+        </div>
+
+        <div class="trp__panel trp__related-panel">
+          <header class="trp__panel-head">Related tools</header>
+          <ul class="trp__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="trp__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
     </div>

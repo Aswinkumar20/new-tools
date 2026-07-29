@@ -1,214 +1,261 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface BatteryStatus {
-  charging: boolean;
-  chargingTime: number | null;
-  dischargingTime: number | null;
-  level: number;
-  timestamp: number;
-}
-
-interface BatteryManager {
-  charging: boolean;
-  chargingTime: number;
-  dischargingTime: number;
-  level: number;
-  addEventListener(type: string, listener: () => void): void;
-  removeEventListener(type: string, listener: () => void): void;
-}
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  PLATFORM_ID,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { buCopyText } from '../../shared/bu-clipboard.util';
+import { buDownloadJson, buDownloadTimestamp } from '../../shared/bu-download.util';
+import type { BuRelatedToolLink, BuToolSuggestion } from '../../shared/bu-tool-suggestion.model';
+import {
+  BATTERY_HISTORY_LIMIT,
+  BATTERY_MANAGER_EVENTS,
+  BATTERY_RELATED_TOOLS
+} from '../../constants/battery-status.constants';
+import type { BatteryManager, BatteryNavigator, BatteryStatusSnapshot } from '../../types/battery-status.types';
+import {
+  buildBatteryStatusCopyLines,
+  buildBatteryStatusJsonPayload,
+  formatBatteryHistoryEntry,
+  formatBatteryPercentage,
+  formatBatteryTime,
+  formatBatteryTimestamp,
+  isBatteryApiSupported,
+  isCriticalBatteryLevel,
+  isLowBatteryLevel,
+  isMeaningfulBatteryChange,
+  normalizeBatteryTime,
+  resolveBatterySuggestion
+} from '../../utils/battery-status.utils';
 
 @Component({
   selector: 'lib-battery-status-viewer',
   standalone: true,
   templateUrl: './battery-status-viewer.html',
   styleUrls: ['./battery-status-viewer.scss'],
-  imports: [CommonModule, Navigation, TooltipDirective],
+  imports: [RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class BatteryStatusViewerComponent implements OnDestroy {
+export class BatteryStatusViewerComponent implements AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
-  readonly supported = 'getBattery' in navigator || ('battery' in navigator && (navigator as any).battery);
-  readonly currentStatus = signal<BatteryStatus | null>(null);
-  readonly history = signal<BatteryStatus[]>([]);
-  readonly monitoring = signal(false);
+  private readonly toast = inject(ToastService);
+  private readonly platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
+
+  readonly historyLimit = BATTERY_HISTORY_LIMIT;
+  readonly relatedTools: ReadonlyArray<BuRelatedToolLink> = BATTERY_RELATED_TOOLS;
+
+  readonly formatPercentage = formatBatteryPercentage;
+  readonly formatTime = formatBatteryTime;
+  readonly formatTimestamp = formatBatteryTimestamp;
+
+  readonly isSupported = signal(false);
+  readonly currentStatus = signal<BatteryStatusSnapshot | null>(null);
+  readonly history = signal<BatteryStatusSnapshot[]>([]);
+  readonly isMonitoring = signal(false);
+  readonly isLoading = signal(false);
   readonly errors = signal<string[]>([]);
+  readonly shouldLogHistory = signal(true);
+  readonly dismissedSuggestionId = signal<string | null>(null);
 
   private batteryManager: BatteryManager | null = null;
-  private readonly chargingChangeHandler = () => this.updateStatus();
-  private readonly chargingTimeChangeHandler = () => this.updateStatus();
-  private readonly dischargingTimeChangeHandler = () => this.updateStatus();
-  private readonly levelChangeHandler = () => this.updateStatus();
+  private readonly onBatteryManagerEvent = () => this.syncBatteryStatus();
 
   readonly batteryPercentage = computed(() => {
     const status = this.currentStatus();
     return status ? Math.round(status.level * 100) : null;
   });
 
-  readonly batteryLevel = computed(() => {
-    const status = this.currentStatus();
-    return status ? status.level : 0;
-  });
+  readonly batteryLevel = computed(() => this.currentStatus()?.level ?? 0);
 
-  readonly isCharging = computed(() => {
-    const status = this.currentStatus();
-    return status?.charging ?? false;
-  });
+  readonly isCharging = computed(() => this.currentStatus()?.charging ?? false);
 
   readonly hasHistory = computed(() => this.history().length > 0);
 
-  constructor() {
-    if (this.supported) {
-      this.initializeBattery();
+  readonly isLowBattery = computed(() => isLowBatteryLevel(this.currentStatus()));
+
+  readonly isCriticalBattery = computed(() => isCriticalBatteryLevel(this.currentStatus()));
+
+  readonly primarySuggestion = computed<BuToolSuggestion | null>(() => {
+    const suggestion = resolveBatterySuggestion(this.isSupported(), this.currentStatus());
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
+
+  ngAfterViewInit(): void {
+    const supported = isBatteryApiSupported(this.isBrowser, this.getBatteryNavigator());
+    this.isSupported.set(supported);
+    if (supported) {
+      void this.loadBatteryManager();
     }
   }
 
-  private async initializeBattery(): Promise<void> {
+  private getBatteryNavigator(): BatteryNavigator | null {
+    if (!this.isBrowser) {
+      return null;
+    }
+    return navigator as BatteryNavigator;
+  }
+
+  private async loadBatteryManager(): Promise<void> {
+    this.isLoading.set(true);
+    this.errors.set([]);
+
     try {
+      const nav = this.getBatteryNavigator();
       let battery: BatteryManager | null = null;
 
-      if ('getBattery' in navigator) {
-        battery = (await (navigator as any).getBattery()) as BatteryManager;
-      } else if ('battery' in navigator) {
-        battery = (navigator as any).battery as BatteryManager;
+      if (nav && typeof nav.getBattery === 'function') {
+        battery = await nav.getBattery();
+      } else if (nav?.battery) {
+        battery = nav.battery;
       }
 
       if (battery) {
         this.batteryManager = battery;
-        this.updateStatus();
+        this.syncBatteryStatus(true);
         this.startMonitoring();
+      } else {
+        this.errors.set(['Battery manager was unavailable even though the API is present.']);
       }
-    } catch (e) {
-      this.errors.set([e instanceof Error ? e.message : 'Failed to access battery API.']);
+    } catch (error) {
+      this.errors.set([
+        error instanceof Error ? error.message : 'Failed to access battery API.'
+      ]);
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
   startMonitoring(): void {
-    if (!this.batteryManager || this.monitoring()) {
+    if (!this.batteryManager || this.isMonitoring()) {
       return;
     }
 
-    this.batteryManager.addEventListener('chargingchange', this.chargingChangeHandler);
-    this.batteryManager.addEventListener('chargingtimechange', this.chargingTimeChangeHandler);
-    this.batteryManager.addEventListener('dischargingtimechange', this.dischargingTimeChangeHandler);
-    this.batteryManager.addEventListener('levelchange', this.levelChangeHandler);
-
-    this.monitoring.set(true);
+    for (const eventName of BATTERY_MANAGER_EVENTS) {
+      this.batteryManager.addEventListener(eventName, this.onBatteryManagerEvent);
+    }
+    this.isMonitoring.set(true);
   }
 
   stopMonitoring(): void {
-    if (!this.batteryManager || !this.monitoring()) {
+    if (!this.batteryManager || !this.isMonitoring()) {
       return;
     }
 
-    this.batteryManager.removeEventListener('chargingchange', this.chargingChangeHandler);
-    this.batteryManager.removeEventListener('chargingtimechange', this.chargingTimeChangeHandler);
-    this.batteryManager.removeEventListener('dischargingtimechange', this.dischargingTimeChangeHandler);
-    this.batteryManager.removeEventListener('levelchange', this.levelChangeHandler);
-
-    this.monitoring.set(false);
+    for (const eventName of BATTERY_MANAGER_EVENTS) {
+      this.batteryManager.removeEventListener(eventName, this.onBatteryManagerEvent);
+    }
+    this.isMonitoring.set(false);
   }
 
-  private updateStatus(): void {
+  toggleMonitoring(): void {
+    if (this.isMonitoring()) {
+      this.stopMonitoring();
+      this.toast.info('Live updates paused');
+      return;
+    }
+
+    this.startMonitoring();
+    this.syncBatteryStatus();
+    this.toast.info('Live updates resumed');
+  }
+
+  private syncBatteryStatus(forceHistory = false): void {
     if (!this.batteryManager) {
       return;
     }
 
-    const status: BatteryStatus = {
+    const status: BatteryStatusSnapshot = {
       charging: this.batteryManager.charging,
-      chargingTime: this.batteryManager.chargingTime === Infinity ? null : this.batteryManager.chargingTime,
-      dischargingTime: this.batteryManager.dischargingTime === Infinity ? null : this.batteryManager.dischargingTime,
+      chargingTime: normalizeBatteryTime(this.batteryManager.chargingTime),
+      dischargingTime: normalizeBatteryTime(this.batteryManager.dischargingTime),
       level: this.batteryManager.level,
       timestamp: Date.now()
     };
 
+    const previous = this.currentStatus();
     this.currentStatus.set(status);
-    this.history.update((current) => [status, ...current].slice(0, 50));
+
+    if (!this.shouldLogHistory()) {
+      return;
+    }
+
+    if (forceHistory || isMeaningfulBatteryChange(previous, status)) {
+      this.history.update((entries) => [status, ...entries].slice(0, BATTERY_HISTORY_LIMIT));
+    }
   }
 
-  refresh(): void {
+  refreshStatus(): void {
     this.errors.set([]);
-    if (this.supported && !this.batteryManager) {
-      this.initializeBattery();
-    } else if (this.batteryManager) {
-      this.updateStatus();
+    if (this.isSupported() && !this.batteryManager) {
+      void this.loadBatteryManager();
+      return;
+    }
+    if (this.batteryManager) {
+      this.syncBatteryStatus(true);
+      this.toast.info('Battery status refreshed');
     }
   }
 
   clearHistory(): void {
     this.history.set([]);
     this.errors.set([]);
+    this.toast.info('History cleared');
+  }
+
+  toggleLogHistory(enabled: boolean): void {
+    this.shouldLogHistory.set(enabled);
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   copyStatus(): void {
     const status = this.currentStatus();
     if (!status) return;
-    const lines = [
-      `Level: ${this.formatPercentage(status.level)}`,
-      `Charging: ${status.charging ? 'Yes' : 'No'}`,
-    ];
-    if (status.charging && status.chargingTime !== null) {
-      lines.push(`Time to full: ${this.formatTime(status.chargingTime)}`);
-    }
-    if (!status.charging && status.dischargingTime !== null) {
-      lines.push(`Time until empty: ${this.formatTime(status.dischargingTime)}`);
-    }
-    this.copyText(lines.join('\n'), 'Battery status');
+    buCopyText(this.toast, buildBatteryStatusCopyLines(status).join('\n'), 'Battery status');
+  }
+
+  copyJson(): void {
+    const status = this.currentStatus();
+    if (!status) return;
+    buCopyText(
+      this.toast,
+      JSON.stringify(buildBatteryStatusJsonPayload(status), null, 2),
+      'Battery status JSON'
+    );
   }
 
   copyHistory(): void {
     const entries = this.history();
     if (!entries.length) return;
-    const text = entries
-      .map((e) => {
-        const parts = [
-          `[${this.formatTimestamp(e.timestamp)}]`,
-          `${this.formatPercentage(e.level)}`,
-          e.charging ? 'Charging' : 'Discharging',
-        ];
-        if (e.charging && e.chargingTime !== null) {
-          parts.push(`to full: ${this.formatTime(e.chargingTime)}`);
-        }
-        if (!e.charging && e.dischargingTime !== null) {
-          parts.push(`until empty: ${this.formatTime(e.dischargingTime)}`);
-        }
-        return parts.join(' · ');
-      })
-      .join('\n');
-    this.copyText(text, 'Battery history');
+    buCopyText(
+      this.toast,
+      entries.map((entry) => formatBatteryHistoryEntry(entry)).join('\n'),
+      'Battery history'
+    );
   }
 
-  private copyText(text: string, label: string): void {
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard!`);
-    });
-  }
+  downloadHistory(): void {
+    if (!this.isBrowser || !this.history().length) return;
 
-  formatTime(seconds: number | null): string {
-    if (seconds === null || seconds === Infinity) {
-      return 'N/A';
+    try {
+      buDownloadJson(this.history(), `battery-history-${buDownloadTimestamp()}.json`);
+      this.toast.success('History downloaded');
+    } catch {
+      this.toast.error('Failed to download history');
     }
-    if (seconds < 60) {
-      return `${Math.round(seconds)}s`;
-    }
-    if (seconds < 3600) {
-      const minutes = Math.floor(seconds / 60);
-      const secs = Math.round(seconds % 60);
-      return `${minutes}m ${secs}s`;
-    }
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}h ${minutes}m`;
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  }
-
-  formatPercentage(level: number): string {
-    return `${Math.round(level * 100)}%`;
   }
 
   ngOnDestroy(): void {

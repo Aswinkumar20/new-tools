@@ -1,20 +1,35 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
-
-interface FormatOption {
-  value: string;
-  label: string;
-  description: string;
-}
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  TEXT_TO_ASCII_DEBOUNCE_MS,
+  TEXT_TO_ASCII_DEFAULT_LEFT,
+  TEXT_TO_ASCII_DEFAULT_RIGHT,
+  TEXT_TO_ASCII_FORMAT_OPTIONS,
+  TEXT_TO_ASCII_MAX_UPLOAD_BYTES,
+  TEXT_TO_ASCII_RELATED_TOOLS,
+} from '../../constants/text-to-ascii.constants';
+import type {
+  TextToAsciiFormat,
+  TextToAsciiFormatOption,
+} from '../../types/text-to-ascii.types';
+import {
+  convertTextToAsciiFormats,
+  inputLooksLikeAsciiCodes,
+  inputLooksLikeBinaryCodes,
+  inputLooksLikeHexCodes,
+  resolveTextToAsciiSuggestion,
+} from '../../utils/text-to-ascii.utils';
 
 @Component({
   selector: 'lib-text-to-ascii',
   standalone: true,
   templateUrl: './text-to-ASCII.html',
   styleUrls: ['./text-to-ASCII.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class TextToASCIIComponent implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
@@ -24,8 +39,8 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   errorMessage = '';
   isConverting = false;
 
-  leftType = 'text';
-  rightType = 'ascii';
+  leftType: TextToAsciiFormat = TEXT_TO_ASCII_DEFAULT_LEFT;
+  rightType: TextToAsciiFormat = TEXT_TO_ASCII_DEFAULT_RIGHT;
 
   undoStack: string[] = [''];
   redoStack: string[] = [];
@@ -35,21 +50,18 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
 
   isReadingFile = false;
   isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = TEXT_TO_ASCII_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
 
   private convertTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly DEBOUNCE_DELAY = 300;
+  private readonly debounceDelay = TEXT_TO_ASCII_DEBOUNCE_MS;
 
   private readonly toastService = inject(ToastService);
   readonly assetService = inject(AssetService);
 
-  readonly typeOptions: FormatOption[] = [
-    { value: 'text', label: 'Text', description: 'Plain readable text.' },
-    { value: 'ascii', label: 'ASCII', description: 'ASCII codes representing each character.' },
-    { value: 'binary', label: 'Binary', description: 'Binary representation (0s and 1s) of text.' },
-    { value: 'hex', label: 'Hex', description: 'Hexadecimal representation of text.' },
-  ];
+  readonly typeOptions: ReadonlyArray<TextToAsciiFormatOption> = TEXT_TO_ASCII_FORMAT_OPTIONS;
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_TO_ASCII_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
 
   get hasInput(): boolean {
     return !!this.inputValue?.trim();
@@ -69,6 +81,27 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
 
   get toLabel(): string {
     return this.typeOptions.find((o) => o.value === this.rightType)?.label ?? this.rightType;
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveTextToAsciiSuggestion({
+      hasInput: this.hasInput,
+      hasOutput: !!this.outputValue,
+      hasError: !!this.errorMessage,
+      leftType: this.leftType,
+      rightType: this.rightType,
+      inputLooksLikeAscii: inputLooksLikeAsciiCodes(this.inputValue),
+      inputLooksLikeBinary: inputLooksLikeBinaryCodes(this.inputValue),
+      inputLooksLikeHex: inputLooksLikeHexCodes(this.inputValue),
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -126,63 +159,17 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.isConverting = true;
 
     try {
-      const raw = this.inputValue ?? '';
-      const trimmed = raw.trim();
-
-      if (!trimmed) {
-        this.outputValue = '';
-        return;
-      }
-
-      if (this.leftType === this.rightType) {
-        this.outputValue = trimmed;
-        return;
-      }
-
-      if (!this.isValidType(this.leftType) || !this.isValidType(this.rightType)) {
-        throw new Error('Invalid conversion type selected.');
-      }
-
-      let text: string;
-      switch (this.leftType) {
-        case 'text':
-          text = trimmed;
-          break;
-        case 'ascii':
-          text = this.asciiToText(trimmed);
-          break;
-        case 'binary':
-          text = this.binaryToText(trimmed);
-          break;
-        case 'hex':
-          text = this.hexToText(trimmed);
-          break;
-        default:
-          throw new Error('Invalid input type selected.');
-      }
-
-      if (text === null || text === undefined) {
-        throw new Error('Failed to convert input to text. Please check your input format.');
-      }
-
-      switch (this.rightType) {
-        case 'text':
-          this.outputValue = text;
-          break;
-        case 'ascii':
-          this.outputValue = this.textToAscii(text);
-          break;
-        case 'binary':
-          this.outputValue = this.textToBinary(text);
-          break;
-        case 'hex':
-          this.outputValue = this.textToHex(text);
-          break;
-        default:
-          throw new Error('Invalid output type selected.');
-      }
+      const result = convertTextToAsciiFormats({
+        input: this.inputValue ?? '',
+        leftType: this.leftType,
+        rightType: this.rightType,
+      });
+      this.outputValue = result.output;
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Invalid input for the selected conversion. Please check the format and try again.';
+      const message =
+        e instanceof Error
+          ? e.message
+          : 'Invalid input for the selected conversion. Please check the format and try again.';
       this.errorMessage = message;
       this.outputValue = '';
     } finally {
@@ -190,14 +177,12 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     }
   }
 
-  private isValidType(type: string): boolean {
-    return this.typeOptions.some((opt) => opt.value === type);
-  }
-
   onInputChange(): void {
     if (this.isRestoringHistory) {
       return;
     }
+
+    this.dismissedSuggestionId = null;
 
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
@@ -213,7 +198,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
         this.outputValue = '';
         this.isConverting = false;
       }
-    }, this.DEBOUNCE_DELAY);
+    }, this.debounceDelay);
 
     this.scheduleHistoryPush(this.inputValue);
   }
@@ -288,6 +273,8 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   }
 
   onFormatChange(): void {
+    this.dismissedSuggestionId = null;
+
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
       this.convertTimer = null;
@@ -314,6 +301,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.outputValue = tmpValue;
 
     this.errorMessage = '';
+    this.dismissedSuggestionId = null;
 
     if (this.convertTimer) {
       clearTimeout(this.convertTimer);
@@ -360,6 +348,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.seedHistory('');
     this.errorMessage = '';
     this.isConverting = false;
+    this.dismissedSuggestionId = null;
     this.toastService.info('Text cleared');
   }
 
@@ -490,103 +479,5 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     }).catch(() => {
       this.toastService.error('Failed to copy to clipboard');
     });
-  }
-
-  textToAscii(text: string): string {
-    if (!text) return '';
-    return text.split('').map((c) => c.charCodeAt(0)).join(' ');
-  }
-
-  asciiToText(ascii: string): string {
-    if (!ascii || !ascii.trim()) {
-      throw new Error('ASCII input cannot be empty.');
-    }
-    const trimmed = ascii.trim();
-    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
-
-    if (parts.length === 0) {
-      throw new Error('ASCII input must contain at least one number.');
-    }
-
-    if (!parts.every((p) => /^\d+$/.test(p))) {
-      throw new Error('ASCII must contain only numbers separated by spaces (e.g., "72 101 108 108 111").');
-    }
-
-    const invalidCodes = parts.filter((p) => {
-      const num = Number(p);
-      return isNaN(num) || num < 0 || num > 65535;
-    });
-
-    if (invalidCodes.length > 0) {
-      throw new Error(`Invalid ASCII code(s): ${invalidCodes.join(', ')}. Codes must be between 0 and 65535.`);
-    }
-
-    return parts.map((p) => String.fromCharCode(Number(p))).join('');
-  }
-
-  textToBinary(text: string): string {
-    return text.split('').map((c) => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
-  }
-
-  binaryToText(binary: string): string {
-    if (!binary || !binary.trim()) {
-      throw new Error('Binary input cannot be empty.');
-    }
-    const trimmed = binary.trim();
-    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
-
-    if (parts.length === 0) {
-      throw new Error('Binary input must contain at least one binary number.');
-    }
-
-    if (!parts.every((b) => /^[01]+$/.test(b))) {
-      throw new Error('Binary must contain only 0s and 1s, separated by spaces (e.g., "01001000 01100101").');
-    }
-
-    try {
-      return parts.map((b) => {
-        const charCode = parseInt(b, 2);
-        if (isNaN(charCode) || charCode < 0 || charCode > 65535) {
-          throw new Error(`Invalid binary value: ${b}`);
-        }
-        return String.fromCharCode(charCode);
-      }).join('');
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Invalid binary format. Each binary number should represent a valid character code.';
-      throw new Error(message);
-    }
-  }
-
-  textToHex(text: string): string {
-    return text.split('').map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-  }
-
-  hexToText(hex: string): string {
-    if (!hex || !hex.trim()) {
-      throw new Error('Hexadecimal input cannot be empty.');
-    }
-    const trimmed = hex.trim();
-    const parts = trimmed.split(/\s+/).filter((p) => p.length > 0);
-
-    if (parts.length === 0) {
-      throw new Error('Hexadecimal input must contain at least one hex value.');
-    }
-
-    if (!parts.every((h) => /^[0-9a-fA-F]+$/.test(h))) {
-      throw new Error('Hexadecimal must contain only 0-9 and A-F (case-insensitive), separated by spaces (e.g., "48 65 6C 6C 6F").');
-    }
-
-    try {
-      return parts.map((h) => {
-        const charCode = parseInt(h, 16);
-        if (isNaN(charCode) || charCode < 0 || charCode > 65535) {
-          throw new Error(`Invalid hex value: ${h}`);
-        }
-        return String.fromCharCode(charCode);
-      }).join('');
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Invalid hexadecimal format. Each hex value should represent a valid character code.';
-      throw new Error(message);
-    }
   }
 }

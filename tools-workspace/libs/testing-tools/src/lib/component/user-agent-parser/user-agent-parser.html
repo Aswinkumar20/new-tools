@@ -28,41 +28,43 @@
       </div>
     </div>
 
-    <div class="tt-workflow" aria-label="Parser actions"><div class="tt-workflow__group tt-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="parse()"
-        [disabled]="!hasInput()"
-        aria-label="Parse user agent"
-        appTooltip="Parse user agent"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Parse</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="populateCurrentUA()"
-        aria-label="Use current browser UA"
-        appTooltip="Use current browser UA"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Current</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        [disabled]="!hasInput() && !hasParsed()"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="tt-workflow" aria-label="Parser actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="parse()"
+          [disabled]="!hasInput()"
+          aria-label="Parse user agent"
+          appTooltip="Parse user agent"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Parse</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="populateCurrentUA()"
+          aria-label="Use current browser UA"
+          appTooltip="Use current browser UA"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Current</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput() && !hasParsed()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor tt-editor-panel">
@@ -81,8 +83,9 @@
               </button>
             </div>
           </header>
+
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -90,8 +93,9 @@
               </ul>
             </div>
           }
+
           @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning">
+            <div class="ctl__alert ctl__alert--warning" role="status">
               <ul>
                 @for (message of warnings(); track message) {
                   <li>{{ message }}</li>
@@ -99,6 +103,26 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="uap__suggest" aria-label="Suggested next step">
+              <div class="uap__suggest-body">
+                <p class="uap__suggest-title">{{ suggestion.title }}</p>
+                <p class="uap__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="uap__suggest-actions">
+                <a class="uap__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="uap__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="ua">User agent string</label>
           <textarea
             id="ua"
@@ -172,7 +196,7 @@
         </section>
       </div>
 
-            <details class="tt-options-flyout">
+      <details class="tt-options-flyout">
         <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -181,29 +205,46 @@
         </summary>
         <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Parser options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="useCurrent" (change)="onUseCurrentChange()" />
-              <div>
-                <strong>Use current browser UA</strong>
-                <span>Populate with this browser's user agent on toggle.</span>
-              </div>
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="useCurrent" (change)="onUseCurrentChange()" />
+                <div>
+                  <strong>Use current browser UA</strong>
+                  <span>Populate with this browser's user agent on toggle.</span>
+                </div>
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Parsing runs <strong>locally</strong> — strings never leave your browser.</p>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body uap__related">
+              <ul class="uap__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="uap__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Detection is heuristic — verify critical cases manually.</p>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Parsing runs <strong>locally</strong> — strings never leave your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Detection is heuristic — verify critical cases manually.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

@@ -10,7 +10,7 @@
 
       <div class="ctl__stats" aria-label="Storage statistics">
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.storageType.value === 'local' ? 'Local' : 'Session' }}</span>
+          <span class="ctl__stat-value">{{ storageTypeLabel() }}</span>
           <span class="ctl__stat-label">Type</span>
         </div>
         <div class="ctl__stat">
@@ -28,50 +28,63 @@
       </div>
     </div>
 
-    <div class="bu-workflow" aria-label="Storage actions"><div class="bu-workflow__group bu-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="saveEntry()"
-        aria-label="Save entry"
-        appTooltip="Save entry"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        <span class="ctl__tool-btn-label">Save</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="refresh()"
-        aria-label="Refresh storage"
-        appTooltip="Refresh storage"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        <span class="ctl__tool-btn-label">Refresh</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearEditor()"
-        aria-label="Clear editor"
-        appTooltip="Clear editor"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearStorage()"
-        [disabled]="!hasEntries()"
-        aria-label="Clear all storage"
-        appTooltip="Clear all storage"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear all</span>
-      </button>
+    <div class="bu-workflow" aria-label="Storage actions">
+      <div class="bu-workflow__group bu-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="saveEntry()"
+          aria-label="Save entry"
+          appTooltip="Save entry"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span class="ctl__tool-btn-label">Save</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="refresh()"
+          aria-label="Refresh storage"
+          appTooltip="Refresh storage"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <span class="ctl__tool-btn-label">Refresh</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearEditor()"
+          aria-label="Clear editor"
+          appTooltip="Clear editor"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearStorage()"
+          [disabled]="!hasEntries()"
+          aria-label="Clear all storage"
+          appTooltip="Clear all storage"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear all</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="downloadJson()"
+          [disabled]="!hasEntries()"
+          aria-label="Download storage as JSON"
+          appTooltip="Download JSON"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor bu-editor-panel">
@@ -92,7 +105,7 @@
           </header>
 
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -101,16 +114,35 @@
             </div>
           }
 
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="sv__suggest" aria-label="Suggested next step">
+              <div class="sv__suggest-body">
+                <p class="sv__suggest-title">{{ suggestion.title }}</p>
+                <p class="sv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="sv__suggest-actions">
+                <a class="sv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="sv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-body sv__list-wrap">
             <div class="ctl__field">
-              <span>Storage</span>
+              <label for="storageType">Storage</label>
               <select id="storageType" formControlName="storageType" (change)="refresh()">
                 <option value="local">localStorage</option>
                 <option value="session">sessionStorage</option>
               </select>
             </div>
             <div class="ctl__field">
-              <span>Filter</span>
+              <label for="filter">Filter</label>
               <input id="filter" type="text" formControlName="filter" placeholder="Filter by key or value…" />
             </div>
 
@@ -173,11 +205,11 @@
 
           <div class="ctl__editor-body sv__editor">
             <div class="ctl__field">
-              <span>Key</span>
+              <label for="key">Key</label>
               <input id="key" type="text" formControlName="key" placeholder="Storage key" />
             </div>
             <div class="ctl__field sv__value-field">
-              <span>Value</span>
+              <label for="value">Value</label>
               <textarea
                 id="value"
                 class="ctl__textarea ctl__textarea--mono"
@@ -190,30 +222,52 @@
         </section>
       </div>
 
-            <details class="bu-options-flyout">
+      <details class="bu-options-flyout">
         <summary class="bu-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="bu-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="bu-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar bu-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Storage info">
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>
-              Approx. usage:
-              <strong>{{ formatBytes(storageInfo().usedBytes) }}</strong>
-              / {{ formatBytes(storageInfo().quotaBytes) }}
-            </p>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body sv__related">
+              <ul class="sv__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="sv__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Changes are written immediately to the selected storage type.</p>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>
+                Approx. usage:
+                <strong>{{ formatBytes(storageInfo().usedBytes) }}</strong>
+                / {{ formatBytes(storageInfo().quotaBytes) }}
+              </p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Changes are written immediately to the selected storage type.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

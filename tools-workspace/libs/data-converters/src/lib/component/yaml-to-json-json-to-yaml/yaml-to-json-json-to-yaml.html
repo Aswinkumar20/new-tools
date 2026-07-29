@@ -99,6 +99,24 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="yj__suggest" aria-label="Suggested next step">
+              <div class="yj__suggest-body">
+                <p class="yj__suggest-title">{{ suggestion.title }}</p>
+                <p class="yj__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="yj__suggest-actions">
+                @if (isModeSwitchSuggestion(suggestion)) {
+                  <button type="button" class="yj__suggest-action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+                } @else {
+                  <a class="yj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                }
+                <button type="button" class="yj__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
@@ -123,7 +141,7 @@
             </div>
           </header>
           @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
           }
           @if (resultOutput && conversionStatus.status !== 'error') {
             <div class="ctl__editor-wrap">
@@ -177,6 +195,19 @@
         </div>
         <div class="ctl__info">
           <div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Conversion runs <strong>locally</strong> in your browser.</p></div>
+        </div>
+        <div class="ctl__panel yj__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="yj__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="yj__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
       </details>

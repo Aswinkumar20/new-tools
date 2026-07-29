@@ -1,14 +1,31 @@
 import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  SLUG_DEFAULT_REMOVE_NUMBERS,
+  SLUG_DEFAULT_SEPARATOR,
+  SLUG_HISTORY_LIMIT,
+  SLUG_MAX_UPLOAD_BYTES,
+  SLUG_RELATED_TOOLS,
+  SLUG_SEPARATOR_OPTIONS,
+} from '../../constants/slug-generator.constants';
+import type { SlugSeparator, SlugSeparatorOption } from '../../types/slug-generator.types';
+import {
+  generateSlug,
+  inputLooksLikeSlug,
+  inputLooksLikeUrl,
+  resolveSlugSuggestion,
+} from '../../utils/slug-generator.utils';
 
 @Component({
   selector: 'lib-slug-generator',
   standalone: true,
   templateUrl: './slug-generator.html',
   styleUrls: ['./slug-generator.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
 })
 export class SlugGeneratorComponent implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
@@ -16,10 +33,14 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
   readonly assetService = inject(AssetService);
   private readonly toastService = inject(ToastService);
 
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = SLUG_RELATED_TOOLS;
+  readonly separatorOptions: ReadonlyArray<SlugSeparatorOption> = SLUG_SEPARATOR_OPTIONS;
+  private dismissedSuggestionId: string | null = null;
+
   inputText = '';
   slug = '';
-  separator = '-';
-  removeNumbers = false;
+  separator = SLUG_DEFAULT_SEPARATOR;
+  removeNumbers = SLUG_DEFAULT_REMOVE_NUMBERS;
   slugHistory: string[] = [];
   showOptionsPanel = false;
 
@@ -31,14 +52,8 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
 
   isReadingFile = false;
   isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
+  readonly maxUploadBytes = SLUG_MAX_UPLOAD_BYTES;
   private fileInput?: HTMLInputElement;
-
-  readonly separatorOptions: { value: string; label: string }[] = [
-    { value: '-', label: 'Hyphen' },
-    { value: '_', label: 'Underscore' },
-    { value: '+', label: 'Plus' },
-  ];
 
   get hasInput(): boolean {
     return !!this.inputText.trim();
@@ -59,6 +74,26 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
   get separatorLabel(): string {
     const found = this.separatorOptions.find((o) => o.value === this.separator);
     return found?.label ?? this.separator;
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveSlugSuggestion({
+      hasInput: this.hasInput,
+      hasSlug: this.hasOutput,
+      slugLength: this.slug.length,
+      separator: this.separator,
+      removeNumbers: this.removeNumbers,
+      inputLooksLikeUrl: inputLooksLikeUrl(this.inputText),
+      inputLooksLikeSlug: inputLooksLikeSlug(this.inputText),
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -107,7 +142,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
     this.redoStack = [];
   }
 
-  setSeparator(value: string): void {
+  setSeparator(value: SlugSeparator): void {
     if (this.separator === value) return;
     this.separator = value;
     this.onOptionsChange();
@@ -117,38 +152,28 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
     if (this.isRestoringHistory) {
       return;
     }
+    this.dismissedSuggestionId = null;
     this.runSlugGeneration();
     this.scheduleHistoryPush(this.inputText);
   }
 
   onOptionsChange(): void {
+    this.dismissedSuggestionId = null;
     this.runSlugGeneration();
   }
 
   private runSlugGeneration(): void {
-    this.slug = this.generateSlug(this.inputText);
+    this.slug = generateSlug({
+      text: this.inputText,
+      separator: this.separator,
+      removeNumbers: this.removeNumbers,
+    });
     if (this.slug && !this.slugHistory.includes(this.slug)) {
       this.slugHistory.unshift(this.slug);
-      if (this.slugHistory.length > 30) {
+      if (this.slugHistory.length > SLUG_HISTORY_LIMIT) {
         this.slugHistory.pop();
       }
     }
-  }
-
-  private generateSlug(text: string): string {
-    let slug = text
-      .toLowerCase()
-      .trim()
-      .replace(/[\s_]+/g, this.separator)
-      .replace(/[^\w-]+/g, '')
-      .replace(/--+/g, this.separator)
-      .replace(/^-+|-+$/g, '');
-
-    if (this.removeNumbers) {
-      slug = slug.replace(/[0-9]/g, '');
-    }
-
-    return slug;
   }
 
   clear(): void {
@@ -158,6 +183,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
     }
     this.applyInputState('');
     this.seedHistory('');
+    this.dismissedSuggestionId = null;
     this.toastService.info('Text cleared');
   }
 
@@ -218,6 +244,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
       this.runSlugGeneration();
     }
 
+    this.dismissedSuggestionId = null;
     this.pushToUndoStack(this.inputText);
     this.toastService.info('Input and slug swapped');
   }
@@ -264,6 +291,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
         clearTimeout(this.historyTimer);
         this.historyTimer = null;
       }
+      this.dismissedSuggestionId = null;
       this.applyInputState(text);
       this.pushToUndoStack(text);
       this.isReadingFile = false;

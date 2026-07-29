@@ -1,8 +1,134 @@
 @use '../../../../../../apps/tools-site/src/app/compact-tool-layout.scss';
 @use '../../styles/bu-ctl';
 
+// Local tokens — visual values unchanged from prior styles.
+$bsv-accent-soft: rgba(0, 123, 255, 0.04);
+$bsv-accent-border: rgba(0, 123, 255, 0.18);
+$bsv-accent-border-strong: rgba(0, 123, 255, 0.28);
+$bsv-focus: rgba(0, 123, 255, 0.35);
+$bsv-card-border: var(--border-color, rgba(15, 23, 42, 0.08));
+$bsv-charging: #10b981;
+$bsv-charging-deep: #059669;
+$bsv-low: #f59e0b;
+$bsv-low-deep: #d97706;
+$bsv-critical: #ef4444;
+$bsv-critical-deep: #dc2626;
+$bsv-muted-chip: rgba(148, 163, 184, 0.15);
+$bsv-label-size: 0.625rem;
+
+@mixin bsv-focus-ring($offset: 2px) {
+  outline: 2px solid $bsv-focus;
+  outline-offset: $offset;
+}
+
+@mixin bsv-micro-label {
+  font-size: $bsv-label-size;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+@mixin bsv-card-surface {
+  border: 1px solid $bsv-card-border;
+  background: var(--bg);
+}
+
 .bsv__status-panel {
   flex: 1 1 50%;
+}
+
+.bsv__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0.875rem 0;
+  padding: 0.75rem 0.875rem;
+  border-radius: 10px;
+  border: 1px solid $bsv-accent-border;
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.06), rgba(0, 123, 255, 0.02));
+
+  &-body {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  &-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: var(--text);
+  }
+
+  &-reason {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  &-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+  }
+
+  &-action {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid $bsv-accent-border-strong;
+    background: rgba(0, 123, 255, 0.1);
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(0, 123, 255, 0.16);
+      border-color: rgba(0, 123, 255, 0.4);
+    }
+
+    &:focus-visible {
+      @include bsv-focus-ring;
+    }
+  }
+
+  &-dismiss {
+    min-height: 2rem;
+    padding: 0.35rem 0.625rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.04);
+    }
+
+    &:focus-visible {
+      @include bsv-focus-ring;
+    }
+  }
+}
+
+.bsv__empty-hint {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
 }
 
 .bsv__battery-display {
@@ -26,7 +152,7 @@
   height: 88px;
   border: 2px solid var(--accent);
   border-radius: 10px;
-  background: rgba(0, 123, 255, 0.04);
+  background: $bsv-accent-soft;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -43,8 +169,17 @@
   border-radius: 0 0 6px 6px;
 
   &--charging {
-    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(180deg, $bsv-charging 0%, $bsv-charging-deep 100%);
     animation: bsv-pulse 2s ease-in-out infinite;
+  }
+
+  &--low {
+    background: linear-gradient(180deg, $bsv-low 0%, $bsv-low-deep 100%);
+  }
+
+  &--critical {
+    background: linear-gradient(180deg, $bsv-critical 0%, $bsv-critical-deep 100%);
+    animation: bsv-pulse 1.2s ease-in-out infinite;
   }
 }
 
@@ -86,8 +221,7 @@
   gap: 0.2rem;
   padding: 0.5rem 0.625rem;
   border-radius: 10px;
-  border: 1px solid var(--border-color, rgba(15, 23, 42, 0.08));
-  background: var(--bg);
+  @include bsv-card-surface;
 
   strong {
     font-size: 0.9375rem;
@@ -96,15 +230,27 @@
 }
 
 .bsv__status-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  @include bsv-micro-label;
 }
 
-.bsv__status-value--charging {
-  color: #10b981;
+.bsv__status-value {
+  &--charging {
+    color: $bsv-charging;
+  }
+
+  &--low {
+    color: $bsv-low-deep;
+  }
+
+  &--critical {
+    color: $bsv-critical-deep;
+  }
+}
+
+.bsv__panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .bsv__history {
@@ -123,8 +269,7 @@
 .bsv__item {
   padding: 0.5rem 0.625rem;
   border-radius: 10px;
-  border: 1px solid var(--border-color, rgba(15, 23, 42, 0.08));
-  background: var(--bg);
+  @include bsv-card-surface;
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
@@ -143,12 +288,12 @@
   font-weight: 600;
   padding: 0.125rem 0.375rem;
   border-radius: 6px;
-  background: rgba(148, 163, 184, 0.15);
+  background: $bsv-muted-chip;
   color: var(--muted);
 
   &--charging {
     background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
+    color: $bsv-charging;
   }
 }
 
@@ -170,9 +315,56 @@
 }
 
 .bsv__value-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  @include bsv-micro-label;
+}
+
+.bsv__related {
+  padding: 0.5rem 0.625rem 0.75rem;
+}
+
+.bsv__related-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.bsv__related-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  @include bsv-card-surface;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  strong {
+    font-size: 0.8125rem;
+    color: var(--text);
+  }
+
+  span {
+    font-size: 0.6875rem;
+    color: var(--muted);
+  }
+
+  &:hover {
+    border-color: $bsv-accent-border-strong;
+    background: $bsv-accent-soft;
+  }
+
+  &:focus-visible {
+    @include bsv-focus-ring(1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bsv__battery-fill--charging,
+  .bsv__battery-fill--critical {
+    animation: none;
+  }
 }

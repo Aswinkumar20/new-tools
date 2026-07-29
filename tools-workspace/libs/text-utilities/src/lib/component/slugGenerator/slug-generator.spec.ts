@@ -1,8 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 import { SlugGeneratorComponent } from './slug-generator';
-import { AssetService, ToastService } from '@tools-workspace/features-home';
 
 describe('SlugGeneratorComponent', () => {
   let component: SlugGeneratorComponent;
@@ -11,12 +10,7 @@ describe('SlugGeneratorComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [SlugGeneratorComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
-        { provide: ToastService, useValue: { info: jest.fn(), error: jest.fn() } },
-      ],
+      providers: [...textToolTestProviders(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(SlugGeneratorComponent);
@@ -24,14 +18,17 @@ describe('SlugGeneratorComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create with get-started suggestion', () => {
     expect(component).toBeTruthy();
+    expect(component.primarySuggestion?.id).toBe('slug-get-started');
+    expect(component.relatedTools.length).toBeGreaterThan(0);
   });
 
   it('generates a slug from headline', () => {
     component.inputText = 'Hello World Example';
     component.onInputChange();
     expect(component.slug).toBe('hello-world-example');
+    expect(component.primarySuggestion?.id).toBe('slug-ready');
   });
 
   it('uses underscore separator', () => {
@@ -63,5 +60,20 @@ describe('SlugGeneratorComponent', () => {
     component.clear();
     expect(component.inputText).toBe('');
     expect(component.slug).toBe('');
+  });
+
+  it('suggests when input looks like a URL', () => {
+    component.inputText = 'https://example.com/My Page';
+    component.onInputChange();
+    expect(component.primarySuggestion?.id).toBe('slug-looks-url');
+  });
+
+  it('dismisses contextual suggestions', () => {
+    const suggestion = component.primarySuggestion;
+    expect(suggestion).toBeTruthy();
+    if (suggestion) {
+      component.dismissSuggestion(suggestion.id);
+      expect(component.primarySuggestion).toBeNull();
+    }
   });
 });

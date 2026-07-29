@@ -1,102 +1,125 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-import { debounceTime, distinctUntilChanged } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  POSTMAN_DEFAULT_ACCEPT,
+  POSTMAN_DEFAULT_METHOD,
+  POSTMAN_DEFAULT_URL,
+  POSTMAN_HTTP_METHODS,
+  POSTMAN_RELATED_TOOLS,
+  POSTMAN_URL_PATTERN
+} from '../../constants/postman-lite.constants';
+import type {
+  PostmanHistoryEntry,
+  PostmanRequestResult,
+  PostmanSavedRequest
+} from '../../types/postman-lite.types';
+import {
+  executePostmanRequest,
+  formatBytes,
+  formatDuration,
+  formatJson,
+  formatRelativeTimestamp,
+  hasHeaderEntries,
+  headersToList,
+  loadSavedRequestsFromStorage,
+  persistSavedRequests,
+  prependPostmanHistory,
+  prependSavedRequest,
+  resolvePostmanSuggestion,
+  resolveSavedRequestName,
+  tryParseJson,
+  validateJsonBodyIfNeeded
+} from '../../utils/postman-lite.utils';
 
-interface RequestResult {
-  success: boolean;
-  status: number | null;
-  statusText: string;
-  headers: Record<string, string>;
-  body: string | null;
-  error: string | null;
-  timestamp: number;
-  duration: number;
-}
-
-interface SavedRequest {
-  id: string;
-  name: string;
-  url: string;
-  method: string;
-  headers: Array<{ key: string; value: string }>;
-  body: string;
-  timestamp: number;
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  url: string;
-  method: string;
-  status: number | null;
-  success: boolean;
-}
+type HeaderFormGroup = FormGroup<{
+  key: FormControl<string>;
+  value: FormControl<string>;
+}>;
 
 type PostmanLiteFormGroup = FormGroup<{
   url: FormControl<string>;
   method: FormControl<string>;
-  headers: FormArray<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>>;
+  headers: FormArray<HeaderFormGroup>;
   body: FormControl<string>;
+  requestName: FormControl<string>;
   rememberHistory: FormControl<boolean>;
 }>;
-
-const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
 @Component({
   selector: 'lib-postman-lite',
   standalone: true,
   templateUrl: './postman-lite.html',
   styleUrls: ['./postman-lite.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PostmanLiteComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   readonly form: PostmanLiteFormGroup = this.fb.group({
-    url: this.fb.control('https://api.github.com/users/octocat', {
+    url: this.fb.control(POSTMAN_DEFAULT_URL, {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^https?:\/\/.+/)]
+      validators: [Validators.required, Validators.pattern(POSTMAN_URL_PATTERN)]
     }),
-    method: this.fb.control('GET', { nonNullable: true }),
-    headers: this.fb.array<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>>([
-      this.createHeader('Accept', 'application/json')
+    method: this.fb.control(POSTMAN_DEFAULT_METHOD, { nonNullable: true }),
+    headers: this.fb.array<HeaderFormGroup>([
+      this.createHeader('Accept', POSTMAN_DEFAULT_ACCEPT)
     ]),
     body: this.fb.control('', { nonNullable: true }),
+    requestName: this.fb.control('', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly methods = HTTP_METHODS;
+  readonly methods = POSTMAN_HTTP_METHODS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = POSTMAN_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly result = signal<RequestResult | null>(null);
-  readonly history = signal<HistoryEntry[]>([]);
-  readonly savedRequests = signal<SavedRequest[]>([]);
+  readonly result = signal<PostmanRequestResult | null>(null);
+  readonly history = signal<PostmanHistoryEntry[]>([]);
+  readonly savedRequests = signal<PostmanSavedRequest[]>([]);
   readonly isSending = signal(false);
+  private readonly jsonBodyError = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
   readonly hasSavedRequests = computed(() => this.savedRequests().length > 0);
   readonly headersFormArray = computed(() => this.form.controls.headers);
-  readonly Object = Object;
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolvePostmanSuggestion({
+      result: this.result(),
+      requestHeaders: this.form.controls.headers.getRawValue(),
+      requestBody: this.form.controls.body.value,
+      jsonBodyError: this.jsonBodyError()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
-    this.loadSavedRequests();
+    this.savedRequests.set(loadSavedRequestsFromStorage());
   }
 
-  get headers(): FormArray<FormGroup<{ key: FormControl<string>; value: FormControl<string> }>> {
+  get headers(): FormArray<HeaderFormGroup> {
     return this.form.controls.headers;
   }
 
-  private createHeader(key: string = '', value: string = ''): FormGroup<{ key: FormControl<string>; value: FormControl<string> }> {
-    return this.fb.group({
-      key: this.fb.control(key, { nonNullable: true }),
-      value: this.fb.control(value, { nonNullable: true })
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   addHeader(): void {
@@ -112,6 +135,8 @@ export class PostmanLiteComponent {
   async sendRequest(): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.jsonBodyError.set(false);
+    this.dismissedSuggestionId.set(null);
     this.isSending.set(true);
 
     const { url, method, headers, body } = this.form.getRawValue();
@@ -122,143 +147,56 @@ export class PostmanLiteComponent {
       return;
     }
 
-    const startTime = Date.now();
-
-    try {
-      // Build headers object
-      const httpHeaders: Record<string, string> = {};
-      for (const header of headers) {
-        if (header.key && header.value) {
-          httpHeaders[header.key] = header.value;
-        }
-      }
-
-      // Make the request using fetch API
-      const fetchOptions: RequestInit = {
-        method,
-        headers: httpHeaders,
-        mode: 'cors',
-        cache: 'no-cache'
-      };
-
-      if (body && !['GET', 'HEAD'].includes(method)) {
-        fetchOptions.body = body;
-      }
-
-      // Soft-validate JSON body when Content-Type claims JSON
-      const contentTypeHeader = Object.entries(httpHeaders).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? '';
-      if (body && contentTypeHeader.includes('json')) {
-        try {
-          JSON.parse(body);
-        } catch {
-          this.errors.set(['Request body is not valid JSON.']);
-          this.isSending.set(false);
-          return;
-        }
-      }
-
-      const response = await fetch(url, fetchOptions);
-      const duration = Date.now() - startTime;
-
-      // Extract all headers
-      const allHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        allHeaders[key] = value;
-      });
-
-      let responseBody: string | null = null;
-      const contentType = response.headers.get('content-type') || '';
-
-      try {
-        if (contentType.includes('application/json')) {
-          const json = await response.json();
-          responseBody = JSON.stringify(json, null, 2);
-        } else {
-          responseBody = await response.text();
-        }
-      } catch {
-        responseBody = null;
-      }
-
-      const result: RequestResult = {
-        success: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        headers: allHeaders,
-        body: responseBody,
-        error: response.ok ? null : `HTTP ${response.status}: ${response.statusText}`,
-        timestamp: Date.now(),
-        duration
-      };
-
-      this.result.set(result);
-
-      if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(url, method, result);
-      }
-    } catch (error: unknown) {
-      const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-
-      const result: RequestResult = {
-        success: false,
-        status: null,
-        statusText: '',
-        headers: {},
-        body: null,
-        error: errorMessage,
-        timestamp: Date.now(),
-        duration
-      };
-
-      this.result.set(result);
-      this.errors.set([`Request failed: ${errorMessage}`]);
-
-      if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(url, method, result);
-      }
-    } finally {
+    const jsonError = validateJsonBodyIfNeeded(headers, body);
+    if (jsonError) {
+      this.errors.set([jsonError]);
+      this.jsonBodyError.set(true);
       this.isSending.set(false);
-    }
-  }
-
-  saveRequest(): void {
-    const { url, method, headers, body } = this.form.getRawValue();
-    const name = prompt('Enter a name for this request:') || `Request ${Date.now()}`;
-
-    if (!name.trim()) {
       return;
     }
 
-    const request: SavedRequest = {
+    const result = await executePostmanRequest({ url, method, headers, body });
+    this.result.set(result);
+
+    if (!result.success && result.status === null && result.error) {
+      this.errors.set([`Request failed: ${result.error}`]);
+    }
+
+    if (this.form.controls.rememberHistory.value) {
+      this.addToHistory(url, method, result);
+    }
+
+    this.isSending.set(false);
+  }
+
+  saveRequest(): void {
+    const { url, method, headers, body, requestName } = this.form.getRawValue();
+    const name = resolveSavedRequestName(requestName);
+
+    const request: PostmanSavedRequest = {
       id: Date.now().toString(),
-      name: name.trim(),
+      name,
       url,
       method,
-      headers: headers.filter((h) => h.key && h.value),
+      headers: headers.filter((header) => header.key && header.value),
       body,
       timestamp: Date.now()
     };
 
-    this.savedRequests.update((requests) => {
-      const exists = requests.find((r) => r.id === request.id);
-      if (exists) {
-        return requests.map((r) => (r.id === request.id ? request : r));
-      }
-      return [request, ...requests].slice(0, 20);
-    });
-
-    this.saveToLocalStorage();
+    this.savedRequests.update((requests) => prependSavedRequest(requests, request));
+    persistSavedRequests(this.savedRequests());
+    this.form.controls.requestName.setValue('');
+    this.toast.info(`Saved "${name}"`);
   }
 
-  loadRequest(request: SavedRequest): void {
+  loadRequest(request: PostmanSavedRequest): void {
     this.form.patchValue({
       url: request.url,
       method: request.method,
-      body: request.body
+      body: request.body,
+      requestName: request.name
     });
 
-    // Clear and add headers
     while (this.headers.length > 0) {
       this.headers.removeAt(0);
     }
@@ -273,42 +211,43 @@ export class PostmanLiteComponent {
   }
 
   deleteRequest(id: string): void {
-    this.savedRequests.update((requests) => requests.filter((r) => r.id !== id));
-    this.saveToLocalStorage();
+    this.savedRequests.update((requests) => requests.filter((request) => request.id !== id));
+    persistSavedRequests(this.savedRequests());
   }
 
   clearSavedRequests(): void {
     this.savedRequests.set([]);
-    this.saveToLocalStorage();
+    persistSavedRequests([]);
   }
 
-  copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
+  async copyToClipboard(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (!ok) {
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
+    } else {
+      this.errors.set([]);
+    }
   }
 
   clear(): void {
+    this.dismissedSuggestionId.set(null);
+    this.jsonBodyError.set(false);
     this.form.patchValue({
-      url: 'https://api.github.com/users/octocat',
-      method: 'GET',
-      body: ''
+      url: POSTMAN_DEFAULT_URL,
+      method: POSTMAN_DEFAULT_METHOD,
+      body: '',
+      requestName: ''
     });
     while (this.headers.length > 1) {
       this.headers.removeAt(1);
     }
-    this.headers.at(0)?.patchValue({ key: 'Accept', value: 'application/json' });
+    this.headers.at(0)?.patchValue({ key: 'Accept', value: POSTMAN_DEFAULT_ACCEPT });
     this.result.set(null);
     this.errors.set([]);
     this.warnings.set([]);
   }
 
-  applyHistory(entry: HistoryEntry): void {
+  applyHistory(entry: PostmanHistoryEntry): void {
     this.form.patchValue({
       url: entry.url,
       method: entry.method
@@ -323,8 +262,43 @@ export class PostmanLiteComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  private addToHistory(url: string, method: string, result: RequestResult): void {
-    const entry: HistoryEntry = {
+  tryParseJson(text: string | null): unknown {
+    return tryParseJson(text);
+  }
+
+  formatJson(obj: unknown): string {
+    return formatJson(obj);
+  }
+
+  formatTimestamp(timestamp: number): string {
+    return formatRelativeTimestamp(timestamp);
+  }
+
+  formatDuration(ms: number): string {
+    return formatDuration(ms);
+  }
+
+  getHeadersList(headers: Record<string, string>) {
+    return headersToList(headers);
+  }
+
+  hasHeaders(headers: Record<string, string>): boolean {
+    return hasHeaderEntries(headers);
+  }
+
+  formatBytes(bytes: number): string {
+    return formatBytes(bytes);
+  }
+
+  private createHeader(key = '', value = ''): HeaderFormGroup {
+    return this.fb.group({
+      key: this.fb.control(key, { nonNullable: true }),
+      value: this.fb.control(value, { nonNullable: true })
+    });
+  }
+
+  private addToHistory(url: string, method: string, result: PostmanRequestResult): void {
+    const entry: PostmanHistoryEntry = {
       timestamp: result.timestamp,
       url,
       method,
@@ -332,100 +306,6 @@ export class PostmanLiteComponent {
       success: result.success
     };
 
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.url === entry.url && e.method === entry.method && e.timestamp === entry.timestamp);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 20);
-    });
-  }
-
-  private saveToLocalStorage(): void {
-    try {
-      localStorage.setItem('postman-lite-saved-requests', JSON.stringify(this.savedRequests()));
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-
-  private loadSavedRequests(): void {
-    try {
-      const stored = localStorage.getItem('postman-lite-saved-requests');
-      if (stored) {
-        const requests = JSON.parse(stored) as SavedRequest[];
-        this.savedRequests.set(requests);
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
-  }
-
-  tryParseJson(text: string | null): unknown {
-    if (!text) {
-      return null;
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  }
-
-  formatJson(obj: unknown): string {
-    if (obj === null || obj === undefined) {
-      return '';
-    }
-    if (typeof obj === 'string') {
-      return obj;
-    }
-    try {
-      return JSON.stringify(obj, null, 2);
-    } catch {
-      return String(obj);
-    }
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
-  }
-
-  formatDuration(ms: number): string {
-    if (ms < 1000) {
-      return `${ms}ms`;
-    }
-    return `${(ms / 1000).toFixed(2)}s`;
-  }
-
-  getHeadersList(headers: Record<string, string>): Array<{ key: string; value: string }> {
-    return Object.entries(headers).map(([key, value]) => ({ key, value }));
-  }
-
-  formatBytes(bytes: number): string {
-    if (bytes === 0) {
-      return '0 Bytes';
-    }
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    this.history.update((entries) => prependPostmanHistory(entries, entry));
   }
 }

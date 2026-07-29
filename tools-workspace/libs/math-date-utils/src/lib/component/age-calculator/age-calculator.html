@@ -28,44 +28,79 @@
       </div>
     </div>
 
-    <div class="md-workflow" aria-label="Age actions"><div class="md-workflow__group md-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Calculate" appTooltip="Calculate" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Calculate</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="md-workflow" aria-label="Age actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Calculate" appTooltip="Calculate" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Calculate</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor md-editor-panel">
           <header class="ctl__editor-head"><span>Birth details</span></header>
           <div class="ctl__editor-body ctl__settings">
-            <div class="ac__chips">
+            <div class="ac__chips" role="group" aria-label="Comparison anchor">
               @for (anchor of anchors; track trackAnchor($index, anchor)) {
-                <button type="button" class="ac__chip" [class.ac__chip--active]="form.get('anchor')?.value === anchor.id" (click)="setAnchor(anchor.id)">{{ anchor.label }}</button>
+                <button
+                  type="button"
+                  class="ac__chip"
+                  [class.ac__chip--active]="formSnapshot().anchor === anchor.id"
+                  [attr.aria-pressed]="formSnapshot().anchor === anchor.id"
+                  (click)="setAnchor(anchor.id)">
+                  {{ anchor.label }}
+                </button>
               }
             </div>
-            <label class="ctl__field" for="birthDate"><span>Date of birth</span><input id="birthDate" type="date" formControlName="birthDate" /></label>
-            @if (form.get('anchor')?.value === 'specific') {
-              <label class="ctl__field" for="comparisonDate"><span>Compare to date</span><input id="comparisonDate" type="date" formControlName="comparisonDate" /></label>
+            <label class="ctl__field" for="birthDate">
+              <span>Date of birth</span>
+              <input id="birthDate" type="date" formControlName="birthDate" />
+            </label>
+            @if (formSnapshot().anchor === 'specific') {
+              <label class="ctl__field" for="comparisonDate">
+                <span>Compare to date</span>
+                <input id="comparisonDate" type="date" formControlName="comparisonDate" />
+              </label>
             }
-            <label class="ctl__toggle"><input type="checkbox" formControlName="includeTime" /><div><strong>Include time</strong><span>Add time of day precision.</span></div></label>
-            @if (form.get('includeTime')?.value) {
-              <label class="ctl__field" for="birthTime"><span>Birth time</span><input id="birthTime" type="time" formControlName="birthTime" /></label>
-              <label class="ctl__field" for="comparisonTime"><span>Comparison time</span><input id="comparisonTime" type="time" formControlName="comparisonTime" /></label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeTime" />
+              <div><strong>Include time</strong><span>Add time of day precision.</span></div>
+            </label>
+            @if (formSnapshot().includeTime) {
+              <label class="ctl__field" for="birthTime">
+                <span>Birth time</span>
+                <input id="birthTime" type="time" formControlName="birthTime" />
+              </label>
+              <label class="ctl__field" for="comparisonTime">
+                <span>Comparison time</span>
+                <input id="comparisonTime" type="time" formControlName="comparisonTime" />
+              </label>
             }
-            <label class="ctl__toggle"><input type="checkbox" formControlName="showTimeline" /><div><strong>Timeline</strong><span>Show life segments.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="includeMilestones" /><div><strong>Milestones</strong><span>Upcoming milestones.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="includeZodiac" /><div><strong>Zodiac</strong><span>Western and Chinese signs.</span></div></label>
-            @if (errorMessage()) { <div class="ctl__alert ctl__alert--error">{{ errorMessage() }}</div> }
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="showTimeline" />
+              <div><strong>Timeline</strong><span>Show life segments.</span></div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeMilestones" />
+              <div><strong>Milestones</strong><span>Upcoming milestones.</span></div>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeZodiac" />
+              <div><strong>Zodiac</strong><span>Western and Chinese signs.</span></div>
+            </label>
+            @if (errorMessage()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            }
           </div>
         </section>
 
@@ -73,14 +108,36 @@
           <header class="ctl__editor-head">
             <span>Results</span>
             <div class="ctl__editor-actions">
-              @if (summary()) { <span class="ctl__editor-badge">Ready</span> }
+              @if (summary()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
               <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!summary()" aria-label="Copy results" appTooltip="Copy results" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ac__suggest" aria-label="Suggested next step">
+              <div class="ac__suggest-body">
+                <p class="ac__suggest-title">{{ suggestion.title }}</p>
+                <p class="ac__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ac__suggest-actions">
+                <a class="ac__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="ac__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           @if (summary()) {
-            <div class="ctl__editor-body ac__results">
+            <div class="ctl__editor-body ac__results" aria-live="polite">
               <div class="ac__pill"><strong>{{ summary()!.exactAge }}</strong></div>
               <div class="ac__grid">
                 <div class="ac__metric"><span>Years</span><strong>{{ summary()!.years }}</strong></div>
@@ -96,28 +153,36 @@
                   <div><span>Chinese</span><strong>{{ zodiac()!.chinese }}</strong></div>
                 </div>
               }
-              @if (timelineSegments().length > 0 && form.get('showTimeline')?.value) {
+              @if (timelineSegments().length > 0 && formSnapshot().showTimeline) {
                 <div class="ac__timeline">
                   @for (segment of timelineSegments(); track trackTimeline($index, segment)) {
-                    <div class="ac__timeline-item"><strong>{{ segment.label }}</strong><span>{{ segment.description }}</span></div>
+                    <div class="ac__timeline-item">
+                      <strong>{{ segment.label }}</strong>
+                      <span>{{ segment.description }}</span>
+                    </div>
                   }
                 </div>
               }
-              @if (milestones().length > 0 && form.get('includeMilestones')?.value) {
+              @if (milestones().length > 0 && formSnapshot().includeMilestones) {
                 <ul class="ac__milestones">
                   @for (milestone of milestones(); track trackMilestone($index, milestone)) {
-                    <li><strong>{{ milestone.label }}</strong><span>{{ milestone.description }}</span></li>
+                    <li>
+                      <strong>{{ milestone.label }}</strong>
+                      <span>{{ milestone.description }}</span>
+                    </li>
                   }
                 </ul>
               }
             </div>
           } @else {
-            <div class="ctl__empty"><p>Enter birth details to reveal the age summary.</p></div>
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter birth details to reveal the age summary.</p>
+            </div>
           }
         </section>
       </div>
 
-            <details class="md-options-flyout">
+      <details class="md-options-flyout">
         <summary class="md-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -126,44 +191,59 @@
         </summary>
         <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Quick presets</header>
-          <div class="ctl__panel-body">
-            <div class="ac__presets">
-              @for (preset of presets; track trackPreset($index, preset)) {
-                <button type="button" class="ac__preset" (click)="applyPreset(preset)">
-                  <strong>{{ preset.label }}</strong>
-                  <small>{{ getPresetLabel(preset.anchor ?? 'now') }}</small>
-                </button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Quick presets</header>
+            <div class="ctl__panel-body">
+              <div class="ac__presets">
+                @for (preset of presets; track trackPreset($index, preset)) {
+                  <button type="button" class="ac__preset" (click)="applyPreset(preset)">
+                    <strong>{{ preset.label }}</strong>
+                    <small>{{ getPresetLabel(preset.anchor ?? 'now') }}</small>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length > 0) {
+                <ul class="ac__history">
+                  @for (entry of history(); track trackHistory($index, entry)) {
+                    <li>
+                      <button type="button" class="ac__history-item" (click)="restoreHistory(entry)">
+                        <strong>{{ entry.summary.exactAge }}</strong>
+                        <span>Birth {{ entry.birthDate }} · {{ entry.comparisonDate === 'today' ? 'today' : entry.comparisonDate }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Your calculations will appear here.</p></div>
               }
             </div>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <div class="ctl__panel-body">
-            @if (history().length > 0) {
-              <ul class="ac__history">
-                @for (entry of history(); track trackHistory($index, entry)) {
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body ac__related">
+              <ul class="ac__related-list">
+                @for (tool of relatedTools; track tool.path) {
                   <li>
-                    <button type="button" class="ac__history-item" (click)="restoreHistory(entry)">
-                      <strong>{{ entry.summary.exactAge }}</strong>
-                      <span>Birth {{ entry.birthDate }} · {{ entry.comparisonDate === 'today' ? 'today' : entry.comparisonDate }}</span>
-                    </button>
+                    <a class="ac__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
-            } @else {
-              <div class="ctl__panel-empty"><p>Your calculations will appear here.</p></div>
-            }
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

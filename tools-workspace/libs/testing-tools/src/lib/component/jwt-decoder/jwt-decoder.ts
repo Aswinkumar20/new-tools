@@ -1,62 +1,100 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-type JwtPart = 'header' | 'payload' | 'signature';
-
-interface DecodedSection {
-  raw: string;
-  json: string | null;
-  error: string | null;
-}
-
-interface DecodedJwt {
-  header: DecodedSection;
-  payload: DecodedSection;
-  signature: {
-    raw: string;
-    present: boolean;
-  };
-}
-
-type JwtDecoderFormGroup = FormGroup<{
-  token: FormControl<string>;
-  prettyPrint: FormControl<boolean>;
-  showDecoded: FormControl<boolean>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { TtRelatedToolLink } from '../../shared/tt-tool-suggestion.model';
+import { ttCopyText } from '../../shared/tt-clipboard.util';
+import {
+  JWT_DECODER_DEFAULT_FORM,
+  JWT_DECODER_RELATED_TOOLS
+} from '../../constants/jwt-decoder.constants';
+import type {
+  DecodedJwt,
+  JwtDecoderFormGroup,
+  JwtDecoderFormValues
+} from '../../types/jwt-decoder.types';
+import {
+  buildDecodedJwtCopyText,
+  countJwtParts,
+  decodeJwtToken,
+  resolveJwtSuggestion
+} from '../../utils/jwt-decoder.utils';
 
 @Component({
   selector: 'lib-jwt-decoder',
   standalone: true,
   templateUrl: './jwt-decoder.html',
   styleUrls: ['./jwt-decoder.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class JwtDecoderComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly assetService = inject(AssetService);
 
+  readonly relatedTools: ReadonlyArray<TtRelatedToolLink> = JWT_DECODER_RELATED_TOOLS;
+
   readonly form: JwtDecoderFormGroup = this.fb.group({
-    token: this.fb.control('', { nonNullable: true }),
-    prettyPrint: this.fb.control(true, { nonNullable: true }),
-    showDecoded: this.fb.control(true, { nonNullable: true }),
+    token: this.fb.control(JWT_DECODER_DEFAULT_FORM.token, { nonNullable: true }),
+    prettyPrint: this.fb.control(JWT_DECODER_DEFAULT_FORM.prettyPrint, { nonNullable: true }),
+    showDecoded: this.fb.control(JWT_DECODER_DEFAULT_FORM.showDecoded, { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly decoded = signal<DecodedJwt | null>(null);
+  readonly formSnapshot = signal<JwtDecoderFormValues>(this.readFormValues());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
-  readonly hasToken = computed(() => !!this.form.controls.token.value.trim());
+  readonly hasToken = computed(() => !!this.formSnapshot().token.trim());
   readonly hasDecoded = computed(() => this.decoded() !== null);
+  readonly tokenParts = computed(() => countJwtParts(this.formSnapshot().token));
+  readonly showDecoded = computed(() => this.formSnapshot().showDecoded);
+  readonly prettyPrintOn = computed(() => this.formSnapshot().prettyPrint);
 
-  get tokenParts(): number {
-    const token = this.form.controls.token.value.trim();
-    return token ? token.split('.').length : 0;
+  readonly primarySuggestion = computed(() => {
+    const current = this.decoded();
+    const suggestion = resolveJwtSuggestion({
+      hasToken: this.hasToken(),
+      hasDecoded: this.hasDecoded(),
+      partCount: this.tokenParts(),
+      errorMessage: this.errors()[0] ?? null,
+      warningMessage: this.warnings()[0] ?? null,
+      headerError: current?.header.error ?? null,
+      payloadError: current?.payload.error ?? null,
+      signaturePresent: current?.signature.present ?? false
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
+
+  constructor() {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+    });
   }
 
   onTokenInput(): void {
+    this.formSnapshot.set(this.readFormValues());
     if (this.hasToken()) {
       this.decode();
     } else {
@@ -65,65 +103,43 @@ export class JwtDecoderComponent {
   }
 
   onOptionChange(): void {
+    this.formSnapshot.set(this.readFormValues());
     if (this.hasToken()) {
       this.decode();
     }
   }
 
   decode(): void {
-    this.errors.set([]);
-    this.warnings.set([]);
-    this.decoded.set(null);
-
-    const token = this.form.controls.token.value.trim();
-    if (!token) {
-      return;
-    }
-
-    const parts = token.split('.');
-    if (parts.length < 2 || parts.length > 3) {
-      this.errors.set(['A JWT should have 2 or 3 parts separated by dots (header.payload[.signature]).']);
-    }
-
-    const [headerPart = '', payloadPart = '', signaturePart = ''] = parts;
-
-    const header = this.decodePart(headerPart, 'header');
-    const payload = this.decodePart(payloadPart, 'payload');
-    const signature = {
-      raw: signaturePart,
-      present: !!signaturePart,
-    };
-
-    this.decoded.set({ header, payload, signature });
-
-    if (!signaturePart) {
-      this.warnings.set(['No signature part present. This may be an unsecured JWT (alg: none).']);
-    }
+    this.dismissedSuggestionId.set(null);
+    const { token, prettyPrint } = this.form.getRawValue();
+    const { decoded, errors, warnings } = decodeJwtToken(token, prettyPrint);
+    this.errors.set(errors);
+    this.warnings.set(warnings);
+    this.decoded.set(decoded);
   }
 
   clear(): void {
     this.form.controls.token.setValue('');
     this.clearResults();
+    this.dismissedSuggestionId.set(null);
+    this.formSnapshot.set(this.readFormValues());
+    this.toast.info('Cleared');
   }
 
-  copyToken(): void {
-    this.copyText(this.form.controls.token.value, 'Token');
+  async copyToken(): Promise<void> {
+    await ttCopyText(this.toast, this.form.controls.token.value, 'Token');
   }
 
-  copyDecoded(): void {
-    const d = this.decoded();
-    if (!d) return;
-    const text = [
-      '--- Header ---',
-      d.header.json ?? d.header.raw,
-      '',
-      '--- Payload ---',
-      d.payload.json ?? d.payload.raw,
-      '',
-      '--- Signature ---',
-      d.signature.present ? d.signature.raw : '(none)',
-    ].join('\n');
-    this.copyText(text, 'Decoded JWT');
+  async copyDecoded(): Promise<void> {
+    const current = this.decoded();
+    if (!current) {
+      return;
+    }
+    await ttCopyText(this.toast, buildDecodedJwtCopyText(current), 'Decoded JWT');
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   private clearResults(): void {
@@ -132,58 +148,7 @@ export class JwtDecoderComponent {
     this.decoded.set(null);
   }
 
-  private copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard!`);
-    });
-  }
-
-  private decodePart(part: string, type: JwtPart): DecodedSection {
-    if (!part) {
-      return {
-        raw: '',
-        json: null,
-        error: `${type === 'header' ? 'Header' : 'Payload'} part is missing.`,
-      };
-    }
-
-    try {
-      const padded = this.padBase64(part.replace(/-/g, '+').replace(/_/g, '/'));
-      const decoded = atob(padded);
-      let json: unknown;
-      try {
-        json = JSON.parse(decoded);
-      } catch (e) {
-        return {
-          raw: decoded,
-          json: null,
-          error: `Could not parse ${type} JSON: ${(e as Error).message}`,
-        };
-      }
-
-      const pretty = this.form.controls.prettyPrint.value;
-      const jsonText = pretty ? JSON.stringify(json, null, 2) : JSON.stringify(json);
-
-      return {
-        raw: decoded,
-        json: jsonText,
-        error: null,
-      };
-    } catch (e) {
-      return {
-        raw: part,
-        json: null,
-        error: `Failed to base64url-decode ${type}: ${(e as Error).message}`,
-      };
-    }
-  }
-
-  private padBase64(value: string): string {
-    const remainder = value.length % 4;
-    if (remainder === 2) return `${value}==`;
-    if (remainder === 3) return `${value}=`;
-    if (remainder === 1) throw new Error('Invalid base64url string length');
-    return value;
+  private readFormValues(): JwtDecoderFormValues {
+    return this.form.getRawValue();
   }
 }

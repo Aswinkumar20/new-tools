@@ -28,21 +28,27 @@
       </div>
     </div>
 
-    <div class="cf-workflow" aria-label="Encoder actions"><div class="cf-workflow__group cf-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        <span class="ctl__tool-btn-label">Sample</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="swapInputOutput()" [disabled]="!hasOutput()" aria-label="Swap input and output" appTooltip="Swap" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Swap</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!inputText() && !hasOutput()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="cf-workflow" aria-label="Encoder actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="swapInputOutput()" [disabled]="!hasOutput()" aria-label="Swap input and output" appTooltip="Swap" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Swap</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="downloadOutput()" [disabled]="!hasOutput()" aria-label="Download output" appTooltip="Download" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!inputText() && !hasOutput()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor cf-editor-panel">
@@ -54,11 +60,26 @@
               </button>
             </div>
           </header>
+
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="hee__suggest" aria-label="Suggested next step">
+              <div class="hee__suggest-body">
+                <p class="hee__suggest-title">{{ suggestion.title }}</p>
+                <p class="hee__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="hee__suggest-actions">
+                <a class="hee__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="hee__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="hee-input">Input text</label>
           <textarea id="hee-input" class="ctl__textarea ctl__textarea--mono" [value]="inputText()" (input)="onInputChange($any($event.target).value)" rows="1" spellcheck="false" [placeholder]="mode() === 'encode' ? 'Enter text to encode…' : 'Enter HTML entities to decode…'"></textarea>
         </section>
@@ -81,7 +102,7 @@
         </section>
       </div>
 
-            <details class="cf-options-flyout">
+      <details class="cf-options-flyout">
         <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -90,57 +111,73 @@
         </summary>
         <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Mode, options, and history">
-        <div class="ctl__tabs" role="tablist">
-          <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="mode() === 'encode'" [attr.aria-selected]="mode() === 'encode'" (click)="selectMode('encode')">Encode</button>
-          <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="mode() === 'decode'" [attr.aria-selected]="mode() === 'decode'" (click)="selectMode('decode')">Decode</button>
-        </div>
+          <div class="ctl__tabs" role="tablist">
+            <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="mode() === 'encode'" [attr.aria-selected]="mode() === 'encode'" (click)="selectMode('encode')">Encode</button>
+            <button type="button" role="tab" class="ctl__tab" [class.ctl__tab--active]="mode() === 'decode'" [attr.aria-selected]="mode() === 'decode'" (click)="selectMode('decode')">Decode</button>
+          </div>
 
-        @if (mode() === 'encode') {
+          @if (mode() === 'encode') {
+            <div class="ctl__panel">
+              <header class="ctl__panel-head">Encoding format</header>
+              <div class="ctl__settings">
+                <label class="ctl__field">
+                  <span>Format</span>
+                  <select [value]="encodingMode()" (change)="selectEncodingMode($any($event.target).value)">
+                    <option value="named">Named entities</option>
+                    <option value="numeric">Numeric entities</option>
+                    <option value="hex">Hexadecimal entities</option>
+                    <option value="all">All formats</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          }
+
           <div class="ctl__panel">
-            <header class="ctl__panel-head">Encoding format</header>
-            <div class="ctl__settings">
-              <label class="ctl__field">
-                <span>Format</span>
-                <select [value]="encodingMode()" (change)="selectEncodingMode($any($event.target).value)">
-                  <option value="named">Named entities</option>
-                  <option value="numeric">Numeric entities</option>
-                  <option value="hex">Hexadecimal entities</option>
-                  <option value="all">All formats</option>
-                </select>
-              </label>
+            <header class="ctl__panel-head">
+              History
+              @if (hasHistory()) {
+                <button type="button" class="ctl__icon-btn" (click)="clearHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
+                  <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                </button>
+              }
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length) {
+                <ul class="cft-history">
+                  @for (entry of history(); track entry.timestamp) {
+                    <li class="cft-history__item">
+                      <button type="button" class="cft-history__btn" (click)="applyHistory(entry)">
+                        <span class="cft-history__badge">{{ entry.mode === 'encode' ? 'Encode' : 'Decode' }}</span>
+                        <strong>{{ formatHistoryPreview(entry.input) }}</strong>
+                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                      </button>
+                      <button type="button" class="cft-history__remove" (click)="removeHistoryEntry(entry.timestamp)" aria-label="Remove entry">×</button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="cft-history__empty">Conversion history appears here as you work.</p>
+              }
             </div>
           </div>
-        }
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            History
-            @if (hasHistory()) {
-              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-              </button>
-            }
-          </header>
-          <div class="ctl__panel-body">
-            @if (history().length) {
-              <ul class="cft-history">
-                @for (entry of history(); track entry.timestamp) {
-                  <li class="cft-history__item">
-                    <button type="button" class="cft-history__btn" (click)="applyHistory(entry)">
-                      <span class="cft-history__badge">{{ entry.mode === 'encode' ? 'Encode' : 'Decode' }}</span>
-                      <strong>{{ entry.input.substring(0, 40) }}{{ entry.input.length > 40 ? '…' : '' }}</strong>
-                      <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                    </button>
-                    <button type="button" class="cft-history__remove" (click)="removeHistoryEntry(entry.timestamp)" aria-label="Remove entry">×</button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head"><span>Related tools</span></header>
+            <div class="ctl__panel-body hee__related">
+              <ul class="hee__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="hee__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
-            } @else {
-              <p class="cft-history__empty">Conversion history appears here as you work.</p>
-            }
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

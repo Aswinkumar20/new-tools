@@ -28,31 +28,36 @@
       </div>
     </div>
 
-    <div class="tt-workflow" aria-label="Validator actions"><div class="tt-workflow__group tt-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="validate()"
-        [disabled]="!hasInput()"
-        aria-label="Validate JSON"
-        appTooltip="Validate JSON"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        <span class="ctl__tool-btn-label">Validate</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        [disabled]="!hasInput() && !hasResult()"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="tt-workflow" aria-label="Validator actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="validate()"
+          [disabled]="!hasInput()"
+          aria-label="Validate JSON"
+          appTooltip="Validate JSON"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span class="ctl__tool-btn-label">Validate</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput() && !hasResult()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor tt-editor-panel">
@@ -63,7 +68,7 @@
                 type="button"
                 class="ctl__icon-btn"
                 (click)="copySchema()"
-                [disabled]="!form.controls.schema.value"
+                [disabled]="!hasSchema()"
                 aria-label="Copy schema"
                 appTooltip="Copy schema"
                 tooltipPosition="bottom">
@@ -71,8 +76,9 @@
               </button>
             </div>
           </header>
+
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -80,6 +86,26 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="jsv__suggest" aria-label="Suggested next step">
+              <div class="jsv__suggest-body">
+                <p class="jsv__suggest-title">{{ suggestion.title }}</p>
+                <p class="jsv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="jsv__suggest-actions">
+                <a class="jsv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="jsv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="schema">JSON Schema</label>
           <textarea
             id="schema"
@@ -99,7 +125,7 @@
                 type="button"
                 class="ctl__icon-btn"
                 (click)="copyData()"
-                [disabled]="!form.controls.data.value"
+                [disabled]="!hasData()"
                 aria-label="Copy data"
                 appTooltip="Copy data"
                 tooltipPosition="bottom">
@@ -119,78 +145,106 @@
         </section>
       </div>
 
-            <details class="tt-options-flyout">
+      <details class="tt-options-flyout">
         <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="tt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Validator options and results">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            Options
-            @if (hasResult()) {
-              <span class="ctl__panel-badge">{{ isValid() ? 'Pass' : 'Fail' }}</span>
-            }
-          </header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="draft">
-              <span>Draft version</span>
-              <select id="draft" formControlName="draft" (change)="onOptionChange()">
-                <option value="draft7">Draft 7</option>
-                <option value="draft2019-09">Draft 2019-09</option>
-                <option value="draft2020-12">Draft 2020-12</option>
-              </select>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="strictTypes" (change)="onOptionChange()" />
-              <div>
-                <strong>Strict type checking</strong>
-                <span>Stop at first type mismatch per path.</span>
-              </div>
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              Options
+              @if (hasResult()) {
+                <span class="ctl__panel-badge">{{ isValid() ? 'Pass' : 'Fail' }}</span>
+              }
+            </header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="draft">
+                <span>Draft version</span>
+                <select id="draft" formControlName="draft" (change)="onOptionChange()">
+                  <option value="draft7">Draft 7</option>
+                  <option value="draft2019-09">Draft 2019-09</option>
+                  <option value="draft2020-12">Draft 2020-12</option>
+                </select>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="strictTypes" (change)="onOptionChange()" />
+                <div>
+                  <strong>Strict type checking</strong>
+                  <span>Stop at first type mismatch per path.</span>
+                </div>
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Validation issues</header>
-          @if (hasResult() && result(); as r) {
-            @if (r.issues.length) {
-              <div class="ctl__panel-body jsv-issues">
-                <ul>
-                  @for (issue of r.issues; track issue.path + issue.message) {
-                    <li>
-                      <code>{{ issue.path || '(root)' }}</code>
-                      <span>{{ issue.message }}</span>
-                    </li>
-                  }
-                </ul>
-              </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Validation issues</header>
+            @if (hasResult() && result(); as r) {
+              @if (r.issues.length) {
+                <div class="ctl__panel-body jsv-issues">
+                  <ul>
+                    @for (issue of r.issues; track issue.path + issue.message) {
+                      <li>
+                        <code>{{ issue.path || '(root)' }}</code>
+                        <span>{{ issue.message }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              } @else {
+                <div class="ctl__panel-empty">
+                  <p>All checks passed — JSON is valid against the schema.</p>
+                </div>
+              }
             } @else {
               <div class="ctl__panel-empty">
-                <p>All checks passed — JSON is valid against the schema.</p>
+                <p>Validation issues appear here after running validate.</p>
               </div>
             }
-          } @else {
-            <div class="ctl__panel-empty">
-              <p>Validation issues appear here after running validate.</p>
-            </div>
-          }
-        </div>
+          </div>
 
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Validation runs <strong>locally</strong> — data never leaves your browser.</p>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body jsv__related">
+              <ul class="jsv__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="jsv__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Performs <strong>structural</strong> checks, not full draft-specific behavior.</p>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Validation runs <strong>locally</strong> — data never leaves your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Performs <strong>structural</strong> checks, not full draft-specific behavior.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

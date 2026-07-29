@@ -96,6 +96,26 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="tta__suggest" aria-label="Suggested next step">
+              <div class="tta__suggest-body">
+                <p class="tta__suggest-title">{{ suggestion.title }}</p>
+                <p class="tta__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="tta__suggest-actions">
+                <a class="tta__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="tta__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="conversion-input">Enter value to convert</label>
           <textarea
             #inputTextarea
@@ -183,7 +203,7 @@
         </section>
       </div>
 
-      <aside class="tta__sidebar" aria-label="Format settings">
+      <aside class="tta__sidebar" aria-label="Format settings and related tools">
         <div class="tta__format-bar">
           <span class="tta__format-label" id="tta-from-label">From</span>
           <span class="tta__format-label tta__format-label--spacer" aria-hidden="true"></span>
@@ -236,6 +256,20 @@
               </div>
             }
           </div>
+        </div>
+
+        <div class="tta__panel tta__related-panel">
+          <header class="tta__panel-head">Related tools</header>
+          <ul class="tta__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="tta__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
     </div>

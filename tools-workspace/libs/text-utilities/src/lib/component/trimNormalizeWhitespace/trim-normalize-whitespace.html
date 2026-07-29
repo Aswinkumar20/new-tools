@@ -90,8 +90,30 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="tnw__suggest" aria-label="Suggested next step">
+              <div class="tnw__suggest-body">
+                <p class="tnw__suggest-title">{{ suggestion.title }}</p>
+                <p class="tnw__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="tnw__suggest-actions">
+                <a class="tnw__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="tnw__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="trim-normalize-input">Text to clean</label>
           <textarea
             #inputTextarea
+            id="trim-normalize-input"
             class="ttool__textarea"
             [(ngModel)]="inputText"
             (input)="onInputChange()"
@@ -126,20 +148,33 @@
           @if (errorMessage) {
             <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div>
           } @else if (hasOutput) {
-            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText"></textarea>
+            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText" aria-label="Cleaned output"></textarea>
           } @else {
             <div class="ttool__empty"><p>Cleaned text appears here as you type.</p></div>
           }
         </section>
       </div>
 
-      <aside class="ttool__sidebar" aria-label="Tips">
+      <aside class="ttool__sidebar" aria-label="Tips and related tools">
         <div class="ttool__panel">
           <ul class="ttool__tips">
             <li><strong>Trim lines</strong> — removes leading and trailing whitespace on each line.</li>
             <li><strong>Collapse spaces</strong> — replaces runs of whitespace with a single space.</li>
             <li><strong>Remove empty lines</strong> — drops blank lines from the result.</li>
             <li><strong>Normalize line endings</strong> — converts CRLF/CR to LF.</li>
+          </ul>
+        </div>
+        <div class="ttool__panel tnw__related-panel">
+          <header class="tnw__panel-head">Related tools</header>
+          <ul class="tnw__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="tnw__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
           </ul>
         </div>
       </aside>

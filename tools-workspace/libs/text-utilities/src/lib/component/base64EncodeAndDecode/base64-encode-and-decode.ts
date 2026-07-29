@@ -1,36 +1,36 @@
-import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
+import { TextToolBase } from '../../shared/text-tool-base';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  BASE64_MAX_UPLOAD_BYTES,
+  BASE64_RELATED_TOOLS,
+  BASE64_UPLOAD_ACCEPT
+} from '../../constants/base64-encode-and-decode.constants';
+import type { Base64ConversionMode } from '../../types/base64-encode-and-decode.types';
+import {
+  convertBase64,
+  inputLooksLikeBase64,
+  isLikelyBase64TextFile,
+  resolveBase64Suggestion
+} from '../../utils/base64-encode-and-decode.utils';
 
 @Component({
   selector: 'lib-base64-encode-and-decode',
   standalone: true,
   templateUrl: './base64-encode-and-decode.html',
   styleUrls: ['./base64-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
 })
-export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
-  @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
+export class Base64EncodeAndDecodeComponent extends TextToolBase {
+  override readonly maxUploadBytes = BASE64_MAX_UPLOAD_BYTES;
 
-  readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
-
-  inputText = '';
-  outputText = '';
-  errorMessage = '';
-  mode: 'encode' | 'decode' = 'encode';
-
-  undoStack: string[] = [''];
-  redoStack: string[] = [];
-  private isRestoringHistory = false;
-  private historyTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingHistoryValue = '';
-
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = 10 * 1024 * 1024;
-  private fileInput?: HTMLInputElement;
+  mode: Base64ConversionMode = 'encode';
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = BASE64_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
 
   get modeLabel(): string {
     return this.mode === 'encode' ? 'Encode' : 'Decode';
@@ -44,78 +44,36 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
     return this.mode === 'encode' ? 'Base64 output' : 'Decoded text';
   }
 
-  get hasInput(): boolean {
-    return !!this.inputText?.trim();
-  }
-
-  get hasOutput(): boolean {
-    return !!this.outputText && !this.errorMessage;
-  }
-
-  get canUndo(): boolean {
-    return this.undoStack.length > 1;
-  }
-
-  get canRedo(): boolean {
-    return this.redoStack.length > 0;
-  }
-
   get sizeDelta(): number {
     if (!this.hasOutput || !this.inputText) return 0;
     return this.outputText.length - this.inputText.length;
   }
 
-  @HostListener('document:keydown', ['$event'])
-  handleKeyboard(evt: KeyboardEvent): void {
-    if (!this.isSourceEditorFocused()) {
-      return;
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveBase64Suggestion({
+      mode: this.mode,
+      hasInput: this.hasInput,
+      hasOutput: this.hasOutput,
+      errorMessage: this.errorMessage,
+      inputLooksLikeBase64: inputLooksLikeBase64(this.inputText)
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
     }
-
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const key = evt.key.toLowerCase();
-    const undoKey = isMac
-      ? evt.metaKey && key === 'z' && !evt.shiftKey
-      : evt.ctrlKey && key === 'z' && !evt.shiftKey;
-    const redoKey = isMac
-      ? evt.metaKey && (key === 'y' || (evt.shiftKey && key === 'z'))
-      : evt.ctrlKey && (key === 'y' || (evt.shiftKey && key === 'z'));
-
-    if (undoKey) {
-      evt.preventDefault();
-      this.undo();
-    } else if (redoKey) {
-      evt.preventDefault();
-      this.redo();
-    }
+    return suggestion;
   }
 
-  private isSourceEditorFocused(): boolean {
-    const textarea = this.inputTextareaRef?.nativeElement;
-    return !!textarea && document.activeElement === textarea;
+  override onInputChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onInputChange();
   }
 
-  ngOnInit(): void {
-    this.seedHistory('');
-  }
-
-  ngOnDestroy(): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-    }
-    this.fileInput?.remove();
-    this.fileInput = undefined;
-  }
-
-  private seedHistory(value: string): void {
-    this.undoStack = [value];
-    this.redoStack = [];
-  }
-
-  selectMode(selectedMode: 'encode' | 'decode'): void {
+  selectMode(selectedMode: Base64ConversionMode): void {
     if (this.mode === selectedMode) return;
 
     const previousOutput = this.hasOutput ? this.outputText : '';
     this.mode = selectedMode;
+    this.dismissedSuggestionId = null;
 
     if (previousOutput) {
       this.applyInputState(previousOutput);
@@ -125,93 +83,20 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
     }
 
     if (this.inputText) {
-      this.runConversion();
+      this.runProcess();
     } else {
       this.outputText = '';
       this.errorMessage = '';
     }
   }
 
-  onInputChange(): void {
-    if (this.isRestoringHistory) {
-      return;
-    }
-    this.runConversion();
-    this.scheduleHistoryPush(this.inputText);
+  protected process(): void {
+    const result = convertBase64(this.mode, this.inputText);
+    this.outputText = result.output;
+    this.errorMessage = result.errorMessage;
   }
 
-  private runConversion(): void {
-    if (this.mode === 'encode') {
-      this.encodeText();
-    } else {
-      this.decodeText();
-    }
-  }
-
-  private encodeText(): void {
-    this.errorMessage = '';
-    if (!this.inputText) {
-      this.outputText = '';
-      return;
-    }
-    try {
-      this.outputText = this.utf8ToBase64(this.inputText);
-    } catch {
-      this.outputText = '';
-      this.errorMessage = 'Invalid input for encoding.';
-    }
-  }
-
-  private decodeText(): void {
-    this.errorMessage = '';
-    if (!this.inputText) {
-      this.outputText = '';
-      return;
-    }
-    try {
-      const trimmed = this.inputText.trim();
-      this.outputText = this.base64ToUtf8(trimmed);
-    } catch {
-      this.outputText = '';
-      this.errorMessage = 'Invalid Base64 string. Check padding and characters.';
-    }
-  }
-
-  private utf8ToBase64(text: string): string {
-    const bytes = new TextEncoder().encode(text);
-    let binary = '';
-    bytes.forEach((b) => {
-      binary += String.fromCharCode(b);
-    });
-    return btoa(binary);
-  }
-
-  private base64ToUtf8(base64: string): string {
-    const binary = atob(base64);
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  }
-
-  clear(): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-      this.historyTimer = null;
-    }
-    this.applyInputState('');
-    this.seedHistory('');
-    this.errorMessage = '';
-    this.toastService.info('Text cleared');
-  }
-
-  copyInput(): void {
-    this.copyText(this.inputText, 'Input');
-  }
-
-  copyOutput(): void {
-    this.copyText(this.outputText, 'Output');
-  }
-
-  downloadText(): void {
+  override downloadText(): void {
     if (!this.hasOutput) return;
     const ext = this.mode === 'encode' ? 'b64.txt' : 'txt';
     const blob = new Blob([this.outputText], { type: 'text/plain;charset=utf-8' });
@@ -221,17 +106,6 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
     link.click();
     URL.revokeObjectURL(link.href);
     this.toastService.info('Download started');
-  }
-
-  useOutputAsInput(): void {
-    if (!this.hasOutput) {
-      this.toastService.info('No output to use');
-      return;
-    }
-    const next = this.outputText;
-    this.applyInputState(next);
-    this.pushToUndoStack(next);
-    this.toastService.info('Output moved to input');
   }
 
   swapInputOutput(): void {
@@ -244,6 +118,7 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
     const previousOutput = this.hasOutput ? this.outputText : '';
 
     this.mode = this.mode === 'encode' ? 'decode' : 'encode';
+    this.dismissedSuggestionId = null;
 
     if (previousOutput) {
       this.isRestoringHistory = true;
@@ -252,14 +127,14 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
       this.errorMessage = '';
       this.isRestoringHistory = false;
     } else {
-      this.runConversion();
+      this.runProcess();
     }
 
     this.pushToUndoStack(this.inputText);
     this.toastService.info('Mode and values swapped');
   }
 
-  uploadTextFile(): void {
+  override uploadTextFile(): void {
     if (!this.fileInput) {
       this.fileInput = document.createElement('input');
       this.fileInput.type = 'file';
@@ -276,18 +151,19 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
       document.body.appendChild(this.fileInput);
     }
 
-    this.fileInput.accept =
-      '.txt,.text,.b64,.md,.json,.xml,.csv,.log,text/*,application/json,application/xml';
+    this.fileInput.accept = BASE64_UPLOAD_ACCEPT;
     this.fileInput.click();
   }
 
-  private handleUploadedFile(file: File): void {
+  protected override handleUploadedFile(file: File): void {
     if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
+      this.toastService.error(
+        `File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`
+      );
       return;
     }
 
-    if (!this.isLikelyTextFile(file)) {
+    if (!isLikelyBase64TextFile(file)) {
       this.toastService.error('Please upload a text-based file (.txt, .b64, .json, etc.).');
       return;
     }
@@ -304,6 +180,7 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
       this.applyInputState(text);
       this.pushToUndoStack(text);
       this.isReadingFile = false;
+      this.dismissedSuggestionId = null;
       this.toastService.info(`Loaded "${file.name}"`);
     };
 
@@ -315,115 +192,7 @@ export class Base64EncodeAndDecodeComponent implements OnInit, OnDestroy {
     reader.readAsText(file);
   }
 
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) {
-      return true;
-    }
-    const allowedTypes = new Set([
-      'application/json', 'application/xml', 'application/javascript',
-      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
-    ]);
-    if (allowedTypes.has(file.type)) {
-      return true;
-    }
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    const textExtensions = new Set([
-      'txt', 'text', 'b64', 'base64', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
-      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf',
-    ]);
-    return textExtensions.has(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
-    }
-  }
-
-  private scheduleHistoryPush(value: string): void {
-    this.pendingHistoryValue = value;
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-    }
-    const wait = value.length > 5000 ? 600 : value.length > 2000 ? 450 : 300;
-    this.historyTimer = setTimeout(() => {
-      if (!this.isRestoringHistory) {
-        this.pushToUndoStack(this.pendingHistoryValue);
-      }
-      this.historyTimer = null;
-    }, wait);
-  }
-
-  private applyInputState(value: string): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-      this.historyTimer = null;
-    }
-    this.pendingHistoryValue = value;
-    this.isRestoringHistory = true;
-    this.inputText = value;
-    this.runConversion();
-    this.isRestoringHistory = false;
-  }
-
-  pushToUndoStack(value: string): void {
-    if (this.isRestoringHistory) {
-      return;
-    }
-    const last = this.undoStack[this.undoStack.length - 1];
-    if (last !== undefined && last === value) {
-      return;
-    }
-    this.undoStack.push(value);
-    if (this.undoStack.length > 100) {
-      this.undoStack.shift();
-    }
-    this.redoStack = [];
-  }
-
-  undo(): void {
-    if (this.undoStack.length > 1) {
-      const last = this.undoStack.pop()!;
-      this.redoStack.push(last);
-      const prev = this.undoStack[this.undoStack.length - 1];
-      this.applyInputState(prev);
-    }
-  }
-
-  redo(): void {
-    if (this.redoStack.length > 0) {
-      const next = this.redoStack.pop()!;
-      this.undoStack.push(next);
-      this.applyInputState(next);
-    }
-  }
-
-  private copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.info(`${label} copied to clipboard`);
-    }).catch(() => {
-      this.toastService.error('Failed to copy to clipboard');
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 }

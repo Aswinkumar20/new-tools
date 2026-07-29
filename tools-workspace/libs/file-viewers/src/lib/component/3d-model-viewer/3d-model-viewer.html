@@ -10,19 +10,19 @@
 
       <div class="ctl__stats" aria-label="Viewer status">
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">Soon</span>
+          <span class="ctl__stat-value">{{ statusLabel }}</span>
           <span class="ctl__stat-label">Status</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">4+</span>
+          <span class="ctl__stat-value">{{ formatsCountLabel }}</span>
           <span class="ctl__stat-label">Formats</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">—</span>
+          <span class="ctl__stat-value">{{ modelsPlaceholder }}</span>
           <span class="ctl__stat-label">Models</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">Local</span>
+          <span class="ctl__stat-value">{{ processingLabel }}</span>
           <span class="ctl__stat-label">Processing</span>
         </div>
       </div>
@@ -44,6 +44,25 @@
     <div class="ctl__workspace">
       <div class="ctl__editors">
         <section class="ctl__editor fv-viewer-panel" aria-label="3D model preview">
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="m3d__suggest" aria-label="Suggested next step">
+              <div class="m3d__suggest-body">
+                <p class="m3d__suggest-title">{{ suggestion.title }}</p>
+                <p class="m3d__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="m3d__suggest-actions">
+                <a class="m3d__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="m3d__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__empty fv-dropzone fv-dropzone--enhanced fv-coming-soon" aria-live="polite">
             <svg class="fv-dropzone__icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -53,7 +72,7 @@
               <line x1="3" y1="15" x2="21" y2="15" />
             </svg>
             <p class="fv-dropzone__title">3D model viewer <strong>coming soon</strong></p>
-            <p class="fv-dropzone__formats">GLTF, GLB, OBJ, STL, FBX · orbit controls · local processing</p>
+            <p class="fv-dropzone__formats">{{ capabilityLine }}</p>
           </div>
         </section>
       </div>
@@ -62,14 +81,29 @@
         <div class="ctl__panel">
           <header class="ctl__panel-head">Roadmap</header>
           <div class="ctl__panel-body">
-            <p class="ctl__panel-hint">Drag-and-drop uploads, validation, and metadata extraction are on the roadmap.</p>
+            <p class="ctl__panel-hint">{{ roadmapHint }}</p>
             <ul class="fv-planned-list">
-              <li>Initial support for GLTF/GLB, OBJ, STL, and FBX models.</li>
-              <li>Environment maps and HDR lighting presets.</li>
-              <li>Section cutting, measurements, and annotations.</li>
+              @for (item of roadmapItems; track item.id) {
+                <li>{{ item.text }}</li>
+              }
             </ul>
           </div>
         </div>
+
+        <div class="ctl__panel m3d__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="m3d__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="m3d__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
+
         <div class="ctl__info">
           <div class="ctl__info-item">
             <span class="ctl__info-dot ctl__info-dot--accent"></span>

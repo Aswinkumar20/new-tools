@@ -1,14 +1,42 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnDestroy, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface Message {
-  id: string;
-  type: 'sent' | 'received' | 'system';
-  content: string;
-  timestamp: number;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  WEBSOCKET_CONNECT_TIMEOUT_MS,
+  WEBSOCKET_DEFAULT_URL,
+  WEBSOCKET_RELATED_TOOLS,
+  WEBSOCKET_URL_PATTERN
+} from '../../constants/websocket-client.constants';
+import type {
+  WebSocketConnectionStatus,
+  WebSocketLogMessage,
+  WebSocketMessageType
+} from '../../types/websocket-client.types';
+import {
+  appendLogMessage,
+  clearUrlHistoryStorage,
+  createLogMessage,
+  decodeIncomingMessageData,
+  formatConnectionStatusLabel,
+  formatMessageContent,
+  formatMessageTimestamp,
+  isJsonContent,
+  isValidWebSocketUrl,
+  loadUrlHistoryFromStorage,
+  persistUrlHistory,
+  prependUrlHistory,
+  resolveWebSocketSuggestion
+} from '../../utils/websocket-client.utils';
 
 type WebSocketClientFormGroup = FormGroup<{
   url: FormControl<string>;
@@ -16,47 +44,61 @@ type WebSocketClientFormGroup = FormGroup<{
   rememberHistory: FormControl<boolean>;
 }>;
 
-type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-const HISTORY_KEY = 'websocket-client-url-history';
-
 @Component({
   selector: 'lib-websocket-client',
   standalone: true,
   templateUrl: './websocket-client.html',
   styleUrls: ['./websocket-client.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class WebSocketClientComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
+
   private connectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private websocket: WebSocket | null = null;
 
   readonly form: WebSocketClientFormGroup = this.fb.group({
-    url: this.fb.control('wss://echo.websocket.events', {
+    url: this.fb.control(WEBSOCKET_DEFAULT_URL, {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^wss?:\/\/.+/)]
+      validators: [Validators.required, Validators.pattern(WEBSOCKET_URL_PATTERN)]
     }),
     message: this.fb.control('', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = WEBSOCKET_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly messages = signal<Message[]>([]);
-  readonly connectionStatus = signal<ConnectionStatus>('disconnected');
+  readonly messages = signal<WebSocketLogMessage[]>([]);
+  readonly connectionStatus = signal<WebSocketConnectionStatus>('disconnected');
   readonly urlHistory = signal<string[]>([]);
-  private websocket: WebSocket | null = null;
+  private readonly hasCopiedMessage = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasMessages = computed(() => this.messages().length > 0);
   readonly isConnected = computed(() => this.connectionStatus() === 'connected');
   readonly isConnecting = computed(() => this.connectionStatus() === 'connecting');
   readonly hasError = computed(() => this.connectionStatus() === 'error');
+  readonly statusLabel = computed(() => formatConnectionStatusLabel(this.connectionStatus()));
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveWebSocketSuggestion({
+      status: this.connectionStatus(),
+      url: this.form.controls.url.value,
+      messages: this.messages(),
+      hasCopiedMessage: this.hasCopiedMessage(),
+      hasUrlError: this.errors().some((message) => message.includes('WebSocket URL'))
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
-    this.loadUrlHistory();
+    this.urlHistory.set(loadUrlHistoryFromStorage());
   }
 
   ngOnDestroy(): void {
@@ -64,13 +106,19 @@ export class WebSocketClientComponent implements OnDestroy {
     this.disconnect();
   }
 
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
   connect(): void {
     this.errors.set([]);
     this.warnings.set([]);
+    this.hasCopiedMessage.set(false);
+    this.dismissedSuggestionId.set(null);
 
     const url = this.form.controls.url.value.trim();
 
-    if (!url || !this.form.controls.url.valid) {
+    if (!url || !this.form.controls.url.valid || !isValidWebSocketUrl(url)) {
       this.errors.set(['Please enter a valid WebSocket URL starting with ws:// or wss://']);
       return;
     }
@@ -95,7 +143,7 @@ export class WebSocketClientComponent implements OnDestroy {
           this.connectionStatus.set('error');
           this.websocket = null;
         }
-      }, 10000);
+      }, WEBSOCKET_CONNECT_TIMEOUT_MS);
 
       this.websocket.onopen = () => {
         this.clearConnectTimeout();
@@ -145,7 +193,10 @@ export class WebSocketClientComponent implements OnDestroy {
       this.websocket.onmessage = null;
       this.websocket.onerror = null;
       this.websocket.onclose = null;
-      if (this.websocket.readyState === WebSocket.OPEN || this.websocket.readyState === WebSocket.CONNECTING) {
+      if (
+        this.websocket.readyState === WebSocket.OPEN ||
+        this.websocket.readyState === WebSocket.CONNECTING
+      ) {
         this.websocket.close();
       }
       this.websocket = null;
@@ -192,57 +243,55 @@ export class WebSocketClientComponent implements OnDestroy {
 
   applyUrl(url: string): void {
     this.form.patchValue({ url });
+    this.dismissedSuggestionId.set(null);
   }
 
   clearMessages(): void {
     this.messages.set([]);
+    this.hasCopiedMessage.set(false);
+    this.dismissedSuggestionId.set(null);
   }
 
   clearUrlHistory(): void {
     this.urlHistory.set([]);
-    try {
-      localStorage.removeItem(HISTORY_KEY);
-    } catch {
-      // ignore
+    clearUrlHistoryStorage();
+  }
+
+  async copyToClipboard(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (ok) {
+      this.hasCopiedMessage.set(true);
+      this.dismissedSuggestionId.set(null);
+      this.errors.set([]);
+    } else {
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
     }
   }
 
-  copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
+  formatTimestamp(timestamp: number): string {
+    return formatMessageTimestamp(timestamp);
+  }
+
+  formatJsonContent(content: string): string {
+    return formatMessageContent(content);
+  }
+
+  isJson(content: string): boolean {
+    return isJsonContent(content);
   }
 
   private async handleIncomingMessage(data: unknown): Promise<void> {
-    if (typeof data === 'string') {
-      this.addMessage('received', data);
+    const decoded = await decodeIncomingMessageData(data);
+    if (decoded.kind === 'text') {
+      this.addMessage('received', decoded.content);
       return;
     }
-    if (data instanceof Blob) {
-      this.addMessage('received', await data.text());
-      return;
-    }
-    if (data instanceof ArrayBuffer) {
-      this.addMessage('received', new TextDecoder().decode(data));
-      return;
-    }
-    this.addSystemMessage(`Unsupported message type: ${Object.prototype.toString.call(data)}`);
+    this.addSystemMessage(decoded.content);
   }
 
-  private addMessage(type: 'sent' | 'received' | 'system', content: string): void {
-    const message: Message = {
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
-      type,
-      content,
-      timestamp: Date.now()
-    };
-
-    this.messages.update((msgs) => [...msgs, message].slice(-100));
+  private addMessage(type: WebSocketMessageType, content: string): void {
+    const message = createLogMessage(type, content);
+    this.messages.update((msgs) => appendLogMessage(msgs, message));
   }
 
   private addSystemMessage(content: string): void {
@@ -254,54 +303,16 @@ export class WebSocketClientComponent implements OnDestroy {
       return;
     }
     this.urlHistory.update((entries) => {
-      const next = [url, ...entries.filter((u) => u !== url)].slice(0, 10);
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      const next = prependUrlHistory(entries, url);
+      persistUrlHistory(next);
       return next;
     });
-  }
-
-  private loadUrlHistory(): void {
-    try {
-      const stored = localStorage.getItem(HISTORY_KEY);
-      if (stored) {
-        this.urlHistory.set(JSON.parse(stored) as string[]);
-      }
-    } catch {
-      // ignore
-    }
   }
 
   private clearConnectTimeout(): void {
     if (this.connectTimeoutId != null) {
       clearTimeout(this.connectTimeoutId);
       this.connectTimeoutId = null;
-    }
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  }
-
-  formatMessageContent(content: string): string {
-    try {
-      const parsed = JSON.parse(content);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return content;
-    }
-  }
-
-  isJson(content: string): boolean {
-    try {
-      JSON.parse(content);
-      return true;
-    } catch {
-      return false;
     }
   }
 }

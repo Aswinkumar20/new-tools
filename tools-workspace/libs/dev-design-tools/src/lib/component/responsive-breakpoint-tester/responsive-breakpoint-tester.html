@@ -10,8 +10,8 @@
 
       <div class="ctl__stats" aria-label="Breakpoint statistics">
         <div class="ctl__stat">
-          <span class="ctl__stat-value" [style.color]="getBreakpointColor(activeBreakpoint())">
-            {{ formatBreakpointName(activeBreakpoint()) }}
+          <span class="ctl__stat-value" [style.color]="breakpointColor()">
+            {{ formatBreakpointLabel() }}
           </span>
           <span class="ctl__stat-label">Breakpoint</span>
         </div>
@@ -20,7 +20,7 @@
           <span class="ctl__stat-label">Dimensions</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ (currentWidth() / currentHeight()).toFixed(2) }}:1</span>
+          <span class="ctl__stat-value">{{ aspectRatioLabel() }}:1</span>
           <span class="ctl__stat-label">Aspect</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
@@ -81,7 +81,7 @@
         </header>
 
         @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error">
+          <div class="ctl__alert ctl__alert--error" role="alert">
             <ul>
               @for (message of errors(); track message) {
                 <li>{{ message }}</li>
@@ -91,7 +91,7 @@
         }
 
         @if (warnings().length) {
-          <div class="ctl__alert ctl__alert--warning">
+          <div class="ctl__alert ctl__alert--warning" role="status">
             <ul>
               @for (message of warnings(); track message) {
                 <li>{{ message }}</li>
@@ -100,16 +100,34 @@
           </div>
         }
 
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="rbt__suggest" aria-label="Suggested next step">
+            <div class="rbt__suggest-body">
+              <p class="rbt__suggest-title">{{ suggestion.title }}</p>
+              <p class="rbt__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="rbt__suggest-actions">
+              <a class="rbt__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="rbt__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+        }
+
         <div class="ctl__editor-body rbt__preview">
-          <div class="rbt__breakpoint-indicator" [style.background-color]="getBreakpointColor(activeBreakpoint())">
-            <strong>{{ formatBreakpointName(activeBreakpoint()) }}</strong>
+          <div class="rbt__breakpoint-indicator" [style.background-color]="breakpointColor()">
+            <strong>{{ formatBreakpointLabel() }}</strong>
           </div>
 
           <div class="rbt__iframe-wrap">
             <div class="rbt__iframe-container" [style.width.px]="currentWidth()" [style.height.px]="currentHeight()">
               @if (iframeUrl()) {
                 <iframe
-                  #iframe
                   [src]="iframeUrl()!"
                   class="rbt__iframe"
                   [style.width.px]="currentWidth()"
@@ -125,10 +143,10 @@
 
               @if (form.controls.showGrid.value) {
                 <div class="rbt__grid-overlay" [style.width.px]="currentWidth()" [style.height.px]="currentHeight()">
-                  @for (row of getGridRows(); track $index) {
+                  @for (row of getGridRows(); track row) {
                     <div class="rbt__grid-line rbt__grid-line--horizontal" [style.top.px]="row"></div>
                   }
-                  @for (col of getGridCols(); track $index) {
+                  @for (col of getGridCols(); track col) {
                     <div class="rbt__grid-line rbt__grid-line--vertical" [style.left.px]="col"></div>
                   }
                 </div>
@@ -188,7 +206,7 @@
             <div class="rbt__presets-grid">
               @for (preset of presetBreakpoints; track preset.name) {
                 <button type="button" class="rbt__preset-item" (click)="applyPreset(preset)">
-                  <span class="rbt__preset-icon">{{ preset.icon }}</span>
+                  <span class="rbt__preset-icon" aria-hidden="true">{{ preset.icon }}</span>
                   <div class="rbt__preset-info">
                     <strong>{{ preset.name }}</strong>
                     <span>{{ preset.width }} × {{ preset.height }}px</span>
@@ -204,25 +222,39 @@
               @for (bp of commonBreakpoints; track bp.name) {
                 <div
                   class="rbt__breakpoint-item"
-                  [class.rbt__breakpoint-item--active]="activeBreakpoint() && activeBreakpoint()!.name === bp.name"
-                  [style.border-color]="getBreakpointColor(bp)">
-                  <div class="rbt__breakpoint-color" [style.background-color]="getBreakpointColor(bp)"></div>
+                  [class.rbt__breakpoint-item--active]="activeBreakpoint().name === bp.name"
+                  [style.border-color]="breakpointColor(bp)">
+                  <div class="rbt__breakpoint-color" [style.background-color]="breakpointColor(bp)"></div>
                   <div class="rbt__breakpoint-info">
                     <strong>{{ bp.name }}</strong>
                     <span>
-                      @if (bp.max === Infinity) {
+                      @if (isOpenEnded(bp)) {
                         {{ bp.min }}+px
                       } @else {
                         {{ bp.min }}-{{ bp.max }}px
                       }
                     </span>
                   </div>
-                  @if (activeBreakpoint() && activeBreakpoint()!.name === bp.name) {
+                  @if (activeBreakpoint().name === bp.name) {
                     <span class="rbt__breakpoint-active">Active</span>
                   }
                 </div>
               }
             </div>
+          </div>
+
+          <div class="ctl__panel rbt__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="rbt__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="rbt__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

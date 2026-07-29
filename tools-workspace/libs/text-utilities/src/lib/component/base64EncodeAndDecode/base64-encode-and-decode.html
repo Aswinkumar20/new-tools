@@ -115,6 +115,26 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="b64__suggest" aria-label="Suggested next step">
+              <div class="b64__suggest-body">
+                <p class="b64__suggest-title">{{ suggestion.title }}</p>
+                <p class="b64__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="b64__suggest-actions">
+                <a class="b64__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="b64__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <label class="sr-only" for="base64-source">{{ mode === 'encode' ? 'Text to encode' : 'Base64 to decode' }}</label>
           <textarea
             #inputTextarea
@@ -212,6 +232,20 @@
             <li>Base64 expands output by roughly 33%.</li>
             <li>UTF-8 text is supported for encode and decode.</li>
             <li>Use <strong>⇄ Swap</strong> to flip mode and reuse output.</li>
+          </ul>
+        </div>
+
+        <div class="b64__panel b64__panel--related">
+          <header class="b64__panel-head">Related tools</header>
+          <ul class="b64__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="b64__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
           </ul>
         </div>
       </aside>

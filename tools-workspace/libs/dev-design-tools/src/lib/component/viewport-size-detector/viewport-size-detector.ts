@@ -1,79 +1,73 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
+  OnDestroy,
+  OnInit,
   computed,
   inject,
-  signal,
-  OnInit,
-  OnDestroy
+  signal
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-interface ViewportInfo {
-  viewportWidth: number;
-  viewportHeight: number;
-  screenWidth: number;
-  screenHeight: number;
-  devicePixelRatio: number;
-  orientation: 'portrait' | 'landscape' | 'square';
-  aspectRatio: number;
-  visualViewportWidth?: number;
-  visualViewportHeight?: number;
-  timestamp: number;
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  width: number;
-  height: number;
-  aspectRatio: number;
-}
-
-interface Breakpoint {
-  name: string;
-  min: number;
-  max: number;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  VIEWPORT_BREAKPOINTS,
+  VIEWPORT_RELATED_TOOLS
+} from '../../constants/viewport-size-detector.constants';
+import type {
+  ViewportBreakpoint,
+  ViewportHistoryEntry,
+  ViewportInfo
+} from '../../types/viewport-size-detector.types';
+import {
+  effectiveResolution,
+  findActiveBreakpoint,
+  formatBreakpointName,
+  formatOrientationLabel,
+  formatRelativeTimestamp,
+  formatViewportMetricsJson,
+  formatViewportMetricsText,
+  getBreakpointColor,
+  isOpenEndedBreakpoint,
+  prependViewportHistory,
+  readViewportInfo,
+  resolveViewportSuggestion
+} from '../../utils/viewport-size-detector.utils';
 
 type ViewportDetectorFormGroup = FormGroup<{
   rememberHistory: FormControl<boolean>;
 }>;
-
-const BREAKPOINTS: Breakpoint[] = [
-  { name: 'Mobile', min: 0, max: 767 },
-  { name: 'Tablet', min: 768, max: 1023 },
-  { name: 'Desktop', min: 1024, max: 1439 },
-  { name: 'Large Desktop', min: 1440, max: Infinity }
-];
 
 @Component({
   selector: 'lib-viewport-size-detector',
   standalone: true,
   templateUrl: './viewport-size-detector.html',
   styleUrls: ['./viewport-size-detector.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [DecimalPipe, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
+
   private resizeListener?: () => void;
+  private visualViewportListener?: () => void;
 
   readonly form: ViewportDetectorFormGroup = this.fb.group({
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly breakpoints = BREAKPOINTS;
+  readonly breakpoints = VIEWPORT_BREAKPOINTS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = VIEWPORT_RELATED_TOOLS;
   readonly viewportInfo = signal<ViewportInfo | null>(null);
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly history = signal<ViewportHistoryEntry[]>([]);
   readonly errors = signal<string[]>([]);
-  readonly Math = Math;
-  private visualViewportListener?: () => void;
+  private readonly hasCopiedMetrics = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly activeBreakpoint = computed(() => {
@@ -81,12 +75,25 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     if (!info) {
       return null;
     }
-    return this.breakpoints.find((bp) => info.viewportWidth >= bp.min && info.viewportWidth <= bp.max) || this.breakpoints[0];
+    return findActiveBreakpoint(info.viewportWidth);
   });
-  readonly Infinity = Infinity;
+  readonly effectivePixelSize = computed(() => {
+    const info = this.viewportInfo();
+    return info ? effectiveResolution(info) : null;
+  });
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveViewportSuggestion({
+      info: this.viewportInfo(),
+      hasCopiedMetrics: this.hasCopiedMetrics()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   ngOnInit(): void {
-    this.updateViewportInfo();
+    this.refreshViewportInfo();
     this.setupResizeListener();
   }
 
@@ -100,82 +107,24 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     }
   }
 
-  private setupResizeListener(): void {
-    this.resizeListener = () => {
-      this.updateViewportInfo();
-    };
-    window.addEventListener('resize', this.resizeListener, { passive: true });
-
-    if (window.visualViewport) {
-      this.visualViewportListener = () => this.updateViewportInfo();
-      window.visualViewport.addEventListener('resize', this.visualViewportListener, { passive: true });
-      window.visualViewport.addEventListener('scroll', this.visualViewportListener, { passive: true });
-    }
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
-  private updateViewportInfo(): void {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const screenWidth = window.screen.width;
-    const screenHeight = window.screen.height;
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    const orientation =
-      viewportWidth === viewportHeight ? 'square' : viewportWidth > viewportHeight ? 'landscape' : 'portrait';
-    const aspectRatio = viewportHeight === 0 ? 0 : viewportWidth / viewportHeight;
-
-    const info: ViewportInfo = {
-      viewportWidth,
-      viewportHeight,
-      screenWidth,
-      screenHeight,
-      devicePixelRatio,
-      orientation,
-      aspectRatio,
-      visualViewportWidth: window.visualViewport?.width,
-      visualViewportHeight: window.visualViewport?.height,
-      timestamp: Date.now()
-    };
-
-    this.viewportInfo.set(info);
-
-    if (this.form.controls.rememberHistory.value) {
-      this.addToHistory(viewportWidth, viewportHeight, aspectRatio);
-    }
-  }
-
-  copyMetrics(): void {
+  async copyMetrics(): Promise<void> {
     const info = this.viewportInfo();
-    if (!info) return;
-    const lines = [
-      `Viewport: ${info.viewportWidth} × ${info.viewportHeight} px`,
-      `Screen: ${info.screenWidth} × ${info.screenHeight} px`,
-      `Aspect ratio: ${info.aspectRatio.toFixed(2)}:1`,
-      `Device pixel ratio: ${info.devicePixelRatio}x`,
-      `Orientation: ${info.orientation}`,
-      `Breakpoint: ${this.formatBreakpointName(this.activeBreakpoint())}`,
-    ];
-    this.copyText(lines.join('\n'), 'Viewport metrics');
+    if (!info) {
+      return;
+    }
+    await this.copyText(formatViewportMetricsText(info, this.activeBreakpoint()), 'Viewport metrics');
   }
 
-  copyJson(): void {
+  async copyJson(): Promise<void> {
     const info = this.viewportInfo();
-    if (!info) return;
-    this.copyText(JSON.stringify(info, null, 2), 'Viewport metrics JSON');
-  }
-
-  copyToClipboard(text: string, label: string): void {
-    this.copyText(text, label);
-  }
-
-  private copyText(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        this.errors.set([]);
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
+    if (!info) {
+      return;
+    }
+    await this.copyText(formatViewportMetricsJson(info), 'Viewport metrics JSON');
   }
 
   clearHistory(): void {
@@ -186,62 +135,72 @@ export class ViewportSizeDetectorComponent implements OnInit, OnDestroy {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
+  formatTimestamp(timestamp: number): string {
+    return formatRelativeTimestamp(timestamp);
+  }
+
+  breakpointColor(bp: ViewportBreakpoint | null): string {
+    return getBreakpointColor(bp);
+  }
+
+  formatBreakpointLabel(bp: ViewportBreakpoint | null): string {
+    return formatBreakpointName(bp);
+  }
+
+  orientationLabel(orientation: ViewportInfo['orientation']): string {
+    return formatOrientationLabel(orientation);
+  }
+
+  isOpenEnded(bp: ViewportBreakpoint): boolean {
+    return isOpenEndedBreakpoint(bp);
+  }
+
+  private setupResizeListener(): void {
+    this.resizeListener = () => {
+      this.hasCopiedMetrics.set(false);
+      this.dismissedSuggestionId.set(null);
+      this.refreshViewportInfo();
+    };
+    window.addEventListener('resize', this.resizeListener, { passive: true });
+
+    if (window.visualViewport) {
+      this.visualViewportListener = () => {
+        this.hasCopiedMetrics.set(false);
+        this.dismissedSuggestionId.set(null);
+        this.refreshViewportInfo();
+      };
+      window.visualViewport.addEventListener('resize', this.visualViewportListener, { passive: true });
+      window.visualViewport.addEventListener('scroll', this.visualViewportListener, { passive: true });
+    }
+  }
+
+  private refreshViewportInfo(): void {
+    const info = readViewportInfo(window);
+    this.viewportInfo.set(info);
+
+    if (this.form.controls.rememberHistory.value) {
+      this.addToHistory(info.viewportWidth, info.viewportHeight, info.aspectRatio);
+    }
+  }
+
   private addToHistory(width: number, height: number, aspectRatio: number): void {
-    const entry: HistoryEntry = {
+    const entry: ViewportHistoryEntry = {
       timestamp: Date.now(),
       width,
       height,
       aspectRatio
     };
-
-    this.history.update((entries) => {
-      // Check if this exact size already exists (within 1px tolerance)
-      const exists = entries.some((e) => Math.abs(e.width - width) < 1 && Math.abs(e.height - height) < 1);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 20);
-    });
+    this.history.update((entries) => prependViewportHistory(entries, entry));
   }
 
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
+  private async copyText(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (ok) {
+      this.hasCopiedMetrics.set(true);
+      this.dismissedSuggestionId.set(null);
+      this.errors.set([]);
     } else {
-      return date.toLocaleDateString();
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
     }
-  }
-
-  getBreakpointColor(bp: Breakpoint | null): string {
-    if (!bp) {
-      return '#94a3b8';
-    }
-    const index = this.breakpoints.indexOf(bp);
-    const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545'];
-    return colors[index % colors.length];
-  }
-
-  formatBreakpointName(bp: Breakpoint | null): string {
-    if (!bp) {
-      return 'Unknown';
-    }
-    if (bp.max === Infinity) {
-      return `${bp.name} (${bp.min}+px)`;
-    }
-    return `${bp.name} (${bp.min}-${bp.max}px)`;
   }
 }

@@ -22,47 +22,103 @@
           <span class="ctl__stat-label">Chars</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ isRefreshing() ? '…' : hasContent() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-value">{{ statusLabel() }}</span>
           <span class="ctl__stat-label">Status</span>
         </div>
       </div>
     </div>
 
-    <div class="cf-workflow" aria-label="Viewer actions"><div class="cf-workflow__group cf-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="readClipboard()" [disabled]="!clipboardSupported() || isRefreshing()" aria-label="Read clipboard" appTooltip="Read clipboard" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">{{ isRefreshing() ? 'Reading…' : 'Read' }}</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="downloadContent()" [disabled]="!hasContent()" aria-label="Download content" appTooltip="Download" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearContent()" [disabled]="!hasContent()" aria-label="Clear" appTooltip="Clear" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="cf-workflow" aria-label="Viewer actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="readClipboard()"
+          [disabled]="!clipboardSupported() || isRefreshing()"
+          aria-label="Read clipboard"
+          appTooltip="Read clipboard"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">{{ isRefreshing() ? 'Reading…' : 'Read' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="downloadContent()"
+          [disabled]="!hasContent()"
+          aria-label="Download content"
+          appTooltip="Download"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearContent()"
+          [disabled]="!hasContent()"
+          aria-label="Clear"
+          appTooltip="Clear"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor cf-editor-panel">
           <header class="ctl__editor-head">
             <span>Metadata</span>
           </header>
+
           @if (!clipboardSupported()) {
-            <div class="ctl__alert ctl__alert--warning"><p>Clipboard API is not available in this browser.</p></div>
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <p>Clipboard API is not available in this browser.</p>
+            </div>
           }
+
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
-              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
             </div>
           }
+
           @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning">
-              <ul>@for (message of warnings(); track message) { <li>{{ message }}</li> }</ul>
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
             </div>
           }
-          @if (hasContent() && form.controls.showMetadata.value) {
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="cv__suggest" aria-label="Suggested next step">
+              <div class="cv__suggest-body">
+                <p class="cv__suggest-title">{{ suggestion.title }}</p>
+                <p class="cv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="cv__suggest-actions">
+                <a class="cv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="cv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          @if (hasContent() && showMetadata()) {
             @let content = clipboardContent()!;
             <div class="ctl__editor-body cv-meta">
               <div><span>Lines</span><strong>{{ content.metadata.lines }}</strong></div>
@@ -81,8 +137,17 @@
           <header class="ctl__editor-head">
             <span>Clipboard content</span>
             <div class="ctl__editor-actions">
-              @if (hasContent()) { <span class="ctl__editor-badge">{{ clipboardContent()!.type }}</span> }
-              <button type="button" class="ctl__icon-btn" (click)="copyOutput()" [disabled]="!hasContent()" aria-label="Copy content" appTooltip="Copy content" tooltipPosition="bottom">
+              @if (hasContent()) {
+                <span class="ctl__editor-badge">{{ clipboardContent()!.type }}</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasContent()"
+                aria-label="Copy content"
+                appTooltip="Copy content"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
@@ -94,8 +159,8 @@
             } @else {
               <textarea
                 class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
-                [class.ctl__textarea--wrap]="form.controls.wordWrap.value"
-                [style.font-size.px]="form.controls.fontSize.value"
+                [class.ctl__textarea--wrap]="wordWrap()"
+                [style.font-size.px]="fontSize()"
                 readonly
                 rows="1"
                 [value]="content.text"
@@ -107,47 +172,79 @@
         </section>
       </div>
 
-            <details class="cf-options-flyout">
+      <details class="cf-options-flyout">
         <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="cf-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Viewer settings">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="autoRefresh" />
-              <div><strong>Auto-refresh</strong><span>Poll clipboard at the set interval.</span></div>
-            </label>
-            <label class="ctl__field">
-              <span>Interval (ms)</span>
-              <input type="number" min="100" max="10000" step="100" formControlName="refreshInterval" [disabled]="!form.controls.autoRefresh.value" />
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="showMetadata" />
-              <div><strong>Show metadata</strong><span>Display stats in the metadata panel.</span></div>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="wordWrap" />
-              <div><strong>Word wrap</strong><span>Wrap long lines in the content view.</span></div>
-            </label>
-            <label class="ctl__field">
-              <span>Font size (px)</span>
-              <input type="number" min="10" max="24" formControlName="fontSize" />
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Settings</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="autoRefresh" />
+                <div><strong>Auto-refresh</strong><span>Poll clipboard at the set interval.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Interval (ms)</span>
+                <input
+                  type="number"
+                  min="100"
+                  max="10000"
+                  step="100"
+                  formControlName="refreshInterval" />
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="showMetadata" />
+                <div><strong>Show metadata</strong><span>Display stats in the metadata panel.</span></div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="wordWrap" />
+                <div><strong>Word wrap</strong><span>Wrap long lines in the content view.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Font size (px)</span>
+                <input type="number" min="10" max="24" formControlName="fontSize" />
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Reading runs <strong>locally</strong> — content never leaves your browser.</p>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body cv__related">
+              <ul class="cv__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="cv__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-        </div>
-      </aside>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Reading runs <strong>locally</strong> — content never leaves your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Clipboard access may require focus and permission in some browsers.</p>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 

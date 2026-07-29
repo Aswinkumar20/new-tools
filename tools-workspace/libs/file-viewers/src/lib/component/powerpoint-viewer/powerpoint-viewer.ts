@@ -1,128 +1,123 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-// PPTX parsing library types
-interface PptxSlide {
-  id: number;
-  elements: PptxElement[];
-  background?: string;
-  notes?: string;
-}
-
-interface PptxElement {
-  type: 'text' | 'image' | 'shape' | 'table';
-  content?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  style?: any;
-  imageData?: string;
-}
-
-interface PptxData {
-  slides: PptxSlide[];
-  metadata?: {
-    title?: string;
-    author?: string;
-    created?: string;
-  };
-}
-
-// Load JSZip library dynamically from CDN for PPTX parsing
-async function loadJSZip(): Promise<any> {
-  if (globalThis.window === undefined) {
-    throw new TypeError('JSZip can only be loaded in browser environment');
-  }
-
-  // Check if already loaded
-  if ((globalThis as any).JSZip) {
-    return (globalThis as any).JSZip;
-  }
-
-  // Load JSZip from CDN
-  const script = document.createElement('script');
-  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const JSZip = (globalThis as any).JSZip;
-      (globalThis as any).JSZip = JSZip;
-      resolve(JSZip);
-    };
-    script.onerror = () => reject(new Error('Failed to load JSZip library'));
-  });
-}
-
-// File type detection
-enum PresentationType {
-  PPTX = 'pptx',
-  UNSUPPORTED = 'unsupported'
-}
-
-function detectPresentationType(file: File): PresentationType {
-  const fileName = file.name.toLowerCase();
-  const mimeType = file.type.toLowerCase();
-
-  if (fileName.endsWith('.pptx') || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-    return PresentationType.PPTX;
-  }
-
-  return PresentationType.UNSUPPORTED;
-}
-
-interface PresentationFile {
-  name: string;
-  file: File;
-  url: string;
-  size: number;
-  presentationType: PresentationType;
-  slides: PptxSlide[];
-  totalSlides: number;
-  currentSlideIndex: number;
-  metadata?: {
-    title?: string;
-    author?: string;
-    created?: string;
-  };
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
+import {
+  PPT_ACCEPT_ATTR,
+  PPT_BASE_SLIDE_WIDTH_PX,
+  PPT_DEFAULT_ZOOM,
+  PPT_FULLSCREEN_BASE_WIDTH_PX,
+  PPT_FULLSCREEN_EVENTS,
+  PPT_MAX_FILE_SIZE_BYTES,
+  PPT_MAX_FILE_SIZE_LABEL,
+  PPT_MAX_ZOOM,
+  PPT_MIN_ZOOM,
+  PPT_RELATED_TOOLS,
+  PPT_SUPPORTED_EXTENSIONS,
+  PPT_TOAST_ERROR_MS,
+  PPT_TOAST_WARNING_MS
+} from '../../constants/powerpoint-viewer.constants';
+import type { PresentationFile } from '../../types/powerpoint-viewer.types';
+import { PresentationType } from '../../types/powerpoint-viewer.types';
+import {
+  createPresentationFileRecord,
+  ensureReadableTextColor,
+  escapePowerpointHtml,
+  formatPowerpointFileSize,
+  getPresentationTypeLabel,
+  getSlidePreviewLabel,
+  isFullscreenActive,
+  loadJsZipLibrary,
+  parsePptxManually,
+  resolvePowerpointSuggestion,
+  safeRevokeObjectUrl,
+  stepPowerpointZoom,
+  validatePresentationFiles
+} from '../../utils/powerpoint-viewer.utils';
 
 @Component({
   selector: 'lib-powerpoint-viewer',
   standalone: true,
   templateUrl: './powerpoint-viewer.html',
   styleUrls: ['./powerpoint-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective]
 })
 export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('slideContainer') slideContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenSlideContainer') fullscreenSlideContainer!: ElementRef<HTMLDivElement>;
-  
+
+  readonly acceptAttr = PPT_ACCEPT_ATTR;
+  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = PPT_RELATED_TOOLS;
+  readonly supportedFormats = PPT_SUPPORTED_EXTENSIONS;
+  readonly maxFileSize = PPT_MAX_FILE_SIZE_BYTES;
+  readonly maxFileSizeLabel = PPT_MAX_FILE_SIZE_LABEL;
+  readonly minZoom = PPT_MIN_ZOOM;
+  readonly maxZoom = PPT_MAX_ZOOM;
+
   presentationFiles: PresentationFile[] = [];
-  currentFileIndex: number = -1;
-  currentSlide: number = 1;
-  totalSlides: number = 0;
-  zoomLevel: number = 100;
-  isFullscreen: boolean = false;
-  loading: boolean = false;
-  errorMessage: string = '';
-  showDropZone: boolean = false;
-  
-  // Drag and drop handlers
+  currentFileIndex = -1;
+  currentSlide = 1;
+  totalSlides = 0;
+  zoomLevel = PPT_DEFAULT_ZOOM;
+  isFullscreen = false;
+  loading = false;
+  errorMessage = '';
+  showDropZone = false;
+  dismissedSuggestionId: string | null = null;
+  private browserFullscreenActive = false;
+  private lastParseHadWarnings = false;
+
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
   private readonly fullscreenChangeHandler = () => this.onFullscreenChange();
-  
-  readonly supportedFormats = ['.pptx'];
-  
-  readonly maxFileSize = 100 * 1024 * 1024; // 100MB
 
   constructor(private readonly cdr: ChangeDetectorRef) {}
+
+  get currentPresentation(): PresentationFile | null {
+    return this.currentFileIndex >= 0 && this.currentFileIndex < this.presentationFiles.length
+      ? this.presentationFiles[this.currentFileIndex]
+      : null;
+  }
+
+  get currentSlideTextItems(): string[] {
+    const slide = this.currentPresentation?.slides[this.currentSlide - 1];
+    if (!slide) {
+      return [];
+    }
+    return slide.elements
+      .filter((e) => e.type === 'text' && !!e.content?.trim())
+      .map((e) => (e.content || '').trim());
+  }
+
+  get primarySuggestion() {
+    const suggestion = resolvePowerpointSuggestion({
+      hasFiles: this.presentationFiles.length > 0,
+      hasError: !!this.errorMessage,
+      slideCount: this.currentPresentation?.totalSlides || this.totalSlides,
+      currentSize: this.currentPresentation?.size ?? 0,
+      hasParseWarnings: this.lastParseHadWarnings
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
 
   ngOnInit(): void {
     this.setupDragAndDrop();
@@ -130,20 +125,16 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   ngAfterViewInit(): void {
-    // Pre-load JSZip library
-    loadJSZip().catch(err => {
-      console.warn('Failed to pre-load JSZip:', err);
-    });
+    loadJsZipLibrary().catch(() => undefined);
   }
 
   ngOnDestroy(): void {
     this.cleanup();
   }
 
-  get currentPresentation(): PresentationFile | null {
-    return this.currentFileIndex >= 0 && this.currentFileIndex < this.presentationFiles.length
-      ? this.presentationFiles[this.currentFileIndex]
-      : null;
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+    this.cdr.detectChanges();
   }
 
   setupDragAndDrop(): void {
@@ -154,8 +145,7 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   setupFullscreenListeners(): void {
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+    for (const eventName of PPT_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }
   }
@@ -177,7 +167,7 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      this.processFiles(Array.from(files));
+      void this.processFiles(Array.from(files));
     }
   }
 
@@ -188,32 +178,24 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.processFiles(Array.from(input.files));
+      void this.processFiles(Array.from(input.files));
     }
   }
 
   async processFiles(files: File[]): Promise<void> {
     this.errorMessage = '';
     this.loading = true;
+    this.dismissedSuggestionId = null;
+    this.lastParseHadWarnings = false;
     this.cdr.detectChanges();
-    
-    const validFiles: File[] = [];
-    const errors: string[] = [];
 
-    for (const file of files) {
-      const presType = detectPresentationType(file);
-      
-      if (presType === PresentationType.UNSUPPORTED) {
-        errors.push(`${file.name}: Unsupported file format. Only PPTX files are supported.`);
-        continue;
-      }
-      
-      if (file.size > this.maxFileSize) {
-        errors.push(`${file.name}: File too large (max ${this.formatFileSize(this.maxFileSize)})`);
-        continue;
-      }
-      
-      validFiles.push(file);
+    const { validFiles, errors } = validatePresentationFiles(files, {
+      maxFileSize: this.maxFileSize,
+      formatFileSize: formatPowerpointFileSize
+    });
+
+    for (const msg of errors) {
+      this.toast.error(msg);
     }
 
     if (errors.length > 0) {
@@ -223,59 +205,61 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     for (const file of validFiles) {
       try {
         const url = URL.createObjectURL(file);
-        const presType = detectPresentationType(file);
-        
-        let slides: PptxSlide[] = [];
-        let metadata: any = {};
-        
-        // Parse PPTX files using JSZip
+        let slides;
+        let slideWidthEmu;
+        let slideHeightEmu;
+        const metadata: PresentationFile['metadata'] = {};
+
         try {
-          await loadJSZip();
-          slides = await this.parsePptxManually(file);
+          await loadJsZipLibrary();
+          const parsed = await parsePptxManually(file);
+          slides = parsed.slides;
+          slideWidthEmu = parsed.slideWidthEmu;
+          slideHeightEmu = parsed.slideHeightEmu;
+
+          if (parsed.warnings.length > 0) {
+            this.lastParseHadWarnings = true;
+          }
+          this.toastParseWarnings(parsed.warnings);
+
+          if (slides.length === 0) {
+            throw new Error('No slides could be extracted from this presentation.');
+          }
         } catch (error) {
-          console.error('Error parsing PPTX:', error);
-          slides = [{
-            id: 1,
-            elements: [{
-              type: 'text',
-              content: 'Error parsing presentation',
-              style: { fontSize: 16 }
-            }, {
-              type: 'text',
-              content: error instanceof Error ? error.message : 'Failed to parse PPTX file. Please ensure the file is not corrupted.',
-              style: { fontSize: 14 }
-            }]
-          }];
+          const msg = `${file.name}: ${error instanceof Error ? error.message : 'Failed to parse PPTX file. The file may be corrupted or unsupported.'}`;
+          errors.push(msg);
+          this.toast.error(msg, PPT_TOAST_ERROR_MS);
+          this.errorMessage = errors.join('\n');
+          safeRevokeObjectUrl(url);
+          continue;
         }
-        
-        const presentationFile: PresentationFile = {
-          name: file.name,
-          file: file,
-          url: url,
-          size: file.size,
-          presentationType: presType,
-          slides: slides,
-          totalSlides: slides.length,
-          currentSlideIndex: 0,
-          metadata: metadata
-        };
-        
+
+        const presentationFile = createPresentationFileRecord(
+          file,
+          url,
+          slides,
+          slideWidthEmu,
+          slideHeightEmu,
+          metadata
+        );
+
         this.presentationFiles.push(presentationFile);
-        
         this.cdr.detectChanges();
-        
+
         if (this.currentFileIndex === -1) {
           this.currentFileIndex = this.presentationFiles.length - 1;
           this.currentSlide = 1;
           this.totalSlides = presentationFile.totalSlides;
           requestAnimationFrame(() => {
-            setTimeout(() => {
-              this.loadPresentation(presentationFile);
-            }, 50);
+            setTimeout(() => void this.loadPresentation(presentationFile), 50);
           });
+        } else {
+          this.toast.success(`Loaded ${file.name} (${slides.length} slides)`);
         }
       } catch (error) {
-        errors.push(`${file.name}: Failed to load presentation - ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const msg = `${file.name}: Failed to load presentation - ${error instanceof Error ? error.message : 'Unknown error'}`;
+        errors.push(msg);
+        this.toast.error(msg);
       }
     }
 
@@ -283,230 +267,12 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     if (errors.length > 0) {
       this.errorMessage = errors.join('\n');
     }
-    
+
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
     }
-    
+
     this.cdr.detectChanges();
-  }
-
-  async parsePptxManually(file: File): Promise<PptxSlide[]> {
-    // Manual PPTX parsing using JSZip
-    const JSZip = (globalThis as any).JSZip;
-    if (!JSZip) {
-      throw new Error('JSZip library not available');
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const slides: PptxSlide[] = [];
-    
-    // Get slide files (sorted by slide number)
-    const slideFiles = Object.keys(zip.files)
-      .filter(name => name.startsWith('ppt/slides/slide') && name.endsWith('.xml'))
-      .sort((a, b) => {
-        const numA = parseInt(a.match(/slide(\d+)/)?.[1] || '0');
-        const numB = parseInt(b.match(/slide(\d+)/)?.[1] || '0');
-        return numA - numB;
-      });
-
-    for (let i = 0; i < slideFiles.length; i++) {
-      const slideFile = slideFiles[i];
-      try {
-        const xmlContent = await zip.files[slideFile].async('string');
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
-        
-        const elements: PptxElement[] = [];
-        
-        // Extract text elements - handle namespaces properly
-        // PPTX uses namespaces, so we need to search for text in multiple ways
-        const allTextNodes: string[] = [];
-        
-        // Method 1: Get all text nodes using TreeWalker
-        try {
-          const walker = xmlDoc.createTreeWalker(
-            xmlDoc,
-            NodeFilter.SHOW_TEXT,
-            null
-          );
-          
-          let textNode;
-          while (textNode = walker.nextNode()) {
-            const text = textNode.textContent?.trim();
-            if (text && text.length > 0) {
-              allTextNodes.push(text);
-            }
-          }
-        } catch (e) {
-          console.warn('TreeWalker failed, trying alternative methods:', e);
-        }
-        
-        // Method 2: Try to get text from 'a:t' elements (drawingML text)
-        try {
-          const textElements = xmlDoc.getElementsByTagName('a:t');
-          for (let j = 0; j < textElements.length; j++) {
-            const text = textElements[j].textContent?.trim();
-            if (text && text.length > 0 && !allTextNodes.includes(text)) {
-              allTextNodes.push(text);
-            }
-          }
-        } catch (e) {
-          // Ignore namespace errors
-        }
-        
-        // Method 3: Try querySelectorAll with namespace-agnostic selector
-        try {
-          const allTextElements = xmlDoc.querySelectorAll('*[local-name()="t"]');
-          for (let j = 0; j < allTextElements.length; j++) {
-            const text = allTextElements[j].textContent?.trim();
-            if (text && text.length > 0 && !allTextNodes.includes(text)) {
-              allTextNodes.push(text);
-            }
-          }
-        } catch (e) {
-          // Continue if selector fails
-        }
-        
-        // Method 4: Get all text from the XML as a fallback
-        const xmlText = xmlDoc.textContent || xmlDoc.documentElement?.textContent || '';
-        if (xmlText) {
-          // Split by whitespace and filter meaningful text
-          const words = xmlText.split(/\s+/).filter(w => w.length > 2);
-          if (words.length > 0) {
-            // This is a fallback - try to extract meaningful sentences
-            const sentences = xmlText.match(/[^.!?]+[.!?]+/g) || [];
-            sentences.forEach(sentence => {
-              const trimmed = sentence.trim();
-              if (trimmed.length > 3 && !allTextNodes.includes(trimmed)) {
-                allTextNodes.push(trimmed);
-              }
-            });
-          }
-        }
-        
-        // Filter and process text
-        if (allTextNodes.length > 0) {
-          // Remove duplicates and filter meaningful text
-          const uniqueText = Array.from(new Set(allTextNodes))
-            .filter(t => t.length > 2 && !t.match(/^[0-9\s]+$/)); // Filter out numbers only
-          
-          if (uniqueText.length > 0) {
-            // Create text elements
-            uniqueText.forEach((text, idx) => {
-              elements.push({
-                type: 'text',
-                content: text,
-                style: { 
-                  fontSize: idx === 0 ? 20 : 16,
-                  fontWeight: idx === 0 ? 'bold' : 'normal'
-                }
-              });
-            });
-          }
-        }
-        
-        // Extract images - look for relationship IDs in blip elements
-        try {
-          const blipElements = xmlDoc.getElementsByTagName('a:blip');
-          for (let j = 0; j < blipElements.length; j++) {
-            const blipEl = blipElements[j];
-            const embed = blipEl.getAttribute('r:embed') || blipEl.getAttribute('embed');
-            
-            if (embed) {
-              // Get the relationship file to find the actual image path
-              const relFile = `ppt/slides/_rels/${slideFile.split('/').pop()?.replace('.xml', '')}.rels`;
-              try {
-                const relContent = await zip.files[relFile]?.async('string');
-                if (relContent) {
-                  const relDoc = parser.parseFromString(relContent, 'text/xml');
-                  const relationships = relDoc.getElementsByTagName('Relationship');
-                  
-                  for (let k = 0; k < relationships.length; k++) {
-                    const rel = relationships[k];
-                    if (rel.getAttribute('Id') === embed) {
-                      const target = rel.getAttribute('Target');
-                      if (target) {
-                        // Resolve relative path
-                        const imagePath = target.startsWith('../') 
-                          ? `ppt/${target.replace('../', '')}`
-                          : `ppt/slides/${target}`;
-                        
-                        const imageFile = zip.files[imagePath];
-                        if (imageFile) {
-                          const imageData = await imageFile.async('base64');
-                          const ext = imagePath.split('.').pop()?.toLowerCase() || 'png';
-                          elements.push({
-                            type: 'image',
-                            imageData: `data:image/${ext};base64,${imageData}`
-                          });
-                          break;
-                        }
-                      }
-                    }
-                  }
-                }
-              } catch (relErr) {
-                // Try direct media path
-                const mediaFiles = Object.keys(zip.files).filter(name => 
-                  name.startsWith('ppt/media/') && name.includes(embed)
-                );
-                if (mediaFiles.length > 0) {
-                  try {
-                    const imageFile = zip.files[mediaFiles[0]];
-                    const imageData = await imageFile.async('base64');
-                    const ext = mediaFiles[0].split('.').pop()?.toLowerCase() || 'png';
-                    elements.push({
-                      type: 'image',
-                      imageData: `data:image/${ext};base64,${imageData}`
-                    });
-                  } catch (imgErr) {
-                    console.warn('Failed to extract image:', imgErr);
-                  }
-                }
-              }
-            }
-          }
-        } catch (imgErr) {
-          console.warn('Error extracting images:', imgErr);
-        }
-        
-        // If no elements found, add a placeholder
-        if (elements.length === 0) {
-          elements.push({
-            type: 'text',
-            content: `Slide ${i + 1} (No content found)`,
-            style: { fontSize: 18, fontWeight: 'bold' }
-          });
-        }
-        
-        slides.push({
-          id: i + 1,
-          elements: elements
-        });
-      } catch (err) {
-        console.warn(`Failed to parse slide ${i + 1}:`, err);
-        // Add a placeholder slide
-        slides.push({
-          id: i + 1,
-          elements: [{
-            type: 'text',
-            content: `Slide ${i + 1} (Unable to parse)`,
-            style: { fontSize: 16 }
-          }]
-        });
-      }
-    }
-    
-    return slides.length > 0 ? slides : [{
-      id: 1,
-      elements: [{
-        type: 'text',
-        content: 'Unable to parse presentation content. The file may be corrupted or use unsupported features.',
-        style: { fontSize: 16 }
-      }]
-    }];
   }
 
   closeError(): void {
@@ -514,20 +280,26 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     this.cdr.detectChanges();
   }
 
+  private toastParseWarnings(warnings: string[]): void {
+    for (const warning of warnings) {
+      if (/failed to parse/i.test(warning)) {
+        this.toast.error(warning, PPT_TOAST_ERROR_MS);
+      } else {
+        this.toast.warning(warning, PPT_TOAST_WARNING_MS);
+      }
+    }
+  }
+
   onFullscreenChange(): void {
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement
-    );
-    
-    if (!isCurrentlyFullscreen && this.isFullscreen) {
-      this.isFullscreen = false;
-      setTimeout(() => {
-        this.renderSlide();
-      }, 100);
-      this.cdr.detectChanges();
+    const currentlyFullscreen = isFullscreenActive();
+
+    if (!currentlyFullscreen && this.browserFullscreenActive) {
+      this.browserFullscreenActive = false;
+      if (this.isFullscreen) {
+        this.isFullscreen = false;
+        setTimeout(() => this.renderSlide(), 50);
+        this.cdr.detectChanges();
+      }
     }
   }
 
@@ -540,91 +312,91 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   enterFullscreen(): void {
-    if (!this.currentPresentation) return;
-    
+    if (!this.currentPresentation) {
+      return;
+    }
+
     this.isFullscreen = true;
     this.cdr.detectChanges();
-    
+
     requestAnimationFrame(() => {
       setTimeout(() => {
+        this.renderSlide();
         const container = this.fullscreenContainer?.nativeElement;
         if (!container) {
-          this.isFullscreen = false;
-          this.cdr.detectChanges();
           return;
         }
 
-        if (container.requestFullscreen) {
-          container.requestFullscreen().then(() => {
-            setTimeout(() => {
-              this.renderSlide(true);
-            }, 150);
-          }).catch(() => {
-            this.isFullscreen = false;
-            this.cdr.detectChanges();
-          });
-        } else if ((container as any).webkitRequestFullscreen) {
-          (container as any).webkitRequestFullscreen();
-          setTimeout(() => {
-            this.renderSlide(true);
-          }, 150);
-        } else if ((container as any).mozRequestFullScreen) {
-          (container as any).mozRequestFullScreen();
-          setTimeout(() => {
-            this.renderSlide(true);
-          }, 150);
-        } else if ((container as any).msRequestFullscreen) {
-          (container as any).msRequestFullscreen();
-          setTimeout(() => {
-            this.renderSlide(true);
-          }, 150);
-        } else {
-          container.classList.add('fullscreen-active');
-          setTimeout(() => {
-            this.renderSlide(true);
-          }, 150);
+        const requestFs =
+          container.requestFullscreen?.bind(container) ||
+          (
+            container as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }
+          ).webkitRequestFullscreen?.bind(container) ||
+          (
+            container as HTMLElement & { mozRequestFullScreen?: () => Promise<void> | void }
+          ).mozRequestFullScreen?.bind(container) ||
+          (
+            container as HTMLElement & { msRequestFullscreen?: () => Promise<void> | void }
+          ).msRequestFullscreen?.bind(container);
+
+        if (requestFs) {
+          Promise.resolve(requestFs())
+            .then(() => {
+              this.browserFullscreenActive = true;
+              setTimeout(() => this.renderSlide(), 100);
+            })
+            .catch(() => {
+              this.browserFullscreenActive = false;
+            });
         }
-      }, 50);
+      }, 40);
     });
   }
 
   exitFullscreen(): void {
     this.isFullscreen = false;
-    
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if ((document as any).webkitExitFullscreen) {
-      (document as any).webkitExitFullscreen();
-    } else if ((document as any).mozCancelFullScreen) {
-      (document as any).mozCancelFullScreen();
-    } else if ((document as any).msExitFullscreen) {
-      (document as any).msExitFullscreen();
+    this.browserFullscreenActive = false;
+
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+      mozCancelFullScreen?: () => Promise<void> | void;
+      msExitFullscreen?: () => Promise<void> | void;
+    };
+
+    if (document.fullscreenElement || doc.webkitFullscreenElement) {
+      const exitFs =
+        document.exitFullscreen?.bind(document) ||
+        doc.webkitExitFullscreen?.bind(document) ||
+        doc.mozCancelFullScreen?.bind(document) ||
+        doc.msExitFullscreen?.bind(document);
+      const result = exitFs?.();
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch(() => undefined);
+      }
     }
-    
-    if (this.fullscreenContainer?.nativeElement) {
-      this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
-    }
-    
-    setTimeout(() => {
-      this.renderSlide();
-    }, 100);
-    
+
+    setTimeout(() => this.renderSlide(), 60);
     this.cdr.detectChanges();
   }
 
   async loadPresentation(presentationFile: PresentationFile): Promise<void> {
     if (!presentationFile || presentationFile.slides.length === 0) {
       this.errorMessage = 'Presentation has no slides';
+      this.toast.error('Presentation has no slides');
       this.cdr.detectChanges();
       return;
     }
-    
+
     this.currentSlide = 1;
     this.totalSlides = presentationFile.totalSlides;
     this.cdr.detectChanges();
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
     this.renderSlide();
+    requestAnimationFrame(() => {
+      setTimeout(() => this.renderSlide(), 120);
+    });
   }
 
   selectPresentation(index: number): Promise<void> {
@@ -652,122 +424,236 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     }
   }
 
-  goToSlide(slideNumber: number): void {
-    const slide = Math.max(1, Math.min(slideNumber, this.totalSlides));
-    if (slide !== this.currentSlide) {
-      this.currentSlide = slide;
-      this.renderSlide();
+  goToSlide(slideNumber: number | string): void {
+    const n =
+      typeof slideNumber === 'string' ? Number.parseInt(slideNumber, 10) : Number(slideNumber);
+    if (!Number.isFinite(n)) {
+      return;
     }
+    this.currentSlide = Math.max(1, Math.min(n, this.totalSlides || 1));
+    this.renderSlide();
   }
 
-  renderSlide(isFullscreen: boolean = false): void {
-    if (!this.currentPresentation) return;
-    
+  getSlideAspectRatio(): string {
+    const pres = this.currentPresentation;
+    if (!pres) {
+      return '16 / 9';
+    }
+    return `${pres.slideWidthEmu} / ${pres.slideHeightEmu}`;
+  }
+
+  getSlidePreviewLabel(index: number): string {
+    return getSlidePreviewLabel(this.currentPresentation?.slides[index], index);
+  }
+
+  private getSlideRenderWidth(fullscreen: boolean): number {
+    const scale = this.zoomLevel / 100;
+    const base = fullscreen ? PPT_FULLSCREEN_BASE_WIDTH_PX : PPT_BASE_SLIDE_WIDTH_PX;
+    return Math.round(base * scale);
+  }
+
+  renderSlide(): void {
+    if (!this.currentPresentation) {
+      return;
+    }
+
     const slideIndex = this.currentSlide - 1;
     if (slideIndex < 0 || slideIndex >= this.currentPresentation.slides.length) {
       return;
     }
-    
+
     const slide = this.currentPresentation.slides[slideIndex];
-    const container = isFullscreen 
-      ? this.fullscreenSlideContainer?.nativeElement 
-      : this.slideContainer?.nativeElement;
-    
-    if (!container) {
-      // Retry after a short delay
-      setTimeout(() => this.renderSlide(isFullscreen), 50);
-      return;
-    }
-    
-    // Render slide content
-    let html = `<div class="slide-content" style="zoom: ${this.zoomLevel}%;">`;
-    
-    for (const element of slide.elements) {
-      if (element.type === 'text') {
-        const style = element.style || {};
-        html += `<div class="slide-text" style="font-size: ${style.fontSize || 16}px; font-weight: ${style.fontWeight || 'normal'}; margin: 10px 0;">${this.escapeHtml(element.content || '')}</div>`;
-      } else if (element.type === 'image' && element.imageData) {
-        html += `<img src="${element.imageData}" class="slide-image" style="max-width: 100%; height: auto; margin: 10px 0;" />`;
+    const aspect = this.getSlideAspectRatio();
+
+    const paint = (container: HTMLElement | undefined, fullscreen: boolean): void => {
+      if (!container) {
+        if (fullscreen === this.isFullscreen) {
+          setTimeout(() => this.renderSlide(), 50);
+        }
+        return;
       }
+
+      const slideWidth = this.getSlideRenderWidth(fullscreen);
+      const fontScale = slideWidth / PPT_BASE_SLIDE_WIDTH_PX;
+      const bg = slide.background || '#ffffff';
+      const parts: string[] = [];
+
+      parts.push(
+        `<div class="ppt-stage${fullscreen ? ' ppt-stage--fullscreen' : ''}" ` +
+          `style="display:flex;align-items:flex-start;justify-content:center;width:max-content;min-width:100%;min-height:100%;padding:1.5rem;box-sizing:border-box;">` +
+          `<div class="ppt-slide" style="position:relative;flex:0 0 auto;width:${slideWidth}px;aspect-ratio:${aspect};` +
+          `background:${bg};overflow:visible;border-radius:4px;` +
+          `box-shadow:0 1px 2px rgba(15,23,42,.08),0 18px 40px rgba(15,23,42,.22);` +
+          `font-family:Calibri,'Segoe UI',Arial,sans-serif;">`
+      );
+
+      const sorted = [...slide.elements].sort((a, b) => {
+        const az = a.type === 'shape' ? 0 : a.type === 'image' ? 1 : 2;
+        const bz = b.type === 'shape' ? 0 : b.type === 'image' ? 1 : 2;
+        return az - bz;
+      });
+
+      for (const element of sorted) {
+        const x = Number.isFinite(element.x) ? element.x : 0;
+        const y = Number.isFinite(element.y) ? element.y : 0;
+        const w = Math.max(Number.isFinite(element.width) ? element.width : 20, 2);
+        const h = Math.max(Number.isFinite(element.height) ? element.height : 6, 2);
+        const box =
+          `position:absolute;left:${x}%;top:${y}%;width:${w}%;` + `box-sizing:border-box;z-index:1;`;
+
+        if (element.type === 'image' && element.imageData) {
+          parts.push(
+            `<div class="ppt-el ppt-el--image" style="${box}height:${h}%;overflow:hidden;">` +
+              `<img src="${element.imageData}" alt="" style="display:block;width:100%;height:100%;object-fit:contain;" /></div>`
+          );
+        } else if (element.type === 'shape') {
+          const shapeBg = element.style?.background || 'transparent';
+          parts.push(
+            `<div class="ppt-el ppt-el--shape" style="${box}height:${h}%;background:${shapeBg};"></div>`
+          );
+        } else if (element.type === 'text') {
+          const style = element.style || {};
+          const fontSize = Math.max(11, Math.round((style.fontSize || 16) * fontScale));
+          const fontWeight = style.fontWeight || '400';
+          const color = ensureReadableTextColor(style.color || '#1e293b', style.background || bg);
+          const align = style.textAlign || 'left';
+          const textBg = style.background ? `background:${style.background};` : '';
+          parts.push(
+            `<div class="ppt-el ppt-el--text" style="${box}min-height:${h}%;height:auto;overflow:visible;` +
+              `${textBg}padding:1.5% 2%;line-height:1.3;white-space:pre-wrap;word-break:break-word;` +
+              `font-size:${fontSize}px;font-weight:${fontWeight};color:${color};text-align:${align};z-index:2;">` +
+              `<div style="width:100%;">${escapePowerpointHtml(element.content || '').replace(/\n/g, '<br>')}</div></div>`
+          );
+        }
+      }
+
+      if (slide.parseError || slide.elements.length === 0) {
+        const statusTitle = slide.parseError ? 'Slide could not be parsed' : 'No extractable content';
+        const statusDetail = slide.parseError
+          ? escapePowerpointHtml(slide.parseError)
+          : 'This slide has no text, images, or shapes the viewer can extract.';
+        parts.push(
+          `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;` +
+            `padding:8%;box-sizing:border-box;background:rgba(248,250,252,.92);z-index:5;">` +
+            `<div style="max-width:28rem;text-align:center;font-family:system-ui,sans-serif;">` +
+            `<p style="margin:0 0 .5rem;font-size:14px;font-weight:700;color:#991b1b;letter-spacing:.02em;text-transform:uppercase;">Viewer notice</p>` +
+            `<p style="margin:0 0 .35rem;font-size:16px;font-weight:600;color:#0f172a;">${statusTitle}</p>` +
+            `<p style="margin:0;font-size:13px;line-height:1.45;color:#64748b;">${statusDetail}</p>` +
+            `</div></div>`
+        );
+      }
+
+      parts.push('</div></div>');
+      container.innerHTML = parts.join('');
+
+      requestAnimationFrame(() => {
+        if (fullscreen) {
+          container.scrollTop = Math.max(0, (container.scrollHeight - container.clientHeight) / 2);
+          container.scrollLeft = Math.max(0, (container.scrollWidth - container.clientWidth) / 2);
+        } else {
+          container.scrollTop = 0;
+          container.scrollLeft = 0;
+        }
+      });
+    };
+
+    paint(this.slideContainer?.nativeElement, false);
+    if (this.isFullscreen) {
+      paint(this.fullscreenSlideContainer?.nativeElement, true);
     }
-    
-    html += `</div>`;
-    container.innerHTML = html;
+
     this.cdr.detectChanges();
   }
 
   zoomIn(): void {
-    if (this.zoomLevel < 300) {
-      this.zoomLevel = Math.min(this.zoomLevel + 25, 300);
-      this.renderSlide(this.isFullscreen);
+    if (this.zoomLevel < PPT_MAX_ZOOM) {
+      this.zoomLevel = stepPowerpointZoom(this.zoomLevel, 1);
+      this.renderSlide();
     }
   }
 
   zoomOut(): void {
-    if (this.zoomLevel > 50) {
-      this.zoomLevel = Math.max(this.zoomLevel - 25, 50);
-      this.renderSlide(this.isFullscreen);
+    if (this.zoomLevel > PPT_MIN_ZOOM) {
+      this.zoomLevel = stepPowerpointZoom(this.zoomLevel, -1);
+      this.renderSlide();
     }
   }
 
   resetZoom(): void {
-    this.zoomLevel = 100;
-    this.renderSlide(this.isFullscreen);
+    this.zoomLevel = PPT_DEFAULT_ZOOM;
+    this.renderSlide();
   }
 
   fitToWidth(): void {
-    // Simplified fit to width
-    this.zoomLevel = 100;
-    this.renderSlide(this.isFullscreen);
+    this.zoomLevel = PPT_DEFAULT_ZOOM;
+    this.renderSlide();
   }
 
   downloadPresentation(): void {
-    if (!this.currentPresentation) return;
-    
+    if (!this.currentPresentation) {
+      return;
+    }
+
     const link = document.createElement('a');
     link.href = this.currentPresentation.url;
     link.download = this.currentPresentation.name;
     document.body.appendChild(link);
     link.click();
     link.remove();
+    this.toast.info(`Downloaded ${this.currentPresentation.name}`);
   }
 
   printPresentation(): void {
-    if (!this.currentPresentation) return;
-    
+    if (!this.currentPresentation) {
+      return;
+    }
+
     const slideIndex = this.currentSlide - 1;
     if (slideIndex < 0 || slideIndex >= this.currentPresentation.slides.length) {
       return;
     }
-    
+
     const slide = this.currentPresentation.slides[slideIndex];
-    let html = '<div style="padding: 40px; font-family: Arial, sans-serif;">';
-    
+    const aspect = this.getSlideAspectRatio();
+    const parts: string[] = [
+      `<div class="ppt-slide" style="position:relative;aspect-ratio:${aspect};width:100%;max-width:960px;margin:0 auto;background:${slide.background || '#fff'};overflow:hidden;">`
+    ];
+
     for (const element of slide.elements) {
-      if (element.type === 'text') {
-        html += `<div style="margin: 10px 0;">${this.escapeHtml(element.content || '')}</div>`;
-      } else if (element.type === 'image' && element.imageData) {
-        html += `<img src="${element.imageData}" style="max-width: 100%;" />`;
+      const box =
+        `position:absolute;left:${element.x}%;top:${element.y}%;width:${Math.max(element.width, 1)}%;height:${Math.max(element.height, 1)}%;`;
+      if (element.type === 'image' && element.imageData) {
+        parts.push(
+          `<div style="${box}"><img src="${element.imageData}" style="width:100%;height:100%;object-fit:contain;" /></div>`
+        );
+      } else if (element.type === 'shape') {
+        parts.push(
+          `<div style="${box}background:${element.style?.background || 'transparent'};"></div>`
+        );
+      } else if (element.type === 'text') {
+        const s = element.style || {};
+        parts.push(
+          `<div style="${box}font-size:${s.fontSize || 16}px;font-weight:${s.fontWeight || 400};color:${s.color || '#111'};text-align:${s.textAlign || 'left'};` +
+            `${s.background ? `background:${s.background};` : ''}overflow:hidden;padding:2%;box-sizing:border-box;">` +
+            `${escapePowerpointHtml(element.content || '').replace(/\n/g, '<br>')}</div>`
+        );
       }
     }
-    
-    html += '</div>';
-    
+    parts.push('</div>');
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
           <head>
-            <title>${this.currentPresentation.name} - Slide ${this.currentSlide}</title>
+            <title>${escapePowerpointHtml(this.currentPresentation.name)} - Slide ${this.currentSlide}</title>
             <style>
-              body { margin: 0; padding: 20px; }
-              @media print { body { margin: 0; } }
+              body { margin: 0; padding: 24px; font-family: Calibri, Arial, sans-serif; background: #f1f5f9; }
+              @media print { body { background: #fff; padding: 0; } }
             </style>
           </head>
-          <body>
-            ${html}
-          </body>
+          <body>${parts.join('')}</body>
         </html>
       `);
       printWindow.document.close();
@@ -778,87 +664,76 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   removePresentation(index: number): void {
-    if (index >= 0 && index < this.presentationFiles.length) {
-      const presFile = this.presentationFiles[index];
-      
-      if (presFile.url) {
-        URL.revokeObjectURL(presFile.url);
-      }
-      
-      this.presentationFiles.splice(index, 1);
-      
-      if (this.currentFileIndex === index) {
-        if (this.presentationFiles.length > 0) {
-          this.currentFileIndex = Math.min(index, this.presentationFiles.length - 1);
-          this.loadPresentation(this.presentationFiles[this.currentFileIndex]);
-        } else {
-          this.currentFileIndex = -1;
-          this.currentSlide = 1;
-          this.totalSlides = 0;
-          if (this.slideContainer?.nativeElement) {
-            this.slideContainer.nativeElement.innerHTML = '';
-          }
-        }
-      } else if (this.currentFileIndex > index) {
-        this.currentFileIndex--;
-      }
-      
-      this.cdr.detectChanges();
+    if (index < 0 || index >= this.presentationFiles.length) {
+      return;
     }
+
+    const presFile = this.presentationFiles[index];
+    safeRevokeObjectUrl(presFile.url);
+
+    this.presentationFiles.splice(index, 1);
+
+    if (this.currentFileIndex === index) {
+      if (this.presentationFiles.length > 0) {
+        this.currentFileIndex = Math.min(index, this.presentationFiles.length - 1);
+        void this.loadPresentation(this.presentationFiles[this.currentFileIndex]);
+      } else {
+        this.currentFileIndex = -1;
+        this.currentSlide = 1;
+        this.totalSlides = 0;
+        if (this.slideContainer?.nativeElement) {
+          this.slideContainer.nativeElement.innerHTML = '';
+        }
+      }
+    } else if (this.currentFileIndex > index) {
+      this.currentFileIndex--;
+    }
+
+    this.cdr.detectChanges();
   }
 
   clearAll(): void {
     if (this.isFullscreen) {
       this.exitFullscreen();
     }
-    
+
     for (const presFile of this.presentationFiles) {
-      if (presFile.url) {
-        URL.revokeObjectURL(presFile.url);
-      }
+      safeRevokeObjectUrl(presFile.url);
     }
-    
+
     this.presentationFiles = [];
     this.currentFileIndex = -1;
     this.currentSlide = 1;
     this.totalSlides = 0;
-    
+    this.dismissedSuggestionId = null;
+    this.lastParseHadWarnings = false;
+
     if (this.slideContainer?.nativeElement) {
       this.slideContainer.nativeElement.innerHTML = '';
     }
-    
+
     if (this.fullscreenSlideContainer?.nativeElement) {
       this.fullscreenSlideContainer.nativeElement.innerHTML = '';
     }
-    
+
     this.cdr.detectChanges();
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  }
-
-  escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return formatPowerpointFileSize(bytes);
   }
 
   getPresentationTypeLabel(type: PresentationType): string {
-    switch (type) {
-      case PresentationType.PPTX: return 'PPTX';
-      default: return 'Unknown';
-    }
+    return getPresentationTypeLabel(type);
   }
 
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
       return;
     }
 
@@ -875,17 +750,16 @@ export class PowerpointViewerComponent implements OnInit, AfterViewInit, OnDestr
     if (this.isFullscreen) {
       this.exitFullscreen();
     }
-    
+
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);
       document.body.removeEventListener(eventName, this.preventDefaultsFn, false);
     }
-    
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+
+    for (const eventName of PPT_FULLSCREEN_EVENTS) {
       document.removeEventListener(eventName, this.fullscreenChangeHandler);
     }
-    
+
     this.clearAll();
   }
 }

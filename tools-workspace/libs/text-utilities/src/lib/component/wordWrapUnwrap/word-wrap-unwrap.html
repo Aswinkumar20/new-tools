@@ -88,8 +88,30 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="wwu__suggest" aria-label="Suggested next step">
+              <div class="wwu__suggest-body">
+                <p class="wwu__suggest-title">{{ suggestion.title }}</p>
+                <p class="wwu__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="wwu__suggest-actions">
+                <a class="wwu__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="wwu__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="word-wrap-input">Text to wrap or unwrap</label>
           <textarea
             #inputTextarea
+            id="word-wrap-input"
             class="ttool__textarea"
             [(ngModel)]="inputText"
             (input)="onInputChange()"
@@ -124,19 +146,32 @@
           @if (errorMessage) {
             <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div>
           } @else if (hasOutput) {
-            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText"></textarea>
+            <textarea class="ttool__textarea ttool__textarea--output" readonly rows="1" [value]="outputText" aria-label="Wrapped or unwrapped output"></textarea>
           } @else {
             <div class="ttool__empty"><p>Wrapped or unwrapped text appears here as you type.</p></div>
           }
         </section>
       </div>
 
-      <aside class="ttool__sidebar" aria-label="Tips">
+      <aside class="ttool__sidebar" aria-label="Tips and related tools">
         <div class="ttool__panel">
           <ul class="ttool__tips">
             <li><strong>Wrap</strong> — breaks long lines at word boundaries (default 80 characters).</li>
             <li><strong>Unwrap</strong> — joins soft line breaks into flowing paragraphs.</li>
             <li>Blank lines (paragraph breaks) are preserved during unwrap.</li>
+          </ul>
+        </div>
+        <div class="ttool__panel wwu__related-panel">
+          <header class="wwu__panel-head">Related tools</header>
+          <ul class="wwu__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="wwu__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
           </ul>
         </div>
       </aside>

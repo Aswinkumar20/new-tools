@@ -14,7 +14,7 @@
           <span class="ctl__stat-label">Status</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">4+</span>
+          <span class="ctl__stat-value">{{ plannedFormatCount }}+</span>
           <span class="ctl__stat-label">Formats</span>
         </div>
         <div class="ctl__stat">
@@ -44,13 +44,30 @@
     <div class="ctl__workspace">
       <div class="ctl__editors">
         <section class="ctl__editor fv-viewer-panel" aria-label="Video preview">
+          <aside class="vp__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="vp__suggest-body">
+              <p class="vp__suggest-title">{{ suggestion.title }}</p>
+              <p class="vp__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="vp__suggest-actions">
+              <a class="vp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="vp__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+
           <div class="ctl__empty fv-dropzone fv-dropzone--enhanced fv-coming-soon" aria-live="polite">
             <svg class="fv-dropzone__icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <polygon points="23 7 16 12 23 17 23 7" />
               <rect x="1" y="5" width="15" height="14" rx="2" />
             </svg>
             <p class="fv-dropzone__title">Video player <strong>coming soon</strong></p>
-            <p class="fv-dropzone__formats">MP4, WebM, MOV, AVI · local playback · frame-accurate scrubbing</p>
+            <p class="fv-dropzone__formats">{{ formatsLabel }} · local playback · frame-accurate scrubbing</p>
           </div>
         </section>
       </div>
@@ -61,10 +78,20 @@
           <div class="ctl__panel-body">
             <p class="ctl__panel-hint">Drag-and-drop uploads and batch processing are on the roadmap.</p>
             <ul class="fv-planned-list">
-              <li>Support for MP4, WebM, MOV, and AVI formats.</li>
-              <li>Frame-accurate scrubbing with keyboard shortcuts.</li>
-              <li>Picture-in-picture and casting options.</li>
-              <li>360° playback, subtitle editor, and snapshot tools.</li>
+              <li *ngFor="let item of roadmapItems">{{ item.label }}</li>
+            </ul>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body vp__related">
+            <ul class="vp__related-list">
+              <li *ngFor="let tool of relatedTools">
+                <a class="vp__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
             </ul>
           </div>
         </div>
@@ -80,7 +107,7 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Upload MP4, WebM, MOV, or AVI files once the player launches.</li>
+        <li>Upload {{ formatsLabel }} files once the player launches.</li>
         <li>Use keyboard shortcuts for frame-accurate scrubbing and volume.</li>
         <li>Toggle picture-in-picture for multitasking while watching.</li>
       </ul>

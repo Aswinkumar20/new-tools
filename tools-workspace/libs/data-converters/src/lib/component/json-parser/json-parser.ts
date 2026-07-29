@@ -1,131 +1,120 @@
 import { Component, AfterViewInit, ViewChild, ElementRef, inject } from '@angular/core';
-import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
+import { DecimalPipe, NgFor, NgIf, NgTemplateOutlet, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-type CopyStatus = 'idle' | 'success' | 'error';
-type ParseState = 'idle' | 'success' | 'error';
-
-type PreviewMode = 'formatted' | 'minified';
-
-type JsonNodeType = 'object' | 'array' | 'string' | 'number' | 'boolean' | 'null';
-
-interface HistoryEntry {
-  label: string;
-  timestamp: string;
-}
-
-interface ParseStatus {
-  status: ParseState;
-  message: string;
-}
-
-interface MetricsSummary {
-  characters: number;
-  lines: number;
-  sizeLabel: string;
-}
-
-interface JsonTreeNode {
-  id: string;
-  key?: string;
-  type: JsonNodeType;
-  level: number;
-  path: string;
-  expanded: boolean;
-  preview: string;
-  children?: JsonTreeNode[];
-}
-
-interface Diagnostic {
-  id: string;
-  message: string;
-  line?: number;
-  column?: number;
-  snippet?: string;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { dcCopyText } from '../../shared/dc-clipboard.util';
+import type { DcRelatedToolLink, DcToolSuggestion } from '../../shared/dc-tool-suggestion.model';
+import {
+  JSON_PARSER_HERO_HIGHLIGHTS,
+  JSON_PARSER_HISTORY_LIMIT,
+  JSON_PARSER_PREVIEW_MODES,
+  JSON_PARSER_RELATED_TOOLS,
+  JSON_PARSER_SAMPLE_JSON,
+  JSON_PARSER_STRING_LITERAL_PLACEHOLDER,
+  JSON_PARSER_STRINGIFY_PLACEHOLDER
+} from '../../constants/json-parser.constants';
+import type {
+  JsonParserCopyStatus,
+  JsonParserDiagnostic,
+  JsonParserHistoryEntry,
+  JsonParserMetricsSummary,
+  JsonParserParseStatus,
+  JsonParserPreviewMode,
+  JsonParserTreeNode
+} from '../../types/json-parser.types';
+import {
+  blurActiveElement,
+  buildJsonParserLineNumbers,
+  buildJsonParserTree,
+  computeJsonParserMetrics,
+  createJsonParserDiagnostic,
+  createJsonParserErrorDiagnostic,
+  createJsonParserIdleStringLiteralStatus,
+  createJsonParserIdleStringifyStatus,
+  filterJsonParserTree,
+  flattenJsonParserTree,
+  formatJsonParserParsedValue,
+  formatJsonParserPreviewOutput,
+  resolveJsonParserPathValue,
+  resolveJsonParserSuggestion,
+  tryParseJsonParserInput
+} from '../../utils/json-parser.utils';
 
 @Component({
   selector: 'lib-json-parser',
   standalone: true,
   templateUrl: './json-parser.html',
   styleUrls: ['./json-parser.scss'],
-  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, Navigation, TooltipDirective]
+  imports: [
+    DecimalPipe,
+    NgIf,
+    NgFor,
+    NgTemplateOutlet,
+    TitleCasePipe,
+    FormsModule,
+    RouterLink,
+    Navigation,
+    TooltipDirective
+  ]
 })
 export class JsonParserComponent implements AfterViewInit {
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
 
   @ViewChild('jsonTextarea') jsonTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('resultsTextarea') resultsTextarea!: ElementRef<HTMLTextAreaElement>;
   @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
-  readonly heroHighlights = [
-    {
-      title: 'Visual tree viewer',
-      detail: 'Inspect nested objects and arrays with collapsible nodes and breadcrumb context.'
-    },
-    {
-      title: 'Quick transformations',
-      detail: 'Format, minify, or filter JSON keys before exporting the result.'
-    },
-    {
-      title: 'Copy-friendly',
-      detail: 'Grab JSONPath, raw values, or formatted output with a single click.'
-    }
-  ];
 
-  readonly previewModes: Array<{ id: PreviewMode; label: string }> = [
-    { id: 'formatted', label: 'Formatted' },
-    { id: 'minified', label: 'Minified' }
-  ];
+  private dismissedSuggestionId: string | null = null;
 
-  readonly stringifyPlaceholder = `{
-  "title": "Example",
-  "items": [1, 2, 3]
-}`;
-
-  readonly stringLiteralPlaceholder = '{"title":"Example","items":[1,2,3]}';
+  readonly heroHighlights = JSON_PARSER_HERO_HIGHLIGHTS;
+  readonly previewModes = JSON_PARSER_PREVIEW_MODES;
+  readonly stringifyPlaceholder = JSON_PARSER_STRINGIFY_PLACEHOLDER;
+  readonly stringLiteralPlaceholder = JSON_PARSER_STRING_LITERAL_PLACEHOLDER;
+  readonly relatedTools: ReadonlyArray<DcRelatedToolLink> = JSON_PARSER_RELATED_TOOLS;
 
   jsonInput = '';
   formattedOutput = '';
-  previewMode: PreviewMode = 'formatted';
+  previewMode: JsonParserPreviewMode = 'formatted';
   filterTerm = '';
 
-  parseStatus: ParseStatus = {
+  parseStatus: JsonParserParseStatus = {
     status: 'idle',
     message: 'Paste JSON and click “Parse” to explore the structure.'
   };
 
-  metrics: MetricsSummary = {
+  metrics: JsonParserMetricsSummary = {
     characters: 0,
     lines: 0,
     sizeLabel: '0 B'
   };
 
-  diagnostics: Diagnostic[] = [];
-  operationHistory: HistoryEntry[] = [];
+  diagnostics: JsonParserDiagnostic[] = [];
+  operationHistory: JsonParserHistoryEntry[] = [];
 
-  treeNodes: JsonTreeNode[] = [];
-  filteredTree: JsonTreeNode[] = [];
-  selectedNode?: JsonTreeNode;
+  treeNodes: JsonParserTreeNode[] = [];
+  filteredTree: JsonParserTreeNode[] = [];
+  selectedNode?: JsonParserTreeNode;
 
-  copyStatus: CopyStatus = 'idle';
+  copyStatus: JsonParserCopyStatus = 'idle';
   copyMessage = '';
 
   stringifyInput = '';
   stringifyOutput = '';
-  stringifyStatus: ParseStatus;
-  stringifyDiagnostic?: Diagnostic;
+  stringifyStatus: JsonParserParseStatus;
+  stringifyDiagnostic?: JsonParserDiagnostic;
 
   stringLiteralInput = '';
   stringLiteralOutput = '';
-  stringLiteralStatus: ParseStatus;
-  stringLiteralDiagnostic?: Diagnostic;
+  stringLiteralStatus: JsonParserParseStatus;
+  stringLiteralDiagnostic?: JsonParserDiagnostic;
   editorLines: number[] = [];
   resultLines: number[] = [];
 
   constructor() {
-    this.stringifyStatus = this.createStringifyIdleStatus();
-    this.stringLiteralStatus = this.createStringLiteralIdleStatus();
+    this.stringifyStatus = createJsonParserIdleStringifyStatus();
+    this.stringLiteralStatus = createJsonParserIdleStringLiteralStatus();
     this.loadSample();
   }
 
@@ -135,11 +124,28 @@ export class JsonParserComponent implements AfterViewInit {
   }
 
   get nodeCount(): number {
-    return this.flattenTree(this.treeNodes).length;
+    return flattenJsonParserTree(this.treeNodes).length;
+  }
+
+  get primarySuggestion(): DcToolSuggestion | null {
+    const suggestion = resolveJsonParserSuggestion({
+      source: this.jsonInput,
+      hasTree: this.treeNodes.length > 0,
+      parseStatus: this.parseStatus.status
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
+    this.dismissedSuggestionId = null;
     this.updateEditorLineNumbers();
     this.updateMetrics(value);
     this.parseStatus = {
@@ -165,29 +171,25 @@ export class JsonParserComponent implements AfterViewInit {
     void this.copyToClipboard(this.jsonInput, 'Input copied');
   }
 
-  setPreviewMode(mode: PreviewMode): void {
+  setPreviewMode(mode: JsonParserPreviewMode): void {
     this.previewMode = mode;
     if (this.treeNodes.length) {
       this.buildFormattedOutput(this.treeNodes);
     }
-    // Remove focus from button to prevent tooltip persistence
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
   }
 
   parseJson(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
 
     if (!this.jsonInput.trim()) {
       this.parseStatus = {
         status: 'error',
         message: 'Paste JSON to parse before continuing. The input field is empty.'
       };
-      this.diagnostics = [this.createDiagnostic('No JSON content found. Paste JSON and try again.')];
+      this.diagnostics = [
+        createJsonParserDiagnostic('No JSON content found. Paste JSON and try again.')
+      ];
       this.treeNodes = [];
       this.filteredTree = [];
       this.formattedOutput = '';
@@ -197,7 +199,7 @@ export class JsonParserComponent implements AfterViewInit {
 
     try {
       const parsed = JSON.parse(this.jsonInput);
-      this.treeNodes = this.buildTree(parsed, '$', 0);
+      this.treeNodes = buildJsonParserTree(parsed, '$', 0);
       this.filteredTree = this.treeNodes;
       this.buildFormattedOutput(this.treeNodes);
       this.updateResultLineNumbers();
@@ -208,7 +210,7 @@ export class JsonParserComponent implements AfterViewInit {
       this.diagnostics = [];
       this.recordHistory('Parsed JSON successfully');
     } catch (error) {
-      const diagnostic = this.createErrorDiagnostic(error, this.jsonInput);
+      const diagnostic = createJsonParserErrorDiagnostic(error, this.jsonInput);
       this.parseStatus = {
         status: 'error',
         message: `JSON Parse Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
@@ -222,12 +224,9 @@ export class JsonParserComponent implements AfterViewInit {
   }
 
   formatJson(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
 
-    const parseAttempt = this.tryParse();
+    const parseAttempt = tryParseJsonParserInput(this.jsonInput);
     if (!parseAttempt.success) {
       this.diagnostics = [parseAttempt.diagnostic];
       this.parseStatus = {
@@ -243,17 +242,14 @@ export class JsonParserComponent implements AfterViewInit {
       status: 'success',
       message: 'JSON formatted with 2-space indentation.'
     };
-    this.diagnostics = [this.createDiagnostic('JSON formatted successfully.')];
+    this.diagnostics = [createJsonParserDiagnostic('JSON formatted successfully.')];
     this.recordHistory('Formatted JSON input');
   }
 
   minifyJson(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
 
-    const parseAttempt = this.tryParse();
+    const parseAttempt = tryParseJsonParserInput(this.jsonInput);
     if (!parseAttempt.success) {
       this.diagnostics = [parseAttempt.diagnostic];
       this.parseStatus = {
@@ -269,16 +265,12 @@ export class JsonParserComponent implements AfterViewInit {
       status: 'success',
       message: 'JSON minified successfully.'
     };
-    this.diagnostics = [this.createDiagnostic('JSON minified successfully.')];
+    this.diagnostics = [createJsonParserDiagnostic('JSON minified successfully.')];
     this.recordHistory('Minified JSON input');
   }
 
   resetWorkspace(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
+    blurActiveElement();
     this.loadSample();
   }
 
@@ -287,15 +279,12 @@ export class JsonParserComponent implements AfterViewInit {
     if (!value.trim()) {
       this.stringifyOutput = '';
       this.stringifyDiagnostic = undefined;
-      this.stringifyStatus = this.createStringifyIdleStatus();
+      this.stringifyStatus = createJsonParserIdleStringifyStatus();
     }
   }
 
   stringifyJsonInput(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
 
     if (!this.stringifyInput.trim()) {
       this.stringifyStatus = {
@@ -317,7 +306,7 @@ export class JsonParserComponent implements AfterViewInit {
       this.stringifyDiagnostic = undefined;
       this.recordHistory('Stringified JSON snippet');
     } catch (error) {
-      const diagnostic = this.createErrorDiagnostic(error, this.stringifyInput);
+      const diagnostic = createJsonParserErrorDiagnostic(error, this.stringifyInput);
       this.stringifyStatus = {
         status: 'error',
         message: `Stringify Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
@@ -339,15 +328,12 @@ export class JsonParserComponent implements AfterViewInit {
     if (!value.trim()) {
       this.stringLiteralOutput = '';
       this.stringLiteralDiagnostic = undefined;
-      this.stringLiteralStatus = this.createStringLiteralIdleStatus();
+      this.stringLiteralStatus = createJsonParserIdleStringLiteralStatus();
     }
   }
 
   parseStringLiteral(): void {
-    // Remove focus from button to prevent tooltip persistence after click
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    blurActiveElement();
 
     if (!this.stringLiteralInput.trim()) {
       this.stringLiteralStatus = {
@@ -361,7 +347,7 @@ export class JsonParserComponent implements AfterViewInit {
 
     try {
       const parsed = JSON.parse(this.stringLiteralInput);
-      this.stringLiteralOutput = this.formatParsedValue(parsed);
+      this.stringLiteralOutput = formatJsonParserParsedValue(parsed);
       this.stringLiteralStatus = {
         status: 'success',
         message: 'Stringified JSON converted successfully.'
@@ -369,7 +355,7 @@ export class JsonParserComponent implements AfterViewInit {
       this.stringLiteralDiagnostic = undefined;
       this.recordHistory('Converted stringified JSON to formatted output');
     } catch (error) {
-      const diagnostic = this.createErrorDiagnostic(error, this.stringLiteralInput);
+      const diagnostic = createJsonParserErrorDiagnostic(error, this.stringLiteralInput);
       this.stringLiteralStatus = {
         status: 'error',
         message: `Parse Error: ${diagnostic.message}. Please check your JSON syntax and try again.`
@@ -388,115 +374,70 @@ export class JsonParserComponent implements AfterViewInit {
 
   filterTree(term: string): void {
     this.filterTerm = term;
-    if (!term.trim()) {
-      this.filteredTree = this.treeNodes;
-      return;
-    }
-    const matches = new Set(
-      this.flattenTree(this.treeNodes)
-        .filter((node) =>
-          (node.key && node.key.toLowerCase().includes(term.toLowerCase())) ||
-          node.preview.toLowerCase().includes(term.toLowerCase()) ||
-          node.path.toLowerCase().includes(term.toLowerCase())
-        )
-        .map((node) => node.path)
-    );
-
-    const filterRecursive = (nodes: JsonTreeNode[]): JsonTreeNode[] =>
-      nodes
-        .map((node) => {
-          const children = node.children ? filterRecursive(node.children) : undefined;
-          const includeNode = matches.has(node.path) || (children && children.length > 0);
-          if (!includeNode) {
-            return null;
-          }
-          return {
-            ...node,
-            expanded: true,
-            children
-          } as JsonTreeNode;
-        })
-        .filter((node): node is JsonTreeNode => node !== null);
-
-    this.filteredTree = filterRecursive(this.treeNodes);
+    this.filteredTree = filterJsonParserTree(this.treeNodes, term);
   }
 
-  toggleNode(node: JsonTreeNode): void {
+  toggleNode(node: JsonParserTreeNode): void {
     node.expanded = !node.expanded;
   }
 
-  selectNode(node: JsonTreeNode): void {
+  selectNode(node: JsonParserTreeNode): void {
     this.selectedNode = node;
     this.copyStatus = 'idle';
     this.copyMessage = '';
   }
 
-  async copyPath(node: JsonTreeNode): Promise<void> {
+  async copyPath(node: JsonParserTreeNode): Promise<void> {
     await this.copyToClipboard(node.path, 'JSONPath copied');
   }
 
-  async copyValue(node: JsonTreeNode): Promise<void> {
-    const parseAttempt = this.tryParse();
+  async copyValue(node: JsonParserTreeNode): Promise<void> {
+    const parseAttempt = tryParseJsonParserInput(this.jsonInput);
     if (!parseAttempt.success) {
       return;
     }
-    const value = this.resolvePathValue(parseAttempt.value, node.path);
+    const value = resolveJsonParserPathValue(parseAttempt.value, node.path);
     await this.copyToClipboard(JSON.stringify(value, null, 2), 'Node value copied');
   }
 
-  trackByHistory = (_index: number, entry: HistoryEntry): string =>
+  trackByHistory = (_index: number, entry: JsonParserHistoryEntry): string =>
     `${entry.label}-${entry.timestamp}`;
 
-  trackByNode = (_index: number, node: JsonTreeNode): string => node.id;
+  trackByNode = (_index: number, node: JsonParserTreeNode): string => node.id;
 
-  trackByDiagnostic = (_index: number, diagnostic: Diagnostic): string => diagnostic.id;
+  trackByDiagnostic = (_index: number, diagnostic: JsonParserDiagnostic): string => diagnostic.id;
+
+  copyToClipboardText(text: string): void {
+    void dcCopyText(this.toast, text, 'Preview').then((ok) => {
+      if (ok) {
+        this.copyStatus = 'success';
+        this.copyMessage = 'Preview copied';
+      } else {
+        this.copyStatus = 'error';
+        this.copyMessage = 'Failed to copy preview';
+      }
+    });
+  }
 
   private async copyToClipboard(text: string, message: string): Promise<void> {
-    try {
-      const navigatorRef = (globalThis as typeof globalThis & { navigator?: Navigator }).navigator;
-      if (!navigatorRef?.clipboard?.writeText) {
-        this.copyStatus = 'error';
-        this.copyMessage = 'Clipboard API unavailable';
-        setTimeout(() => (this.copyStatus = 'idle'), 1500);
-        return;
-      }
-      await navigatorRef.clipboard.writeText(text);
+    const label = message.replace(/\s+copied$/i, '') || 'Text';
+    const ok = await dcCopyText(this.toast, text, label);
+    if (ok) {
       this.copyStatus = 'success';
       this.copyMessage = message;
-      setTimeout(() => (this.copyStatus = 'idle'), 1500);
-    } catch {
+    } else {
       this.copyStatus = 'error';
-      this.copyMessage = 'Failed to copy';
-      setTimeout(() => (this.copyStatus = 'idle'), 1500);
+      this.copyMessage =
+        typeof navigator === 'undefined' || !navigator.clipboard?.writeText
+          ? 'Clipboard API unavailable'
+          : 'Failed to copy';
     }
+    setTimeout(() => (this.copyStatus = 'idle'), 1500);
   }
 
   private loadSample(): void {
-    this.jsonInput = `{
-  "meta": {
-    "title": "Example dataset",
-    "version": 2,
-    "published": true
-  },
-  "authors": [
-    {
-      "name": "Ada Lovelace",
-      "role": "Analyst",
-      "social": {
-        "github": "ada",
-        "twitter": "@ada"
-      }
-    },
-    {
-      "name": "Alan Turing",
-      "role": "Researcher",
-      "social": {
-        "github": "aturing",
-        "twitter": "@aturing"
-      }
-    }
-  ]
-}`;
+    this.jsonInput = JSON_PARSER_SAMPLE_JSON;
+    this.dismissedSuggestionId = null;
     this.updateEditorLineNumbers();
     this.onJsonInputChange(this.jsonInput);
     this.parseStatus = {
@@ -512,221 +453,35 @@ export class JsonParserComponent implements AfterViewInit {
     this.copyMessage = '';
     this.stringifyInput = '';
     this.stringifyOutput = '';
-    this.stringifyStatus = this.createStringifyIdleStatus();
+    this.stringifyStatus = createJsonParserIdleStringifyStatus();
     this.stringifyDiagnostic = undefined;
     this.stringLiteralInput = '';
     this.stringLiteralOutput = '';
-    this.stringLiteralStatus = this.createStringLiteralIdleStatus();
+    this.stringLiteralStatus = createJsonParserIdleStringLiteralStatus();
     this.stringLiteralDiagnostic = undefined;
   }
 
-  private buildFormattedOutput(tree: JsonTreeNode[]): void {
-    const parseAttempt = this.tryParse();
+  private buildFormattedOutput(_tree: JsonParserTreeNode[]): void {
+    const parseAttempt = tryParseJsonParserInput(this.jsonInput);
     if (!parseAttempt.success) {
       this.formattedOutput = '';
       this.updateResultLineNumbers();
       return;
     }
-    const value = parseAttempt.value;
-    this.formattedOutput = this.previewMode === 'formatted'
-      ? JSON.stringify(value, null, 2)
-      : JSON.stringify(value);
+    this.formattedOutput = formatJsonParserPreviewOutput(parseAttempt.value, this.previewMode);
     this.updateResultLineNumbers();
   }
 
   private updateEditorLineNumbers(): void {
-    const lines = this.jsonInput.split(/\r?\n/).length;
-    this.editorLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
+    this.editorLines = buildJsonParserLineNumbers(this.jsonInput);
   }
 
   private updateResultLineNumbers(): void {
-    const lines = this.formattedOutput.split(/\r?\n/).length;
-    this.resultLines = Array.from({ length: Math.max(lines, 1) }, (_, i) => i + 1);
-  }
-
-  private buildTree(value: unknown, path: string, level: number, key?: string): JsonTreeNode[] {
-    const node = this.createTreeNode(value, path, level, key);
-    if (value !== null && typeof value === 'object') {
-      const entries = Array.isArray(value) ? value.entries() : Object.entries(value);
-      node.children = [];
-      for (const [childKey, childValue] of entries as Iterable<[string | number, unknown]>) {
-        const childPath = Array.isArray(value)
-          ? `${path}[${childKey}]`
-          : `${path}.${childKey}`;
-        const childNodes = this.buildTree(childValue, childPath, level + 1, String(childKey));
-        node.children.push(...childNodes);
-      }
-      node.expanded = level < 1;
-    }
-    return [node];
-  }
-
-  private createTreeNode(value: unknown, path: string, level: number, key?: string): JsonTreeNode {
-    const type = this.resolveType(value);
-    const preview = this.createPreview(value, type);
-    return {
-      id: `${path}-${level}-${Math.random().toString(36).slice(2, 8)}`,
-      key,
-      type,
-      level,
-      path,
-      expanded: level < 1,
-      preview
-    };
-  }
-
-  private createPreview(value: unknown, type: JsonNodeType): string {
-    if (type === 'object') {
-      const keys = Object.keys(value as Record<string, unknown>);
-      return `Object {${keys.slice(0, 3).join(', ')}${keys.length > 3 ? ', …' : ''}}`;
-    }
-    if (type === 'array') {
-      const length = (value as unknown[]).length;
-      return `Array(${length})`;
-    }
-    if (type === 'string') {
-      const text = String(value);
-      return text.length > 40 ? `${text.slice(0, 37)}…` : text;
-    }
-    return String(value);
-  }
-
-  private resolveType(value: unknown): JsonNodeType {
-    if (value === null) {
-      return 'null';
-    }
-    if (Array.isArray(value)) {
-      return 'array';
-    }
-    switch (typeof value) {
-      case 'object':
-        return 'object';
-      case 'string':
-        return 'string';
-      case 'number':
-        return 'number';
-      case 'boolean':
-        return 'boolean';
-      default:
-        return 'string';
-    }
-  }
-
-  private flattenTree(nodes: JsonTreeNode[]): JsonTreeNode[] {
-    const result: JsonTreeNode[] = [];
-    const stack = [...nodes];
-    while (stack.length) {
-      const node = stack.shift()!;
-      result.push(node);
-      if (node.children) {
-        stack.unshift(...node.children);
-      }
-    }
-    return result;
-  }
-
-  private resolvePathValue(value: unknown, path: string): unknown {
-    if (path === '$') {
-      return value;
-    }
-    const segments = path
-      .replace(/\$\.?/, '')
-      .replace(/\[(\d+)\]/g, '.$1')
-      .split('.')
-      .filter((segment) => segment.length);
-
-    return segments.reduce((current: any, segment) => {
-      if (current == null) {
-        return undefined;
-      }
-      return current[segment];
-    }, value as any);
-  }
-
-  private tryParse(): { success: true; value: unknown } | { success: false; diagnostic: Diagnostic } {
-    if (!this.jsonInput.trim()) {
-      return {
-        success: false,
-        diagnostic: this.createDiagnostic('Paste JSON before formatting or minifying.')
-      };
-    }
-    try {
-      const parsed = JSON.parse(this.jsonInput);
-      return { success: true, value: parsed };
-    } catch (error) {
-      return {
-        success: false,
-        diagnostic: this.createErrorDiagnostic(error, this.jsonInput)
-      };
-    }
-  }
-
-  private createErrorDiagnostic(error: unknown, source: string): Diagnostic {
-    const message = error instanceof Error ? error.message : 'Unknown JSON parsing error.';
-    const position = this.extractErrorPosition(message);
-    if (position === null) {
-      return this.createDiagnostic(message);
-    }
-    const { line, column } = this.computeLineAndColumn(source, position);
-    const snippet = this.getSnippet(source, line);
-    return {
-      id: this.createDiagnosticId(),
-      message,
-      line,
-      column,
-      snippet
-    };
-  }
-
-  private extractErrorPosition(message: string): number | null {
-    const match = message.match(/position\s+(\d+)/i);
-    if (match && match[1]) {
-      return Number.parseInt(match[1], 10);
-    }
-    return null;
-  }
-
-  private computeLineAndColumn(source: string, position: number): { line: number; column: number } {
-    let line = 1;
-    let column = 1;
-    for (let i = 0; i < source.length && i < position; i += 1) {
-      if (source[i] === '\n') {
-        line += 1;
-        column = 1;
-      } else {
-        column += 1;
-      }
-    }
-    return { line, column };
-  }
-
-  private getSnippet(source: string, line: number): string {
-    const lines = source.split(/\r?\n/);
-    return lines[line - 1]?.trim() ?? '';
-  }
-
-  private createDiagnostic(message: string): Diagnostic {
-    return {
-      id: this.createDiagnosticId(),
-      message
-    };
+    this.resultLines = buildJsonParserLineNumbers(this.formattedOutput);
   }
 
   private updateMetrics(value: string): void {
-    const characters = value.length;
-    const lines = value.split(/\r?\n/).length;
-    const sizeLabel = this.formatBytes(new Blob([value]).size);
-    this.metrics = { characters, lines, sizeLabel };
-  }
-
-  private formatBytes(bytes: number): string {
-    if (bytes === 0) {
-      return '0 B';
-    }
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const index = Math.floor(Math.log(bytes) / Math.log(1024));
-    const value = bytes / Math.pow(1024, index);
-    return `${value.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
+    this.metrics = computeJsonParserMetrics(value);
   }
 
   private recordHistory(label: string): void {
@@ -734,66 +489,9 @@ export class JsonParserComponent implements AfterViewInit {
       hour: '2-digit',
       minute: '2-digit'
     });
-    this.operationHistory = [{ label, timestamp }, ...this.operationHistory].slice(0, 6);
-  }
-
-  private resolveTypeLabel(type: JsonNodeType): string {
-    switch (type) {
-      case 'object':
-        return 'Object';
-      case 'array':
-        return 'Array';
-      case 'string':
-        return 'String';
-      case 'number':
-        return 'Number';
-      case 'boolean':
-        return 'Boolean';
-      case 'null':
-        return 'Null';
-      default:
-        return 'Value';
-    }
-  }
-
-  private createDiagnosticId(): string {
-    return `diag-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-  }
-
-  copyToClipboardText(text: string): void {
-    navigator.clipboard.writeText(text).then(() => {
-      this.copyStatus = 'success';
-      this.copyMessage = 'Preview copied';
-    }).catch(() => {
-      this.copyStatus = 'error';
-      this.copyMessage = 'Failed to copy preview';
-    });
-  }
-
-  private createStringifyIdleStatus(): ParseStatus {
-    return {
-      status: 'idle',
-      message: 'Provide JSON to stringify into a single-line representation.'
-    };
-  }
-
-  private createStringLiteralIdleStatus(): ParseStatus {
-    return {
-      status: 'idle',
-      message: 'Paste a stringified JSON value to convert it back to readable JSON.'
-    };
-  }
-
-  private formatParsedValue(value: unknown): string {
-    if (value === null) {
-      return 'null';
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-    return JSON.stringify(value, null, 2);
+    this.operationHistory = [{ label, timestamp }, ...this.operationHistory].slice(
+      0,
+      JSON_PARSER_HISTORY_LIMIT
+    );
   }
 }

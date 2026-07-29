@@ -28,41 +28,44 @@
       </div>
     </div>
 
-    <div class="ft-workflow" aria-label="Quote actions"><div class="ft-workflow__group ft-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="generateQuote()"
-        aria-label="New quote"
-        appTooltip="New quote"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-        <span class="ctl__tool-btn-label">New Quote</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="toggleFavorite()"
-        [disabled]="!hasCurrentQuote()"
-        aria-label="Toggle favorite"
-        appTooltip="Toggle favorite"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        <span class="ctl__tool-btn-label">{{ isFavorite() ? 'Unfavorite' : 'Favorite' }}</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clearHistory()"
-        [disabled]="!hasHistory()"
-        aria-label="Clear history"
-        appTooltip="Clear history"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="ft-workflow" aria-label="Quote actions">
+      <div class="ft-workflow__group ft-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="generateQuote()"
+          aria-label="New quote"
+          appTooltip="New quote"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+          <span class="ctl__tool-btn-label">New Quote</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleFavorite()"
+          [disabled]="!hasCurrentQuote()"
+          [attr.aria-pressed]="isFavorite()"
+          aria-label="Toggle favorite"
+          appTooltip="Toggle favorite"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="ctl__tool-btn-label">{{ isFavorite() ? 'Unfavorite' : 'Favorite' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearHistory()"
+          [disabled]="!hasHistory()"
+          aria-label="Clear history"
+          appTooltip="Clear history"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ctl__editor--merged">
@@ -84,8 +87,26 @@
               </button>
             </div>
           </header>
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="mqg__suggest" aria-label="Suggested next step">
+              <div class="mqg__suggest-body">
+                <p class="mqg__suggest-title">{{ suggestion.title }}</p>
+                <p class="mqg__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="mqg__suggest-actions">
+                <a class="mqg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="mqg__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
           @if (currentQuote(); as quote) {
-            <div class="ctl__editor-body mqg-quote">
+            <div class="ctl__editor-body mqg-quote" aria-live="polite">
               <blockquote class="mqg-quote__text">"{{ quote.text }}"</blockquote>
               <cite class="mqg-quote__author">— {{ quote.author }}</cite>
             </div>
@@ -97,7 +118,7 @@
         </section>
       </div>
 
-            <details class="ft-options-flyout">
+      <details class="ft-options-flyout">
         <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -106,32 +127,47 @@
         </summary>
         <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Quote history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">History</header>
-          @if (hasHistory()) {
-            <div class="ctl__panel-body mqg-history">
-              <ul class="mqg-history__list">
-                @for (item of quoteHistory(); track item.timestamp) {
-                  <li class="mqg-history__item" [class.mqg-history__item--favorite]="favorites().includes(item.quote.id)">
-                    <p class="mqg-history__text">"{{ item.quote.text }}"</p>
-                    <div class="mqg-history__meta">
-                      <span>— {{ item.quote.author }}</span>
-                      @if (favorites().includes(item.quote.id)) {
-                        <span class="mqg-history__star">★</span>
-                      }
-                      <time>{{ formatTimestamp(item.timestamp) }}</time>
-                    </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">History</header>
+            @if (hasHistory()) {
+              <div class="ctl__panel-body mqg-history">
+                <ul class="mqg-history__list">
+                  @for (item of quoteHistory(); track item.timestamp) {
+                    <li class="mqg-history__item" [class.mqg-history__item--favorite]="favorites().includes(item.quote.id)">
+                      <p class="mqg-history__text">"{{ item.quote.text }}"</p>
+                      <div class="mqg-history__meta">
+                        <span>— {{ item.quote.author }}</span>
+                        @if (favorites().includes(item.quote.id)) {
+                          <span class="mqg-history__star">★</span>
+                        }
+                        <time>{{ formatTimestamp(item.timestamp) }}</time>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <div class="ctl__panel-empty">
+                <p>No history yet. Generate quotes to see them here.</p>
+              </div>
+            }
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body mqg__related">
+              <ul class="mqg__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="mqg__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
             </div>
-          } @else {
-            <div class="ctl__panel-empty">
-              <p>No history yet. Generate quotes to see them here.</p>
-            </div>
-          }
-        </div>
-      </aside>
+          </div>
+        </aside>
       </details>
     </div>
 

@@ -1,33 +1,47 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-interface BoxShadowPreset {
-  label: string;
-  description: string;
-  offsetX: number;
-  offsetY: number;
-  blur: number;
-  spread: number;
-  color: string;
-  inset: boolean;
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  css: string;
-  values: {
-    offsetX: number;
-    offsetY: number;
-    blur: number;
-    spread: number;
-    color: string;
-    inset: boolean;
-  };
-}
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  BOX_SHADOW_BLUR_MAX,
+  BOX_SHADOW_BLUR_MIN,
+  BOX_SHADOW_DEFAULTS,
+  BOX_SHADOW_OFFSET_MAX,
+  BOX_SHADOW_OFFSET_MIN,
+  BOX_SHADOW_PRESETS,
+  BOX_SHADOW_RELATED_TOOLS,
+  BOX_SHADOW_SPREAD_MAX,
+  BOX_SHADOW_SPREAD_MIN
+} from '../../constants/box-shadow-generator.constants';
+import type {
+  BoxShadowHistoryEntry,
+  BoxShadowPreset,
+  BoxShadowValues
+} from '../../types/box-shadow-generator.types';
+import {
+  boxShadowRgbToHex,
+  buildBoxShadowCss,
+  buildBoxShadowHistoryPreview,
+  buildBoxShadowPresetPreview,
+  buildBoxShadowStyle,
+  formatRelativeTimestamp,
+  hexWithOpacityToRgba,
+  parseBoxShadowColorOpacity,
+  prependBoxShadowHistory,
+  resolveBoxShadowSuggestion,
+  validateBoxShadowColor
+} from '../../utils/box-shadow-generator.utils';
 
 type BoxShadowFormGroup = FormGroup<{
   offsetX: FormControl<number>;
@@ -39,162 +53,74 @@ type BoxShadowFormGroup = FormGroup<{
   rememberHistory: FormControl<boolean>;
 }>;
 
-const PRESETS: BoxShadowPreset[] = [
-  {
-    label: 'None',
-    description: 'No shadow',
-    offsetX: 0,
-    offsetY: 0,
-    blur: 0,
-    spread: 0,
-    color: '#000000',
-    inset: false
-  },
-  {
-    label: 'Small',
-    description: 'Subtle shadow',
-    offsetX: 0,
-    offsetY: 1,
-    blur: 3,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.12)',
-    inset: false
-  },
-  {
-    label: 'Medium',
-    description: 'Standard shadow',
-    offsetX: 0,
-    offsetY: 2,
-    blur: 8,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.15)',
-    inset: false
-  },
-  {
-    label: 'Large',
-    description: 'Prominent shadow',
-    offsetX: 0,
-    offsetY: 4,
-    blur: 16,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.18)',
-    inset: false
-  },
-  {
-    label: 'Extra Large',
-    description: 'Dramatic shadow',
-    offsetX: 0,
-    offsetY: 8,
-    blur: 24,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.2)',
-    inset: false
-  },
-  {
-    label: 'Blue shadow',
-    description: 'Blue themed shadow',
-    offsetX: 0,
-    offsetY: 4,
-    blur: 12,
-    spread: 0,
-    color: 'rgba(0, 123, 255, 0.3)',
-    inset: false
-  },
-  {
-    label: 'Inset',
-    description: 'Inset shadow',
-    offsetX: 0,
-    offsetY: 2,
-    blur: 4,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.15)',
-    inset: true
-  },
-  {
-    label: 'Soft elevation',
-    description: 'Soft elevated card shadow',
-    offsetX: 0,
-    offsetY: 10,
-    blur: 30,
-    spread: -5,
-    color: 'rgba(0, 0, 0, 0.12)',
-    inset: false
-  },
-  {
-    label: 'Top shadow',
-    description: 'Shadow above',
-    offsetX: 0,
-    offsetY: -4,
-    blur: 8,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.15)',
-    inset: false
-  },
-  {
-    label: 'Right shadow',
-    description: 'Shadow to the right',
-    offsetX: 4,
-    offsetY: 0,
-    blur: 8,
-    spread: 0,
-    color: 'rgba(0, 0, 0, 0.15)',
-    inset: false
-  }
-];
-
 @Component({
   selector: 'lib-box-shadow-generator',
   standalone: true,
   templateUrl: './box-shadow-generator.html',
   styleUrls: ['./box-shadow-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BoxShadowGeneratorComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   readonly form: BoxShadowFormGroup = this.fb.group({
-    offsetX: this.fb.control(0, {
+    offsetX: this.fb.control(BOX_SHADOW_DEFAULTS.offsetX, {
       nonNullable: true,
-      validators: [Validators.min(-100), Validators.max(100)]
+      validators: [Validators.min(BOX_SHADOW_OFFSET_MIN), Validators.max(BOX_SHADOW_OFFSET_MAX)]
     }),
-    offsetY: this.fb.control(4, {
+    offsetY: this.fb.control(BOX_SHADOW_DEFAULTS.offsetY, {
       nonNullable: true,
-      validators: [Validators.min(-100), Validators.max(100)]
+      validators: [Validators.min(BOX_SHADOW_OFFSET_MIN), Validators.max(BOX_SHADOW_OFFSET_MAX)]
     }),
-    blur: this.fb.control(12, {
+    blur: this.fb.control(BOX_SHADOW_DEFAULTS.blur, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(200)]
+      validators: [Validators.min(BOX_SHADOW_BLUR_MIN), Validators.max(BOX_SHADOW_BLUR_MAX)]
     }),
-    spread: this.fb.control(0, {
+    spread: this.fb.control(BOX_SHADOW_DEFAULTS.spread, {
       nonNullable: true,
-      validators: [Validators.min(-50), Validators.max(50)]
+      validators: [Validators.min(BOX_SHADOW_SPREAD_MIN), Validators.max(BOX_SHADOW_SPREAD_MAX)]
     }),
-    color: this.fb.control('rgba(0, 0, 0, 0.15)', { nonNullable: true }),
-    inset: this.fb.control(false, { nonNullable: true }),
+    color: this.fb.control(BOX_SHADOW_DEFAULTS.color, { nonNullable: true }),
+    inset: this.fb.control(BOX_SHADOW_DEFAULTS.inset, { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly presets = PRESETS;
+  readonly presets = BOX_SHADOW_PRESETS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = BOX_SHADOW_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
-  readonly history = signal<HistoryEntry[]>([]);
-  /** Bumped on form changes so computed CSS/preview stay in sync with reactive forms. */
+  readonly history = signal<BoxShadowHistoryEntry[]>([]);
   private readonly formTick = signal(0);
+  private readonly hasCopiedCss = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly boxShadowCss = computed(() => {
     this.formTick();
-    return this.getBoxShadowCss();
+    return buildBoxShadowCss(this.shadowValues());
   });
   readonly boxShadowStyle = computed(() => {
     this.formTick();
-    return this.getBoxShadowStyle();
+    return buildBoxShadowStyle(this.shadowValues());
   });
   readonly colorOpacity = computed(() => {
     this.formTick();
-    return this.parseColorOpacity(this.form.controls.color.value);
+    return parseBoxShadowColorOpacity(this.form.controls.color.value);
+  });
+  readonly primarySuggestion = computed(() => {
+    this.formTick();
+    const suggestion = resolveBoxShadowSuggestion({
+      values: this.shadowValues(),
+      hasCopiedCss: this.hasCopiedCss(),
+      colorOpacity: parseBoxShadowColorOpacity(this.form.controls.color.value)
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
   });
 
   constructor() {
@@ -202,12 +128,17 @@ export class BoxShadowGeneratorComponent {
       .pipe(debounceTime(50), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.formTick.update((n) => n + 1);
+        this.dismissedSuggestionId.set(null);
         this.validateColor();
         this.updateHistory();
       });
 
     this.formTick.update((n) => n + 1);
     this.updateHistory();
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   applyPreset(preset: BoxShadowPreset): void {
@@ -219,45 +150,27 @@ export class BoxShadowGeneratorComponent {
       color: preset.color,
       inset: preset.inset
     });
+    this.refreshDerivedState();
   }
 
-  getBoxShadowCss(): string {
-    const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
-    const safeColor = this.normalizeColor(color) ?? 'rgba(0, 0, 0, 0.15)';
-    const insetStr = inset ? 'inset ' : '';
-    return `box-shadow: ${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${safeColor};`;
-  }
-
-  getBoxShadowStyle(): string {
-    const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
-    const safeColor = this.normalizeColor(color) ?? 'rgba(0, 0, 0, 0.15)';
-    const insetStr = inset ? 'inset ' : '';
-    return `${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${safeColor}`;
-  }
-
-  copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
+  async copyToClipboard(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (ok) {
+      this.hasCopiedCss.set(true);
+      this.errors.set([]);
+    } else {
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
+    }
   }
 
   clear(): void {
-    this.form.patchValue({
-      offsetX: 0,
-      offsetY: 4,
-      blur: 12,
-      spread: 0,
-      color: 'rgba(0, 0, 0, 0.15)',
-      inset: false
-    });
+    this.hasCopiedCss.set(false);
+    this.dismissedSuggestionId.set(null);
+    this.form.patchValue({ ...BOX_SHADOW_DEFAULTS });
+    this.refreshDerivedState();
   }
 
-  applyHistory(entry: HistoryEntry): void {
+  applyHistory(entry: BoxShadowHistoryEntry): void {
     this.form.patchValue({
       offsetX: entry.values.offsetX,
       offsetY: entry.values.offsetY,
@@ -266,6 +179,7 @@ export class BoxShadowGeneratorComponent {
       color: entry.values.color,
       inset: entry.values.inset
     });
+    this.refreshDerivedState();
   }
 
   clearHistory(): void {
@@ -276,130 +190,73 @@ export class BoxShadowGeneratorComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  private updateHistory(): void {
-    if (!this.form.controls.rememberHistory.value) {
-      return;
-    }
-
-    const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
-    const css = this.getBoxShadowCss();
-
-    const entry: HistoryEntry = {
-      timestamp: Date.now(),
-      css,
-      values: { offsetX, offsetY, blur, spread, color, inset }
-    };
-
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.css === entry.css);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 10);
-    });
-  }
-
   getPresetPreview(preset: BoxShadowPreset): string {
-    const insetStr = preset.inset ? 'inset ' : '';
-    return `${insetStr}${preset.offsetX}px ${preset.offsetY}px ${preset.blur}px ${preset.spread}px ${preset.color}`;
+    return buildBoxShadowPresetPreview(preset);
   }
 
-  getHistoryPreview(entry: HistoryEntry): string {
-    const { offsetX, offsetY, blur, spread, color, inset } = entry.values;
-    const insetStr = inset ? 'inset ' : '';
-    return `${insetStr}${offsetX}px ${offsetY}px ${blur}px ${spread}px ${color}`;
+  getHistoryPreview(entry: BoxShadowHistoryEntry): string {
+    return buildBoxShadowHistoryPreview(entry);
   }
 
   getColorValue(): string {
-    return this.rgbToHex(this.form.controls.color.value) ?? '#000000';
+    return boxShadowRgbToHex(this.form.controls.color.value) ?? '#000000';
   }
 
   onColorChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const hex = input.value;
-    const r = Number.parseInt(hex.slice(1, 3), 16);
-    const g = Number.parseInt(hex.slice(3, 5), 16);
-    const b = Number.parseInt(hex.slice(5, 7), 16);
-    if ([r, g, b].some((n) => Number.isNaN(n))) {
-      return;
+    const rgba = hexWithOpacityToRgba(input.value, this.parseCurrentOpacity());
+    if (rgba) {
+      this.form.patchValue({ color: rgba });
+      this.refreshDerivedState();
     }
-    const alpha = this.parseColorOpacity(this.form.controls.color.value);
-    this.form.patchValue({ color: `rgba(${r}, ${g}, ${b}, ${alpha})` });
   }
 
   onOpacityChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     const alpha = Math.min(1, Math.max(0, Number.parseFloat(input.value) || 0));
-    const hex = this.getColorValue();
-    const r = Number.parseInt(hex.slice(1, 3), 16);
-    const g = Number.parseInt(hex.slice(3, 5), 16);
-    const b = Number.parseInt(hex.slice(5, 7), 16);
-    this.form.patchValue({ color: `rgba(${r}, ${g}, ${b}, ${alpha})` });
-  }
-
-  private validateColor(): void {
-    const color = this.form.controls.color.value?.trim() ?? '';
-    if (!color || this.normalizeColor(color)) {
-      this.errors.set([]);
-      return;
+    const rgba = hexWithOpacityToRgba(this.getColorValue(), alpha);
+    if (rgba) {
+      this.form.patchValue({ color: rgba });
+      this.refreshDerivedState();
     }
-    this.errors.set(['Enter a valid color (hex like #000000 or rgb/rgba).']);
-  }
-
-  private normalizeColor(color: string): string | null {
-    const value = color.trim();
-    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
-      return value;
-    }
-    if (/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*(0|1|0?\.\d+))?\s*\)$/i.test(value)) {
-      return value;
-    }
-    return null;
-  }
-
-  private parseColorOpacity(color: string): number {
-    const match = color.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(0|1|0?\.\d+)\s*\)/i);
-    if (match) {
-      return Number.parseFloat(match[1]);
-    }
-    return 1;
-  }
-
-  private rgbToHex(color: string): string | null {
-    const value = color.trim();
-    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
-      if (value.length === 4) {
-        return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`;
-      }
-      return value;
-    }
-    const match = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-    if (!match) {
-      return null;
-    }
-    const toHex = (n: number) => Math.min(255, Math.max(0, n)).toString(16).padStart(2, '0');
-    return `#${toHex(Number(match[1]))}${toHex(Number(match[2]))}${toHex(Number(match[3]))}`;
   }
 
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+    return formatRelativeTimestamp(timestamp);
+  }
 
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
+  private shadowValues(): BoxShadowValues {
+    const { offsetX, offsetY, blur, spread, color, inset } = this.form.getRawValue();
+    return { offsetX, offsetY, blur, spread, color, inset };
+  }
+
+  private parseCurrentOpacity(): number {
+    return parseBoxShadowColorOpacity(this.form.controls.color.value);
+  }
+
+  private refreshDerivedState(): void {
+    this.formTick.update((n) => n + 1);
+    this.validateColor();
+    this.updateHistory();
+  }
+
+  private validateColor(): void {
+    const message = validateBoxShadowColor(this.form.controls.color.value ?? '');
+    this.errors.set(message ? [message] : []);
+  }
+
+  private updateHistory(): void {
+    if (!this.form.controls.rememberHistory.value) {
+      return;
     }
+
+    const values = this.shadowValues();
+    const entry: BoxShadowHistoryEntry = {
+      timestamp: Date.now(),
+      css: buildBoxShadowCss(values),
+      values
+    };
+
+    this.history.update((entries) => prependBoxShadowHistory(entries, entry));
   }
 }

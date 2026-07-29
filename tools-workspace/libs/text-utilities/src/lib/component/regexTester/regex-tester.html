@@ -25,52 +25,193 @@
     <div class="ttool__workflow ttool__workflow--regex">
       <div class="ttool__pattern-row">
         <span class="ttool__pattern-prefix">/</span>
-        <input type="text" class="ttool__pattern-input" [(ngModel)]="pattern" (ngModelChange)="onPatternChange()" placeholder="Enter regex pattern…" spellcheck="false" />
+        <input
+          type="text"
+          class="ttool__pattern-input"
+          [(ngModel)]="pattern"
+          (ngModelChange)="onPatternChange()"
+          placeholder="Enter regex pattern…"
+          spellcheck="false"
+          aria-label="Regular expression pattern" />
         <span class="ttool__pattern-suffix">/{{ flagsString }}</span>
       </div>
       <div class="ttool__mode-group" role="group" aria-label="Regex flags">
-        <label class="ttool__flag-label"><input type="checkbox" [(ngModel)]="flagGlobal" (ngModelChange)="onFlagChange()" /><span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagGlobal">g</span></label>
-        <label class="ttool__flag-label"><input type="checkbox" [(ngModel)]="flagIgnoreCase" (ngModelChange)="onFlagChange()" /><span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagIgnoreCase">i</span></label>
-        <label class="ttool__flag-label"><input type="checkbox" [(ngModel)]="flagMultiline" (ngModelChange)="onFlagChange()" /><span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagMultiline">m</span></label>
-        <label class="ttool__flag-label"><input type="checkbox" [(ngModel)]="flagDotAll" (ngModelChange)="onFlagChange()" /><span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagDotAll">s</span></label>
-        <label class="ttool__flag-label"><input type="checkbox" [(ngModel)]="flagUnicode" (ngModelChange)="onFlagChange()" /><span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagUnicode">u</span></label>
+        <label class="ttool__flag-label">
+          <input type="checkbox" [(ngModel)]="flagGlobal" (ngModelChange)="onFlagChange()" />
+          <span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagGlobal">g</span>
+        </label>
+        <label class="ttool__flag-label">
+          <input type="checkbox" [(ngModel)]="flagIgnoreCase" (ngModelChange)="onFlagChange()" />
+          <span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagIgnoreCase">i</span>
+        </label>
+        <label class="ttool__flag-label">
+          <input type="checkbox" [(ngModel)]="flagMultiline" (ngModelChange)="onFlagChange()" />
+          <span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagMultiline">m</span>
+        </label>
+        <label class="ttool__flag-label">
+          <input type="checkbox" [(ngModel)]="flagDotAll" (ngModelChange)="onFlagChange()" />
+          <span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagDotAll">s</span>
+        </label>
+        <label class="ttool__flag-label">
+          <input type="checkbox" [(ngModel)]="flagUnicode" (ngModelChange)="onFlagChange()" />
+          <span class="ttool__chip-btn" [class.ttool__chip-btn--active]="flagUnicode">u</span>
+        </label>
       </div>
     </div>
 
     <div class="ttool__workspace">
-      <div class="ttool__editors">
-        <section class="ttool__editor" [class.ttool__editor--dragover]="isDragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-          <header class="ttool__editor-head">
+      <div class="ttool__editors" aria-label="Test string and match results">
+        <section
+          class="ttool__editor"
+          [class.ttool__editor--dragover]="isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)">
+          <header class="ttool__editor-head" aria-label="Input editor actions">
             <span class="ttool__editor-title">Test string</span>
             <div class="ttool__toolbar">
-              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" appTooltip="Upload file" tooltipPosition="bottom"><img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Upload</span></button>
-              <button type="button" class="ttool__tool-btn" (click)="copyInput()" [disabled]="!hasInput" appTooltip="Copy input" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Copy</span></button>
-              <button type="button" class="ttool__tool-btn" (click)="undo()" [disabled]="!canUndo" appTooltip="Undo" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Undo</span></button>
-              <button type="button" class="ttool__tool-btn" (click)="redo()" [disabled]="!canRedo" appTooltip="Redo" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Redo</span></button>
-              <button type="button" class="ttool__tool-btn" (click)="clear()" appTooltip="Clear" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Clear</span></button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="uploadTextFile()"
+                [disabled]="isReadingFile"
+                aria-label="Upload file"
+                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload file'"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
+              </button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Copy</span>
+              </button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="undo()"
+                [disabled]="!canUndo"
+                aria-label="Undo"
+                appTooltip="Undo"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Undo</span>
+              </button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="redo()"
+                [disabled]="!canRedo"
+                aria-label="Redo"
+                appTooltip="Redo"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Redo</span>
+              </button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="clear()"
+                aria-label="Clear"
+                appTooltip="Clear"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Clear</span>
+              </button>
             </div>
           </header>
-          <textarea #inputTextarea class="ttool__textarea ttool__textarea--mono" [(ngModel)]="inputText" (input)="onInputChange()" rows="1" placeholder="Paste text to test against…"></textarea>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="rx__suggest" aria-label="Suggested next step">
+              <div class="rx__suggest-body">
+                <p class="rx__suggest-title">{{ suggestion.title }}</p>
+                <p class="rx__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="rx__suggest-actions">
+                <a class="rx__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="rx__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="rx-source">Text to test against the regular expression</label>
+          <textarea
+            #inputTextarea
+            id="rx-source"
+            class="ttool__textarea ttool__textarea--mono"
+            [(ngModel)]="inputText"
+            (input)="onInputChange()"
+            rows="1"
+            placeholder="Paste text to test against…"></textarea>
         </section>
+
         <section class="ttool__editor ttool__editor--output" [class.ttool__editor--error]="errorMessage">
-          <header class="ttool__editor-head">
+          <header class="ttool__editor-head" aria-label="Output editor actions">
             <div class="ttool__editor-head-left">
               <span class="ttool__editor-title">Match results</span>
-              @if (hasOutput) { <span class="ttool__editor-badge">Ready</span> }
-              @else if (errorMessage) { <span class="ttool__editor-badge ttool__editor-badge--error">Error</span> }
+              @if (hasOutput) {
+                <span class="ttool__editor-badge">Ready</span>
+              } @else if (errorMessage) {
+                <span class="ttool__editor-badge ttool__editor-badge--error">Error</span>
+              }
             </div>
             <div class="ttool__toolbar">
-              <button type="button" class="ttool__tool-btn" (click)="copyOutput()" [disabled]="!hasOutput" appTooltip="Copy output" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">Copy</span></button>
-              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!hasOutput" appTooltip="Download" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" /><span class="ttool__tool-btn-label">TXT</span></button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasOutput"
+                aria-label="Copy output"
+                appTooltip="Copy output"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">Copy</span>
+              </button>
+              <button
+                type="button"
+                class="ttool__tool-btn"
+                (click)="downloadText()"
+                [disabled]="!hasOutput"
+                aria-label="Download"
+                appTooltip="Download"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+                <span class="ttool__tool-btn-label">TXT</span>
+              </button>
             </div>
           </header>
-          @if (errorMessage) { <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div> }
-          @else if (hasOutput) { <textarea class="ttool__textarea ttool__textarea--output ttool__textarea--mono" readonly rows="1" [value]="outputText"></textarea> }
-          @else if (pattern && hasInput) { <div class="ttool__empty"><p>No matches found.</p></div> }
-          @else { <div class="ttool__empty"><p>Enter a pattern and test string to see matches.</p></div> }
+          @if (errorMessage) {
+            <div class="ttool__error" role="alert"><p>{{ errorMessage }}</p></div>
+          } @else if (hasOutput) {
+            <textarea
+              class="ttool__textarea ttool__textarea--output ttool__textarea--mono"
+              readonly
+              rows="1"
+              [value]="outputText"
+              aria-label="Regex match results"></textarea>
+          } @else if (pattern && hasInput) {
+            <div class="ttool__empty" aria-live="polite"><p>No matches found.</p></div>
+          } @else {
+            <div class="ttool__empty" aria-live="polite">
+              <p>Enter a pattern and test string to see matches.</p>
+            </div>
+          }
         </section>
       </div>
-      <aside class="ttool__sidebar">
+
+      <aside class="ttool__sidebar" aria-label="Tips">
         <div class="ttool__panel">
           <ul class="ttool__tips">
             <li><strong>g</strong> — find all matches; without it only the first match is returned.</li>
@@ -79,8 +220,28 @@
             <li>Output shows match index range and capture groups when present.</li>
           </ul>
         </div>
+
+        <div class="ttool__panel rx__related-panel">
+          <header class="rx__panel-head">Related tools</header>
+          <ul class="rx__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="rx__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
       </aside>
     </div>
-    <details class="ttool__help"><summary>How to use</summary><ul><li>Enter a regex pattern, toggle flags, paste test text, and review match indices in the output.</li></ul></details>
+
+    <details class="ttool__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Enter a regex pattern, toggle flags, paste test text, and review match indices in the output.</li>
+      </ul>
+    </details>
   </main>
 </div>

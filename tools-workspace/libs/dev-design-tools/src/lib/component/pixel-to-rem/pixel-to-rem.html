@@ -134,7 +134,7 @@
             </div>
           </header>
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -142,6 +142,20 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ptr__suggest" aria-label="Suggested next step">
+              <div class="ptr__suggest-body">
+                <p class="ptr__suggest-title">{{ suggestion.title }}</p>
+                <p class="ptr__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ptr__suggest-actions">
+                <a class="ptr__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="ptr__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           @if (hasResult() && conversionResult()) {
             <pre class="ctl__code">{{ conversionResult()!.formula }}</pre>
           } @else {
@@ -276,6 +290,20 @@
                 </div>
               }
             </div>
+          </div>
+
+          <div class="ctl__panel ptr__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="ptr__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="ptr__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

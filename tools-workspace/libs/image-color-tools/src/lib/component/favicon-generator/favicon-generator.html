@@ -28,39 +28,72 @@
       </div>
     </div>
 
-    <div class="ic-workflow" aria-label="Favicon actions"><div class="ic-workflow__group ic-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="downloadFavicon()" [disabled]="!result()" aria-label="Download favicon" appTooltip="Download favicon" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="downloadAllSizes()" [disabled]="!result()" aria-label="Download all sizes" appTooltip="Download all sizes" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span class="ctl__tool-btn-label">All sizes</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clear()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
+    <div class="ic-workflow" aria-label="Favicon actions">
+      <div class="ic-workflow__group ic-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="downloadFavicon()" [disabled]="!result()" aria-label="Download favicon" appTooltip="Download favicon" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="downloadAllSizes()" [disabled]="!result()" aria-label="Download all sizes" appTooltip="Download all sizes" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="ctl__tool-btn-label">All sizes</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clear()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Reset</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor ict-editor--canvas">
           <header class="ctl__editor-head">
             <span>Live preview</span>
-            @if (result()) { <span class="ctl__editor-badge">Ready</span> }
+            @if (result()) {
+              <span class="ctl__editor-badge">Ready</span>
+            }
           </header>
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error"><ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul></div>
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="fg__suggest" aria-label="Suggested next step">
+              <div class="fg__suggest-body">
+                <p class="fg__suggest-title">{{ suggestion.title }}</p>
+                <p class="fg__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="fg__suggest-actions">
+                <a class="fg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="fg__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
           }
           <div class="ict-canvas-wrap">
-            <canvas #previewCanvas style="max-width: 200px; aspect-ratio: 1"></canvas>
+            <canvas #previewCanvas class="fg-preview-canvas" aria-label="Favicon preview"></canvas>
           </div>
           @if (result(); as current) {
             <div class="ict-favicon-sizes">
-              @for (sz of [16, 32, 48]; track sz) {
-                <div style="text-align: center; font-size: 0.75rem; color: var(--muted)">
-                  <img [src]="current.dataUrl" [alt]="sz + 'px'" [style.width.px]="sz" [style.height.px]="sz" style="display: block; margin: 0 auto 0.25rem; image-rendering: pixelated" />
+              @for (sz of previewSizes; track sz) {
+                <div class="fg-size-sample">
+                  <img
+                    [src]="current.dataUrl"
+                    [alt]="sz + 'px'"
+                    [style.width.px]="sz"
+                    [style.height.px]="sz"
+                    class="fg-size-sample__img" />
                   {{ sz }}×{{ sz }}
                 </div>
               }
@@ -73,7 +106,9 @@
         <section class="ctl__editor ctl__editor--output ic-editor-panel">
           <header class="ctl__editor-head">
             <span>HTML &amp; data URL</span>
-            @if (result()) { <span class="ctl__editor-badge">Ready</span> }
+            @if (result()) {
+              <span class="ctl__editor-badge">Ready</span>
+            }
           </header>
           @if (result(); as current) {
             <div class="ict-format-list">
@@ -102,7 +137,7 @@
         </section>
       </div>
 
-            <details class="ic-options-flyout">
+      <details class="ic-options-flyout">
         <summary class="ic-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
@@ -111,76 +146,129 @@
         </summary>
         <button type="button" class="ic-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar ic-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Favicon options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="fg-mode"><span>Mode</span>
-              <select id="fg-mode" formControlName="mode">
-                <option value="text">Text</option>
-                <option value="emoji">Emoji</option>
-                <option value="image">Image upload</option>
-              </select>
-            </label>
-            @if (form.controls.mode.value === 'text') {
-              <label class="ctl__field" for="fg-text"><span>Text (max 3)</span><input id="fg-text" type="text" formControlName="text" maxlength="3" placeholder="F" /></label>
-              <label class="ctl__field" for="fg-font-size"><span>Font size ({{ form.controls.fontSize.value }}%)</span>
-                <input type="range" id="fg-font-size" min="10" max="200" formControlName="fontSize" (input)="generateFavicon()" /></label>
-              <label class="ctl__field" for="fg-font-family"><span>Font</span>
-                <select id="fg-font-family" formControlName="fontFamily">@for (font of fontFamilies; track font) { <option [value]="font">{{ font }}</option> }</select></label>
-              <label class="ctl__field" for="fg-text-color"><span>Text color</span>
-                <div class="ict-color-input-row"><input type="color" id="fg-text-color" formControlName="textColor" /><input type="text" formControlName="textColor" maxlength="7" /></div></label>
-            }
-            @if (form.controls.mode.value === 'emoji') {
-              <label class="ctl__field" for="fg-emoji"><span>Emoji</span><input id="fg-emoji" type="text" formControlName="emoji" placeholder="⭐" maxlength="2" /></label>
-              <label class="ctl__field" for="fg-emoji-size"><span>Size ({{ form.controls.fontSize.value }}%)</span>
-                <input type="range" id="fg-emoji-size" min="10" max="200" formControlName="fontSize" (input)="generateFavicon()" /></label>
-            }
-            @if (form.controls.mode.value === 'image') {
-              <label class="ctl__field" for="fg-image-upload"><span>Upload image</span>
-                <input #fileInput type="file" id="fg-image-upload" accept="image/*" (change)="onFileSelected($event)" class="sr-only" />
-                <button type="button" class="ctl__tool-btn" style="width: 100%" (click)="fileInput.click()" appTooltip="Upload image" tooltipPosition="bottom">
-                  {{ uploadedImage() ? 'Image uploaded ✓' : 'Choose image' }}
-                </button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Settings</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="fg-mode">
+                <span>Mode</span>
+                <select id="fg-mode" formControlName="mode">
+                  <option value="text">Text</option>
+                  <option value="emoji">Emoji</option>
+                  <option value="image">Image upload</option>
+                </select>
               </label>
-            }
-            <label class="ctl__field" for="fg-background-color"><span>Background</span>
-              <div class="ict-color-input-row"><input type="color" id="fg-background-color" formControlName="backgroundColor" /><input type="text" formControlName="backgroundColor" maxlength="7" /></div></label>
-            <label class="ctl__field" for="fg-size"><span>Size</span>
-              <select id="fg-size" formControlName="size">@for (size of sizes; track size) { <option [value]="size">{{ size }}×{{ size }}px</option> }</select></label>
-            <label class="ctl__field" for="fg-format"><span>Format</span>
-              <select id="fg-format" formControlName="format"><option value="png">PNG</option><option value="ico">ICO</option></select></label>
-            <label class="ctl__toggle"><input type="checkbox" formControlName="rememberHistory" />
-              <div><strong>Remember history</strong><span>Store recent favicons locally.</span></div></label>
+              @if (currentMode() === 'text') {
+                <label class="ctl__field" for="fg-text"><span>Text (max 3)</span><input id="fg-text" type="text" formControlName="text" maxlength="3" placeholder="F" /></label>
+                <label class="ctl__field" for="fg-font-size">
+                  <span>Font size ({{ form.controls.fontSize.value }}%)</span>
+                  <input type="range" id="fg-font-size" min="10" max="200" formControlName="fontSize" (input)="generateFavicon()" />
+                </label>
+                <label class="ctl__field" for="fg-font-family">
+                  <span>Font</span>
+                  <select id="fg-font-family" formControlName="fontFamily">
+                    @for (font of fontFamilies; track font) {
+                      <option [value]="font">{{ font }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="ctl__field" for="fg-text-color">
+                  <span>Text color</span>
+                  <div class="ict-color-input-row">
+                    <input type="color" id="fg-text-color" formControlName="textColor" />
+                    <input type="text" formControlName="textColor" maxlength="7" aria-label="Text color hex" />
+                  </div>
+                </label>
+              }
+              @if (currentMode() === 'emoji') {
+                <label class="ctl__field" for="fg-emoji"><span>Emoji</span><input id="fg-emoji" type="text" formControlName="emoji" placeholder="⭐" maxlength="2" /></label>
+                <label class="ctl__field" for="fg-emoji-size">
+                  <span>Size ({{ form.controls.fontSize.value }}%)</span>
+                  <input type="range" id="fg-emoji-size" min="10" max="200" formControlName="fontSize" (input)="generateFavicon()" />
+                </label>
+              }
+              @if (currentMode() === 'image') {
+                <label class="ctl__field" for="fg-image-upload">
+                  <span>Upload image</span>
+                  <input #fileInput type="file" id="fg-image-upload" accept="image/*" (change)="onFileSelected($event)" class="sr-only" />
+                  <button type="button" class="ctl__tool-btn fg-upload-btn" (click)="fileInput.click()" appTooltip="Upload image" tooltipPosition="bottom">
+                    {{ uploadedImage() ? 'Image uploaded ✓' : 'Choose image' }}
+                  </button>
+                </label>
+              }
+              <label class="ctl__field" for="fg-background-color">
+                <span>Background</span>
+                <div class="ict-color-input-row">
+                  <input type="color" id="fg-background-color" formControlName="backgroundColor" />
+                  <input type="text" formControlName="backgroundColor" maxlength="7" aria-label="Background color hex" />
+                </div>
+              </label>
+              <label class="ctl__field" for="fg-size">
+                <span>Size</span>
+                <select id="fg-size" formControlName="size">
+                  @for (size of sizes; track size) {
+                    <option [value]="size">{{ size }}×{{ size }}px</option>
+                  }
+                </select>
+              </label>
+              <label class="ctl__field" for="fg-format">
+                <span>Format</span>
+                <select id="fg-format" formControlName="format">
+                  <option value="png">PNG</option>
+                  <option value="ico">ICO</option>
+                </select>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div><strong>Remember history</strong><span>Store recent favicons locally.</span></div>
+              </label>
+            </div>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!hasHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <div class="ctl__panel-body">
-            @if (hasHistory()) {
-              <ul class="ict-history-list">
-                @for (entry of history(); track entry.timestamp) {
-                  <li class="ict-history-item">
-                    <button type="button" class="ict-history-btn" (click)="applyHistory(entry)">
-                      <img [src]="entry.preview" alt="" width="32" height="32" style="border-radius: 6px" />
-                      <div><strong>{{ entry.mode | titlecase }}</strong><br /><span>{{ entry.size }}×{{ entry.size }}px</span></div>
-                    </button>
-                    <button type="button" class="ctl__icon-btn" (click)="removeHistoryEntry(entry.timestamp)" aria-label="Remove" appTooltip="Remove" tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                    </button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!hasHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (hasHistory()) {
+                <ul class="ict-history-list">
+                  @for (entry of history(); track entry.timestamp) {
+                    <li class="ict-history-item">
+                      <button type="button" class="ict-history-btn" (click)="applyHistory(entry)">
+                        <img [src]="entry.preview" alt="" width="32" height="32" class="fg-history-thumb" />
+                        <div>
+                          <strong>{{ entry.mode | titlecase }}</strong><br />
+                          <span>{{ entry.size }}×{{ entry.size }}px</span>
+                        </div>
+                      </button>
+                      <button type="button" class="ctl__icon-btn" (click)="removeHistoryEntry(entry.timestamp)" aria-label="Remove" appTooltip="Remove" tooltipPosition="bottom">
+                        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Enable history to keep recent favicons.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body fg__related">
+              <ul class="fg__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="fg__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
-            } @else {
-              <div class="ctl__panel-empty"><p>Enable history to keep recent favicons.</p></div>
-            }
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

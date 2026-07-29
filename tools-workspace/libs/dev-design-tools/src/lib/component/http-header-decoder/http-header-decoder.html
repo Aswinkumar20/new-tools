@@ -84,7 +84,7 @@
           </header>
 
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -94,13 +94,26 @@
           }
 
           @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning">
+            <div class="ctl__alert ctl__alert--warning" role="status">
               <ul>
                 @for (message of warnings(); track message) {
                   <li>{{ message }}</li>
                 }
               </ul>
             </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="hhd__suggest" aria-label="Suggested next step">
+              <div class="hhd__suggest-body">
+                <p class="hhd__suggest-title">{{ suggestion.title }}</p>
+                <p class="hhd__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="hhd__suggest-actions">
+                <a class="hhd__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="hhd__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
           }
 
           <label class="sr-only" for="rawHeaders">Headers</label>
@@ -256,6 +269,20 @@
           } @else {
             <div class="ctl__empty"><p>Enable history to keep recent decoded headers.</p></div>
           }
+        </div>
+
+        <div class="ctl__panel hhd__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="hhd__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="hhd__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
       </details>

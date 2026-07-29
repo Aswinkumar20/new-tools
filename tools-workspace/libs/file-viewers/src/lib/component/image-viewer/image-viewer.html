@@ -33,7 +33,7 @@
         <label class="ctl__tool-btn" aria-label="Upload images" appTooltip="Upload images" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple accept="image/*" (change)="onFileSelected($event)" />
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
         </label>
         <button
           type="button"
@@ -101,7 +101,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomOut()"
-            [disabled]="zoomLevel <= 25 || !currentImage"
+            [disabled]="zoomLevel <= minZoom || !currentImage"
             aria-label="Zoom out"
             appTooltip="Zoom out"
             tooltipPosition="bottom">
@@ -116,7 +116,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomIn()"
-            [disabled]="zoomLevel >= 500 || !currentImage"
+            [disabled]="zoomLevel >= maxZoom || !currentImage"
             aria-label="Zoom in"
             appTooltip="Zoom in"
             tooltipPosition="bottom">
@@ -175,6 +175,25 @@
             <div class="ctl__alert ctl__alert--error" role="alert">
               <p>{{ errorMessage }}</p>
             </div>
+          }
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="iv__suggest" aria-label="Suggested next step">
+              <div class="iv__suggest-body">
+                <p class="iv__suggest-title">{{ suggestion.title }}</p>
+                <p class="iv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="iv__suggest-actions">
+                <a class="iv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="iv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
           }
 
           @if (images.length > 0) {
@@ -333,6 +352,20 @@
           </div>
         }
 
+        <div class="ctl__panel iv__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="iv__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="iv__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </div>
+
         <div class="ctl__info">
           <div class="ctl__info-item">
             <span class="ctl__info-dot ctl__info-dot--accent"></span>
@@ -405,11 +438,11 @@
         <span class="fv-fullscreen__details">{{ formatFileSize(currentImage.size) }} · {{ activeIndexLabel }}</span>
       </div>
       <div class="fv-viewer-controls fv-fullscreen__zoom" role="group" aria-label="Fullscreen zoom controls">
-        <button type="button" class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 25" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top">
+        <button type="button" class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= minZoom" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
         </button>
         <span class="ctl__editor-badge fv-fullscreen__zoom-label">{{ zoomLevel }}%</span>
-        <button type="button" class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 500" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top">
+        <button type="button" class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= maxZoom" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
         </button>
         <button type="button" class="fv-icon-btn" (click)="fitToScreen()" [disabled]="zoomLevel === 100 && !isZoomed" aria-label="Fit to screen" appTooltip="Fit to screen" tooltipPosition="top">

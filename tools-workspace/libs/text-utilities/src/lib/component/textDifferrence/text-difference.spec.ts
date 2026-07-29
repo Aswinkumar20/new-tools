@@ -1,10 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { NGX_MONACO_EDITOR_CONFIG } from 'ngx-monaco-editor-v2';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 import { TextDifferenceComponent } from './text-difference';
-import { AssetService, ToastService } from '@tools-workspace/features-home';
 
 describe('TextDifferenceComponent', () => {
   let component: TextDifferenceComponent;
@@ -14,10 +13,8 @@ describe('TextDifferenceComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TextDifferenceComponent],
       providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
-        { provide: ToastService, useValue: { info: jest.fn(), error: jest.fn() } },
+        ...textToolTestProviders(),
+        provideRouter([]),
         { provide: NGX_MONACO_EDITOR_CONFIG, useValue: {} },
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -28,8 +25,10 @@ describe('TextDifferenceComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create with related tools and a suggestion', () => {
     expect(component).toBeTruthy();
+    expect(component.relatedTools.length).toBeGreaterThan(0);
+    expect(component.primarySuggestion).toBeTruthy();
   });
 
   it('toggles sidebar visibility', () => {
@@ -55,9 +54,26 @@ describe('TextDifferenceComponent', () => {
     expect(component.diffStats.modifiedChars).toBe(4);
   });
 
-  it('clears both sides', () => {
+  it('clears both sides and suggests get-started', () => {
     component.clearAll();
     expect(component.originalModel.code).toBe('');
     expect(component.modifiedModel.code).toBe('');
+    expect(component.primarySuggestion?.id).toBe('td-get-started');
+  });
+
+  it('suggests identical when both sides match', () => {
+    component.clearAll();
+    component['setOriginalContent']('same');
+    component['setModifiedContent']('same');
+    expect(component.primarySuggestion?.id).toBe('td-identical');
+  });
+
+  it('dismisses contextual suggestions', () => {
+    const suggestion = component.primarySuggestion;
+    expect(suggestion).toBeTruthy();
+    if (suggestion) {
+      component.dismissSuggestion(suggestion.id);
+      expect(component.primarySuggestion).toBeNull();
+    }
   });
 });

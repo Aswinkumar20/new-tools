@@ -28,31 +28,33 @@
       </div>
     </div>
 
-    <div class="tt-workflow" aria-label="Validator actions"><div class="tt-workflow__group tt-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="toggleMask()"
-        [disabled]="!cardNumberDigits().length"
-        aria-label="Toggle number mask"
-        appTooltip="Toggle number mask"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">{{ showNumberMasked() ? 'Show' : 'Mask' }}</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        [disabled]="!hasInput()"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="tt-workflow" aria-label="Validator actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleMask()"
+          [disabled]="!cardNumberDigits().length"
+          aria-label="Toggle number mask"
+          appTooltip="Toggle number mask"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">{{ showNumberMasked() ? 'Show' : 'Mask' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor tt-editor-panel">
@@ -71,6 +73,26 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ccv__suggest" aria-label="Suggested next step">
+              <div class="ccv__suggest-body">
+                <p class="ccv__suggest-title">{{ suggestion.title }}</p>
+                <p class="ccv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ccv__suggest-actions">
+                <a class="ccv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="ccv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-body ccv-form">
             <div class="ccv-card-preview">
               <div class="ccv-card-surface">
@@ -81,11 +103,11 @@
                 <div class="ccv-card-footer">
                   <div class="ccv-card-holder">
                     <span class="ccv-card-label">Card holder</span>
-                    <strong>{{ form.controls.name.value || 'FULL NAME' }}</strong>
+                    <strong>{{ formSnapshot().name || 'FULL NAME' }}</strong>
                   </div>
                   <div class="ccv-card-expiry">
                     <span class="ccv-card-label">Expires</span>
-                    <strong>{{ form.controls.expiry.value || 'MM/YY' }}</strong>
+                    <strong>{{ formSnapshot().expiry || 'MM/YY' }}</strong>
                   </div>
                 </div>
               </div>
@@ -163,7 +185,13 @@
                 <span class="ccv-check-icon">{{ validationResult().luhnValid ? '✓' : '!' }}</span>
                 <div>
                   <strong>Luhn algorithm</strong>
-                  <p>{{ validationResult().luhnValid ? 'Checksum is valid.' : 'Card number fails the Luhn checksum.' }}</p>
+                  <p>
+                    {{
+                      validationResult().luhnValid
+                        ? 'Checksum is valid.'
+                        : 'Card number fails the Luhn checksum.'
+                    }}
+                  </p>
                 </div>
               </div>
               <div class="ccv-check" [class.ccv-check--ok]="validationResult().lengthValid">
@@ -171,9 +199,11 @@
                 <div>
                   <strong>Length</strong>
                   <p>
-                    {{ validationResult().lengthValid
-                      ? 'Length matches typical lengths for this brand.'
-                      : 'Length is unusual for this brand.' }}
+                    {{
+                      validationResult().lengthValid
+                        ? 'Length matches typical lengths for this brand.'
+                        : 'Length is unusual for this brand.'
+                    }}
                   </p>
                 </div>
               </div>
@@ -182,9 +212,11 @@
                 <div>
                   <strong>Expiry date</strong>
                   <p>
-                    {{ validationResult().expiryValid
-                      ? 'Expiry is formatted correctly and not in the past.'
-                      : 'Expiry is invalid or in the past.' }}
+                    {{
+                      validationResult().expiryValid
+                        ? 'Expiry is formatted correctly and not in the past.'
+                        : 'Expiry is invalid or in the past.'
+                    }}
                   </p>
                 </div>
               </div>
@@ -193,9 +225,11 @@
                 <div>
                   <strong>CVV</strong>
                   <p>
-                    {{ validationResult().cvvValid
-                      ? 'CVV length matches expectations for this brand.'
-                      : 'CVV length is not valid for this brand.' }}
+                    {{
+                      validationResult().cvvValid
+                        ? 'CVV length matches expectations for this brand.'
+                        : 'CVV length is not valid for this brand.'
+                    }}
                   </p>
                 </div>
               </div>
@@ -218,53 +252,80 @@
         </section>
       </div>
 
-            <details class="tt-options-flyout">
+      <details class="tt-options-flyout">
         <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="tt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Validator info">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Summary</header>
-          <div class="ctl__panel-body ccv-summary">
-            <div class="ccv-summary-row">
-              <span>Overall</span>
-              <strong [class.ccv-summary--ok]="isValid()" [class.ccv-summary--error]="!isValid()">
-                {{ isValid() ? 'Valid' : 'Invalid' }}
-              </strong>
-            </div>
-            <div class="ccv-summary-row">
-              <span>Brand</span>
-              <strong>{{ brandLabel() }}</strong>
-            </div>
-            <div class="ccv-summary-row">
-              <span>Digits</span>
-              <strong>{{ cardNumberDigits().length }}</strong>
-            </div>
-            <div class="ccv-summary-row">
-              <span>Expiry</span>
-              <strong>{{ validationResult().expiryValid ? 'Valid' : 'Invalid' }}</strong>
-            </div>
-            <div class="ccv-summary-row">
-              <span>CVV</span>
-              <strong>{{ validationResult().cvvValid ? 'Valid' : 'Invalid' }}</strong>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Summary</header>
+            <div class="ctl__panel-body ccv-summary">
+              <div class="ccv-summary-row">
+                <span>Overall</span>
+                <strong [class.ccv-summary--ok]="isValid()" [class.ccv-summary--error]="!isValid()">
+                  {{ isValid() ? 'Valid' : 'Invalid' }}
+                </strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Brand</span>
+                <strong>{{ brandLabel() }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Digits</span>
+                <strong>{{ cardNumberDigits().length }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Expiry</span>
+                <strong>{{ validationResult().expiryValid ? 'Valid' : 'Invalid' }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>CVV</span>
+                <strong>{{ validationResult().cvvValid ? 'Valid' : 'Invalid' }}</strong>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Validation runs <strong>locally</strong> — card data never leaves your browser.</p>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body ccv__related">
+              <ul class="ccv__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="ccv__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>This tool checks <strong>structure only</strong>, not real issuer authorization.</p>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Validation runs <strong>locally</strong> — card data never leaves your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>This tool checks <strong>structure only</strong>, not real issuer authorization.</p>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
       </details>
     </div>
 

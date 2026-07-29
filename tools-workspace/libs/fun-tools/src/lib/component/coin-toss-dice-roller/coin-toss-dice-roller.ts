@@ -1,36 +1,69 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-interface CoinResult {
-  result: 'heads' | 'tails';
-  timestamp: number;
-}
-
-interface DiceResult {
-  sides: number;
-  result: number;
-  timestamp: number;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import {
+  CTDR_COIN_FLIP_MS,
+  CTDR_DEFAULT_DICE_COUNT,
+  CTDR_DEFAULT_DICE_SIDES,
+  CTDR_DICE_OPTIONS,
+  CTDR_DICE_ROLL_MS,
+  CTDR_HISTORY_PREVIEW_LIMIT,
+  CTDR_RELATED_TOOLS
+} from '../../constants/coin-toss-dice-roller.constants';
+import { ftCopyText } from '../../shared/ft-clipboard.util';
+import type { FtRelatedToolLink } from '../../shared/ft-tool-suggestion.model';
+import type {
+  CoinDiceTab,
+  CoinResult,
+  DiceResult
+} from '../../types/coin-toss-dice-roller.types';
+import {
+  clampDiceCount,
+  computeCoinStats,
+  computeDiceStats,
+  createCoinResult,
+  createDiceResults,
+  formatLastResultText,
+  formatResultTimestamp,
+  prependHistory,
+  resolveCoinTossDiceSuggestion
+} from '../../utils/coin-toss-dice-roller.utils';
 
 @Component({
   selector: 'lib-coin-toss-dice-roller',
   standalone: true,
   templateUrl: './coin-toss-dice-roller.html',
   styleUrls: ['./coin-toss-dice-roller.scss'],
-  imports: [CommonModule, Navigation, TooltipDirective],
+  imports: [CommonModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class CoinTossDiceRollerComponent {
+export class CoinTossDiceRollerComponent implements OnDestroy {
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   readonly coinResults = signal<CoinResult[]>([]);
   readonly diceResults = signal<DiceResult[]>([]);
   readonly isFlipping = signal(false);
   readonly isRolling = signal(false);
-  readonly selectedDiceSides = signal<number>(6);
-  readonly numberOfDice = signal<number>(1);
-  readonly activeTab = signal<'coin' | 'dice'>('coin');
+  readonly selectedDiceSides = signal<number>(CTDR_DEFAULT_DICE_SIDES);
+  readonly numberOfDice = signal<number>(CTDR_DEFAULT_DICE_COUNT);
+  readonly activeTab = signal<CoinDiceTab>('coin');
+  private readonly dismissedSuggestionId = signal<string | null>(null);
+
+  private flipTimerId: ReturnType<typeof setTimeout> | null = null;
+  private rollTimerId: ReturnType<typeof setTimeout> | null = null;
+
+  readonly diceOptions = CTDR_DICE_OPTIONS;
+  readonly historyPreviewLimit = CTDR_HISTORY_PREVIEW_LIMIT;
+  readonly relatedTools: ReadonlyArray<FtRelatedToolLink> = CTDR_RELATED_TOOLS;
 
   readonly lastCoinResult = computed(() => {
     const results = this.coinResults();
@@ -43,95 +76,111 @@ export class CoinTossDiceRollerComponent {
     return results.length > 0 ? results.slice(0, count) : [];
   });
 
-  readonly coinStats = computed(() => {
-    const results = this.coinResults();
-    const heads = results.filter((r) => r.result === 'heads').length;
-    const tails = results.filter((r) => r.result === 'tails').length;
-    const total = results.length;
-    return {
-      heads, tails, total,
-      headsPercent: total > 0 ? Math.round((heads / total) * 100) : 0,
-      tailsPercent: total > 0 ? Math.round((tails / total) * 100) : 0
-    };
-  });
-
-  readonly diceStats = computed(() => {
-    const results = this.diceResults();
-    if (results.length === 0) return { total: 0, average: 0, min: 0, max: 0 };
-    const values = results.map((r) => r.result);
-    const sum = values.reduce((acc, val) => acc + val, 0);
-    return {
-      total: results.length,
-      average: Math.round((sum / values.length) * 10) / 10,
-      min: Math.min(...values),
-      max: Math.max(...values)
-    };
-  });
+  readonly coinStats = computed(() => computeCoinStats(this.coinResults()));
+  readonly diceStats = computed(() => computeDiceStats(this.diceResults()));
 
   readonly hasCoinHistory = computed(() => this.coinResults().length > 0);
   readonly hasDiceHistory = computed(() => this.diceResults().length > 0);
-  readonly lastResultText = computed(() => {
-    if (this.activeTab() === 'coin' && this.lastCoinResult()) {
-      const r = this.lastCoinResult()!;
-      return r.result === 'heads' ? 'Heads' : 'Tails';
+
+  readonly lastResultText = computed(() =>
+    formatLastResultText(this.activeTab(), this.lastCoinResult(), this.lastDiceResults())
+  );
+
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveCoinTossDiceSuggestion({
+      tab: this.activeTab(),
+      coinTotal: this.coinStats().total,
+      diceTotal: this.diceStats().total,
+      numberOfDice: this.numberOfDice(),
+      diceSides: this.selectedDiceSides()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
     }
-    const dice = this.lastDiceResults();
-    if (dice.length > 0) {
-      return dice.map((d) => d.result).join(', ');
-    }
-    return '';
+    return suggestion;
   });
 
-  readonly diceOptions = [4, 6, 8, 10, 12, 20, 100];
-
   tossCoin(): void {
-    if (this.isFlipping()) return;
+    if (this.isFlipping()) {
+      return;
+    }
     this.isFlipping.set(true);
-    setTimeout(() => {
-      const result: CoinResult = {
-        result: Math.random() < 0.5 ? 'heads' : 'tails',
-        timestamp: Date.now()
-      };
-      this.coinResults.update((current) => [result, ...current].slice(0, 50));
+    this.clearFlipTimer();
+    this.flipTimerId = setTimeout(() => {
+      const result = createCoinResult();
+      this.coinResults.update((current) => prependHistory(current, [result]));
       this.isFlipping.set(false);
-    }, 1000);
+      this.flipTimerId = null;
+    }, CTDR_COIN_FLIP_MS);
   }
 
   rollDice(): void {
-    if (this.isRolling()) return;
+    if (this.isRolling()) {
+      return;
+    }
     this.isRolling.set(true);
     const sides = this.selectedDiceSides();
     const count = this.numberOfDice();
-    setTimeout(() => {
-      const results: DiceResult[] = [];
-      for (let i = 0; i < count; i++) {
-        results.push({ sides, result: Math.floor(Math.random() * sides) + 1, timestamp: Date.now() });
-      }
-      this.diceResults.update((current) => [...results, ...current].slice(0, 50));
+    this.clearRollTimer();
+    this.rollTimerId = setTimeout(() => {
+      const results = createDiceResults(sides, count);
+      this.diceResults.update((current) => prependHistory(current, results));
       this.isRolling.set(false);
-    }, 800);
+      this.rollTimerId = null;
+    }, CTDR_DICE_ROLL_MS);
   }
 
-  clearCoinHistory(): void { this.coinResults.set([]); }
-  clearDiceHistory(): void { this.diceResults.set([]); }
+  clearCoinHistory(): void {
+    this.coinResults.set([]);
+  }
 
-  copyLastResult(): void {
-    const text = this.lastResultText();
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      alert('Result copied to clipboard!');
-    });
+  clearDiceHistory(): void {
+    this.diceResults.set([]);
+  }
+
+  async copyLastResult(): Promise<void> {
+    await ftCopyText(this.toast, this.lastResultText(), 'Result');
   }
 
   formatTimestamp(timestamp: number): string {
-    return new Date(timestamp).toLocaleTimeString();
+    return formatResultTimestamp(timestamp);
   }
 
-  setDiceSides(sides: number): void { this.selectedDiceSides.set(sides); }
+  setDiceSides(sides: number): void {
+    this.selectedDiceSides.set(sides);
+  }
 
   setNumberOfDice(count: number): void {
-    if (count >= 1 && count <= 10) this.numberOfDice.set(count);
+    const clamped = clampDiceCount(count);
+    if (clamped !== null) {
+      this.numberOfDice.set(clamped);
+    }
   }
 
-  setTab(tab: 'coin' | 'dice'): void { this.activeTab.set(tab); }
+  setTab(tab: CoinDiceTab): void {
+    this.activeTab.set(tab);
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
+  ngOnDestroy(): void {
+    this.clearFlipTimer();
+    this.clearRollTimer();
+  }
+
+  private clearFlipTimer(): void {
+    if (this.flipTimerId !== null) {
+      clearTimeout(this.flipTimerId);
+      this.flipTimerId = null;
+    }
+  }
+
+  private clearRollTimer(): void {
+    if (this.rollTimerId !== null) {
+      clearTimeout(this.rollTimerId);
+      this.rollTimerId = null;
+    }
+  }
 }

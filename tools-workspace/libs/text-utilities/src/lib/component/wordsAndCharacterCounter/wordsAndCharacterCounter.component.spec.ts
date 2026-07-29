@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testin
 import { WordsAndCharacterCounterComponent } from './wordsAndCharacterCounter.component';
 import { DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
 import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 
 describe('WordsAndCharacterCounterComponent', () => {
@@ -34,7 +35,7 @@ describe('WordsAndCharacterCounterComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [WordsAndCharacterCounterComponent],
-      providers: [...textToolTestProviders()],
+      providers: [...textToolTestProviders(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(WordsAndCharacterCounterComponent);
@@ -48,8 +49,19 @@ describe('WordsAndCharacterCounterComponent', () => {
     }
   });
 
-  it('should create', () => {
+  it('should create with get-started suggestion and related tools', () => {
     expect(component).toBeTruthy();
+    expect(component.primarySuggestion?.id).toBe('wcc-get-started');
+    expect(component.relatedTools.length).toBeGreaterThan(0);
+  });
+
+  it('dismisses contextual suggestions', () => {
+    const suggestion = component.primarySuggestion;
+    expect(suggestion).toBeTruthy();
+    if (suggestion) {
+      component.dismissSuggestion(suggestion.id);
+      expect(component.primarySuggestion).toBeNull();
+    }
   });
 
   describe('Text Input and Counting', () => {

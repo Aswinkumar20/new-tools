@@ -90,6 +90,20 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="jfv__suggest" aria-label="Suggested next step">
+              <div class="jfv__suggest-body">
+                <p class="jfv__suggest-title">{{ suggestion.title }}</p>
+                <p class="jfv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="jfv__suggest-actions">
+                <a class="jfv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="jfv__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
@@ -152,7 +166,12 @@
             @default {
               @if (validationResult) {
                 <div class="ctl__editor-body">
-                  <div class="validation-status" [class.validation-status--success]="validationResult.status === 'success'" [class.validation-status--error]="validationResult.status === 'error'">
+                  <div
+                    class="validation-status"
+                    [class.validation-status--success]="validationResult.status === 'success'"
+                    [class.validation-status--error]="validationResult.status === 'error'"
+                    role="alert"
+                    [attr.aria-live]="validationResult.status === 'error' ? 'assertive' : 'polite'">
                     <strong>{{ validationResult.status === 'success' ? 'Valid JSON' : 'Syntax error' }}</strong>
                     <p>{{ validationResult.message }}</p>
                     @if (validationResult.line) {
@@ -203,6 +222,19 @@
         </div>
         <div class="ctl__info">
           <div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Processing runs <strong>locally</strong> in your browser.</p></div>
+        </div>
+        <div class="ctl__panel jfv__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="jfv__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="jfv__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
       </details>

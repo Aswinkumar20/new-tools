@@ -1,34 +1,72 @@
 import { Component } from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
-import { testRegex } from '../../shared/text-transform.utils';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  REGEX_TESTER_DEFAULT_FLAGS,
+  REGEX_TESTER_RELATED_TOOLS
+} from '../../constants/regex-tester.constants';
+import {
+  buildRegexFlagsString,
+  resolveRegexTesterSuggestion,
+  runRegexTester
+} from '../../utils/regex-tester.utils';
 
 @Component({
   selector: 'lib-regex-tester',
   standalone: true,
   templateUrl: './regex-tester.html',
   styleUrls: ['./regex-tester.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
 })
 export class RegexTesterComponent extends TextToolBase {
   pattern = '';
-  flagGlobal = true;
-  flagIgnoreCase = false;
-  flagMultiline = false;
-  flagDotAll = false;
-  flagUnicode = false;
+  flagGlobal = REGEX_TESTER_DEFAULT_FLAGS.global;
+  flagIgnoreCase = REGEX_TESTER_DEFAULT_FLAGS.ignoreCase;
+  flagMultiline = REGEX_TESTER_DEFAULT_FLAGS.multiline;
+  flagDotAll = REGEX_TESTER_DEFAULT_FLAGS.dotAll;
+  flagUnicode = REGEX_TESTER_DEFAULT_FLAGS.unicode;
   matchCount = 0;
 
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = REGEX_TESTER_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
   get flagsString(): string {
-    let flags = '';
-    if (this.flagGlobal) flags += 'g';
-    if (this.flagIgnoreCase) flags += 'i';
-    if (this.flagMultiline) flags += 'm';
-    if (this.flagDotAll) flags += 's';
-    if (this.flagUnicode) flags += 'u';
-    return flags;
+    return buildRegexFlagsString({
+      global: this.flagGlobal,
+      ignoreCase: this.flagIgnoreCase,
+      multiline: this.flagMultiline,
+      dotAll: this.flagDotAll,
+      unicode: this.flagUnicode
+    });
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const suggestion = resolveRegexTesterSuggestion({
+      hasInput: this.hasInput,
+      hasPattern: !!this.pattern,
+      hasOutput: this.hasOutput,
+      errorMessage: this.errorMessage,
+      matchCount: this.matchCount,
+      flagGlobal: this.flagGlobal
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  override onInputChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onInputChange();
+  }
+
+  override onOptionsChange(): void {
+    this.dismissedSuggestionId = null;
+    super.onOptionsChange();
   }
 
   onPatternChange(): void {
@@ -40,34 +78,33 @@ export class RegexTesterComponent extends TextToolBase {
   }
 
   protected process(): void {
-    if (!this.pattern) {
+    const result = runRegexTester({
+      inputText: this.inputText,
+      pattern: this.pattern,
+      flags: {
+        global: this.flagGlobal,
+        ignoreCase: this.flagIgnoreCase,
+        multiline: this.flagMultiline,
+        dotAll: this.flagDotAll,
+        unicode: this.flagUnicode
+      }
+    });
+
+    if (result.errorMessage) {
       this.matchCount = 0;
       this.outputText = '';
-      return;
+      throw new Error(result.errorMessage);
     }
 
-    const result = testRegex(this.inputText, this.pattern, this.flagsString);
-    if (result.error) {
-      this.matchCount = 0;
-      this.outputText = '';
-      throw new Error(result.error);
-    }
-
-    this.matchCount = result.matches.length;
-    this.outputText = result.matches
-      .map((match, i) => {
-        const start = match.index ?? 0;
-        const end = start + match[0].length;
-        const groups =
-          match.length > 1
-            ? ` groups: [${match.slice(1).map((g) => JSON.stringify(g ?? '')).join(', ')}]`
-            : '';
-        return `#${i + 1} [${start}–${end}] "${match[0]}"${groups}`;
-      })
-      .join('\n');
+    this.matchCount = result.matchCount;
+    this.outputText = result.output;
   }
 
   protected override resetDerivedState(): void {
     this.matchCount = 0;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
   }
 }

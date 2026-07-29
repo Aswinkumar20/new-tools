@@ -91,8 +91,22 @@
             </div>
           </header>
           @if (parseStatus.status === 'error' && diagnostics.length) {
-            <div class="ctl__alert ctl__alert--error">{{ parseStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ parseStatus.message }}</div>
           }
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="jp__suggest" aria-label="Suggested next step">
+              <div class="jp__suggest-body">
+                <p class="jp__suggest-title">{{ suggestion.title }}</p>
+                <p class="jp__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="jp__suggest-actions">
+                <a class="jp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="jp__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
@@ -173,6 +187,19 @@
               <button type="button" class="ctl__tool-btn" (click)="copyStringifyOutput()" [disabled]="!stringifyOutput" appTooltip="Copy stringify output" tooltipPosition="bottom" aria-label="Copy stringify output">Copy</button>
             }
           </div>
+        </div>
+        <div class="ctl__panel jp__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="jp__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="jp__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
         </div>
       </aside>
       </details>

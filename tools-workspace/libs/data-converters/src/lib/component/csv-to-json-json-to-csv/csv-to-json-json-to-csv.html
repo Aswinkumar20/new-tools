@@ -139,6 +139,20 @@
               </button>
             </div>
           </header>
+
+          @if (primarySuggestion; as suggestion) {
+            <aside class="cj__suggest" aria-label="Suggested next step">
+              <div class="cj__suggest-body">
+                <p class="cj__suggest-title">{{ suggestion.title }}</p>
+                <p class="cj__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="cj__suggest-actions">
+                <a class="cj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="cj__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <div class="ctl__editor-wrap">
             <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
               <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
@@ -189,7 +203,7 @@
             </div>
           </header>
           @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error">{{ conversionStatus.message }}</div>
+            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
           }
           @if (resultOutput && conversionStatus.status !== 'error') {
             <div class="ctl__editor-wrap">
@@ -315,6 +329,22 @@
           <div class="ctl__info-item">
             <span class="ctl__info-dot"></span>
             <p>Use <strong>Upload</strong> or drag-and-drop for large files.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head"><span>Related tools</span></header>
+          <div class="ctl__panel-body cj__related">
+            <ul class="cj__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="cj__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </div>
       </aside>

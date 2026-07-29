@@ -18,7 +18,7 @@
           <span class="ctl__stat-label">Filtered</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.autoMonitor.value ? 'On' : 'Off' }}</span>
+          <span class="ctl__stat-value">{{ monitorLabel() }}</span>
           <span class="ctl__stat-label">Monitor</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
@@ -28,47 +28,118 @@
       </div>
     </div>
 
-    <div class="cf-workflow" aria-label="History actions"><div class="cf-workflow__group cf-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn" (click)="manualAdd()" [disabled]="!clipboardSupported()" aria-label="Add current clipboard" appTooltip="Add clipboard" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Add clip</span>
-      </button>
-      <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!hasHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <div class="cf-workflow" aria-label="History actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="manualAdd()"
+          [disabled]="!clipboardSupported()"
+          aria-label="Add current clipboard"
+          appTooltip="Add clipboard"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Add clip</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearHistory()"
+          [disabled]="!hasHistory()"
+          aria-label="Clear history"
+          appTooltip="Clear history"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="downloadJson()"
+          [disabled]="!hasHistory()"
+          aria-label="Download history as JSON"
+          appTooltip="Download JSON"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+      </div>
     </div>
-    </div>
+
     <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
       <div class="ctl__editors ctl__editors--split">
         <section class="ctl__editor cf-editor-panel">
           <header class="ctl__editor-head">
             <span>Selected entry</span>
             <div class="ctl__editor-actions">
-              <button type="button" class="ctl__icon-btn" (click)="copySelected()" [disabled]="!selectedEntry()" aria-label="Copy selected" appTooltip="Copy selected" tooltipPosition="bottom">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copySelected()"
+                [disabled]="!selectedEntry()"
+                aria-label="Copy selected"
+                appTooltip="Copy selected"
+                tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
           </header>
+
           @if (!clipboardSupported()) {
-            <div class="ctl__alert ctl__alert--warning"><p>Clipboard API is not available in this browser.</p></div>
-          }
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
-              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <p>Clipboard API is not available in this browser.</p>
             </div>
           }
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ch__suggest" aria-label="Suggested next step">
+              <div class="ch__suggest-body">
+                <p class="ch__suggest-title">{{ suggestion.title }}</p>
+                <p class="ch__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ch__suggest-actions">
+                <a class="ch__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="ch__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
           @if (selectedEntry(); as entry) {
-            <textarea class="ctl__textarea" readonly rows="1" [value]="entry.text" aria-label="Selected clipboard entry"></textarea>
+            <textarea
+              class="ctl__textarea"
+              readonly
+              rows="1"
+              [value]="entry.text"
+              aria-label="Selected clipboard entry"></textarea>
           } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Select an entry from history to view its full content.</p></div>
+            <div class="ctl__empty" aria-live="polite">
+              <p>Select an entry from history to view its full content.</p>
+            </div>
           }
         </section>
 
         <section class="ctl__editor ctl__editor--output cf-editor-panel">
           <header class="ctl__editor-head">
             <span>Preview</span>
-            @if (selectedEntry()) { <span class="ctl__editor-badge">{{ selectedEntry()!.type }}</span> }
+            @if (selectedEntry(); as entry) {
+              <span class="ctl__editor-badge">{{ entry.type }}</span>
+            }
           </header>
           @if (selectedEntry(); as entry) {
             <div class="ctl__editor-body ch-preview">
@@ -76,78 +147,127 @@
               <small>{{ formatBytes(entry.length) }} · {{ formatTimestamp(entry.timestamp) }}</small>
             </div>
           } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Entry preview appears here when you select from history.</p></div>
+            <div class="ctl__empty" aria-live="polite">
+              <p>Entry preview appears here when you select from history.</p>
+            </div>
           }
         </section>
       </div>
 
-            <details class="cf-options-flyout">
+      <details class="cf-options-flyout">
         <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
           </svg>
           <span>Options</span>
         </summary>
-        <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <button
+          type="button"
+          class="cf-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
         <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Settings and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search</header>
-          <div class="ctl__settings">
-            <label class="ctl__field">
-              <span>Filter entries</span>
-              <input type="search" placeholder="Search history…" [value]="searchQuery()" (input)="onSearchChange($any($event.target).value)" />
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Search</header>
+            <div class="ctl__settings">
+              <label class="ctl__field">
+                <span>Filter entries</span>
+                <input
+                  type="search"
+                  placeholder="Search history…"
+                  [value]="searchQuery()"
+                  (input)="onSearchChange($any($event.target).value)" />
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="autoMonitor" />
-              <div><strong>Auto-monitor</strong><span>Track clipboard changes automatically.</span></div>
-            </label>
-            <label class="ctl__field">
-              <span>Max entries</span>
-              <input type="number" min="10" max="500" formControlName="maxEntries" />
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="excludeDuplicates" />
-              <div><strong>Exclude duplicates</strong><span>Skip identical consecutive clips.</span></div>
-            </label>
-            <label class="ctl__field">
-              <span>Min length</span>
-              <input type="number" min="1" max="1000" formControlName="minLength" />
-            </label>
-            <label class="ctl__field">
-              <span>Max length</span>
-              <input type="number" min="100" max="1000000" formControlName="maxLength" />
-            </label>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Settings</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="autoMonitor" />
+                <div><strong>Auto-monitor</strong><span>Track clipboard changes automatically.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Max entries</span>
+                <input type="number" min="10" max="500" formControlName="maxEntries" />
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="excludeDuplicates" />
+                <div><strong>Exclude duplicates</strong><span>Skip identical consecutive clips.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Min length</span>
+                <input type="number" min="1" max="1000" formControlName="minLength" />
+              </label>
+              <label class="ctl__field">
+                <span>Max length</span>
+                <input type="number" min="100" max="1000000" formControlName="maxLength" />
+              </label>
+            </div>
           </div>
-        </div>
 
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">History</header>
-          <div class="ctl__panel-body">
-            @if (filteredHistory().length) {
-              <ul class="cft-history">
-                @for (entry of filteredHistory(); track entry.id) {
-                  <li class="cft-history__item" [class.cft-history__item--active]="selectedEntry()?.id === entry.id">
-                    <button type="button" class="cft-history__btn" (click)="selectEntry(entry)">
-                      <span class="cft-history__badge">{{ entry.type }}</span>
-                      <strong>{{ entry.preview }}</strong>
-                      <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                    </button>
-                    <button type="button" class="cft-history__remove" (click)="removeEntry(entry.id)" aria-label="Remove entry">×</button>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">History</header>
+            <div class="ctl__panel-body">
+              @if (filteredHistory().length) {
+                <ul class="cft-history">
+                  @for (entry of filteredHistory(); track entry.id) {
+                    <li
+                      class="cft-history__item"
+                      [class.cft-history__item--active]="selectedEntry()?.id === entry.id">
+                      <button type="button" class="cft-history__btn" (click)="selectEntry(entry)">
+                        <span class="cft-history__badge">{{ entry.type }}</span>
+                        <strong>{{ entry.preview }}</strong>
+                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="cft-history__remove"
+                        (click)="removeEntry(entry.id)"
+                        aria-label="Remove entry">
+                        ×
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="cft-history__empty">
+                  {{ hasHistory() ? 'No entries match your search.' : 'No history yet — enable monitoring or add a clip.' }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body ch__related">
+              <ul class="ch__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="ch__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
                   </li>
                 }
               </ul>
-            } @else {
-              <p class="cft-history__empty">{{ hasHistory() ? 'No entries match your search.' : 'No history yet — enable monitoring or add a clip.' }}</p>
-            }
+            </div>
           </div>
-        </div>
-      </aside>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>History is stored in <strong>localStorage</strong> on this device only.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Clipboard read may require focus and permission in some browsers.</p>
+            </div>
+          </div>
+        </aside>
       </details>
     </div>
 

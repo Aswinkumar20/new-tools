@@ -1,122 +1,124 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  MOCK_JSON_ARRAY_COUNT_MAX,
+  MOCK_JSON_ARRAY_COUNT_MIN,
+  MOCK_JSON_DEFAULT_ARRAY_COUNT,
+  MOCK_JSON_DEFAULT_ARRAY_LENGTH,
+  MOCK_JSON_DEFAULT_FIELDS,
+  MOCK_JSON_FIELD_TYPES,
+  MOCK_JSON_RELATED_TOOLS
+} from '../../constants/mock-json-generator.constants';
+import type {
+  MockJsonFieldType,
+  MockJsonHistoryEntry
+} from '../../types/mock-json-generator.types';
+import {
+  formatBytes,
+  formatJsonString,
+  formatRelativeTimestamp,
+  generateMockJson,
+  getFieldPlaceholder,
+  prependMockJsonHistory,
+  resolveMockJsonSuggestion,
+  toHistoryFields
+} from '../../utils/mock-json-generator.utils';
 
-type FieldType = 'string' | 'number' | 'boolean' | 'array' | 'object' | 'null' | 'email' | 'url' | 'date' | 'uuid';
-
-interface JsonField {
-  key: string;
-  type: FieldType;
-  value?: string;
-  arrayLength?: number;
-  nestedFields?: JsonField[];
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  fields: JsonField[];
-  generatedJson: string;
-}
+type FieldFormGroup = FormGroup<{
+  key: FormControl<string>;
+  type: FormControl<MockJsonFieldType>;
+  value: FormControl<string>;
+  arrayLength: FormControl<number>;
+}>;
 
 type MockJsonFormGroup = FormGroup<{
-  fields: FormArray<FormGroup<{
-    key: FormControl<string>;
-    type: FormControl<FieldType>;
-    value: FormControl<string>;
-    arrayLength: FormControl<number>;
-  }>>;
+  fields: FormArray<FieldFormGroup>;
   arrayCount: FormControl<number>;
   rememberHistory: FormControl<boolean>;
 }>;
-
-const FIELD_TYPES: Array<{ value: FieldType; label: string }> = [
-  { value: 'string', label: 'String' },
-  { value: 'number', label: 'Number' },
-  { value: 'boolean', label: 'Boolean' },
-  { value: 'array', label: 'Array' },
-  { value: 'object', label: 'Object' },
-  { value: 'null', label: 'Null' },
-  { value: 'email', label: 'Email' },
-  { value: 'url', label: 'URL' },
-  { value: 'date', label: 'Date' },
-  { value: 'uuid', label: 'UUID' }
-];
 
 @Component({
   selector: 'lib-mock-json-generator',
   standalone: true,
   templateUrl: './mock-json-generator.html',
   styleUrls: ['./mock-json-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation, TooltipDirective],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MockJsonGeneratorComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   readonly form: MockJsonFormGroup = this.fb.group({
-    fields: this.fb.array<FormGroup<{
-      key: FormControl<string>;
-      type: FormControl<FieldType>;
-      value: FormControl<string>;
-      arrayLength: FormControl<number>;
-    }>>([
-      this.createField('name', 'string', 'John Doe'),
-      this.createField('age', 'number', '25'),
-      this.createField('active', 'boolean', 'true')
-    ]),
-    arrayCount: this.fb.control(1, {
+    fields: this.fb.array<FieldFormGroup>(
+      MOCK_JSON_DEFAULT_FIELDS.map((field) => this.createField(field.key, field.type, field.value))
+    ),
+    arrayCount: this.fb.control(MOCK_JSON_DEFAULT_ARRAY_COUNT, {
       nonNullable: true,
-      validators: [Validators.min(1), Validators.max(100)]
+      validators: [Validators.min(MOCK_JSON_ARRAY_COUNT_MIN), Validators.max(MOCK_JSON_ARRAY_COUNT_MAX)]
     }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly fieldTypes = FIELD_TYPES;
+  readonly fieldTypes = MOCK_JSON_FIELD_TYPES;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = MOCK_JSON_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly generatedJson = signal<string>('');
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly generatedJson = signal('');
+  readonly history = signal<MockJsonHistoryEntry[]>([]);
+  private readonly hasCopiedJson = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasGeneratedJson = computed(() => this.generatedJson().length > 0);
   readonly fieldsFormArray = computed(() => this.form.controls.fields);
-  readonly formattedJson = computed(() => this.formatJson(this.generatedJson()));
+  readonly formattedJson = computed(() => formatJsonString(this.generatedJson()));
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveMockJsonSuggestion({
+      hasGeneratedJson: this.hasGeneratedJson(),
+      hasCopiedJson: this.hasCopiedJson(),
+      arrayCount: this.form.controls.arrayCount.value,
+      fieldTypes: this.form.controls.fields.getRawValue().map((field) => field.type),
+      hasDuplicateWarning: this.warnings().some((message) => message.includes('Duplicate'))
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
     this.form.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.dismissedSuggestionId.set(null);
         this.generateJson();
       });
 
-    // Initial generation
     this.generateJson();
   }
 
-  get fields(): FormArray<FormGroup<{ key: FormControl<string>; type: FormControl<FieldType>; value: FormControl<string>; arrayLength: FormControl<number> }>> {
+  get fields(): FormArray<FieldFormGroup> {
     return this.form.controls.fields;
   }
 
-  private createField(key: string = '', type: FieldType = 'string', value: string = '', arrayLength: number = 3): FormGroup<{
-    key: FormControl<string>;
-    type: FormControl<FieldType>;
-    value: FormControl<string>;
-    arrayLength: FormControl<number>;
-  }> {
-    return this.fb.group({
-      key: this.fb.control(key, { nonNullable: true }),
-      type: this.fb.control<FieldType>(type, { nonNullable: true }),
-      value: this.fb.control(type === 'array' && !value ? 'string' : value, { nonNullable: true }),
-      arrayLength: this.fb.control(arrayLength, {
-        nonNullable: true,
-        validators: [Validators.min(1), Validators.max(100)]
-      })
-    });
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   addField(): void {
@@ -140,38 +142,19 @@ export class MockJsonGeneratorComponent {
 
     try {
       const { fields, arrayCount } = this.form.getRawValue();
-      const count = Math.min(100, Math.max(1, arrayCount || 1));
-      const keys = fields.map((f) => f.key.trim()).filter(Boolean);
-      if (new Set(keys).size !== keys.length) {
-        this.warnings.set(['Duplicate field names — later fields overwrite earlier ones.']);
-      }
-      if (!keys.length) {
-        this.errors.set(['Add at least one field with a name.']);
+      const result = generateMockJson(fields, arrayCount);
+      this.warnings.set(result.warnings);
+
+      if (result.error) {
+        this.errors.set([result.error]);
         this.generatedJson.set('');
         return;
       }
 
-      const result: unknown[] = [];
-
-      for (let i = 0; i < count; i++) {
-        const obj: Record<string, unknown> = {};
-
-        for (const field of fields) {
-          if (!field.key) {
-            continue;
-          }
-
-          obj[field.key] = this.generateValue(field, i);
-        }
-
-        result.push(obj);
-      }
-
-      const jsonString = count === 1 ? JSON.stringify(result[0], null, 2) : JSON.stringify(result, null, 2);
-      this.generatedJson.set(jsonString);
+      this.generatedJson.set(result.json);
 
       if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(fields, jsonString);
+        this.addToHistory(fields, result.json);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate JSON';
@@ -180,145 +163,39 @@ export class MockJsonGeneratorComponent {
     }
   }
 
-  private generateValue(field: { key: string; type: FieldType; value: string; arrayLength: number }, index: number): unknown {
-    switch (field.type) {
-      case 'string':
-        return field.value || `String ${index + 1}`;
-      case 'number': {
-        if (!field.value) {
-          return index + 1;
-        }
-        const parsed = Number(field.value);
-        return Number.isFinite(parsed) ? parsed : 0;
-      }
-      case 'boolean':
-        if (!field.value) {
-          return true;
-        }
-        return ['true', '1', 'yes'].includes(field.value.toLowerCase());
-      case 'null':
-        return null;
-      case 'email':
-        return field.value || `user${index + 1}@example.com`;
-      case 'url':
-        return field.value || `https://example.com/item${index + 1}`;
-      case 'date':
-        return field.value || new Date().toISOString();
-      case 'uuid':
-        return field.value || this.generateUuid();
-      case 'array':
-        return this.generateArray(field, index);
-      case 'object':
-        return this.generateObject(field, index);
-      default:
-        return field.value || '';
+  async copyToClipboard(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (ok) {
+      this.hasCopiedJson.set(true);
+      this.errors.set([]);
+    } else {
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
     }
-  }
-
-  private generateArray(field: { key: string; type: FieldType; value: string; arrayLength: number }, index: number): unknown[] {
-    const length = field.arrayLength || 3;
-    const array: unknown[] = [];
-
-    // Try to parse value as a type hint
-    const itemType = this.parseArrayItemType(field.value);
-
-    for (let i = 0; i < length; i++) {
-      switch (itemType) {
-        case 'string':
-          array.push(`Item ${i + 1}`);
-          break;
-        case 'number':
-          array.push(i + 1);
-          break;
-        case 'boolean':
-          array.push(i % 2 === 0);
-          break;
-        default:
-          array.push(`Item ${i + 1}`);
-      }
-    }
-
-    return array;
-  }
-
-  private generateObject(field: { key: string; type: FieldType; value: string; arrayLength: number }, index: number): Record<string, unknown> {
-    // Simple object generation
-    return {
-      id: index + 1,
-      name: `Object ${index + 1}`,
-      value: field.value || 'default'
-    };
-  }
-
-  private parseArrayItemType(value: string): 'string' | 'number' | 'boolean' {
-    const normalized = (value || 'string').toLowerCase().trim();
-    if (normalized === 'number' || normalized.includes('number') || normalized.includes('num')) {
-      return 'number';
-    }
-    if (normalized === 'boolean' || normalized.includes('boolean') || normalized.includes('bool')) {
-      return 'boolean';
-    }
-    return 'string';
-  }
-
-  private generateUuid(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  }
-
-  formatJson(json: string): string {
-    if (!json) {
-      return '';
-    }
-    try {
-      const parsed = JSON.parse(json);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return json;
-    }
-  }
-
-  copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
   }
 
   clear(): void {
+    this.hasCopiedJson.set(false);
+    this.dismissedSuggestionId.set(null);
     while (this.fields.length > 0) {
       this.fields.removeAt(0);
     }
-    this.fields.push(this.createField('name', 'string', 'John Doe'));
-    this.fields.push(this.createField('age', 'number', '25'));
-    this.fields.push(this.createField('active', 'boolean', 'true'));
-    this.form.patchValue({ arrayCount: 1 });
+    for (const field of MOCK_JSON_DEFAULT_FIELDS) {
+      this.fields.push(this.createField(field.key, field.type, field.value));
+    }
+    this.form.patchValue({ arrayCount: MOCK_JSON_DEFAULT_ARRAY_COUNT });
     this.generatedJson.set('');
     this.errors.set([]);
     this.warnings.set([]);
   }
 
-  applyHistory(entry: HistoryEntry): void {
-    // Rebuild fields from history
+  applyHistory(entry: MockJsonHistoryEntry): void {
     while (this.fields.length > 0) {
       this.fields.removeAt(0);
     }
 
     for (const field of entry.fields) {
       this.fields.push(
-        this.createField(
-          field.key,
-          field.type,
-          field.value || '',
-          field.arrayLength || 3
-        )
+        this.createField(field.key, field.type, field.value || '', field.arrayLength || MOCK_JSON_DEFAULT_ARRAY_LENGTH)
       );
     }
 
@@ -333,72 +210,45 @@ export class MockJsonGeneratorComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  private addToHistory(fields: Array<{ key: string; type: FieldType; value: string; arrayLength: number }>, json: string): void {
-    const entry: HistoryEntry = {
-      timestamp: Date.now(),
-      fields: fields.map((f) => ({
-        key: f.key,
-        type: f.type,
-        value: f.value,
-        arrayLength: f.arrayLength
-      })),
-      generatedJson: json
-    };
-
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.generatedJson === entry.generatedJson);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 10);
-    });
-  }
-
-  getFieldPlaceholder(type: FieldType): string {
-    const placeholders: Record<FieldType, string> = {
-      string: 'Default value',
-      number: 'Default number',
-      boolean: 'true or false',
-      array: '',
-      object: '',
-      null: '',
-      email: 'user@example.com',
-      url: 'https://example.com',
-      date: 'ISO date string',
-      uuid: 'UUID string'
-    };
-    return placeholders[type] || 'Value';
+  getFieldPlaceholder(type: MockJsonFieldType): string {
+    return getFieldPlaceholder(type);
   }
 
   formatBytes(bytes: number): string {
-    if (bytes === 0) {
-      return '0 Bytes';
-    }
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+    return formatBytes(bytes);
   }
 
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+    return formatRelativeTimestamp(timestamp);
+  }
 
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+  private createField(
+    key = '',
+    type: MockJsonFieldType = 'string',
+    value = '',
+    arrayLength = MOCK_JSON_DEFAULT_ARRAY_LENGTH
+  ): FieldFormGroup {
+    return this.fb.group({
+      key: this.fb.control(key, { nonNullable: true }),
+      type: this.fb.control<MockJsonFieldType>(type, { nonNullable: true }),
+      value: this.fb.control(type === 'array' && !value ? 'string' : value, { nonNullable: true }),
+      arrayLength: this.fb.control(arrayLength, {
+        nonNullable: true,
+        validators: [Validators.min(MOCK_JSON_ARRAY_COUNT_MIN), Validators.max(MOCK_JSON_ARRAY_COUNT_MAX)]
+      })
+    });
+  }
+
+  private addToHistory(
+    fields: Array<{ key: string; type: MockJsonFieldType; value: string; arrayLength: number }>,
+    json: string
+  ): void {
+    const entry: MockJsonHistoryEntry = {
+      timestamp: Date.now(),
+      fields: toHistoryFields(fields),
+      generatedJson: json
+    };
+
+    this.history.update((entries) => prependMockJsonHistory(entries, entry));
   }
 }

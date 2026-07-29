@@ -11,7 +11,7 @@
       <div class="ctl__stats" aria-label="Gradient statistics">
         @if (hasResult()) {
           <div class="ctl__stat">
-            <span class="ctl__stat-value">{{ result()?.type ? (result()!.type.charAt(0).toUpperCase() + result()!.type.slice(1)) : '—' }}</span>
+            <span class="ctl__stat-value">{{ result()?.type ? formatTypeLabel(result()!.type) : '—' }}</span>
             <span class="ctl__stat-label">Type</span>
           </div>
           <div class="ctl__stat">
@@ -87,7 +87,7 @@
               <div class="cgg__preview-container" [style.background]="getGradientStyle()">
                 <div class="cgg__preview-overlay">
                   <div class="cgg__preview-info">
-                    <strong>{{ result()?.type ? (result()!.type.charAt(0).toUpperCase() + result()!.type.slice(1)) : '' }} gradient</strong>
+                    <strong>{{ result()?.type ? formatTypeLabel(result()!.type) : '' }} gradient</strong>
                     <span>{{ colorStopsFormArray().length }} color stops</span>
                   </div>
                 </div>
@@ -119,7 +119,7 @@
             </div>
           </header>
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -127,6 +127,20 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="cgg__suggest" aria-label="Suggested next step">
+              <div class="cgg__suggest-body">
+                <p class="cgg__suggest-title">{{ suggestion.title }}</p>
+                <p class="cgg__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="cgg__suggest-actions">
+                <a class="cgg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="cgg__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           @if (hasResult()) {
             <pre class="ctl__code">{{ gradientCss() }}</pre>
             <div class="cgg__code-examples">
@@ -353,7 +367,7 @@
                       <button type="button" (click)="applyHistory(entry)" class="cgg__history-item">
                         <div class="cgg__history-preview" [style.background]="entry.css"></div>
                         <div class="cgg__history-info">
-                          <strong>{{ entry.type.charAt(0).toUpperCase() + entry.type.slice(1) }}</strong>
+                          <strong>{{ formatTypeLabel(entry.type) }}</strong>
                           <span>{{ formatTimestamp(entry.timestamp) }}</span>
                         </div>
                       </button>
@@ -375,6 +389,20 @@
                 </div>
               }
             </div>
+          </div>
+
+          <div class="ctl__panel cgg__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="cgg__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="cgg__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

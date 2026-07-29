@@ -100,7 +100,7 @@
             </div>
           </header>
           @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error">
+            <div class="ctl__alert ctl__alert--error" role="alert">
               <ul>
                 @for (message of errors(); track message) {
                   <li>{{ message }}</li>
@@ -108,6 +108,20 @@
               </ul>
             </div>
           }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="brp__suggest" aria-label="Suggested next step">
+              <div class="brp__suggest-body">
+                <p class="brp__suggest-title">{{ suggestion.title }}</p>
+                <p class="brp__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="brp__suggest-actions">
+                <a class="brp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="brp__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
           <pre class="ctl__code">{{ borderRadiusCss() }}</pre>
           <div class="brp__code-examples">
             <h4>Usage examples</h4>
@@ -265,6 +279,20 @@
                 </div>
               }
             </div>
+          </div>
+
+          <div class="ctl__panel brp__related">
+            <header class="ctl__panel-head">Related tools</header>
+            <ul class="brp__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="brp__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
           </div>
         </aside>
       </details>

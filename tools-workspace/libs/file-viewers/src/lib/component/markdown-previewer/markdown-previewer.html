@@ -33,7 +33,7 @@
         <label class="ctl__tool-btn" aria-label="Upload Markdown files" appTooltip="Upload Markdown files" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple accept=".md,.markdown,.mdown,.mkdn,.mkd,text/markdown,text/x-markdown" (change)="onFileSelected($event)" />
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
         </label>
         <button
           type="button"
@@ -86,7 +86,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomOut()"
-            [disabled]="zoomLevel <= 50 || !currentFile"
+            [disabled]="zoomLevel <= minZoom || !currentFile"
             aria-label="Zoom out"
             appTooltip="Zoom out"
             tooltipPosition="bottom">
@@ -100,7 +100,7 @@
             type="button"
             class="fv-icon-btn"
             (click)="zoomIn()"
-            [disabled]="zoomLevel >= 200 || !currentFile"
+            [disabled]="zoomLevel >= maxZoom || !currentFile"
             aria-label="Zoom in"
             appTooltip="Zoom in"
             tooltipPosition="bottom">
@@ -151,11 +151,28 @@
             <span>Rendered preview</span>
           </header>
 
-          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner"></div><p>Loading Markdown…</p></div>
-          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage">
+          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner" aria-hidden="true"></div><p>Loading Markdown…</p></div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert">
             <p>{{ errorMessage }}</p>
             <button type="button" class="ctl__icon-btn" (click)="closeError()" aria-label="Dismiss error" appTooltip="Dismiss" tooltipPosition="bottom">×</button>
           </div>
+
+          <aside class="mp__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="mp__suggest-body">
+              <p class="mp__suggest-title">{{ suggestion.title }}</p>
+              <p class="mp__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="mp__suggest-actions">
+              <a class="mp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="mp__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
 
           <div class="fv-viewer-body" *ngIf="markdownFiles.length > 0">
             @if (currentFile) {
@@ -210,6 +227,17 @@
             </ul>
           </div>
         </div>
+        <div class="ctl__panel mp__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="mp__related-list">
+            <li *ngFor="let tool of relatedTools">
+              <a class="mp__related-link" [routerLink]="tool.path">
+                <strong>{{ tool.label }}</strong>
+                <span>{{ tool.description }}</span>
+              </a>
+            </li>
+          </ul>
+        </div>
         <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Files are rendered <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
       </aside>
     </div>
@@ -241,11 +269,11 @@
       <span class="fullscreen-file-details">{{ formatFileSize(currentFile.size) }} · {{ currentFile.lines }} lines</span>
     </div>
     <div class="fullscreen-zoom-controls fv-viewer-controls" role="group" aria-label="Fullscreen zoom controls">
-      <button type="button" class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= 50" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top">
+      <button type="button" class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= minZoom" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
       </button>
       <span class="ctl__editor-badge zoom-level">{{ zoomLevel }}%</span>
-      <button type="button" class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= 200" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top">
+      <button type="button" class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= maxZoom" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
       </button>
       <button type="button" class="fv-icon-btn" (click)="resetZoom()" [disabled]="zoomLevel === 100" aria-label="Reset zoom" appTooltip="Reset zoom" tooltipPosition="top">

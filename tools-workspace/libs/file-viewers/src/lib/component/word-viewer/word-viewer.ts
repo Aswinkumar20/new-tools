@@ -1,120 +1,92 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, HostListener, inject } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  inject
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
-
-// Mammoth.js types - for DOCX files
-interface MammothResult {
-  value: string; // HTML string
-  messages: Array<{ type: string; message: string }>;
-}
-
-declare const mammoth: {
-  convertToHtml(arrayBuffer: ArrayBuffer, options?: any): Promise<MammothResult>;
-  extractRawText(arrayBuffer: ArrayBuffer): Promise<{ value: string }>;
-};
-
-// Load Mammoth.js dynamically from CDN (for DOCX files)
-async function loadMammoth(): Promise<typeof mammoth> {
-  if (globalThis.window === undefined) {
-    throw new TypeError('Mammoth.js can only be loaded in browser environment');
-  }
-
-  // Check if already loaded
-  if ((globalThis as any).mammoth) {
-    return (globalThis as any).mammoth;
-  }
-
-  // Load Mammoth.js from CDN
-  const script = document.createElement('script');
-  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const mammothLib = (globalThis as any).mammoth;
-      (globalThis as any).mammoth = mammothLib;
-      resolve(mammothLib);
-    };
-    script.onerror = () => reject(new Error('Failed to load Mammoth.js library'));
-  });
-}
-
-// File type detection and supported formats
-enum DocumentType {
-  DOCX = 'docx',
-  DOC = 'doc',
-  RTF = 'rtf',
-  ODT = 'odt',
-  TXT = 'txt',
-  HTML = 'html',
-  UNSUPPORTED = 'unsupported'
-}
-
-function detectDocumentType(file: File): DocumentType {
-  const fileName = file.name.toLowerCase();
-  const mimeType = file.type.toLowerCase();
-
-  if (fileName.endsWith('.docx') || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    return DocumentType.DOCX;
-  }
-  if (fileName.endsWith('.doc') || mimeType === 'application/msword') {
-    return DocumentType.DOC;
-  }
-  if (fileName.endsWith('.rtf') || mimeType === 'application/rtf' || mimeType === 'text/rtf') {
-    return DocumentType.RTF;
-  }
-  if (fileName.endsWith('.odt') || mimeType === 'application/vnd.oasis.opendocument.text') {
-    return DocumentType.ODT;
-  }
-  if (fileName.endsWith('.txt') || mimeType === 'text/plain') {
-    return DocumentType.TXT;
-  }
-  if (fileName.endsWith('.html') || fileName.endsWith('.htm') || mimeType === 'text/html') {
-    return DocumentType.HTML;
-  }
-
-  return DocumentType.UNSUPPORTED;
-}
-
-interface WordFile {
-  name: string;
-  file: File;
-  url: string;
-  size: number;
-  htmlContent: string | null;
-  textContent: string;
-  documentType: DocumentType;
-  needsPassword: boolean;
-  passwordError: boolean;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { fvCopyText } from '../../shared/fv-clipboard.util';
+import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
+import {
+  WORD_ACCEPT_ATTR,
+  WORD_DEFAULT_ZOOM,
+  WORD_EXIT_RERENDER_MS,
+  WORD_FIT_BASE_WIDTH_PX,
+  WORD_FULLSCREEN_ENTER_DELAY_MS,
+  WORD_FULLSCREEN_EVENTS,
+  WORD_FULLSCREEN_FIT_MS,
+  WORD_FULLSCREEN_FIT_PADDING_PX,
+  WORD_MAX_FILE_SIZE_BYTES,
+  WORD_MAX_FILE_SIZE_LABEL,
+  WORD_MAX_ZOOM,
+  WORD_MIN_ZOOM,
+  WORD_NORMAL_FIT_PADDING_PX,
+  WORD_RELATED_TOOLS,
+  WORD_RENDER_DELAY_MS,
+  WORD_RENDER_MAX_ATTEMPTS,
+  WORD_RENDER_RETRY_MS,
+  WORD_SELECT_DELAY_MS,
+  WORD_SUPPORTED_LABEL
+} from '../../constants/word-viewer.constants';
+import type { WordFile } from '../../types/word-viewer.types';
+import { DocumentType } from '../../types/word-viewer.types';
+import {
+  computeWordFitToWidthZoom,
+  createWordFileRecord,
+  formatWordFileSize,
+  getDocumentTypeLabel,
+  isFullscreenActive,
+  loadMammothLibrary,
+  parseWordDocument,
+  resolveWordSuggestion,
+  safeRevokeObjectUrl,
+  stepWordZoom,
+  validateWordFiles
+} from '../../utils/word-viewer.utils';
 
 @Component({
   selector: 'lib-word-viewer',
   standalone: true,
   templateUrl: './word-viewer.html',
   styleUrls: ['./word-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, TooltipDirective]
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective]
 })
 export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('documentContainer') documentContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenContainer') fullscreenContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fullscreenDocumentContainer') fullscreenDocumentContainer!: ElementRef<HTMLDivElement>;
-  
+
+  readonly acceptAttr = WORD_ACCEPT_ATTR;
+  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = WORD_RELATED_TOOLS;
+  readonly minZoom = WORD_MIN_ZOOM;
+  readonly maxZoom = WORD_MAX_ZOOM;
+  readonly maxFileSizeLabel = WORD_MAX_FILE_SIZE_LABEL;
+  readonly supportedLabel = WORD_SUPPORTED_LABEL;
+
   wordFiles: WordFile[] = [];
-  currentWordIndex: number = -1;
-  loading: boolean = false;
-  errorMessage: string = '';
-  showDropZone: boolean = false;
-  zoomLevel: number = 100;
-  isFullscreenView: boolean = false;
-  
-  // Drag and drop handlers
+  currentWordIndex = -1;
+  loading = false;
+  errorMessage = '';
+  showDropZone = false;
+  zoomLevel = WORD_DEFAULT_ZOOM;
+  isFullscreenView = false;
+  dismissedSuggestionId: string | null = null;
+
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
   private readonly fullscreenChangeHandler = () => this.onFullscreenChange();
-  
+
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
@@ -123,10 +95,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   ngAfterViewInit(): void {
-    // Initialize Mammoth.js library
-    loadMammoth().catch(err => {
-      console.error('Failed to load Mammoth.js:', err);
+    loadMammothLibrary().catch(() => {
       this.errorMessage = 'Failed to load Word viewer library. Please refresh the page.';
+      this.cdr.detectChanges();
     });
   }
 
@@ -140,6 +111,24 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
       : null;
   }
 
+  get primarySuggestion() {
+    const suggestion = resolveWordSuggestion({
+      hasFiles: this.wordFiles.length > 0,
+      hasError: !!this.errorMessage,
+      documentType: this.currentWord?.documentType ?? null,
+      textLength: this.currentWord?.textContent?.length ?? 0
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+    this.cdr.detectChanges();
+  }
+
   setupDragAndDrop(): void {
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -148,8 +137,7 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   setupFullscreenListeners(): void {
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+    for (const eventName of WORD_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }
   }
@@ -171,7 +159,7 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      this.processFiles(Array.from(files));
+      void this.processFiles(Array.from(files));
     }
   }
 
@@ -182,44 +170,29 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.processFiles(Array.from(input.files));
+      void this.processFiles(Array.from(input.files));
     }
   }
 
   async processFiles(files: File[]): Promise<void> {
     this.errorMessage = '';
     this.loading = true;
-    
-    // Ensure Mammoth.js is loaded
-    let mammothLib: typeof mammoth;
+    this.dismissedSuggestionId = null;
+
+    let mammothLib;
     try {
-      mammothLib = await loadMammoth();
+      mammothLib = await loadMammothLibrary();
     } catch (error: unknown) {
       this.loading = false;
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.errorMessage = `Failed to load Word viewer library: ${message}. Please refresh the page.`;
-      console.error('Mammoth.js load error:', error);
       return;
     }
-    
-    const validFiles: File[] = [];
-    const errors: string[] = [];
 
-    for (const file of files) {
-      const docType = detectDocumentType(file);
-      
-      if (docType === DocumentType.UNSUPPORTED) {
-        errors.push(`${file.name}: Unsupported file format. Supported: DOCX, DOC, RTF, ODT, TXT, HTML`);
-        continue;
-      }
-      
-      if (file.size > 50 * 1024 * 1024) { // 50MB limit
-        errors.push(`${file.name}: File too large (max 50MB)`);
-        continue;
-      }
-      
-      validFiles.push(file);
-    }
+    const { validFiles, errors } = validateWordFiles(files, {
+      maxFileSize: WORD_MAX_FILE_SIZE_BYTES,
+      maxFileSizeLabel: WORD_MAX_FILE_SIZE_LABEL
+    });
 
     if (errors.length > 0) {
       this.errorMessage = errors.join('\n');
@@ -228,143 +201,33 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     for (const file of validFiles) {
       try {
         const url = URL.createObjectURL(file);
-        const docType = detectDocumentType(file);
-        
-        let htmlContent = '';
-        let textContent = '';
-        
-        // Process different document types
-        switch (docType) {
-          case DocumentType.DOCX: {
-            // Use Mammoth.js for DOCX files
-            const arrayBuffer = await file.arrayBuffer();
-            const conversionOptions = {
-              arrayBuffer,
-            };
+        const parsed = await parseWordDocument(file, mammothLib);
 
-            const convertToHtml = (mammothLib.convertToHtml as unknown as (options: unknown, config?: unknown) => Promise<MammothResult>);
-            const extractRawText = (mammothLib.extractRawText as unknown as (options: unknown) => Promise<{ value: string }>);
+        // Preserve prior behavior: mammoth warnings were console-only (now silent)
+        void parsed.warnings;
 
-            const result = await convertToHtml(conversionOptions, {
-              styleMap: [
-                "p[style-name='Heading 1'] => h1:fresh",
-                "p[style-name='Heading 2'] => h2:fresh",
-                "p[style-name='Heading 3'] => h3:fresh",
-                "p[style-name='Heading 4'] => h4:fresh",
-                "p[style-name='Heading 5'] => h5:fresh",
-                "p[style-name='Heading 6'] => h6:fresh"
-              ]
-            });
-            
-            htmlContent = result.value;
-            const textResult = await extractRawText(conversionOptions);
-            textContent = textResult.value;
-            
-            // Show warnings if any
-            if (result.messages.length > 0) {
-              const warnings = result.messages
-                .filter(m => m.type === 'warning')
-                .map(m => m.message)
-                .join('; ');
-              if (warnings) {
-                console.warn(`Warnings for ${file.name}:`, warnings);
-              }
-            }
-            break;
-          }
-            
-          case DocumentType.DOC: {
-            // For .doc files, we need to inform user that full support requires conversion
-            // .doc files are binary format, so full support requires conversion
-            htmlContent = `<div class="doc-content">
-              <div style="padding: 2rem; text-align: center; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin: 2rem 0;">
-                <h3 style="color: #856404; margin-bottom: 1rem;">Legacy DOC Format</h3>
-                <p style="color: #856404; margin-bottom: 1rem;">
-                  This is a legacy .doc file format. For best viewing experience, please convert it to .docx format.
-                </p>
-                <p style="color: #856404; font-size: 0.9rem;">
-                  The .doc format is a binary format that requires special libraries to parse. 
-                  For full support, please convert your .doc file to .docx format using Microsoft Word or an online converter.
-                </p>
-              </div>
-              <p style="color: #757575; font-style: italic; margin-top: 1rem;">
-                Note: Full .doc file support requires conversion to .docx format. 
-                You can use Microsoft Word or online converters to convert your .doc file to .docx.
-              </p>
-            </div>`;
-            textContent = 'Legacy DOC format - conversion to DOCX recommended for full support';
-            break;
-          }
-            
-          case DocumentType.RTF: {
-            // RTF files - convert to HTML (basic support)
-            const rtfText = await file.text();
-            htmlContent = await this.convertRtfToHtml(rtfText);
-            textContent = this.extractRtfText(rtfText);
-            break;
-          }
-            
-          case DocumentType.ODT: {
-            // ODT files - try to extract content (limited support)
-            // Full ODT support would require a library like odt2html
-            htmlContent = `<div class="odt-content">
-              <div style="padding: 2rem; text-align: center; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin: 2rem 0;">
-                <h3 style="color: #856404; margin-bottom: 1rem;">ODT Format</h3>
-                <p style="color: #856404;">
-                  ODT (OpenDocument Text) files require conversion. Please convert to DOCX format for better support.
-                </p>
-              </div>
-            </div>`;
-            textContent = 'ODT file content extraction not fully supported. Please convert to DOCX.';
-            break;
-          }
-            
-          case DocumentType.TXT: {
-            // Plain text files
-            const txtContent = await file.text();
-            htmlContent = `<div class="txt-content"><pre style="white-space: pre-wrap; font-family: inherit;">${this.escapeHtml(txtContent)}</pre></div>`;
-            textContent = txtContent;
-            break;
-          }
-            
-          case DocumentType.HTML: {
-            // HTML files
-            const htmlText = await file.text();
-            htmlContent = htmlText;
-            textContent = this.extractTextFromHtml(htmlText);
-            break;
-          }
-        }
-        
-        const wordFile: WordFile = {
-          name: file.name,
-          file: file,
-          url: url,
-          size: file.size,
-          htmlContent: htmlContent,
-          textContent: textContent,
-          documentType: docType,
-          needsPassword: false,
-          passwordError: false
-        };
-        
+        const wordFile = createWordFileRecord(
+          file,
+          url,
+          parsed.htmlContent,
+          parsed.textContent
+        );
+
         this.wordFiles.push(wordFile);
-        
-        // Wait for Angular to update the view
         this.cdr.detectChanges();
-        
+
         if (this.currentWordIndex === -1) {
           this.currentWordIndex = this.wordFiles.length - 1;
-          // Wait for Angular to render the view before loading the document
-          // Use requestAnimationFrame to ensure DOM is ready
           requestAnimationFrame(() => {
             setTimeout(() => {
-              this.loadWord(wordFile);
-            }, 50);
+              void this.loadWord(wordFile);
+            }, WORD_SELECT_DELAY_MS);
           });
         }
       } catch (error) {
-        errors.push(`${file.name}: Failed to load document - ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(
+          `${file.name}: Failed to load document - ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     }
 
@@ -372,7 +235,7 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     if (errors.length > 0) {
       this.errorMessage = errors.join('\n');
     }
-    
+
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
     }
@@ -384,20 +247,11 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   onFullscreenChange(): void {
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement
-    );
-    
-    if (!isCurrentlyFullscreen && this.isFullscreenView) {
-      // User exited fullscreen externally (e.g., F11 key, Escape)
+    if (!isFullscreenActive() && this.isFullscreenView) {
       this.isFullscreenView = false;
-      // Re-render in normal view
       setTimeout(() => {
         this.updateZoom();
-      }, 100);
+      }, WORD_EXIT_RERENDER_MS);
       this.cdr.detectChanges();
     }
   }
@@ -411,86 +265,83 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   enterFullscreenView(): void {
-    if (!this.currentWord) return;
-    
+    if (!this.currentWord) {
+      return;
+    }
+
     this.isFullscreenView = true;
     this.cdr.detectChanges();
-    
-    // Wait for the DOM to update after setting isFullscreenView to true
+
     requestAnimationFrame(() => {
       setTimeout(() => {
         const container = this.fullscreenContainer?.nativeElement;
         if (!container) {
-          console.error('Fullscreen container not found');
           this.isFullscreenView = false;
           this.cdr.detectChanges();
           return;
         }
 
-        // Request fullscreen
+        const afterEnter = () => {
+          setTimeout(() => this.renderDocumentInFullscreen(), WORD_FULLSCREEN_FIT_MS);
+        };
+
+        const extended = container as HTMLElement & {
+          webkitRequestFullscreen?: () => void;
+          mozRequestFullScreen?: () => void;
+          msRequestFullscreen?: () => void;
+        };
+
         if (container.requestFullscreen) {
-          container.requestFullscreen().then(() => {
-            // Re-render document in fullscreen after entering
-            setTimeout(() => {
-              this.renderDocumentInFullscreen();
-            }, 150);
-          }).catch((err: Error) => {
-            console.error('Error attempting to enable fullscreen:', err);
-            this.isFullscreenView = false;
-            this.cdr.detectChanges();
-          });
-        } else if ((container as any).webkitRequestFullscreen) {
-          (container as any).webkitRequestFullscreen();
-          setTimeout(() => {
-            this.renderDocumentInFullscreen();
-          }, 150);
-        } else if ((container as any).mozRequestFullScreen) {
-          (container as any).mozRequestFullScreen();
-          setTimeout(() => {
-            this.renderDocumentInFullscreen();
-          }, 150);
-        } else if ((container as any).msRequestFullscreen) {
-          (container as any).msRequestFullscreen();
-          setTimeout(() => {
-            this.renderDocumentInFullscreen();
-          }, 150);
+          container
+            .requestFullscreen()
+            .then(afterEnter)
+            .catch(() => {
+              this.isFullscreenView = false;
+              this.cdr.detectChanges();
+            });
+        } else if (extended.webkitRequestFullscreen) {
+          extended.webkitRequestFullscreen();
+          afterEnter();
+        } else if (extended.mozRequestFullScreen) {
+          extended.mozRequestFullScreen();
+          afterEnter();
+        } else if (extended.msRequestFullscreen) {
+          extended.msRequestFullscreen();
+          afterEnter();
         } else {
-          // Fallback: use fullscreen CSS class
           container.classList.add('fullscreen-active');
           this.isFullscreenView = true;
-          setTimeout(() => {
-            this.renderDocumentInFullscreen();
-          }, 150);
+          afterEnter();
         }
-      }, 50);
+      }, WORD_FULLSCREEN_ENTER_DELAY_MS);
     });
   }
 
   exitFullscreenView(): void {
     this.isFullscreenView = false;
-    
+
+    const doc = document as Document & {
+      webkitExitFullscreen?: () => void;
+      mozCancelFullScreen?: () => void;
+      msExitFullscreen?: () => void;
+    };
+
     if (document.exitFullscreen) {
-      document.exitFullscreen().catch((err: Error) => {
-        console.error('Error attempting to exit fullscreen:', err);
-      });
-    } else if ((document as any).webkitExitFullscreen) {
-      (document as any).webkitExitFullscreen();
-    } else if ((document as any).mozCancelFullScreen) {
-      (document as any).mozCancelFullScreen();
-    } else if ((document as any).msExitFullscreen) {
-      (document as any).msExitFullscreen();
+      document.exitFullscreen().catch(() => undefined);
+    } else if (doc.webkitExitFullscreen) {
+      doc.webkitExitFullscreen();
+    } else if (doc.mozCancelFullScreen) {
+      doc.mozCancelFullScreen();
+    } else if (doc.msExitFullscreen) {
+      doc.msExitFullscreen();
     }
-    
-    // Remove fallback fullscreen class
-    if (this.fullscreenContainer?.nativeElement) {
-      this.fullscreenContainer.nativeElement.classList.remove('fullscreen-active');
-    }
-    
-    // Re-render document in normal view
+
+    this.fullscreenContainer?.nativeElement?.classList.remove('fullscreen-active');
+
     setTimeout(() => {
       this.updateZoom();
-    }, 100);
-    
+    }, WORD_EXIT_RERENDER_MS);
+
     this.cdr.detectChanges();
   }
 
@@ -498,10 +349,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     if (!this.currentWord || !this.fullscreenDocumentContainer?.nativeElement) {
       return;
     }
-    
+
     const container = this.fullscreenDocumentContainer.nativeElement;
     container.innerHTML = this.currentWord.htmlContent || '';
-    // Ensure the container can grow to accommodate long content
     container.style.height = 'auto';
     container.style.minHeight = 'auto';
     this.updateZoom();
@@ -513,141 +363,130 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
       this.cdr.detectChanges();
       return;
     }
-    
-    // Ensure view is updated so the container exists
+
     this.cdr.detectChanges();
-    
-    // Wait for Angular to complete change detection and DOM update
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Try to get the container element - use ViewChild first, then querySelector as fallback
+    await new Promise((resolve) => setTimeout(resolve, WORD_RENDER_DELAY_MS));
+
     const getContainer = (): HTMLDivElement | null => {
-      // Try ViewChild first
       if (this.documentContainer?.nativeElement) {
         return this.documentContainer.nativeElement;
       }
-      
-      // Fallback: query DOM directly
-      const container = document.querySelector('.document-content-wrapper') as HTMLDivElement;
-      return container || null;
+      return document.querySelector('.document-content-wrapper') as HTMLDivElement;
     };
-    
-    // Retry mechanism to find the container
+
     let attempts = 0;
-    const maxAttempts = 20;
-    
+
     const tryRender = (): void => {
       attempts++;
       const container = getContainer();
-      
+
       if (container) {
         container.innerHTML = wordFile.htmlContent || '';
-        // Apply zoom level
         container.style.zoom = `${this.zoomLevel}%`;
-        // Ensure the container can grow to accommodate long content
         container.style.height = 'auto';
         container.style.minHeight = '500px';
         this.cdr.detectChanges();
         return;
       }
-      
-      if (attempts < maxAttempts) {
-        // Force change detection and try again
+
+      if (attempts < WORD_RENDER_MAX_ATTEMPTS) {
         this.cdr.detectChanges();
-        setTimeout(tryRender, 50);
+        setTimeout(tryRender, WORD_RENDER_RETRY_MS);
       } else {
-        console.error('Document container not found after multiple attempts');
-        this.errorMessage = 'Failed to render document: container not available. Please try uploading again.';
+        this.errorMessage =
+          'Failed to render document: container not available. Please try uploading again.';
         this.cdr.detectChanges();
       }
     };
-    
+
     tryRender();
   }
 
   selectWord(index: number): Promise<void> {
     if (index >= 0 && index < this.wordFiles.length) {
       this.currentWordIndex = index;
+      this.dismissedSuggestionId = null;
       return this.loadWord(this.wordFiles[index]);
     }
     return Promise.resolve();
   }
 
   zoomIn(): void {
-    if (this.zoomLevel < 200) {
-      this.zoomLevel = Math.min(this.zoomLevel + 25, 200);
+    if (this.zoomLevel < WORD_MAX_ZOOM) {
+      this.zoomLevel = stepWordZoom(this.zoomLevel, 1);
       this.updateZoom();
     }
   }
 
   zoomOut(): void {
-    if (this.zoomLevel > 50) {
-      this.zoomLevel = Math.max(this.zoomLevel - 25, 50);
+    if (this.zoomLevel > WORD_MIN_ZOOM) {
+      this.zoomLevel = stepWordZoom(this.zoomLevel, -1);
       this.updateZoom();
     }
   }
 
   resetZoom(): void {
-    this.zoomLevel = 100;
+    this.zoomLevel = WORD_DEFAULT_ZOOM;
     this.updateZoom();
   }
 
   fitToWidth(): void {
-    if (!this.currentWord) return;
+    if (!this.currentWord) {
+      return;
+    }
 
-    // Get the appropriate container based on fullscreen state
-    const container = this.isFullscreenView 
-      ? this.fullscreenDocumentContainer?.nativeElement 
+    const container = this.isFullscreenView
+      ? this.fullscreenDocumentContainer?.nativeElement
       : this.documentContainer?.nativeElement;
-    
+
     if (!container) {
       return;
     }
 
-    // Get container width, accounting for padding
-    const containerWidth = container.clientWidth - (this.isFullscreenView ? 80 : 100);
-    
-    if (containerWidth > 0) {
-      // For documents, we'll use a simple approach - set zoom to fit width
-      // This is a simplified version - in a real scenario, you'd calculate based on content width
-      const baseWidth = 900; // Base document width
-      const scale = containerWidth / baseWidth;
-      this.zoomLevel = Math.max(50, Math.min(200, Math.round(scale * 100))); // Clamp between 50% and 200%
-      this.updateZoom();
-    }
+    const containerWidth =
+      container.clientWidth -
+      (this.isFullscreenView ? WORD_FULLSCREEN_FIT_PADDING_PX : WORD_NORMAL_FIT_PADDING_PX);
+
+    this.zoomLevel = computeWordFitToWidthZoom(containerWidth, WORD_FIT_BASE_WIDTH_PX);
+    this.updateZoom();
   }
 
   updateZoom(): void {
-    // Update zoom for both normal and fullscreen containers
-    const normalContainer = this.documentContainer?.nativeElement || 
-                      document.querySelector('.document-content-wrapper') as HTMLDivElement;
+    const normalContainer =
+      this.documentContainer?.nativeElement ||
+      (document.querySelector('.document-content-wrapper') as HTMLDivElement);
     const fullscreenContainer = this.fullscreenDocumentContainer?.nativeElement;
-    
+
     if (normalContainer) {
       normalContainer.style.zoom = `${this.zoomLevel}%`;
     }
-    
+
     if (fullscreenContainer) {
       fullscreenContainer.style.zoom = `${this.zoomLevel}%`;
     }
-    
+
     this.cdr.detectChanges();
   }
 
   downloadWord(): void {
-    if (!this.currentWord) return;
-    
+    if (!this.currentWord) {
+      return;
+    }
+
     const link = document.createElement('a');
     link.href = this.currentWord.url;
     link.download = this.currentWord.name;
     document.body.appendChild(link);
     link.click();
     link.remove();
+    this.toast.info(`Downloaded ${this.currentWord.name}`);
   }
 
   printWord(): void {
-    if (!this.currentWord) return;
-    
+    if (!this.currentWord) {
+      return;
+    }
+
     const printWindow = window.open('', '_blank');
     if (printWindow && this.currentWord.htmlContent) {
       printWindow.document.write(`
@@ -673,148 +512,77 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   removeWord(index: number): void {
-    if (index >= 0 && index < this.wordFiles.length) {
-      const wordFile = this.wordFiles[index];
-      
-      // Revoke object URL
-      if (wordFile.url) {
-        URL.revokeObjectURL(wordFile.url);
-      }
-      
-      this.wordFiles.splice(index, 1);
-      
-      if (this.currentWordIndex === index) {
-        if (this.wordFiles.length > 0) {
-          this.currentWordIndex = Math.min(index, this.wordFiles.length - 1);
-          this.loadWord(this.wordFiles[this.currentWordIndex]);
-        } else {
-          this.currentWordIndex = -1;
-          if (this.documentContainer?.nativeElement) {
-            this.documentContainer.nativeElement.innerHTML = '';
-          }
-        }
-      } else if (this.currentWordIndex > index) {
-        this.currentWordIndex--;
-      }
-      
-      this.cdr.detectChanges();
+    if (index < 0 || index >= this.wordFiles.length) {
+      return;
     }
+
+    const wordFile = this.wordFiles[index];
+    safeRevokeObjectUrl(wordFile.url);
+    this.wordFiles.splice(index, 1);
+
+    if (this.currentWordIndex === index) {
+      if (this.wordFiles.length > 0) {
+        this.currentWordIndex = Math.min(index, this.wordFiles.length - 1);
+        void this.loadWord(this.wordFiles[this.currentWordIndex]);
+      } else {
+        this.currentWordIndex = -1;
+        if (this.documentContainer?.nativeElement) {
+          this.documentContainer.nativeElement.innerHTML = '';
+        }
+      }
+    } else if (this.currentWordIndex > index) {
+      this.currentWordIndex--;
+    }
+
+    this.cdr.detectChanges();
   }
 
   clearAll(): void {
     if (this.isFullscreenView) {
       this.exitFullscreenView();
     }
-    
+
     for (const wordFile of this.wordFiles) {
-      if (wordFile.url) {
-        URL.revokeObjectURL(wordFile.url);
-      }
+      safeRevokeObjectUrl(wordFile.url);
     }
-    
+
     this.wordFiles = [];
     this.currentWordIndex = -1;
-    
+    this.dismissedSuggestionId = null;
+
     if (this.documentContainer?.nativeElement) {
       this.documentContainer.nativeElement.innerHTML = '';
     }
-    
+
     if (this.fullscreenDocumentContainer?.nativeElement) {
       this.fullscreenDocumentContainer.nativeElement.innerHTML = '';
     }
-    
+
     this.cdr.detectChanges();
   }
 
   async copyTextContent(): Promise<void> {
-    if (!this.currentWord?.textContent) return;
-    try {
-      await navigator.clipboard.writeText(this.currentWord.textContent);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = this.currentWord.textContent;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
+    if (!this.currentWord?.textContent) {
+      return;
     }
+    await fvCopyText(this.toast, this.currentWord.textContent, 'Extracted text');
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  }
-
-  escapeHtml(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  extractTextFromHtml(html: string): string {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    return div.textContent || div.innerText || '';
-  }
-
-  async convertRtfToHtml(rtfText: string): Promise<string> {
-    // Basic RTF to HTML conversion
-    // Remove RTF control words and convert to HTML
-    let html = rtfText;
-    
-    // Remove RTF header
-    html = html.replace(/\{[^}]*\\rtf[^}]*\}/gi, '');
-    
-    // Convert line breaks
-    html = html.replace(/\\par\s*/gi, '<br>');
-    html = html.replace(/\\line\s*/gi, '<br>');
-    
-    // Remove RTF control words
-    html = html.replace(/\\[a-z]+\d*\s*/gi, '');
-    html = html.replace(/\\[a-z]+\s*/gi, '');
-    
-    // Remove braces
-    html = html.replace(/[{}]/g, '');
-    
-    // Preserve whitespace
-    html = html.replace(/\n\s*\n/g, '<p></p>');
-    
-    return `<div class="rtf-content">${this.escapeHtml(html)}</div>`;
-  }
-
-  extractRtfText(rtfText: string): string {
-    // Extract plain text from RTF
-    let text = rtfText;
-    // Remove RTF control words
-    text = text.replace(/\\[a-z]+\d*\s*/gi, ' ');
-    text = text.replace(/\\[a-z]+\s*/gi, ' ');
-    // Remove braces
-    text = text.replace(/[{}]/g, '');
-    // Clean up whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-    return text;
+    return formatWordFileSize(bytes);
   }
 
   getDocumentTypeLabel(type: DocumentType): string {
-    switch (type) {
-      case DocumentType.DOCX: return 'DOCX';
-      case DocumentType.DOC: return 'DOC';
-      case DocumentType.RTF: return 'RTF';
-      case DocumentType.ODT: return 'ODT';
-      case DocumentType.TXT: return 'TXT';
-      case DocumentType.HTML: return 'HTML';
-      default: return 'Unknown';
-    }
+    return getDocumentTypeLabel(type);
   }
 
   @HostListener('document:keydown', ['$event'])
   onKeyDown(e: KeyboardEvent): void {
-    // Don't handle keyboard shortcuts if user is typing in an input
     const target = e.target as HTMLElement;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    ) {
       return;
     }
 
@@ -827,20 +595,16 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
     if (this.isFullscreenView) {
       this.exitFullscreenView();
     }
-    
-    // Cleanup drag and drop
+
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);
       document.body.removeEventListener(eventName, this.preventDefaultsFn, false);
     }
-    
-    // Cleanup fullscreen listeners
-    const events = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
-    for (const eventName of events) {
+
+    for (const eventName of WORD_FULLSCREEN_EVENTS) {
       document.removeEventListener(eventName, this.fullscreenChangeHandler);
     }
-    
-    // Cleanup Word files
+
     this.clearAll();
   }
 }
