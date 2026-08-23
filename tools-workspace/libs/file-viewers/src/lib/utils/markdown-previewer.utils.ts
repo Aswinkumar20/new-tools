@@ -1,8 +1,6 @@
 import type { FvToolSuggestion } from '../shared/fv-tool-suggestion.model';
 import {
-  MARKDOWN_DOMPURIFY_CDN,
   MARKDOWN_DOMPURIFY_CONFIG,
-  MARKDOWN_MARKED_CDN,
   MARKDOWN_MARKED_OPTIONS,
   MARKDOWN_MAX_FILE_SIZE_BYTES,
   MARKDOWN_MAX_ZOOM,
@@ -17,12 +15,6 @@ import type {
   MarkedLibrary
 } from '../types/markdown-previewer.types';
 
-declare global {
-  interface Window {
-    marked?: MarkedLibrary;
-    DOMPurify?: DomPurifyLibrary;
-  }
-}
 
 export function getMarkdownFileExtension(fileName: string): string {
   const parts = fileName.split('.');
@@ -178,61 +170,36 @@ export function safeRevokeObjectUrl(url: string | undefined): void {
   }
 }
 
-export async function loadMarkedLibrary(
-  cdnUrl: string = MARKDOWN_MARKED_CDN
-): Promise<MarkedLibrary> {
+export async function loadMarkedLibrary(): Promise<MarkedLibrary> {
   if (globalThis.window === undefined) {
     throw new TypeError('Marked can only be loaded in browser environment');
   }
 
-  if (globalThis.window.marked) {
-    return globalThis.window.marked;
+  const markedMod = await import('marked');
+  const markedFn = markedMod.marked;
+  if (!markedFn?.parse) {
+    throw new Error('Failed to load marked library');
   }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const markedLib = globalThis.window.marked;
-      if (!markedLib) {
-        reject(new Error('Failed to load marked library'));
-        return;
-      }
-      markedLib.setOptions(MARKDOWN_MARKED_OPTIONS);
-      resolve(markedLib);
-    };
-    script.onerror = () => reject(new Error('Failed to load marked library'));
-  });
+  markedFn.setOptions?.(MARKDOWN_MARKED_OPTIONS);
+  return {
+    parse: (markdown: string) => String(markedFn.parse(markdown, { async: false })),
+    setOptions: (options) => {
+      markedFn.setOptions?.(options);
+    }
+  };
 }
 
-export async function loadDomPurifyLibrary(
-  cdnUrl: string = MARKDOWN_DOMPURIFY_CDN
-): Promise<DomPurifyLibrary> {
+export async function loadDomPurifyLibrary(): Promise<DomPurifyLibrary> {
   if (globalThis.window === undefined) {
     throw new TypeError('DOMPurify can only be loaded in browser environment');
   }
 
-  if (globalThis.window.DOMPurify) {
-    return globalThis.window.DOMPurify;
+  const purifyMod = await import('dompurify');
+  const purify = (purifyMod.default ?? purifyMod) as unknown as DomPurifyLibrary;
+  if (!purify?.sanitize) {
+    throw new Error('Failed to load DOMPurify library');
   }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const purify = globalThis.window.DOMPurify;
-      if (!purify) {
-        reject(new Error('Failed to load DOMPurify library'));
-        return;
-      }
-      resolve(purify);
-    };
-    script.onerror = () => reject(new Error('Failed to load DOMPurify library'));
-  });
+  return purify;
 }
 
 export function resolveMarkdownSuggestion(options: {

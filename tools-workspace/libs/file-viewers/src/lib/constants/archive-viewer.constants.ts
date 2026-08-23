@@ -1,8 +1,5 @@
 import type { FvRelatedToolLink } from '../shared/fv-tool-suggestion.model';
 
-export const ARCHIVE_JSZIP_CDN =
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-
 export const ARCHIVE_SUPPORTED_EXTENSIONS: ReadonlyArray<string> = [
   '.zip',
   '.rar',

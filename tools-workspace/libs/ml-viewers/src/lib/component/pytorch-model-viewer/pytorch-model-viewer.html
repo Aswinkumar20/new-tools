@@ -1,0 +1,201 @@
+<div class="ctl pt">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pt-eyebrow">ML viewers</span>
+        <h1>PyTorch Model Viewer <span class="pt-live-badge">Local &amp; private</span></h1>
+        <p>Explore PyTorch layers, params, and checkpoint metadata locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="pt-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pt-suggest__body">
+        <p class="pt-suggest__title">{{ suggestion.title }}</p>
+        <p class="pt-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pt-suggest__actions">
+        <button type="button" class="pt-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="pt-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="pt-toolbar">
+      <div class="pt-toolbar__group">
+        <input #fileInput class="pt-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn pt-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pt-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="pt-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="pt-files" *ngIf="files.length">
+          <div class="pt-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pt-files__chip--active]="i === currentIndex">
+            <button type="button" class="pt-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="pt-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="pt-toolbar__status"><span class="pt-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="pt-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="pt-workspace" [class.pt-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pt-panel">
+        <header class="pt-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · torch {{ parsed?.torchVersion || '—' }} · {{ filteredLayers.length }} layers · {{ filteredParams.length }} params</span>
+          </div>
+          <div class="pt-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="pt-map-wrap" [class.pt-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="pt-map" [class.pt-map--tall]="viewMode === 'layers'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="pt-cards" *ngIf="currentFile && viewMode === 'layers'">
+            <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" (click)="selectLayer(layer.id)">
+              <header>
+                <i class="pt-swatch" [style.background]="tint(layer.type, layer.index)"></i>
+                <strong>{{ layer.name }}</strong>
+                <span>{{ layer.type }}</span>
+              </header>
+              <p>{{ layer.inFeatures || '—' }} → {{ layer.outFeatures || '—' }} · {{ layer.paramCount }} params</p>
+            </article>
+            <p class="pt-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current filter.</p>
+          </div>
+          <div class="pt-cards" *ngIf="currentFile && viewMode === 'params'">
+            <article *ngFor="let entry of filteredParams; trackBy: trackByParam" [class.is-active]="selectedParam?.id === entry.id" (click)="selectParam(entry.id)">
+              <header>
+                <i class="pt-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+                <strong>{{ entry.name }}</strong>
+                <span>{{ entry.kind }}</span>
+              </header>
+              <p>{{ entry.dtype }} · {{ entry.shapeLabel }} · {{ entry.numel }} · {{ entry.layer || '—' }}</p>
+            </article>
+            <p class="pt-empty-filter" *ngIf="parsed && !filteredParams.length">No params match the current filter.</p>
+          </div>
+          <div class="pt-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <header>
+                <i class="pt-swatch" [style.background]="tint('number', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'type') || 'layer' }}</p>
+            </article>
+            <p class="pt-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="pt-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="pt-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="pt-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a PyTorch checkpoint here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="pt-loading" *ngIf="loading">Parsing checkpoint…</div>
+        </div>
+
+        <div class="pt-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pt-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pt-disclaimer">Education and research preview only — not a substitute for torch.load or Netron. Pickle weights are not executed.</p>
+      </section>
+
+      <aside class="pt-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="pt-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search model</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="pt-search" type="search" placeholder="layer:gemm type:Linear param:weight dtype:float32 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'layers' && filteredLayers.length">
+          <header class="ctl__panel-head">Layers</header>
+          <div class="ctl__panel-body pt-units">
+            <button type="button" *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayerId === layer.id" (click)="selectLayer(layer.id)">
+              <i class="pt-swatch" [style.background]="tint(layer.type, layer.index)"></i>
+              <span>{{ layer.name }} <small>{{ layer.type }} · {{ layer.inFeatures || '—' }}→{{ layer.outFeatures || '—' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'params' && filteredParams.length">
+          <header class="ctl__panel-head">Params</header>
+          <div class="ctl__panel-body pt-units">
+            <button type="button" *ngFor="let entry of filteredParams; trackBy: trackByParam" [class.is-active]="selectedParamId === entry.id" (click)="selectParam(entry.id)">
+              <i class="pt-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+              <span>{{ entry.name }} <small>{{ entry.kind }} · {{ entry.dtype }} {{ entry.shapeLabel }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length">
+          <header class="ctl__panel-head">Rows</header>
+          <div class="ctl__panel-body pt-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="pt-swatch" [style.background]="tint('number', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'type') }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'layers' && selectedLayer">
+          <header class="ctl__panel-head">Selected layer</header>
+          <div class="ctl__panel-body">
+            <dl class="pt-meta">
+              <div *ngFor="let row of layerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'params' && selectedParam">
+          <header class="ctl__panel-head">Selected param</header>
+          <div class="ctl__panel-body">
+            <dl class="pt-meta">
+              <div *ngFor="let row of paramMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pt-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="pt-drop" *ngIf="showDropZone"><p>Drop PyTorch checkpoint to preview</p></div>
+  </main>
+</div>

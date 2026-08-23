@@ -1,8 +1,15 @@
-import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
+import { validatePageRangeInput } from '../../shared/pdf.validation';
+import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
+import { downloadBytes, downloadBlob, cloneBytes } from '../../shared/pdf.utils';
+import { PdfPreviewService } from '../../services/pdf-preview.service';
+import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
 
 interface PdfFile {
   file: File;
@@ -27,11 +34,20 @@ interface SplitResult {
   standalone: true,
   templateUrl: './split-pdfs.html',
   styleUrls: ['./split-pdfs.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective, PdfFullscreenOverlayComponent]
 })
 export class SplitPdfsComponent implements OnInit {
+  readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+  private readonly preview = inject(PdfPreviewService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfPreviewCanvas') pdfPreviewCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('pdfPreviewCanvasWrap') pdfPreviewCanvasWrap?: ElementRef<HTMLElement>;
+  @ViewChild('optionsFlyout') optionsFlyout?: ElementRef<HTMLElement>;
+  @ViewChild(PdfFullscreenOverlayComponent) fullscreenOverlay?: PdfFullscreenOverlayComponent;
+
+  previewFullscreen = false;
+  optionsPanelOpen = true;
 
   // PDF file
   pdfFile: PdfFile | null = null;
@@ -42,8 +58,11 @@ export class SplitPdfsComponent implements OnInit {
   showDropZone: boolean = false;
   loading: boolean = false;
   loadingMessage: string = 'Processing...';
-  errorMessage: string = '';
-  successMessage: string = '';
+  previewRendering = false;
+  previewError = '';
+  private previewRenderRetries = 0;
+  private readonly maxPreviewRenderRetries = 20;
+  private previewRenderGeneration = 0;
   
   // Password handling
   showPasswordDialog: boolean = false;
@@ -60,57 +79,42 @@ export class SplitPdfsComponent implements OnInit {
   
   // Split results
   splitResults: SplitResult[] = [];
+
+  get needsSplitConfig(): boolean {
+    return !!this.pdfFile && this.splitResults.length === 0;
+  }
+
+  get canSplit(): boolean {
+    return !!this.pdfFile?.pdfDoc && !this.loading && this.splitResults.length > 0;
+  }
+
+  get canReset(): boolean {
+    return !!this.pdfFile && !this.loading;
+  }
+
+  get splitConfigHint(): string {
+    if (!this.pdfFile) return '';
+    return 'Choose a split mode and enter page ranges in Configuration before splitting.';
+  }
+
+  openOptionsPanel(): void {
+    this.optionsPanelOpen = true;
+    this.optionsFlyout?.nativeElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    this.cdr.detectChanges();
+  }
+
+  toggleOptionsPanel(): void {
+    this.optionsPanelOpen = !this.optionsPanelOpen;
+    this.cdr.detectChanges();
+  }
   
   // Preview
-  private pdfjsLib: any = null;
-  private pdfPreviewScale: number = 1.5;
-  private cachedPdfDocument: any = null;
   private pdfPreviewBytes: Uint8Array | null = null;
   
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
-    this.loadPdfJs();
-    this.loadJSZip();
-  }
-
-  async loadPdfJs(): Promise<void> {
-    if (globalThis.window === undefined) return;
-    
-    if ((globalThis as any).pdfjsLib) {
-      this.pdfjsLib = (globalThis as any).pdfjsLib;
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    document.head.appendChild(script);
-
-    return new Promise((resolve, reject) => {
-      script.onload = () => {
-        this.pdfjsLib = (globalThis as any).pdfjsLib;
-        this.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        resolve();
-      };
-      script.onerror = () => reject(new Error('Failed to load PDF.js'));
-    });
-  }
-
-  async loadJSZip(): Promise<void> {
-    if (globalThis.window === undefined) return;
-    
-    if ((globalThis as any).JSZip) {
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    document.head.appendChild(script);
-
-    return new Promise((resolve, reject) => {
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Failed to load JSZip'));
-    });
+    return;
   }
 
   openFileDialog(): void {
@@ -151,20 +155,19 @@ export class SplitPdfsComponent implements OnInit {
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         this.loadPdfFile(file);
       } else {
-        this.errorMessage = 'Please drop a valid PDF file';
+        pdfNotifyError(this.toast, 'Please drop a valid PDF file');
       }
     }
   }
 
   async loadPdfFile(file: File, password?: string): Promise<void> {
     if (file.size > 100 * 1024 * 1024) {
-      this.errorMessage = `File "${file.name}" is too large (max 100MB)`;
+      pdfNotifyError(this.toast, `File "${file.name}" is too large (max 100MB)`);
       return;
     }
 
     this.loading = true;
     this.loadingMessage = 'Loading PDF file...';
-    this.errorMessage = '';
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -242,14 +245,18 @@ export class SplitPdfsComponent implements OnInit {
         };
       }
 
-      this.pdfPreviewBytes = pdfBytes;
-      this.cachedPdfDocument = null;
-      
-      await this.renderPdfPreview();
+      this.pdfPreviewBytes = new Uint8Array(pdfBytes);
+      this.preview.clearCache();
+
+      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
       this.updateSplitResults();
+      if (this.needsSplitConfig) {
+        this.openOptionsPanel();
+      }
       this.cdr.detectChanges();
     } catch (error) {
-      this.errorMessage = `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -311,13 +318,11 @@ export class SplitPdfsComponent implements OnInit {
     this.pageRanges = '';
     this.extractPages = '';
     this.pagesPerFile = 1;
-    this.cachedPdfDocument = null;
     this.pdfPreviewBytes = null;
+    this.preview.clearCache();
     this.showPasswordDialog = false;
     this.passwordInput = '';
     this.passwordError = '';
-    this.errorMessage = '';
-    this.successMessage = '';
     this.cdr.detectChanges();
   }
 
@@ -340,6 +345,19 @@ export class SplitPdfsComponent implements OnInit {
       default:
         return 'None';
     }
+  }
+
+  togglePreviewFullscreen(): void {
+    if (!this.pdfFile?.pdfDoc) return;
+    this.previewFullscreen = !this.previewFullscreen;
+    this.cdr.detectChanges();
+    this.scheduleRenderPreview();
+  }
+
+  closePreviewFullscreen(): void {
+    this.previewFullscreen = false;
+    this.cdr.detectChanges();
+    this.scheduleRenderPreview();
   }
 
   parsePageRanges(rangeString: string): Array<{ start: number; end: number }> {
@@ -424,87 +442,123 @@ export class SplitPdfsComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-  async renderPdfPreview(): Promise<void> {
-    if (!this.pdfjsLib || !this.pdfPreviewBytes || !this.pdfPreviewCanvas?.nativeElement || !this.pdfFile?.pdfDoc) {
+  scheduleRenderPreview(): void {
+    this.previewRenderRetries = 0;
+    this.previewError = '';
+    this.previewRenderGeneration++;
+    requestAnimationFrame(() => {
+      this.cdr.detectChanges();
+      requestAnimationFrame(() => void this.renderPdfPreview(this.previewRenderGeneration));
+    });
+  }
+
+  private activePreviewCanvas(): HTMLCanvasElement | undefined {
+    if (this.previewFullscreen) {
+      return this.fullscreenOverlay?.canvasElement;
+    }
+    return (
+      this.pdfPreviewCanvas?.nativeElement ??
+      this.pdfPreviewCanvasWrap?.nativeElement?.querySelector('canvas') ??
+      undefined
+    );
+  }
+
+  async renderPdfPreview(generation = this.previewRenderGeneration): Promise<void> {
+    if (generation !== this.previewRenderGeneration) return;
+
+    if (!this.pdfPreviewBytes || !this.pdfFile?.pdfDoc) {
+      this.previewRendering = false;
       return;
     }
 
-    try {
-      if (!this.cachedPdfDocument) {
-        const loadingTask = this.pdfjsLib.getDocument({ data: this.pdfPreviewBytes });
-        this.cachedPdfDocument = await loadingTask.promise;
+    const canvas = this.activePreviewCanvas();
+    if (!canvas) {
+      if (this.previewRenderRetries < this.maxPreviewRenderRetries) {
+        this.previewRenderRetries++;
+        this.cdr.detectChanges();
+        setTimeout(
+          () => void this.renderPdfPreview(generation),
+          this.previewRenderRetries <= 3 ? 16 : 80,
+        );
+      } else {
+        this.previewError = 'Preview could not be initialized. Try refreshing the page.';
+        this.cdr.detectChanges();
       }
+      return;
+    }
 
-      const page = await this.cachedPdfDocument.getPage(this.currentPage);
-      const canvas = this.pdfPreviewCanvas.nativeElement;
-      const context = canvas.getContext('2d');
-      
-      if (!context) return;
+    this.previewRendering = true;
+    this.previewError = '';
+    this.cdr.detectChanges();
 
-      const container = canvas.parentElement;
-      const containerWidth = container ? container.clientWidth - 32 : 800;
-      const maxWidth = containerWidth;
-
-      const viewportAtScale1 = page.getViewport({ scale: 1 });
-      const scale = maxWidth / viewportAtScale1.width;
-      const viewport = page.getViewport({ scale });
-      this.pdfPreviewScale = scale;
-
-      canvas.style.width = '100%';
-      canvas.style.height = 'auto';
-      canvas.style.maxWidth = '100%';
-
-      const devicePixelRatio = window.devicePixelRatio || 1;
-      canvas.width = viewport.width * devicePixelRatio;
-      canvas.height = viewport.height * devicePixelRatio;
-
-      context.scale(devicePixelRatio, devicePixelRatio);
-      context.clearRect(0, 0, viewport.width, viewport.height);
-
-      await page.render({
-        canvasContext: context,
-        viewport: viewport
-      }).promise;
-
+    try {
+      const maxWidth = this.previewFullscreen ? fullscreenPreviewWidth() : undefined;
+      await this.preview.renderPageToCanvas(
+        this.pdfPreviewBytes,
+        this.currentPage,
+        canvas,
+        maxWidth,
+      );
+      if (generation !== this.previewRenderGeneration) return;
     } catch (error) {
-      console.error('Error rendering PDF preview:', error);
+      if (generation !== this.previewRenderGeneration) return;
+      const message = error instanceof Error ? error.message : 'Could not render PDF preview';
+      if (message.toLowerCase().includes('cancel') || message.toLowerCase().includes('same canvas')) return;
+      this.previewError = message;
+      pdfNotifyError(this.toast, this.previewError);
+    } finally {
+      if (generation === this.previewRenderGeneration) {
+        this.previewRendering = false;
+      }
+      this.cdr.detectChanges();
     }
   }
 
   async previousPage(): Promise<void> {
     if (this.currentPage > 1) {
       this.currentPage--;
-      await this.renderPdfPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 
   async nextPage(): Promise<void> {
     if (this.currentPage < this.totalPages) {
       this.currentPage++;
-      await this.renderPdfPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 
   async goToPage(page: number): Promise<void> {
     if (page >= 1 && page <= this.totalPages) {
       this.currentPage = page;
-      await this.renderPdfPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 
   async splitPdf(): Promise<void> {
     if (!this.pdfFile?.pdfDoc || this.splitResults.length === 0) {
-      this.errorMessage = 'Please upload a PDF and configure split options';
+      pdfNotifyWarning(this.toast, 'Please upload a PDF and configure split options in Configuration');
+      this.openOptionsPanel();
+      return;
+    }
+
+    if (this.splitMode === 'range') {
+      const rangeErr = validatePageRangeInput(this.pageRanges, this.totalPages);
+      if (rangeErr) {
+        pdfNotifyWarning(this.toast, rangeErr);
+        this.openOptionsPanel();
+        return;
+      }
+    }
+
+    if (this.splitMode === 'every' && (this.pagesPerFile < 1 || this.pagesPerFile > this.totalPages)) {
+      pdfNotifyWarning(this.toast, `Pages per file must be between 1 and ${this.totalPages}`);
+      this.openOptionsPanel();
       return;
     }
 
     this.loading = true;
     this.loadingMessage = 'Splitting PDF...';
-    this.errorMessage = '';
-    this.successMessage = '';
 
     try {
       const sourcePdf = this.pdfFile.pdfDoc;
@@ -524,7 +578,7 @@ export class SplitPdfsComponent implements OnInit {
         });
 
         const pdfBytes = await newPdf.save();
-        files.push({ name: result.name, bytes: pdfBytes });
+        files.push({ name: result.name, bytes: cloneBytes(pdfBytes) });
       }
 
       if (this.downloadAsZip) {
@@ -533,10 +587,10 @@ export class SplitPdfsComponent implements OnInit {
         await this.downloadFilesIndividually(files);
       }
 
-      this.successMessage = `Successfully split PDF into ${files.length} file(s)!`;
+      pdfNotifySuccess(this.toast, `Successfully split PDF into ${files.length} file(s)!`);
       this.cdr.detectChanges();
     } catch (error) {
-      this.errorMessage = `Failed to split PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to split PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -544,46 +598,23 @@ export class SplitPdfsComponent implements OnInit {
   }
 
   async downloadAsZipFile(files: Array<{ name: string; bytes: Uint8Array }>): Promise<void> {
-    if (!(globalThis as any).JSZip) {
-      this.errorMessage = 'JSZip library not loaded';
-      return;
-    }
-
-    const zip = new (globalThis as any).JSZip();
+    const zip = new JSZip();
 
     for (const file of files) {
       zip.file(file.name, file.bytes);
     }
 
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(zipBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${this.outputPrefix || 'split'}-files.zip`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(zipBlob, `${this.outputPrefix || 'split'}-files.zip`);
   }
 
   async downloadFilesIndividually(files: Array<{ name: string; bytes: Uint8Array }>): Promise<void> {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const blob = new Blob([file.bytes as BlobPart], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.name;
-      document.body.appendChild(link);
-      
-      // Add small delay between downloads
       if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
-      
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      downloadBytes(file.bytes, file.name);
     }
   }
 

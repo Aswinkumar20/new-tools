@@ -1,82 +1,101 @@
-import 'zone.js/node';
-
-import { APP_BASE_HREF } from '@angular/common';
-import { CommonEngine } from '@angular/ssr/node';
-import * as express from 'express';
+import {
+  AngularNodeAppEngine,
+  createNodeRequestHandler,
+  isMainModule,
+  writeResponseToNodeResponse,
+} from '@angular/ssr/node';
+import express from 'express';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import bootstrap from './main.server';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// The Express app is exported so that it can be used by serverless Functions.
-export function app(): express.Express {
-  const server = express();
-  const distFolder = join(process.cwd(), 'dist/apps/tools-site/browser');
-  const indexHtml = existsSync(join(distFolder, 'index.original.html'))
-    ? join(distFolder, 'index.original.html')
-    : join(distFolder, 'index.html');
+const serverDistFolder = dirname(fileURLToPath(import.meta.url));
+const browserDistFolder = resolve(serverDistFolder, '../browser');
+const indexHtml = existsSync(join(browserDistFolder, 'index.original.html'))
+  ? join(browserDistFolder, 'index.original.html')
+  : join(browserDistFolder, 'index.html');
+const notFoundHtml = existsSync(join(browserDistFolder, '404.html'))
+  ? join(browserDistFolder, '404.html')
+  : indexHtml;
 
-  const commonEngine = new CommonEngine();
+const app = express();
+const angularApp = new AngularNodeAppEngine();
 
-  server.set('view engine', 'html');
-  server.set('views', distFolder);
+app.get('/sitemap.xml', (req, res, next) => {
+  const sitemapPath = join(browserDistFolder, 'sitemap.xml');
+  if (!existsSync(sitemapPath)) {
+    return next();
+  }
+  res.setHeader('Content-Type', 'application/xml');
+  return res.sendFile(sitemapPath);
+});
 
-  // Example Express Rest API endpoints
-  // server.get('/api/**', (req, res) => { });
-  
-  // Serve static files from /browser with proper MIME types
-  server.use(
-    express.static(distFolder, {
-      maxAge: '1y',
-      setHeaders: (res, path) => {
-        // Set proper MIME types for SVG files
-        if (path.endsWith('.svg')) {
-          res.setHeader('Content-Type', 'image/svg+xml');
-        }
-        // Cache control for images
-        if (path.match(/\.(svg|png|jpg|jpeg|gif|ico|webp)$/)) {
+app.get('/robots.txt', (req, res, next) => {
+  const robotsPath = join(browserDistFolder, 'robots.txt');
+  if (!existsSync(robotsPath)) {
+    return next();
+  }
+  res.setHeader('Content-Type', 'text/plain');
+  return res.sendFile(robotsPath);
+});
+
+app.use(
+  express.static(browserDistFolder, {
+    maxAge: '1y',
+    index: false,
+    redirect: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.svg')) {
+        res.setHeader('Content-Type', 'image/svg+xml');
+      } else if (filePath.endsWith('.png')) {
+        res.setHeader('Content-Type', 'image/png');
+      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        res.setHeader('Content-Type', 'image/jpeg');
+      } else if (filePath.endsWith('.gif')) {
+        res.setHeader('Content-Type', 'image/gif');
+      } else if (filePath.endsWith('.webp')) {
+        res.setHeader('Content-Type', 'image/webp');
+      } else if (filePath.endsWith('.ico')) {
+        res.setHeader('Content-Type', 'image/x-icon');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      } else if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      } else if (filePath.endsWith('.json')) {
+        res.setHeader('Content-Type', 'application/json');
+      }
+
+      if (filePath.match(/\.(svg|png|jpg|jpeg|gif|ico|webp|woff|woff2|ttf|eot)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.match(/\.(css|js)$/)) {
+        if (filePath.match(/\.[a-f0-9]{8,}\.(css|js)$/)) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=3600');
         }
-      },
+      }
+    },
+  }),
+);
+
+app.use((req, res, next) => {
+  angularApp
+    .handle(req)
+    .then((response) => {
+      if (response) {
+        return writeResponseToNodeResponse(response, res);
+      }
+      res.status(404);
+      return res.sendFile(notFoundHtml);
     })
-  );
+    .catch(next);
+});
 
-  // All regular routes use the Angular engine
-  server.get('*', (req, res, next) => {
-    const { protocol, originalUrl, baseUrl, headers } = req;
-
-    commonEngine
-      .render({
-        bootstrap,
-        documentFilePath: indexHtml,
-        url: `${protocol}://${headers.host}${originalUrl}`,
-        publicPath: distFolder,
-        providers: [{ provide: APP_BASE_HREF, useValue: baseUrl }],
-      })
-      .then((html) => res.send(html))
-      .catch((err) => next(err));
-  });
-
-  return server;
-}
-
-function run(): void {
+if (isMainModule(import.meta.url)) {
   const port = process.env['PORT'] || 4000;
-
-  // Start up the Node server
-  const server = app();
-  server.listen(port, () => {
+  app.listen(port, () => {
     console.log(`Node Express server listening on http://localhost:${port}`);
   });
 }
 
-// Webpack will replace 'require' with '__webpack_require__'
-// '__non_webpack_require__' is a proxy to Node 'require'
-// The below code is to ensure that the server is run only when not requiring the bundle.
-declare const __non_webpack_require__: NodeRequire;
-const mainModule = __non_webpack_require__.main;
-const moduleFilename = (mainModule && mainModule.filename) || '';
-if (moduleFilename === __filename || moduleFilename.includes('iisnode')) {
-  run();
-}
-
-export default bootstrap;
+export const reqHandler = createNodeRequestHandler(app);

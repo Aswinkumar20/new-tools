@@ -1,0 +1,377 @@
+<div class="ctl us">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="us-eyebrow">Medical tools</span>
+        <h1>Ultrasound Viewer <span class="us-live-badge">Local &amp; private</span></h1>
+        <p>
+          Local private ultrasound DICOM review — multi-frame cine, window/level presets, and metadata inspection. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="us-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="us-suggest__body">
+        <p class="us-suggest__title">{{ suggestion.title }}</p>
+        <p class="us-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="us-suggest__actions">
+        <a
+          class="us-suggest__action"
+          *ngIf="suggestion.id === 'dicom-alt'; else dicomLocalAction"
+          [routerLink]="suggestion.path"
+          >{{ suggestion.actionLabel }}</a
+        >
+        <ng-template #dicomLocalAction>
+          <button type="button" class="us-suggest__action" (click)="applySuggestion(suggestion)">
+            {{ suggestion.actionLabel }}
+          </button>
+        </ng-template>
+        <button type="button" class="us-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="us-toolbar" aria-label="Ultrasound viewer controls">
+      <div class="us-toolbar__group">
+        <label class="sr-only" for="us-file-upload">Upload ultrasound DICOM files</label>
+        <input
+          #fileInput
+          id="us-file-upload"
+          class="us-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn us-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample abdominal US" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="us-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="us-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded DICOM</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Tag keyword → value table</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Geometry, window, modality</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="usFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="us-files" *ngIf="seriesFiles.length > 0" aria-label="Loaded ultrasound files">
+          <div
+            class="us-files__chip"
+            *ngFor="let file of seriesFiles; let i = index; trackBy: trackByFileId"
+            [class.us-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="us-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="us-files__name">{{ file.name }}</span>
+              <span class="us-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="us-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="us-toolbar__status">
+        <span class="us-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="us-workspace"
+      [class.us-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.us-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="us-panel" aria-label="Ultrasound viewport">
+        <header class="us-map-head" *ngIf="currentFile">
+          <div class="us-map-head__identity">
+            <span class="us-map-head__file">{{ currentFile.name }}</span>
+            <span class="us-map-head__meta" *ngIf="parsed">
+              {{ frameLabel }} · {{ parsed.modality || 'OT' }} · {{ cineModeLabel }} · WC {{ windowCenter | number:'1.0-0' }} / WW
+              {{ windowWidth | number:'1.0-0' }}
+            </span>
+          </div>
+          <div class="us-view-controls" aria-label="View controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <button type="button" (click)="toggleInvert()" [attr.aria-pressed]="invert" appTooltip="Invert" tooltipPosition="bottom">Invert</button>
+            <span class="us-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="us-view-controls__divider"></span>
+            <button
+              type="button"
+              class="us-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="us-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="us-map-wrap" [class.us-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="us-map"
+            [attr.aria-busy]="loading"
+            aria-label="Ultrasound image viewport"
+            (click)="onCanvasClick($event)"
+            (wheel)="onCanvasWheel($event)"></canvas>
+          <div class="us-empty" *ngIf="!currentFile && !loading">
+            <p class="us-empty__title">Drop ultrasound DICOM files here</p>
+            <p class="us-empty__formats">
+              <span class="us-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="us-empty__hint">
+              {{ formatsHint }} <kbd>Space</kbd> play/pause cine · <kbd>+</kbd>/<kbd>−</kbd> zoom · arrows or wheel frames · Ctrl+wheel zoom · <kbd>F</kbd> fit.
+            </p>
+            <div class="us-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="us-loading" *ngIf="loading">Loading ultrasound…</div>
+        </div>
+
+        <div class="us-cine" *ngIf="currentFile && isCine" aria-label="Cine playback controls">
+          <div class="us-cine__playback">
+            <button
+              type="button"
+              class="us-cine__play"
+              (click)="toggleCinePlayback()"
+              [attr.aria-pressed]="cinePlaying"
+              [attr.aria-label]="cinePlaying ? 'Pause cine' : 'Play cine'">
+              <svg *ngIf="!cinePlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <svg *ngIf="cinePlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
+              </svg>
+            </button>
+            <span class="us-cine__mode">{{ cineModeLabel }}</span>
+            <span class="us-cine__frame">{{ frameLabel }}</span>
+          </div>
+          <label class="us-cine__fps">
+            <span>FPS <span class="us-opacity-value">{{ cineFps }}</span></span>
+            <input type="range" min="1" max="30" step="1" [value]="cineFps" (input)="onCineFpsChange($event)" />
+          </label>
+          <label class="us-cine__slider">
+            <span>Frame</span>
+            <input
+              type="range"
+              min="0"
+              [max]="cineFrameCount - 1"
+              step="1"
+              [value]="activeCineFrameIndex"
+              (input)="onCineFrameSlider($event)" />
+          </label>
+        </div>
+
+        <div class="us-probe" *ngIf="probe">
+          Probe ({{ probe.x }}, {{ probe.y }}) · raw {{ probe.raw | number:'1.0-2' }} · rescaled
+          {{ probe.hu != null ? (probe.hu | number:'1.0-2') : '—' }}
+        </div>
+
+        <div class="us-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="us-error" *ngIf="errorMessage" role="alert">
+          <p class="us-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="us-details-sidebar"
+        class="us-sidebar"
+        aria-label="Ultrasound details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel us-meta-panel" *ngIf="parsed">
+          <header class="ctl__panel-head">
+            <span>DICOM metadata</span>
+            <span class="us-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="us-process-name">{{ currentFile?.name }}</p>
+            <div class="us-stat-grid us-stat-grid--dense" aria-label="Image statistics">
+              <div><strong>{{ parsed.rows }}</strong><span>Rows</span></div>
+              <div><strong>{{ parsed.columns }}</strong><span>Columns</span></div>
+              <div><strong>{{ parsed.bitsAllocated }}</strong><span>Bits</span></div>
+              <div><strong>{{ parsed.modality || '—' }}</strong><span>Modality</span></div>
+              <div><strong>{{ cineFrameCount }}</strong><span>Frames</span></div>
+              <div><strong>{{ usFiles.length }}</strong><span>Files</span></div>
+            </div>
+            <dl class="us-meta us-meta--compact">
+              <div><dt>Patient</dt><dd>{{ parsed.patientName || '—' }}</dd></div>
+              <div><dt>Patient ID</dt><dd>{{ parsed.patientId || '—' }}</dd></div>
+              <div><dt>Series</dt><dd>{{ seriesDescription || '—' }}</dd></div>
+              <div><dt>Protocol</dt><dd>{{ protocolName || '—' }}</dd></div>
+              <div><dt>Transfer</dt><dd>{{ parsed.transferSyntaxUid || '—' }}</dd></div>
+              <div><dt>Photo</dt><dd>{{ parsed.photometricInterpretation }}</dd></div>
+              <div *ngIf="parsed.numberOfFrames > 1"><dt>NumberOfFrames</dt><dd>{{ parsed.numberOfFrames }}</dd></div>
+            </dl>
+            <p class="us-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="parsed?.metadataRows?.length">
+          <header class="ctl__panel-head">Tag table</header>
+          <div class="ctl__panel-body us-meta-table-wrap">
+            <table class="us-meta-table">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of parsed?.metadataRows">
+                  <td>{{ row.keyword }}</td>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="seriesGroups.length > 1">
+          <header class="ctl__panel-head">Series</header>
+          <div class="ctl__panel-body">
+            <label>
+              <span>Series picker</span>
+              <select [value]="activeSeriesIndex" (change)="onSeriesChange($event)">
+                <option *ngFor="let series of seriesGroups; let i = index" [value]="i">{{ series.label }}</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && parsed && !currentFile.softFail">
+          <header class="ctl__panel-head">Window / level</header>
+          <div class="ctl__panel-body">
+            <div class="us-controls">
+              <div class="us-controls__presets" role="group" aria-label="Window presets">
+                <button
+                  type="button"
+                  *ngFor="let preset of windowPresets"
+                  [class.is-active]="activePresetId === preset.id"
+                  (click)="applyPreset(preset.id)">
+                  {{ preset.label }}
+                </button>
+              </div>
+              <label>
+                <span>Center <span class="us-opacity-value">{{ windowCenter | number:'1.0-0' }}</span></span>
+                <input type="range" min="-1000" max="3000" step="1" [value]="windowCenter" (input)="onWindowCenterChange($event)" />
+              </label>
+              <label>
+                <span>Width <span class="us-opacity-value">{{ windowWidth | number:'1.0-0' }}</span></span>
+                <input type="range" min="1" max="4000" step="1" [value]="windowWidth" (input)="onWindowWidthChange($event)" />
+              </label>
+              <p class="us-controls__hint">Click image to probe pixel · Shift+± adjusts window width</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="us-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help us-footer-help">
+      <summary>How to use Ultrasound Viewer</summary>
+      <ul>
+        <li>Upload Modality US <code>.dcm</code> / <code>.dicom</code> / <code>.ima</code>. Other modalities warn softly but still load.</li>
+        <li>Multi-frame cine (<code>NumberOfFrames</code> &gt; 1) or multi-file series play as cine loops with adjustable FPS.</li>
+        <li>US presets (Default / Cardiac / Vascular / Abdomen) plus custom W/L. Space toggles play/pause.</li>
+        <li>Export original, metadata JSON, summary JSON, or a PNG snapshot. Not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="us-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop ultrasound DICOM files to open</p>
+    <p class="us-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

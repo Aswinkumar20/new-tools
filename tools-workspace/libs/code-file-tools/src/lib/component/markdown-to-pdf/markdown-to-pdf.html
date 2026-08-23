@@ -1,216 +1,183 @@
-<div class="mtp">
-  <div class="mtp__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl cf">
+  <lib-navigation></lib-navigation>
 
-  <section class="mtp__hero">
-    <div class="mtp__badge">Code toolkit</div>
-    <h1>Markdown to PDF</h1>
-    <p>
-      Convert your Markdown documents to PDF format. Write in Markdown, preview the rendered HTML, and export to PDF
-      with customizable page settings. Perfect for documentation, reports, and printable documents.
-    </p>
-
-    @if (hasContent()) {
-      <div class="mtp__hero-meta">
-        <div>
-          <span class="mtp__meta-label">Characters</span>
-          <strong>{{ markdownInput().length }}</strong>
-        </div>
-        <div>
-          <span class="mtp__meta-label">Lines</span>
-          <strong>{{ markdownInput().split('\n').length }}</strong>
-        </div>
-        <div>
-          <span class="mtp__meta-label">Status</span>
-          <strong>{{ hasHtmlOutput() ? 'Ready' : 'Processing' }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="mtp__hero-meta mtp__hero-meta--placeholder">
-        Enter Markdown content and configure PDF options to generate your document.
-      </div>
-    }
-  </section>
-
-  <div class="mtp__board">
-    <section class="mtp__panel mtp__panel--input">
-      <header class="mtp__card-header">
-        <div>
-          <h2>Markdown input</h2>
-          <p>Paste or type your Markdown content here.</p>
-        </div>
-        <div class="mtp__header-actions">
-          <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
-          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Markdown to PDF</h1>
+        <p>Write Markdown, preview HTML, and export to PDF with customizable page settings.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="mtp__alert mtp__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Document statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ markdownInput().length }}</span>
+          <span class="ctl__stat-label">Input</span>
         </div>
-      }
-
-      <div class="mtp__editor-container">
-        <textarea
-          class="mtp__editor"
-          [value]="markdownInput()"
-          (input)="onInputChange($any($event.target).value)"
-          placeholder="# Your Markdown Document&#10;&#10;Write your content here...&#10;&#10;## Features&#10;&#10;- Lists&#10;- **Bold** and *italic* text&#10;- Code blocks&#10;- And more!"
-          spellcheck="false"
-        ></textarea>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ markdownInput().split('\n').length }}</span>
+          <span class="ctl__stat-label">Lines</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasHtmlOutput() ? 'Ready' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ pdfOptions().pageSize.toUpperCase() }}</span>
+          <span class="ctl__stat-label">Page</span>
+        </div>
       </div>
+    </div>
 
-      <div class="mtp__input-stats">
-        <span>{{ markdownInput().length }} characters</span>
-        <span>{{ markdownInput().split('\n').length }} lines</span>
-      </div>
-    </section>
-
-    <section class="mtp__panel mtp__panel--preview">
-      <header class="mtp__card-header">
-        <div>
-          <h2>HTML preview</h2>
-          <p>Preview of the rendered Markdown as HTML.</p>
-        </div>
-        @if (hasHtmlOutput()) {
-          <button type="button" class="btn btn--ghost btn--small" (click)="copyHtml()">Copy HTML</button>
-        }
-      </header>
-
-      @if (hasHtmlOutput()) {
-        <div class="mtp__preview-container">
-          <div class="mtp__preview-content" [innerHTML]="htmlOutput()"></div>
-        </div>
-      } @else {
-        <div class="mtp__empty">Enter Markdown to see HTML preview here.</div>
-      }
-    </section>
-
-    <section class="mtp__panel mtp__panel--options">
-      <header class="mtp__card-header">
-        <div>
-          <h2>PDF options</h2>
-          <p>Configure PDF generation settings.</p>
-        </div>
-      </header>
-
-      <div class="mtp__options-grid">
-        <div class="mtp__option-group">
-          <label for="pageSize" class="mtp__label">Page size</label>
-          <select
-            id="pageSize"
-            class="mtp__select"
-            [value]="pdfOptions().pageSize"
-            (change)="updateOption('pageSize', $any($event.target).value)"
-          >
-            <option value="a4">A4</option>
-            <option value="letter">Letter</option>
-            <option value="legal">Legal</option>
-          </select>
-        </div>
-
-        <div class="mtp__option-group">
-          <label for="orientation" class="mtp__label">Orientation</label>
-          <select
-            id="orientation"
-            class="mtp__select"
-            [value]="pdfOptions().orientation"
-            (change)="updateOption('orientation', $any($event.target).value)"
-          >
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
-          </select>
-        </div>
-
-        <div class="mtp__option-group">
-          <label for="margin" class="mtp__label">Margin (mm)</label>
-          <input
-            id="margin"
-            type="number"
-            class="mtp__input"
-            min="10"
-            max="50"
-            [value]="pdfOptions().margin"
-            (change)="updateOption('margin', Number($any($event.target).value))"
-          />
-        </div>
-
-        <div class="mtp__option-group">
-          <label for="fontSize" class="mtp__label">Font size (pt)</label>
-          <input
-            id="fontSize"
-            type="number"
-            class="mtp__input"
-            min="8"
-            max="24"
-            [value]="pdfOptions().fontSize"
-            (change)="updateOption('fontSize', Number($any($event.target).value))"
-          />
-        </div>
-
-        <label class="mtp__toggle">
-          <input
-            type="checkbox"
-            [checked]="pdfOptions().includeHeader"
-            (change)="updateOption('includeHeader', $any($event.target).checked)"
-          />
-          <div>
-            <strong>Include header</strong>
-            <span>Add header to each page</span>
-          </div>
-        </label>
-
-        <label class="mtp__toggle">
-          <input
-            type="checkbox"
-            [checked]="pdfOptions().includeFooter"
-            (change)="updateOption('includeFooter', $any($event.target).checked)"
-          />
-          <div>
-            <strong>Include footer</strong>
-            <span>Add page numbers to footer</span>
-          </div>
-        </label>
-      </div>
-    </section>
-
-    <section class="mtp__panel mtp__panel--export">
-      <header class="mtp__card-header">
-        <div>
-          <h2>PDF export</h2>
-          <p>Generate and download your PDF document.</p>
-        </div>
-      </header>
-
-      <div class="mtp__export-actions">
-        <button
-          type="button"
-          class="btn btn--primary"
-          (click)="generatePdf()"
-          [disabled]="!hasHtmlOutput() || isGenerating()"
-        >
-          @if (isGenerating()) {
-            Generating PDF...
-          } @else {
-            Generate PDF
-          }
+    <div class="cf-workflow" aria-label="PDF actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="ctl__tool-btn-label">Sample</span>
         </button>
-        <p class="mtp__export-hint">
-          @if (!hasHtmlOutput()) {
-            Convert Markdown to HTML first to enable PDF generation.
-          } @else if (isGenerating()) {
-            Please wait while the PDF is being generated...
-          } @else {
-            Click the button above to generate and download your PDF document.
-          }
-        </p>
+        <button type="button" class="ctl__tool-btn" (click)="generatePdf()" [disabled]="!hasHtmlOutput() || isGenerating()" aria-label="Generate PDF" appTooltip="Generate PDF" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span class="ctl__tool-btn-label">{{ isGenerating() ? 'Generating…' : 'PDF' }}</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!markdownInput()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
-    </section>
-  </div>
+    </div>
+
+    <div class="ctl__workspace ctl__workspace--split">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Markdown input</span>
+            <div class="ctl__editor-actions">
+              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!markdownInput()" aria-label="Copy markdown" appTooltip="Copy markdown" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="mtp__suggest" aria-label="Suggested next step">
+              <div class="mtp__suggest-body">
+                <p class="mtp__suggest-title">{{ suggestion.title }}</p>
+                <p class="mtp__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="mtp__suggest-actions">
+                <a class="mtp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="mtp__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="mtp-markdown-input">Markdown input</label>
+          <textarea id="mtp-markdown-input" class="ctl__textarea ctl__textarea--mono" [value]="markdownInput()" (input)="onInputChange($any($event.target).value)" rows="1" spellcheck="false" placeholder="# Your document…"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>HTML preview</span>
+            <div class="ctl__editor-actions">
+              @if (hasHtmlOutput()) { <span class="ctl__editor-badge">Ready</span> }
+              <button type="button" class="ctl__icon-btn" (click)="copyHtml()" [disabled]="!hasHtmlOutput()" aria-label="Copy HTML" appTooltip="Copy HTML" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasHtmlOutput()) {
+            <div class="ctl__editor-body mtp-preview" [innerHTML]="htmlOutput()"></div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite"><p>HTML preview appears here as you type Markdown.</p></div>
+          }
+        </section>
+      </div>
+
+      <details class="cf-options-flyout">
+        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="PDF options">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">PDF options</header>
+            <div class="ctl__settings">
+              <label class="ctl__field">
+                <span>Page size</span>
+                <select [value]="pdfOptions().pageSize" (change)="updateOption('pageSize', $any($event.target).value)">
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                  <option value="legal">Legal</option>
+                </select>
+              </label>
+              <label class="ctl__field">
+                <span>Orientation</span>
+                <select [value]="pdfOptions().orientation" (change)="updateOption('orientation', $any($event.target).value)">
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+              </label>
+              <label class="ctl__field">
+                <span>Margin (mm)</span>
+                <input type="number" min="10" max="50" [value]="pdfOptions().margin" (change)="updateOption('margin', Number($any($event.target).value))" />
+              </label>
+              <label class="ctl__field">
+                <span>Font size (pt)</span>
+                <input type="number" min="8" max="24" [value]="pdfOptions().fontSize" (change)="updateOption('fontSize', Number($any($event.target).value))" />
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="pdfOptions().includeHeader" (change)="updateOption('includeHeader', $any($event.target).checked)" />
+                <div><strong>Include header</strong><span>Add header to each page.</span></div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" [checked]="pdfOptions().includeFooter" (change)="updateOption('includeFooter', $any($event.target).checked)" />
+                <div><strong>Include footer</strong><span>Add page numbers to footer.</span></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head"><span>Related tools</span></header>
+            <div class="ctl__panel-body mtp__related">
+              <ul class="mtp__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="mtp__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>PDF generation runs <strong>locally</strong> in your browser.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Write Markdown in the input editor — HTML preview updates automatically.</li>
+        <li>Configure page size and margins in the sidebar.</li>
+        <li>Click <strong>PDF</strong> in the toolbar to generate and download.</li>
+        <li>Use the copy icon to grab rendered HTML source.</li>
+      </ul>
+    </details>
+  </main>
 </div>

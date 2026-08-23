@@ -1,239 +1,188 @@
-<div class="hm">
-  <div class="hm__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl cf">
+  <lib-navigation></lib-navigation>
 
-  <section class="hm__hero">
-    <div class="hm__badge">Code toolkit</div>
-    <h1>HTML Minifier</h1>
-    <p>
-      Minify your HTML code by removing whitespace, comments, and optional elements. Reduce file size for faster page
-      loads while maintaining functionality. Configure minification options to suit your needs.
-    </p>
-
-    @if (result()) {
-      @let info = result()!;
-      <div class="hm__hero-meta">
-        <div>
-          <span class="hm__meta-label">Original size</span>
-          <strong>{{ formatBytes(info.originalSize) }}</strong>
-        </div>
-        <div>
-          <span class="hm__meta-label">Minified size</span>
-          <strong>{{ formatBytes(info.minifiedSize) }}</strong>
-        </div>
-        <div>
-          <span class="hm__meta-label">Reduction</span>
-          <strong>{{ info.reductionPercentage }}%</strong>
-        </div>
-        <div>
-          <span class="hm__meta-label">Saved</span>
-          <strong>{{ formatBytes(info.reduction) }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="hm__hero-meta hm__hero-meta--placeholder">
-        Paste your HTML code and configure minification options to reduce file size instantly.
-      </div>
-    }
-  </section>
-
-  <div class="hm__board" [formGroup]="form">
-    <section class="hm__panel hm__panel--input">
-      <header class="hm__card-header">
-        <div>
-          <h2>HTML input</h2>
-          <p>Paste or type your HTML code here.</p>
-        </div>
-        <div class="hm__header-actions">
-          <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
-          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>HTML Minifier</h1>
+        <p>Minify HTML by removing whitespace, comments, and optional markup for faster page loads.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="hm__alert hm__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Minification statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ inputHtml().length > 0 ? formatBytes(inputHtml().length) : '—' }}</span>
+          <span class="ctl__stat-label">Input</span>
         </div>
-      }
-
-      <div class="hm__editor-container">
-        <textarea
-          class="hm__editor"
-          [value]="inputHtml()"
-          (input)="onInputChange($any($event.target).value)"
-          placeholder="<!DOCTYPE html>&#10;<html>&#10;  <head>&#10;    <title>Your HTML here</title>&#10;  </head>&#10;  <body>&#10;    <!-- Content -->&#10;  </body>&#10;</html>"
-          spellcheck="false"
-        ></textarea>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result() ? formatBytes(result()!.minifiedSize) : '—' }}</span>
+          <span class="ctl__stat-label">Output</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result() ? result()!.reductionPercentage + '%' : '—' }}</span>
+          <span class="ctl__stat-label">Saved</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
       </div>
+    </div>
 
-      <div class="hm__input-stats">
-        <span>{{ inputHtml().length }} characters</span>
-        <span>{{ inputHtml().split('\n').length }} lines</span>
-      </div>
-    </section>
-
-    <section class="hm__panel hm__panel--options">
-      <header class="hm__card-header">
-        <div>
-          <h2>Minification options</h2>
-          <p>Configure how HTML is minified.</p>
-        </div>
-      </header>
-
-      <div class="hm__options-grid">
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="removeComments" (change)="minify()" />
-          <div>
-            <strong>Remove comments</strong>
-            <span>Remove HTML comments (<!-- -->)</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="collapseWhitespace" (change)="minify()" />
-          <div>
-            <strong>Collapse whitespace</strong>
-            <span>Remove unnecessary spaces and line breaks</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="removeEmptyAttributes" (change)="minify()" />
-          <div>
-            <strong>Remove empty attributes</strong>
-            <span>Remove attributes with empty values</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="removeAttributeQuotes" (change)="minify()" />
-          <div>
-            <strong>Remove attribute quotes</strong>
-            <span>Remove quotes from attributes where safe</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="removeOptionalTags" (change)="minify()" />
-          <div>
-            <strong>Remove optional tags</strong>
-            <span>Remove html, head, and body tags</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="minifyCSS" (change)="minify()" />
-          <div>
-            <strong>Minify inline CSS</strong>
-            <span>Minify CSS inside &lt;style&gt; tags</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="minifyJS" (change)="minify()" />
-          <div>
-            <strong>Minify inline JavaScript</strong>
-            <span>Minify JavaScript inside &lt;script&gt; tags</span>
-          </div>
-        </label>
-
-        <label class="hm__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <div>
-            <strong>Remember history</strong>
-            <span>Keep track of minified HTML</span>
-          </div>
-        </label>
-      </div>
-    </section>
-
-    <section class="hm__panel hm__panel--output">
-      <header class="hm__card-header">
-        <div>
-          <h2>Minified output</h2>
-          <p>Copy or download the minified HTML.</p>
-        </div>
-        @if (result()) {
-          <div class="hm__header-actions">
-            <button type="button" class="btn btn--primary btn--small" (click)="copyToClipboard(minifiedHtml(), 'Minified HTML')">
-              Copy
-            </button>
-            <button type="button" class="btn btn--ghost btn--small" (click)="downloadMinified()">Download</button>
-          </div>
-        }
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="hm__editor-container">
-          <textarea class="hm__editor hm__editor--output" [value]="current.minified" readonly spellcheck="false"></textarea>
-        </div>
-
-        <div class="hm__output-stats">
-          <div class="hm__stat-item">
-            <span class="hm__stat-label">Original</span>
-            <strong>{{ formatBytes(current.originalSize) }}</strong>
-          </div>
-          <div class="hm__stat-item">
-            <span class="hm__stat-label">Minified</span>
-            <strong>{{ formatBytes(current.minifiedSize) }}</strong>
-          </div>
-          <div class="hm__stat-item hm__stat-item--highlight">
-            <span class="hm__stat-label">Reduction</span>
-            <strong>{{ current.reductionPercentage }}%</strong>
-          </div>
-          <div class="hm__stat-item">
-            <span class="hm__stat-label">Saved</span>
-            <strong>{{ formatBytes(current.reduction) }}</strong>
-          </div>
-        </div>
-      } @else {
-        <div class="hm__empty">Enter HTML code to see minified output here.</div>
-      }
-    </section>
-
-    <section class="hm__panel hm__panel--history">
-      <header class="hm__card-header">
-        <div>
-          <h2>Minification history</h2>
-          <p>Quick access to recently minified HTML.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
+    <div class="cf-workflow" aria-label="Minifier actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span class="ctl__tool-btn-label">Sample</span>
         </button>
-      </header>
+        <button type="button" class="ctl__tool-btn" (click)="downloadMinified()" [disabled]="!hasResult()" aria-label="Download minified HTML" appTooltip="Download" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!hasInput() && !hasResult()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+    </div>
 
-      @if (hasHistory()) {
-        <ul class="hm__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="hm__history-item">
-                <div class="hm__history-info">
-                  <strong>{{ formatBytes(entry.original.length) }} → {{ formatBytes(entry.minified.length) }}</strong>
-                  <span>{{ Math.round((entry.reduction / entry.original.length) * 100) }}% reduction</span>
-                </div>
-                <div class="hm__history-preview">
-                  <code>{{ entry.minified.substring(0, 60) }}{{ entry.minified.length > 60 ? '...' : '' }}</code>
-                </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>HTML input</span>
+            <div class="ctl__editor-actions">
+              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!hasInput()" aria-label="Copy input" appTooltip="Copy input" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
+            </div>
+          </header>
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="hm__empty">Enable history tracking to keep a list of recent minifications.</div>
-      }
-    </section>
-  </div>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="hm__suggest" aria-label="Suggested next step">
+              <div class="hm__suggest-body">
+                <p class="hm__suggest-title">{{ suggestion.title }}</p>
+                <p class="hm__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="hm__suggest-actions">
+                <a class="hm__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button type="button" class="hm__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="hm-html-input">HTML input</label>
+          <textarea id="hm-html-input" class="ctl__textarea ctl__textarea--mono" [value]="inputHtml()" (input)="onInputChange($any($event.target).value)" rows="1" spellcheck="false" placeholder="&lt;!DOCTYPE html&gt;&lt;html&gt;…"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Minified output</span>
+            <div class="ctl__editor-actions">
+              @if (hasResult()) { <span class="ctl__editor-badge">Ready</span> }
+              <button type="button" class="ctl__icon-btn" (click)="copyOutput()" [disabled]="!hasResult()" aria-label="Copy output" appTooltip="Copy output" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasResult()) {
+            <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly rows="1" [value]="minifiedHtml()" aria-label="Minified HTML output"></textarea>
+          } @else {
+            <div class="ctl__empty" aria-live="polite"><p>Minified HTML appears here as you type.</p></div>
+          }
+        </section>
+      </div>
+
+      <details class="cf-options-flyout">
+        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Options and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle"><input type="checkbox" formControlName="removeComments" (change)="minify()" /><div><strong>Remove comments</strong><span>Strip HTML comments.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="collapseWhitespace" (change)="minify()" /><div><strong>Collapse whitespace</strong><span>Remove extra spaces and breaks.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="removeEmptyAttributes" (change)="minify()" /><div><strong>Remove empty attributes</strong><span>Drop attributes with empty values.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="removeAttributeQuotes" (change)="minify()" /><div><strong>Remove attribute quotes</strong><span>Omit quotes where safe.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="removeOptionalTags" (change)="minify()" /><div><strong>Remove optional tags</strong><span>Drop html, head, body tags.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="minifyCSS" (change)="minify()" /><div><strong>Minify inline CSS</strong><span>Minify &lt;style&gt; contents.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="minifyJS" (change)="minify()" /><div><strong>Minify inline JS</strong><span>Minify &lt;script&gt; contents.</span></div></label>
+              <label class="ctl__toggle"><input type="checkbox" formControlName="rememberHistory" /><div><strong>Remember history</strong><span>Store recent minifications locally.</span></div></label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              History
+              @if (hasHistory()) {
+                <button type="button" class="ctl__icon-btn" (click)="clearHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
+                  <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                </button>
+              }
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length) {
+                <ul class="cft-history">
+                  @for (entry of history(); track entry.timestamp) {
+                    <li class="cft-history__item">
+                      <button type="button" class="cft-history__btn" (click)="applyHistory(entry)">
+                        <strong>{{ formatBytes(entry.original.length) }} → {{ formatBytes(entry.minified.length) }}</strong>
+                        <code>{{ formatHistoryPreview(entry.minified) }}</code>
+                      </button>
+                      <button type="button" class="cft-history__remove" (click)="removeHistoryEntry(entry.timestamp)" aria-label="Remove entry">×</button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="cft-history__empty">Enable history to keep recent minifications.</p>
+              }
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head"><span>Related tools</span></header>
+            <div class="ctl__panel-body hm__related">
+              <ul class="hm__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="hm__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Minification runs <strong>entirely in your browser</strong> — nothing is uploaded.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste HTML in the input editor — minification runs automatically.</li>
+        <li>Toggle sidebar options to control what gets stripped.</li>
+        <li>Use copy icons on each editor to grab input or output.</li>
+        <li>Click <strong>Download</strong> to save the minified file.</li>
+      </ul>
+    </details>
+  </main>
 </div>

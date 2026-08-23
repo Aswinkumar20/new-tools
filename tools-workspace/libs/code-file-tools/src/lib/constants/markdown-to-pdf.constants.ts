@@ -1,9 +1,6 @@
 import type { CftRelatedToolLink } from '../shared/cft-tool-suggestion.model';
 import type { MarkdownPdfOptions } from '../types/markdown-to-pdf.types';
 
-export const MARKDOWN_TO_PDF_CDN =
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-
 export const MARKDOWN_TO_PDF_FILENAME = 'markdown-document.pdf';
 
 export const MARKDOWN_TO_PDF_SAMPLE = `# Document Title

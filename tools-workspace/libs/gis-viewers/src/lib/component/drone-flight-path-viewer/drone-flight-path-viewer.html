@@ -1,0 +1,336 @@
+<div class="ctl drone">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="drone-eyebrow">GIS tools</span>
+        <h1>Drone Flight Path Viewer <span class="drone-live-badge">Local &amp; private</span></h1>
+        <p>
+          Flight path and altitude analytics — altitude-colored map, climb rates, takeoff/landing, and photo waypoints.
+        </p>
+      </header>
+    </div>
+
+    <aside class="drone-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="drone-suggest__body">
+        <p class="drone-suggest__title">{{ suggestion.title }}</p>
+        <p class="drone-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="drone-suggest__actions">
+        <a class="drone-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="drone-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="drone-toolbar" aria-label="Drone flight path viewer controls">
+      <div class="drone-toolbar__group">
+        <label class="sr-only" for="drone-file-upload">Upload drone flight files</label>
+        <input
+          #fileInput
+          id="drone-file-upload"
+          class="drone-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn drone-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample drone flight" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleUnits()"
+          [appTooltip]="units === 'metric' ? 'Switch to imperial (U)' : 'Switch to metric (U)'"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">{{ units === 'metric' ? 'Metric' : 'Imperial' }}</span>
+        </button>
+
+        <div class="drone-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="drone-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded source</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('path-geojson', $event)">
+              <strong>Path GeoJSON</strong>
+              <span>LineString plus photo points</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('telemetry-csv', $event)">
+              <strong>Telemetry CSV</strong>
+              <span>Altitude, battery, gimbal</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Distance, altitude, climb rates</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="flightFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="drone-files" *ngIf="flightFiles.length > 0" aria-label="Loaded flight files">
+          <div
+            class="drone-files__chip"
+            *ngFor="let file of flightFiles; let i = index; trackBy: trackByFileId"
+            [class.drone-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="drone-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="drone-files__name">{{ file.name }}</span>
+              <span class="drone-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="drone-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="drone-toolbar__status">
+        <span class="drone-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="drone-workspace"
+      [class.drone-workspace--fullscreen]="isFullscreen"
+      [class.drone-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="drone-panel" aria-label="Drone flight map">
+        <header class="drone-map-head" *ngIf="currentFile">
+          <div class="drone-map-head__identity">
+            <span class="drone-map-head__file">{{ currentFile.name }}</span>
+            <span class="drone-map-head__meta">
+              {{ formatDistanceValue(stats?.distanceMeters) }} ·
+              {{ formatDurationValue(stats?.durationSeconds) }} ·
+              {{ formatElevationValue(stats?.maxAltitudeMeters) }} max
+            </span>
+          </div>
+          <div class="drone-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="drone-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="drone-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="drone-view-controls__divider"></span>
+            <button
+              type="button"
+              class="drone-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="drone-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="drone-map-wrap" [class.drone-map-wrap--empty]="!currentFile">
+          <div #mapHost class="drone-map" [attr.aria-busy]="loading" aria-label="Interactive drone flight map"></div>
+          <div class="drone-empty" *ngIf="!currentFile && !loading">
+            <p class="drone-empty__title">Drop a drone flight here</p>
+            <p class="drone-empty__formats">
+              <span class="drone-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="drone-empty__hint">
+              {{ formatsHint }}. Shortcuts: <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>U</kbd> units, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="drone-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="drone-loading" *ngIf="loading">Loading flight…</div>
+        </div>
+
+        <div class="drone-profile" *ngIf="currentFile && altitudeLine" aria-label="Altitude profile">
+          <div class="drone-profile__head">
+            <strong>Altitude</strong>
+            <span>vs distance ({{ stats?.altitudeMode === 'agl' ? 'AGL' : stats?.altitudeMode === 'amsl' ? 'AMSL' : 'n/a' }})</span>
+          </div>
+          <svg class="drone-profile__svg" viewBox="0 0 100 36" preserveAspectRatio="none" role="img" aria-label="Altitude along the flight">
+            <polygon *ngIf="altitudeArea" class="drone-profile__area" [attr.points]="altitudeArea" fill="currentColor" />
+            <polyline
+              class="drone-profile__line"
+              [attr.points]="altitudeLine"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="0.7"
+              vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+
+        <div class="drone-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="drone-error" *ngIf="errorMessage" role="alert">
+          <p class="drone-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="drone-details-sidebar"
+        class="drone-sidebar"
+        aria-label="Flight analytics"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Flight overview</span>
+            <span class="drone-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="drone-process-name">{{ stats.title }}</p>
+            <div class="drone-stat-grid drone-stat-grid--dense" aria-label="Flight statistics">
+              <div><strong>{{ formatDistanceValue(stats.distanceMeters) }}</strong><span>Distance</span></div>
+              <div><strong>{{ formatDurationValue(stats.durationSeconds) }}</strong><span>Duration</span></div>
+              <div><strong>{{ formatElevationValue(stats.maxAltitudeMeters) }}</strong><span>Max alt</span></div>
+              <div><strong>{{ formatElevationValue(stats.minAltitudeMeters) }}</strong><span>Min alt</span></div>
+              <div><strong>{{ formatElevationValue(stats.avgAltitudeMeters) }}</strong><span>Avg alt</span></div>
+              <div><strong>{{ formatClimbRateValue(stats.maxClimbRateMps) }}</strong><span>Max climb</span></div>
+              <div><strong>{{ formatClimbRateValue(stats.maxDescentRateMps) }}</strong><span>Max descent</span></div>
+              <div><strong>{{ formatDistanceValue(stats.homeDistanceMeters) }}</strong><span>Home Δ</span></div>
+            </div>
+            <dl class="drone-meta drone-meta--compact">
+              <div><dt>Points</dt><dd>{{ stats.pointCount }}</dd></div>
+              <div><dt>Photos</dt><dd>{{ stats.photoCount }}</dd></div>
+              <div><dt>Mode</dt><dd>{{ stats.altitudeMode | uppercase }}</dd></div>
+              <div><dt>Bounds</dt><dd class="drone-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+            <div class="drone-legend" aria-label="Altitude color legend">
+              <span style="background:#0284c7"></span> Low
+              <span style="background:#0d9488"></span> Mid
+              <span style="background:#d97706"></span> High
+              <span style="background:#dc2626"></span> Peak
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && (stats?.hasBattery || stats?.hasGimbal) && telemetryPreview.length">
+          <header class="ctl__panel-head">Telemetry</header>
+          <div class="ctl__panel-body">
+            <table class="drone-telemetry" aria-label="Battery and gimbal samples">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Alt</th>
+                  <th *ngIf="stats?.hasBattery">Batt</th>
+                  <th *ngIf="stats?.hasGimbal">Gimbal</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of telemetryPreview">
+                  <td>{{ row.time }}</td>
+                  <td>{{ row.altitude }}</td>
+                  <td *ngIf="stats?.hasBattery">{{ row.battery }}</td>
+                  <td *ngIf="stats?.hasGimbal">{{ row.gimbal }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && currentFile.tracks.length > 1">
+          <header class="ctl__panel-head">Tracks</header>
+          <div class="ctl__panel-body">
+            <ul class="drone-feature-list">
+              <li *ngFor="let track of currentFile.tracks; trackBy: trackByTrackId">
+                <button
+                  type="button"
+                  class="drone-feature-list__btn"
+                  [class.drone-feature-list__btn--active]="track.id === activeTrackId"
+                  (click)="selectTrack(track.id)">
+                  <strong>{{ track.name }}</strong>
+                  <span>{{ track.points.length }} points · {{ track.photos.length }} photos</span>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="drone-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help drone-footer-help">
+      <summary>How to use Drone Flight Path Viewer</summary>
+      <ul>
+        <li>Upload <code>.gpx</code>, CSV telemetry (lat/lon/alt/agl/battery/gimbal/photo), or LineString <code>.geojson</code>.</li>
+        <li>The map colors each segment by altitude (AGL preferred when present).</li>
+        <li>Takeoff/landing markers and photo waypoints appear when data includes them.</li>
+        <li>Export original, path GeoJSON, telemetry CSV, or summary JSON — all in your browser.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="drone-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop drone flight files to open</p>
+    <p class="drone-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

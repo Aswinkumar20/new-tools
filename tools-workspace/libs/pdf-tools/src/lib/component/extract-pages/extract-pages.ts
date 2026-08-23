@@ -1,15 +1,21 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-extract-pages',
   standalone: true,
-  templateUrl: './extract-pages.html',
-  styleUrls: ['./extract-pages.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  template: `
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
+  `,
+  imports: [PdfWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExtractPagesComponent {
-  constructor() {}
+  readonly mode: PdfToolMode = 'extract-pages';
+  readonly title = 'Extract PDF Pages';
+  readonly description = 'Pull selected pages into a brand-new PDF.';
 }

@@ -1,308 +1,445 @@
-<div class="pl">
-  <div class="pl__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl dd dd-shell">
+  <lib-navigation></lib-navigation>
 
-  <section class="pl__hero">
-    <div class="pl__badge">Dev toolkit</div>
-    <h1>Postman Lite</h1>
-    <p>
-      A lightweight API testing tool. Send HTTP requests, view responses, save requests for later, and test your APIs
-      directly from the browser.
-    </p>
-
-    @if (hasResult() && result()) {
-      <div class="pl__hero-meta">
-        <div>
-          <span class="pl__meta-label">Status</span>
-          <strong [class.pl__status--success]="result()!.success" [class.pl__status--error]="!result()!.success">
-            {{ result()!.status ?? 'Error' }}
-          </strong>
-        </div>
-        <div>
-          <span class="pl__meta-label">Method</span>
-          <strong>{{ form.controls.method.value }}</strong>
-        </div>
-        <div>
-          <span class="pl__meta-label">Duration</span>
-          <strong>{{ result() ? formatDuration(result()!.duration) : '-' }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="pl__hero-meta pl__hero-meta--placeholder">
-        Configure your request and click "Send" to test the API.
-      </div>
-    }
-  </section>
-
-  <div class="pl__board" [formGroup]="form">
-    <section class="pl__panel pl__panel--request">
-      <header class="pl__card-header">
-        <div>
-          <h2>Request</h2>
-          <p>Configure your HTTP request.</p>
-        </div>
-        <div class="pl__request-actions">
-          <button type="button" class="btn btn--ghost btn--small" (click)="saveRequest()">Save</button>
-          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pl-eyebrow">Dev &amp; design</span>
+        <h1>Postman Lite <span class="pl-live-badge">Local &amp; private</span></h1>
+        <p>Send HTTP requests, view responses, and save requests for later — directly from the browser.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="pl__alert pl__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (warnings().length) {
-        <div class="pl__alert pl__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="pl__request-builder">
-        <div class="pl__method-url-row">
-          <select class="pl__select pl__select--method" formControlName="method">
-            @for (method of methods; track method) {
-              <option [value]="method">{{ method }}</option>
-            }
-          </select>
-          <input
-            type="url"
-            class="pl__input pl__input--url"
-            formControlName="url"
-            placeholder="https://api.example.com/endpoint"
-          />
-          <button
-            type="button"
-            class="btn btn--primary"
-            (click)="sendRequest()"
-            [disabled]="isSending()"
-          >
-            @if (isSending()) {
-              Sending...
+      <div class="ctl__stats" aria-label="Request statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">
+            @if (hasResult() && result()) {
+              {{ result()!.status ?? 'Error' }}
             } @else {
-              Send
+              —
             }
-          </button>
+          </span>
+          <span class="ctl__stat-label">Status</span>
         </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ form.controls.method.value }}</span>
+          <span class="ctl__stat-label">Method</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ hasResult() && result() ? formatDuration(result()!.duration) : '—' }}</span>
+          <span class="ctl__stat-label">Duration</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ isSending() ? 'Sending' : hasResult() ? 'Done' : 'Idle' }}</span>
+          <span class="ctl__stat-label">State</span>
+        </div>
+      </div>
+    </div>
 
-        <div class="pl__headers-section">
-          <div class="pl__section-header">
-            <h3>Headers</h3>
-            <button type="button" class="btn btn--ghost btn--small" (click)="addHeader()">Add header</button>
-          </div>
+    <div class="dd-workflow" aria-label="Request actions"><div class="dd-workflow__group dd-workflow__group--actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="loadExample()"
+        aria-label="Load example"
+        appTooltip="Load a realistic example"
+        tooltipPosition="bottom">
+        <span class="ctl__tool-btn-label">Sample</span>
+      </button>
 
-          <div class="pl__headers-list">
-            @for (header of headersFormArray().controls; track $index; let i = $index) {
-              <div class="pl__header-item">
-                <input
-                  type="text"
-                  class="pl__input pl__input--header-key"
-                  [formControl]="header.controls.key"
-                  placeholder="Header name"
-                />
-                <input
-                  type="text"
-                  class="pl__input pl__input--header-value"
-                  [formControl]="header.controls.value"
-                  placeholder="Header value"
-                />
-                @if (headersFormArray().length > 1) {
-                  <button
-                    type="button"
-                    class="btn btn--ghost btn--small pl__remove-btn"
-                    (click)="removeHeader(i)"
-                    title="Remove header"
-                  >
-                    ×
-                  </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="sendRequest()"
+        [disabled]="isSending()"
+        aria-label="Send request"
+        appTooltip="Send request"
+        tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span class="ctl__tool-btn-label">{{ isSending() ? 'Sending…' : 'Send' }}</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="saveRequest()"
+        aria-label="Save request"
+        appTooltip="Save request"
+        tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span class="ctl__tool-btn-label">Save</span>
+      </button>
+      @if (hasResult() && result()?.body) {
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyToClipboard(result()!.body || '', 'Response body')"
+          aria-label="Copy response body"
+          appTooltip="Copy response body"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy body</span>
+        </button>
+      }
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clear()"
+        aria-label="Clear request"
+        appTooltip="Clear request"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+    </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor dd-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Request</span>
+          </header>
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (warnings().length) {
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="pl__suggest" aria-label="Suggested next step">
+              <div class="pl__suggest-body">
+                <p class="pl__suggest-title">{{ suggestion.title }}</p>
+                <p class="pl__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="pl__suggest-actions">
+                <a class="pl__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="pl__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <div class="ctl__editor-body pl__request-builder">
+            <div class="pl__method-url-row">
+              <select class="pl__select pl__select--method" formControlName="method" aria-label="HTTP method">
+                @for (method of methods; track method) {
+                  <option [value]="method">{{ method }}</option>
+                }
+              </select>
+              <input
+                type="url"
+                class="pl__input pl__input--url"
+                formControlName="url"
+                placeholder="https://api.github.com/users/octocat"
+                aria-label="Request URL"
+              />
+            </div>
+
+            <div class="pl__name-row">
+              <input
+                type="text"
+                class="pl__input pl__input--name"
+                formControlName="requestName"
+                placeholder="Request name (optional, used when saving)"
+                aria-label="Saved request name"
+              />
+            </div>
+
+            <div class="pl__headers-section">
+              <div class="pl__section-header">
+                <h3>Headers</h3>
+                <button type="button" class="ctl__icon-btn" (click)="addHeader()" aria-label="Add header" appTooltip="Add header" tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </div>
+              <div class="pl__headers-list">
+                @for (header of headersFormArray().controls; track $index; let i = $index) {
+                  <div class="pl__header-item">
+                    <input
+                      type="text"
+                      class="pl__input pl__input--header-key"
+                      [formControl]="header.controls.key"
+                      placeholder="Header name"
+                    />
+                    <input
+                      type="text"
+                      class="pl__input pl__input--header-value"
+                      [formControl]="header.controls.value"
+                      placeholder="Header value"
+                    />
+                    @if (headersFormArray().length > 1) {
+                      <button
+                        type="button"
+                        class="ctl__icon-btn"
+                        (click)="removeHeader(i)"
+                        aria-label="Remove header"
+                        appTooltip="Remove header"
+                        tooltipPosition="bottom">
+                        ×
+                      </button>
+                    }
+                  </div>
                 }
               </div>
+            </div>
+
+            @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
+              <div class="pl__body-section">
+                <h3>Body</h3>
+                <textarea
+                  class="pl__textarea"
+                  formControlName="body"
+                  placeholder='{"key": "value"}'
+                  rows="6"
+                ></textarea>
+                <small>Enter JSON or plain text for the request body</small>
+              </div>
             }
-          </div>
-        </div>
 
-        @if (form.controls.method.value === 'POST' || form.controls.method.value === 'PUT' || form.controls.method.value === 'PATCH') {
-          <div class="pl__body-section">
-            <h3>Body</h3>
-            <textarea
-              class="pl__textarea"
-              formControlName="body"
-              placeholder='{"key": "value"}'
-              rows="8"
-            ></textarea>
-            <small>Enter JSON or plain text for the request body</small>
+            <label class="pl__toggle">
+              <input type="checkbox" formControlName="rememberHistory" />
+              <div>
+                <strong>Remember history</strong>
+                <span>Keep track of recent requests</span>
+              </div>
+            </label>
           </div>
-        }
-      </div>
+        </section>
 
-      <label class="pl__toggle">
-        <input type="checkbox" formControlName="rememberHistory" />
-        <div>
-          <strong>Remember history</strong>
-          <span>Keep track of recent requests</span>
-        </div>
-      </label>
-    </section>
+        <section class="ctl__editor dd-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Response</span>
+            @if (hasResult() && result(); as res) {
+              <span
+                class="ctl__editor-badge"
+                [class.pl__status--success]="res.success"
+                [class.pl__status--error]="!res.success">
+                {{ res.status ?? 'Error' }}
+              </span>
+            }
+          </header>
 
-    <section class="pl__panel pl__panel--response">
-      <header class="pl__card-header">
-        <div>
-          <h2>Response</h2>
-          <p>View the API response details.</p>
-        </div>
-        @if (hasResult() && result()?.body) {
-          <button
-            type="button"
-            class="btn btn--primary btn--small"
-            (click)="copyToClipboard(result()!.body || '', 'Response body')"
-          >
-            Copy body
-          </button>
-        }
-      </header>
+          @if (hasResult() && result(); as result) {
+            <div class="ctl__editor-body pl__response">
+              <div class="pl__response-summary">
+                <div class="pl__summary-item">
+                  <span class="pl__summary-label">Status</span>
+                  <strong [class.pl__status--success]="result.success" [class.pl__status--error]="!result.success">
+                    {{ result.status ?? 'N/A' }} {{ result.statusText }}
+                  </strong>
+                </div>
+                <div class="pl__summary-item">
+                  <span class="pl__summary-label">Duration</span>
+                  <strong>{{ formatDuration(result.duration) }}</strong>
+                </div>
+                <div class="pl__summary-item">
+                  <span class="pl__summary-label">Size</span>
+                  <strong>{{ result.body ? formatBytes(result.body.length) : '0 Bytes' }}</strong>
+                </div>
+              </div>
 
-      @if (hasResult() && result(); as result) {
-        <div class="pl__response-summary">
-          <div class="pl__summary-item">
-            <span class="pl__summary-label">Status:</span>
-            <strong [class.pl__status--success]="result.success" [class.pl__status--error]="!result.success">
-              {{ result.status ?? 'N/A' }} {{ result.statusText }}
-            </strong>
-          </div>
-          <div class="pl__summary-item">
-            <span class="pl__summary-label">Duration:</span>
-            <strong>{{ formatDuration(result.duration) }}</strong>
-          </div>
-          <div class="pl__summary-item">
-            <span class="pl__summary-label">Size:</span>
-            <strong>{{ result.body ? formatBytes(result.body.length) : '0 Bytes' }}</strong>
-          </div>
-        </div>
+              @if (result.error) {
+                <div class="pl__error-display">
+                  <strong>Error:</strong>
+                  <code>{{ result.error }}</code>
+                </div>
+              }
 
-        @if (result.error) {
-          <div class="pl__error-display">
-            <strong>Error:</strong>
-            <code>{{ result.error }}</code>
-          </div>
-        }
+              @if (hasHeaders(result.headers)) {
+                <div class="pl__response-headers">
+                  <h4>Response headers</h4>
+                  <div class="pl__headers-display">
+                    @for (header of getHeadersList(result.headers); track header.key) {
+                      <div class="pl__header-display-item">
+                        <strong>{{ header.key }}:</strong>
+                        <code>{{ header.value }}</code>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
 
-        @if (Object.keys(result.headers).length > 0) {
-          <div class="pl__response-headers">
-            <h4>Response headers</h4>
-            <div class="pl__headers-display">
-              @for (header of getHeadersList(result.headers); track header.key) {
-                <div class="pl__header-display-item">
-                  <strong>{{ header.key }}:</strong>
-                  <code>{{ header.value }}</code>
+              @if (result.body) {
+                <div class="pl__response-body">
+                  <h4>Response body</h4>
+                  <div class="pl__body-container">
+                    <pre class="pl__body-content">{{ formatJson(tryParseJson(result.body)) }}</pre>
+                  </div>
                 </div>
               }
             </div>
-          </div>
-        }
-
-        @if (result.body) {
-          <div class="pl__response-body">
-            <h4>Response body</h4>
-            <div class="pl__body-container">
-              <pre class="pl__body-content">{{ formatJson(tryParseJson(result.body)) }}</pre>
+          } @else {
+            <div class="ctl__empty">
+              <p>Send a request to see the response here.</p>
             </div>
-          </div>
-        }
-      } @else {
-        <div class="pl__empty">Send a request to see the response here.</div>
-      }
-    </section>
+          }
+        </section>
+      </div>
 
-    <section class="pl__panel pl__panel--saved">
-      <header class="pl__card-header">
-        <div>
-          <h2>Saved requests</h2>
-          <p>Quick access to your saved API requests.</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearSavedRequests()"
-          [disabled]="!hasSavedRequests()"
-        >
-          Clear all
-        </button>
-      </header>
-
-      @if (hasSavedRequests()) {
-        <ul class="pl__saved-list">
-          @for (request of savedRequests(); track request.id) {
-            <li>
-              <button type="button" (click)="loadRequest(request)" class="pl__saved-item">
-                <div class="pl__saved-info">
-                  <strong>{{ request.name }}</strong>
-                  <span>{{ request.method }} {{ request.url }}</span>
-                  <span class="pl__saved-timestamp">{{ formatTimestamp(request.timestamp) }}</span>
-                </div>
-              </button>
+            <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Saved requests and history">
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">
+            Saved requests
+            @if (hasSavedRequests()) {
               <button
                 type="button"
-                class="btn btn--ghost btn--small"
-                (click)="deleteRequest(request.id)"
-              >
-                Delete
+                class="ctl__icon-btn"
+                (click)="clearSavedRequests()"
+                aria-label="Clear saved requests"
+                appTooltip="Clear saved"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
               </button>
-            </li>
+            }
+          </summary>
+          @if (hasSavedRequests()) {
+            <ul class="pl__saved-list">
+              @for (request of savedRequests(); track request.id) {
+                <li>
+                  <button type="button" (click)="loadRequest(request)" class="pl__saved-item">
+                    <div class="pl__saved-info">
+                      <strong>{{ request.name }}</strong>
+                      <span>{{ request.method }} {{ request.url }}</span>
+                      <span class="pl__saved-timestamp">{{ formatTimestamp(request.timestamp) }}</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="deleteRequest(request.id)"
+                    aria-label="Delete saved request"
+                    appTooltip="Delete"
+                    tooltipPosition="bottom">
+                    ×
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="ctl__empty">
+              <p>Save requests to access them later.</p>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="pl__empty">Save requests to access them later. Click "Save" in the request panel.</div>
-      }
-    </section>
+        </details>
 
-    <section class="pl__panel pl__panel--history">
-      <header class="pl__card-header">
-        <div>
-          <h2>Request history</h2>
-          <p>Quick access to recently sent requests.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      @if (hasHistory()) {
-        <ul class="pl__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="pl__history-item">
-                <div class="pl__history-info">
-                  <strong>
-                    {{ entry.method }} {{ entry.url }}
-                  </strong>
-                  <span>
-                    {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
-                  </span>
-                </div>
-              </button>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">
+            Request history
+            @if (hasHistory()) {
               <button
                 type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
               </button>
-            </li>
+            }
+          </summary>
+          @if (hasHistory()) {
+            <ul class="pl__history-list">
+              @for (entry of history(); track entry.timestamp) {
+                <li>
+                  <button type="button" (click)="applyHistory(entry)" class="pl__history-item">
+                    <div class="pl__history-info">
+                      <strong>{{ entry.method }} {{ entry.url }}</strong>
+                      <span>
+                        {{ entry.success ? '✓' : '✗' }} Status: {{ entry.status ?? 'N/A' }} • {{ formatTimestamp(entry.timestamp) }}
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="removeHistoryEntry(entry.timestamp)"
+                    aria-label="Remove history entry"
+                    appTooltip="Remove"
+                    tooltipPosition="bottom">
+                    ×
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="ctl__empty">
+              <p>Enable history tracking to keep recent requests.</p>
+            </div>
           }
-        </ul>
-      } @else {
-        <div class="pl__empty">Enable history tracking to keep a list of recent requests.</div>
-      }
-    </section>
-  </div>
+        </details>
+
+        <details class="ctl__panel pl__related" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <ul class="pl__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="pl__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </details>
+      </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help dd-footer-help">
+      <summary>How to use Postman Lite</summary>
+      <ol class="dd-help-steps">
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">1</span>
+          <h3>Send</h3>
+          <p>Set method, URL, headers, and optional JSON body, then Send.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">2</span>
+          <h3>Sample</h3>
+          <p>Load the GitHub Octocat GET — a real public API response.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">3</span>
+          <h3>Save</h3>
+          <p>Name a request in More to reuse it later (localStorage).</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">4</span>
+          <h3>Inspect</h3>
+          <p>Review status, duration, and body. Pretty-print JSON when needed.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">5</span>
+          <h3>Privacy</h3>
+          <p>Requests go from your browser to the URL you enter.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
 </div>

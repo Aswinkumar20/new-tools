@@ -1,0 +1,177 @@
+<div class="ctl dns">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dns-eyebrow">Network tools</span>
+        <h1>DNS Log Viewer <span class="dns-live-badge">Local &amp; private</span></h1>
+        <p>Review DNS queries and responses locally from BIND, dnsmasq, CSV, or JSON dumps. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="dns-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dns-suggest__body">
+        <p class="dns-suggest__title">{{ suggestion.title }}</p>
+        <p class="dns-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dns-suggest__actions">
+        <button type="button" class="dns-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="dns-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="dns-toolbar">
+      <div class="dns-toolbar__group">
+        <input #fileInput class="dns-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn dns-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dns-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="dns-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('queries-csv', $event)">Queries CSV</button>
+            <button type="button" (click)="exportAs('types-csv', $event)">Types CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="dns-files" *ngIf="files.length">
+          <div class="dns-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dns-files__chip--active]="i === currentIndex">
+            <button type="button" class="dns-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="dns-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="dns-toolbar__status"><span class="dns-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="dns-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="dns-workspace" [class.dns-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dns-panel">
+        <header class="dns-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ filteredQueries.length }} queries · {{ parsed?.sourceKind }}</span>
+          </div>
+          <div class="dns-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="dns-map-wrap" [class.dns-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="dns-map" [class.dns-map--tall]="viewMode === 'types'" *ngIf="currentFile && (viewMode === 'timeline' || viewMode === 'types')"></canvas>
+          <ng-container *ngIf="currentFile && (viewMode === 'queries' || viewMode === 'timeline')">
+            <div class="dns-cards">
+              <article *ngFor="let item of filteredQueries; trackBy: trackByQuery" [class.is-active]="selectedQuery?.id === item.id" (click)="selectQuery(item.id)">
+                <header>
+                  <i class="dns-swatch" [style.background]="typeTint(item.qtype)"></i>
+                  <strong>{{ item.qtype }}</strong>
+                  <span>{{ item.qname }}</span>
+                </header>
+                <p>{{ item.client || '—' }}{{ item.clientPort != null ? ':' + item.clientPort : '' }}</p>
+                <p>
+                  <i class="dns-swatch" [style.background]="rcodeTint(item.rcode || '—')"></i>
+                  {{ item.rcode || 'pending' }} · {{ item.answer || '—' }}
+                </p>
+              </article>
+            </div>
+          </ng-container>
+          <div class="dns-cards" *ngIf="currentFile && viewMode === 'types'">
+            <article *ngFor="let type of parsed?.types" [class.is-active]="query.toLowerCase() === type.name.toLowerCase()" (click)="query = type.name; onFilterChange()">
+              <header>
+                <i class="dns-swatch" [style.background]="typeTint(type.name)"></i>
+                <strong>{{ type.name }}</strong>
+                <span>{{ type.count }} queries</span>
+              </header>
+            </article>
+          </div>
+          <div class="dns-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Client</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Rcode</th>
+                  <th>Answer</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of filteredQueries; trackBy: trackByQuery" [class.is-active]="selectedQuery?.id === item.id" (click)="selectQuery(item.id)">
+                  <td>{{ item.index + 1 }}</td>
+                  <td>{{ item.time }}</td>
+                  <td>{{ item.client || '—' }}</td>
+                  <td>{{ item.qname }}</td>
+                  <td><i class="dns-swatch" [style.background]="typeTint(item.qtype)"></i>{{ item.qtype }}</td>
+                  <td><i class="dns-swatch" [style.background]="rcodeTint(item.rcode || '—')"></i>{{ item.rcode || '—' }}</td>
+                  <td>{{ item.answer || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="dns-empty-filter" *ngIf="parsed && !filteredQueries.length">No queries match the current filter.</p>
+          </div>
+          <div class="dns-empty" *ngIf="!currentFile && !loading">
+            <p>Drop DNS logs here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="dns-loading" *ngIf="loading">Parsing DNS log…</div>
+        </div>
+
+        <div class="dns-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dns-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dns-disclaimer">Education and research preview only — not a substitute for BIND, Unbound, dnsmasq consoles, or production DNS telemetry.</p>
+      </section>
+
+      <aside class="dns-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="dns-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Filter queries</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="dns-search" type="search" placeholder="aaaa nxdomain client:10.0.0.21 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredQueries.length">
+          <header class="ctl__panel-head">Queries</header>
+          <div class="ctl__panel-body dns-units">
+            <button type="button" *ngFor="let item of filteredQueries; trackBy: trackByQuery" [class.is-active]="selectedId === item.id" (click)="selectQuery(item.id)">
+              <i class="dns-swatch" [style.background]="typeTint(item.qtype)"></i>
+              <span>{{ item.qname }} <small>{{ item.qtype }} · {{ item.rcode || 'pending' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedQuery">
+          <header class="ctl__panel-head">Selected query</header>
+          <div class="ctl__panel-body">
+            <dl class="dns-meta">
+              <div *ngFor="let row of queryMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dns-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="dns-drop" *ngIf="showDropZone"><p>Drop DNS logs to inspect</p></div>
+  </main>
+</div>

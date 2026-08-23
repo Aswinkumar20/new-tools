@@ -1,0 +1,386 @@
+<div class="ctl topojson">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="topojson-eyebrow">GIS tools</span>
+        <h1>TopoJSON Viewer <span class="topojson-live-badge">Local &amp; private</span></h1>
+        <p>
+          Explore Topology objects on an interactive map — convert arcs to features, inspect attributes, and export.
+        </p>
+      </header>
+    </div>
+
+    <aside class="topojson-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="topojson-suggest__body">
+        <p class="topojson-suggest__title">{{ suggestion.title }}</p>
+        <p class="topojson-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="topojson-suggest__actions">
+        <a class="topojson-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="topojson-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="topojson-toolbar" aria-label="TopoJSON viewer controls">
+      <div class="topojson-toolbar__group">
+        <label class="sr-only" for="topojson-file-upload">Upload TopoJSON files</label>
+        <input
+          #fileInput
+          id="topojson-file-upload"
+          class="topojson-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn topojson-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload TopoJSON · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample city Topology"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="topojson-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="topojson-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('topojson', $event)">
+              <strong>TopoJSON</strong>
+              <span>Download the source Topology</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('geojson', $event)">
+              <strong>GeoJSON</strong>
+              <span>Converted FeatureCollection</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('features-csv', $event)">
+              <strong>Features CSV</strong>
+              <span>Attributes as a table</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Stats and feature inventory</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          *ngIf="currentFile"
+          (click)="copyTopoJson()"
+          appTooltip="Copy TopoJSON text"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Copy JSON</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="topoJsonFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="topojson-files" *ngIf="topoJsonFiles.length > 0" aria-label="Loaded TopoJSON files">
+          <div
+            class="topojson-files__chip"
+            *ngFor="let file of topoJsonFiles; let i = index; trackBy: trackByFileId"
+            [class.topojson-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="topojson-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="topojson-files__name">{{ file.name }}</span>
+              <span class="topojson-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="topojson-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="topojson-toolbar__status">
+        <span class="topojson-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="topojson-workspace"
+      [class.topojson-workspace--fullscreen]="isFullscreen"
+      [class.topojson-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="topojson-panel" aria-label="TopoJSON map">
+        <header class="topojson-map-head" *ngIf="currentFile">
+          <div class="topojson-map-head__identity">
+            <span class="topojson-map-head__file">{{ currentFile.name }}</span>
+            <span class="topojson-map-head__meta">
+              {{ stats?.title || 'TopoJSON' }} · {{ stats?.objects ?? 0 }} objects ·
+              {{ stats?.features ?? 0 }} features
+            </span>
+          </div>
+          <div class="topojson-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="topojson-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="topojson-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit features (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="Reset zoom (0)" tooltipPosition="bottom">World</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="topojson-view-controls__divider"></span>
+            <button
+              type="button"
+              class="topojson-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="topojson-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="topojson-map-wrap" [class.topojson-map-wrap--empty]="!currentFile">
+          <div #mapHost class="topojson-map" [attr.aria-busy]="loading" aria-label="Interactive TopoJSON map"></div>
+          <div class="topojson-empty" *ngIf="!currentFile && !loading">
+            <p class="topojson-empty__title">Drop a TopoJSON file here</p>
+            <p class="topojson-empty__formats">
+              <span class="topojson-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="topojson-empty__hint">
+              {{ formatsHint }}. Or load the sample city Topology. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>0</kbd> world.
+            </p>
+            <div class="topojson-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="topojson-loading" *ngIf="loading">Loading map…</div>
+        </div>
+
+        <div class="topojson-error" *ngIf="errorMessage" role="alert">
+          <p class="topojson-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample map
+          </button>
+        </div>
+
+        <div class="topojson-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+      </section>
+
+      <aside
+        id="topojson-details-sidebar"
+        class="topojson-sidebar"
+        aria-label="Dataset details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Dataset overview</span>
+            <span class="topojson-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="topojson-process-name">{{ stats.title }}</p>
+            <div class="topojson-stat-grid" aria-label="Feature statistics">
+              <div><strong>{{ stats.points }}</strong><span>Points</span></div>
+              <div><strong>{{ stats.lines }}</strong><span>Lines</span></div>
+              <div><strong>{{ stats.polygons }}</strong><span>Polygons</span></div>
+              <div><strong>{{ stats.other }}</strong><span>Other</span></div>
+            </div>
+            <dl class="topojson-meta topojson-meta--compact">
+              <div><dt>Objects</dt><dd>{{ stats.objects }}</dd></div>
+              <div><dt>Arcs</dt><dd>{{ stats.arcs }}</dd></div>
+              <div><dt>Features</dt><dd>{{ stats.features }}</dd></div>
+              <div><dt>Property keys</dt><dd>{{ stats.propertyKeys }}</dd></div>
+              <div><dt>Transform</dt><dd>{{ stats.hasTransform ? 'Yes' : 'No' }}</dd></div>
+              <div><dt>Bbox</dt><dd class="topojson-meta__bounds">{{ bboxLabel }}</dd></div>
+              <div><dt>Bounds</dt><dd class="topojson-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && currentFile.objectNames.length > 0">
+          <header class="ctl__panel-head">Topology objects</header>
+          <div class="ctl__panel-body">
+            <div class="topojson-kind-filters" role="tablist" aria-label="Topology object filters">
+              <button
+                type="button"
+                *ngFor="let filter of objectFilters; trackBy: trackByFilterId"
+                role="tab"
+                class="topojson-kind-filters__btn"
+                [class.topojson-kind-filters__btn--active]="objectFilter === filter.id"
+                [attr.aria-selected]="objectFilter === filter.id"
+                (click)="setObjectFilter(filter.id)">
+                {{ filter.label }}
+                <span>{{ filter.count }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="selectedFeature as feature">
+          <header class="ctl__panel-head">Selection</header>
+          <div class="ctl__panel-body">
+            <p class="topojson-selection__name">{{ feature.name }}</p>
+            <p class="topojson-selection__type">
+              {{ feature.geometryType }} · {{ feature.kind }} · {{ feature.objectName }}
+            </p>
+            <p class="topojson-selection__id">{{ feature.id }}</p>
+            <ul class="topojson-props" *ngIf="feature.propertyCount > 0">
+              <li *ngFor="let entry of feature.properties | keyvalue">
+                <strong>{{ entry.key }}</strong>
+                <span>{{ formatPropertyValue(entry.value) }}</span>
+              </li>
+            </ul>
+            <button type="button" class="topojson-selection__copy" (click)="copySelectedId()">Copy ID</button>
+          </div>
+        </div>
+
+        <div class="ctl__panel topojson-features-panel">
+          <header class="ctl__panel-head">Features</header>
+          <div class="ctl__panel-body">
+            <div class="topojson-kind-filters" role="tablist" aria-label="Geometry type filters">
+              <button
+                type="button"
+                *ngFor="let filter of featureFilters; trackBy: trackByFilterId"
+                role="tab"
+                class="topojson-kind-filters__btn"
+                [class.topojson-kind-filters__btn--active]="featureFilter === filter.id"
+                [attr.aria-selected]="featureFilter === filter.id"
+                (click)="setFeatureFilter(filter.id)">
+                {{ filter.label }}
+                <span>{{ kindCounts[filter.id] }}</span>
+              </button>
+            </div>
+
+            <label class="topojson-filter">
+              <span class="sr-only">Filter features</span>
+              <input
+                type="search"
+                placeholder="Search name, object, id, or property"
+                [value]="featureSearch"
+                (input)="onFeatureSearchInput($event)" />
+            </label>
+
+            <ul class="topojson-feature-list" *ngIf="filteredFeatures.length > 0; else noFeatures">
+              <li *ngFor="let feature of filteredFeatures; trackBy: trackByFeatureId">
+                <button
+                  type="button"
+                  class="topojson-feature-list__btn"
+                  [class.topojson-feature-list__btn--active]="feature.id === selectedFeatureId"
+                  (click)="focusFeature(feature)">
+                  <strong>{{ feature.name }}</strong>
+                  <span>{{ feature.objectName }} · {{ feature.geometryType }}</span>
+                </button>
+              </li>
+            </ul>
+            <ng-template #noFeatures>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No features match this filter.' : 'Upload a TopoJSON file to inspect features.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="topojson-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help topojson-footer-help">
+      <summary>How to use TopoJSON Viewer</summary>
+      <ul>
+        <li>
+          Supported uploads: <code>.topojson</code> and <code>.json</code> Topology documents with
+          <code>objects</code> and <code>arcs</code>.
+        </li>
+        <li>Filter by topology object (or All), then by geometry type; click a feature to focus and inspect.</li>
+        <li>Scroll to zoom, drag to pan, or use Fit / Zoom controls (<kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd> <kbd>0</kbd>).</li>
+        <li>
+          Export TopoJSON, converted GeoJSON, CSV, or summary JSON — all processed in your browser. Map tiles load from
+          OpenStreetMap.
+        </li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="topojson-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop TopoJSON files to open</p>
+    <p class="topojson-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

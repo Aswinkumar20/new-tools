@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/hash-generator/hash-generator';
 export * from './lib/component/uuid-generator/uuid-generator';
 export * from './lib/component/password-strength-checker/password-strength-checker';

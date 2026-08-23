@@ -1,0 +1,409 @@
+<div class="ctl mg">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="mg-eyebrow">Medical tools</span>
+        <h1>Mammography Viewer <span class="mg-live-badge">Local &amp; private</span></h1>
+        <p>
+          Local private mammography review — hanging layout (R-CC, R-MLO, L-CC, L-MLO), window/level presets, zoom, pan, and pixel probe. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="mg-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="mg-suggest__body">
+        <p class="mg-suggest__title">{{ suggestion.title }}</p>
+        <p class="mg-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="mg-suggest__actions">
+        <a
+          class="mg-suggest__action"
+          *ngIf="suggestion.id === 'dicom-alt'; else mgLocalAction"
+          [routerLink]="suggestion.path"
+          >{{ suggestion.actionLabel }}</a
+        >
+        <ng-template #mgLocalAction>
+          <button type="button" class="mg-suggest__action" (click)="applySuggestion(suggestion)">
+            {{ suggestion.actionLabel }}
+          </button>
+        </ng-template>
+        <button type="button" class="mg-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="mg-toolbar" aria-label="Mammography viewer controls">
+      <div class="mg-toolbar__group">
+        <label class="sr-only" for="mg-file-upload">Upload mammography files</label>
+        <input
+          #fileInput
+          id="mg-file-upload"
+          class="mg-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn mg-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample MG screening DICOM" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="mg-view-toggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            [class.is-active]="viewMode === 'single'"
+            [attr.aria-pressed]="viewMode === 'single'"
+            (click)="setViewMode('single')"
+            appTooltip="Single file view"
+            tooltipPosition="bottom">
+            Single
+          </button>
+          <button
+            type="button"
+            [class.is-active]="viewMode === 'hanging'"
+            [attr.aria-pressed]="viewMode === 'hanging'"
+            (click)="setViewMode('hanging')"
+            appTooltip="2×2 hanging layout (H)"
+            tooltipPosition="bottom">
+            Hanging
+          </button>
+        </div>
+
+        <div class="mg-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="mg-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded DICOM</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Tag keyword → value table</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Geometry, window, modality</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="mgFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="mg-files" *ngIf="mgFiles.length > 0" aria-label="Loaded mammography files">
+          <div
+            class="mg-files__chip"
+            *ngFor="let file of mgFiles; let i = index; trackBy: trackByFileId"
+            [class.mg-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="mg-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="mg-files__name">{{ file.name }}</span>
+              <span class="mg-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="mg-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mg-toolbar__status">
+        <span class="mg-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="mg-workspace"
+      [class.mg-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.mg-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="mg-panel" aria-label="Mammography viewport">
+        <header class="mg-map-head" *ngIf="currentFile || (viewMode === 'hanging' && mgFiles.length > 0)">
+          <div class="mg-map-head__identity">
+            <span class="mg-map-head__file" *ngIf="viewMode === 'single' && currentFile">{{ currentFile.name }}</span>
+            <span class="mg-map-head__file" *ngIf="viewMode === 'hanging'">Hanging layout · {{ assignedHangingCount }}/4 slots</span>
+            <span class="mg-map-head__meta" *ngIf="parsed && viewMode === 'single'">
+              {{ fileLabel }} · {{ parsed.modality || 'OT' }} · WC {{ windowCenter | number:'1.0-0' }} / WW
+              {{ windowWidth | number:'1.0-0' }}
+            </span>
+            <span class="mg-map-head__meta" *ngIf="viewMode === 'hanging'">
+              MG · WC {{ windowCenter | number:'1.0-0' }} / WW {{ windowWidth | number:'1.0-0' }}
+            </span>
+          </div>
+          <div class="mg-view-controls" aria-label="View controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <button type="button" (click)="toggleInvert()" [attr.aria-pressed]="invert" appTooltip="Invert" tooltipPosition="bottom">Invert</button>
+            <button
+              type="button"
+              (click)="rotate90()"
+              [disabled]="viewMode === 'hanging'"
+              appTooltip="Rotate 90° clockwise (single view)"
+              tooltipPosition="bottom">
+              Rotate 90°
+            </button>
+            <span class="mg-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="mg-view-controls__divider"></span>
+            <button
+              type="button"
+              class="mg-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="mg-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="mg-map-wrap" [class.mg-map-wrap--empty]="mgFiles.length === 0">
+          <canvas
+            #canvasHost
+            class="mg-map"
+            [class.mg-map--pan]="canPan"
+            [class.mg-map--panning]="panning"
+            [attr.aria-busy]="loading"
+            aria-label="Mammography image viewport"
+            (mousedown)="onCanvasMouseDown($event)"
+            (mousemove)="onCanvasMouseMove($event)"
+            (mouseup)="onCanvasMouseUp()"
+            (mouseleave)="onCanvasMouseLeave()"
+            (click)="onCanvasClick($event)"></canvas>
+          <div class="mg-empty" *ngIf="mgFiles.length === 0 && !loading">
+            <p class="mg-empty__title">Drop mammography DICOM files here</p>
+            <p class="mg-empty__formats">
+              <span class="mg-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="mg-empty__hint">
+              {{ formatsHint }} <kbd>+</kbd>/<kbd>−</kbd> zoom · Shift+± window · <kbd>H</kbd> toggle hanging · <kbd>F</kbd> fit · drag to pan when zoomed.
+            </p>
+            <div class="mg-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="mg-loading" *ngIf="loading">Loading mammography…</div>
+        </div>
+
+        <div class="mg-probe" *ngIf="probe">
+          <span *ngIf="probeSlot">{{ probeSlot }} · </span>
+          Probe ({{ probe.x }}, {{ probe.y }}) · raw {{ probe.raw | number:'1.0-2' }} · rescaled
+          {{ probe.hu != null ? (probe.hu | number:'1.0-2') : '—' }}
+        </div>
+
+        <div class="mg-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="mg-error" *ngIf="errorMessage" role="alert">
+          <p class="mg-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="mg-details-sidebar"
+        class="mg-sidebar"
+        aria-label="Mammography details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">
+            <span>Study overview</span>
+            <span class="mg-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="mg-process-name">{{ currentFile?.name }}</p>
+            <div class="mg-stat-grid mg-stat-grid--dense" aria-label="Image statistics">
+              <div><strong>{{ parsed.rows }}</strong><span>Rows</span></div>
+              <div><strong>{{ parsed.columns }}</strong><span>Columns</span></div>
+              <div><strong>{{ parsed.bitsAllocated }}</strong><span>Bits</span></div>
+              <div><strong>{{ parsed.modality || '—' }}</strong><span>Modality</span></div>
+              <div><strong>{{ mgFiles.length }}</strong><span>Files</span></div>
+              <div><strong>{{ parsed.photometricInterpretation }}</strong><span>Photo</span></div>
+            </div>
+            <dl class="mg-meta mg-meta--compact">
+              <div><dt>Patient</dt><dd>{{ parsed.patientName || '—' }}</dd></div>
+              <div><dt>Patient ID</dt><dd>{{ parsed.patientId || '—' }}</dd></div>
+              <div><dt>Laterality</dt><dd>{{ parsed.imageLaterality || '—' }}</dd></div>
+              <div><dt>View</dt><dd>{{ parsed.viewPosition || '—' }}</dd></div>
+            </dl>
+            <p class="mg-disclaimer">Education/research only — not for diagnostic use. Files never leave your browser.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="viewMode === 'hanging' || mgFiles.length > 1">
+          <header class="ctl__panel-head">Hanging slots</header>
+          <div class="ctl__panel-body">
+            <ul class="mg-hanging-legend">
+              <li
+                *ngFor="let cell of hangingCells; trackBy: trackBySlot"
+                [class.mg-hanging-legend__filled]="cell.file != null"
+                [class.mg-hanging-legend__empty]="cell.file == null">
+                <strong>{{ cell.slot }}</strong>
+                <span *ngIf="cell.file as f">{{ f.name }}</span>
+                <span *ngIf="!cell.file">Empty</span>
+              </li>
+            </ul>
+            <p class="mg-hanging-legend__hint">{{ assignedHangingCount }} of 4 standard screening slots assigned.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="seriesDescription">
+          <header class="ctl__panel-head">Acquisition</header>
+          <div class="ctl__panel-body">
+            <dl class="mg-meta mg-meta--compact">
+              <div><dt>Series</dt><dd>{{ seriesDescription }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="mgFiles.length > 1 && viewMode === 'single'">
+          <header class="ctl__panel-head">Loaded files</header>
+          <div class="ctl__panel-body">
+            <label>
+              <span>File {{ currentFileIndex + 1 }} / {{ mgFiles.length }}</span>
+              <input
+                type="range"
+                min="0"
+                [max]="mgFiles.length - 1"
+                step="1"
+                [value]="currentFileIndex"
+                (input)="onFileSlider($event)" />
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && parsed && !currentFile.softFail">
+          <header class="ctl__panel-head">Window / level</header>
+          <div class="ctl__panel-body">
+            <div class="mg-controls">
+              <div class="mg-controls__presets" role="group" aria-label="Window presets">
+                <button
+                  type="button"
+                  *ngFor="let preset of windowPresets"
+                  [class.is-active]="activePresetId === preset.id"
+                  (click)="applyPreset(preset.id)">
+                  {{ preset.label }}
+                </button>
+              </div>
+              <label>
+                <span>Center <span class="mg-opacity-value">{{ windowCenter | number:'1.0-0' }}</span></span>
+                <input type="range" min="-1000" max="5000" step="1" [value]="windowCenter" (input)="onWindowCenterChange($event)" />
+              </label>
+              <label>
+                <span>Width <span class="mg-opacity-value">{{ windowWidth | number:'1.0-0' }}</span></span>
+                <input type="range" min="1" max="8000" step="1" [value]="windowWidth" (input)="onWindowWidthChange($event)" />
+              </label>
+              <p class="mg-controls__hint">Click image to probe raw + HU · Shift+± adjusts window width · drag to pan when zoomed past fit</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="parsed?.metadataRows?.length">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body" style="max-height: 14rem; overflow: auto">
+            <table class="mg-meta-table">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of parsed?.metadataRows">
+                  <td>{{ row.keyword }}</td>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="mg-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help mg-footer-help">
+      <summary>How to use Mammography Viewer</summary>
+      <ul>
+        <li>Upload MG DICOM (CC/MLO views). Other modalities show a soft warning but still load.</li>
+        <li><strong>Hanging</strong> mode shows a 2×2 grid (R-CC, R-MLO, L-CC, L-MLO). <strong>Single</strong> mode reviews one file at a time.</li>
+        <li>Mammography presets (Screening, Dense tissue, Calcifications, Soft tissue) plus custom W/L. Invert, rotate 90° (single), zoom, and pan.</li>
+        <li>Export original, metadata JSON, summary JSON, or a PNG snapshot. Education/research only — not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="mg-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop mammography files to open</p>
+    <p class="mg-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

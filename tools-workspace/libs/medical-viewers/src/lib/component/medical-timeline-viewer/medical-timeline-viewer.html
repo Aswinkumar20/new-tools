@@ -1,0 +1,154 @@
+<div class="ctl mtl">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="mtl-eyebrow">Medical tools</span>
+        <h1>Medical Timeline Viewer <span class="mtl-live-badge">Local &amp; private</span></h1>
+        <p>Build patient and encounter timelines from JSON, CSV, FHIR, or HL7 clinical events. Education/research only — not for diagnosis.</p>
+      </header>
+    </div>
+
+    <aside class="mtl-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="mtl-suggest__body">
+        <p class="mtl-suggest__title">{{ suggestion.title }}</p>
+        <p class="mtl-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="mtl-suggest__actions">
+        <button type="button" class="mtl-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="mtl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="mtl-toolbar" aria-label="Timeline viewer controls">
+      <div class="mtl-toolbar__group">
+        <label class="sr-only" for="mtl-file-upload">Upload timeline files</label>
+        <input #fileInput id="mtl-file-upload" class="mtl-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn mtl-primary-action" (click)="openFilePicker()" [appTooltip]="'Upload · ' + formatsLabel" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample clinical timeline" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="mtl-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)" [attr.aria-expanded]="showExportMenu" aria-haspopup="menu" aria-label="Export options" appTooltip="Export options" tooltipPosition="bottom">Export</button>
+          <div class="mtl-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)"><strong>Original file</strong><span>Download uploaded document</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)"><strong>Summary JSON</strong><span>Patient and event counts</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('events-json', $event)"><strong>Events JSON</strong><span>All parsed events</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('events-csv', $event)"><strong>Events CSV</strong><span>Spreadsheet-friendly export</span></button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="documents.length === 0" appTooltip="Clear all" tooltipPosition="bottom">Clear</button>
+        <div class="mtl-files" *ngIf="documents.length" aria-label="Loaded timeline files">
+          <div class="mtl-files__chip" *ngFor="let doc of documents; let i = index; trackBy: trackByDocumentId" [class.mtl-files__chip--active]="i === currentIndex">
+            <button type="button" class="mtl-files__select" [attr.aria-pressed]="i === currentIndex" (click)="selectDocument(i)">{{ doc.name }}</button>
+            <button type="button" class="mtl-files__remove" [attr.aria-label]="'Remove ' + doc.name" (click)="removeDocument(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="mtl-toolbar__status"><span class="mtl-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="mtl-filter-bar" *ngIf="currentDocument">
+      <label class="sr-only" for="mtl-event-search">Filter events</label>
+      <input #eventSearchInput id="mtl-event-search" type="search" [(ngModel)]="eventQuery" placeholder="Filter events… (/)" />
+      <div class="mtl-group-modes" role="group" aria-label="Group mode">
+        <button type="button" *ngFor="let mode of groupModes" [class.is-active]="groupMode === mode.id" [attr.aria-pressed]="groupMode === mode.id" (click)="setGroupMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="mtl-category-chips" role="group" aria-label="Category filters">
+        <button type="button" *ngFor="let cat of categories" [class.is-active]="activeCategory === cat" [attr.aria-pressed]="activeCategory === cat" (click)="setCategory(cat)">{{ cat }}</button>
+      </div>
+    </div>
+
+    <div class="mtl-workspace" [class.mtl-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="mtl-panel">
+        <header class="mtl-map-head" *ngIf="currentDocument">
+          <div><strong>{{ currentDocument.name }}</strong><span>{{ headerLabel }}</span></div>
+          <button type="button" (click)="toggleSidebar()" [attr.aria-expanded]="!sidebarCollapsed" aria-controls="mtl-details-sidebar">{{ sidebarCollapsed ? 'Show panel' : 'Hide panel' }}</button>
+        </header>
+
+        <div class="mtl-map-wrap" [class.mtl-map-wrap--empty]="!currentDocument" [class.mtl-map-wrap--detail]="!!selectedEvent">
+          <div class="mtl-timeline" *ngIf="currentDocument">
+            <div class="mtl-group" *ngFor="let group of groupedEvents; trackBy: trackByGroupKey">
+              <h3 class="mtl-group__title" *ngIf="groupMode !== 'none'">{{ group.label }}</h3>
+              <button type="button" class="mtl-event" *ngFor="let event of group.events; trackBy: trackByEventId" [class.is-selected]="selectedEventId === event.id" (click)="selectEvent(event)">
+                <div class="mtl-event__rail"><span class="mtl-event__dot"></span></div>
+                <div class="mtl-event__body">
+                  <time>{{ event.date }}</time>
+                  <strong>{{ event.title }}</strong>
+                  <span class="mtl-event__category">{{ event.category }}</span>
+                  <p *ngIf="event.description">{{ event.description }}</p>
+                </div>
+              </button>
+            </div>
+            <p class="mtl-empty-filter" *ngIf="filteredEvents.length === 0">No events match the current filters.</p>
+          </div>
+
+          <aside class="mtl-detail" *ngIf="selectedEvent as event">
+            <header><strong>Event detail</strong><button type="button" (click)="closeEventDetail()">Close</button></header>
+            <dl>
+              <div><dt>Date</dt><dd>{{ event.date }}</dd></div>
+              <div><dt>Title</dt><dd>{{ event.title }}</dd></div>
+              <div><dt>Category</dt><dd>{{ event.category }}</dd></div>
+              <div *ngIf="event.description"><dt>Description</dt><dd>{{ event.description }}</dd></div>
+              <div *ngIf="event.source"><dt>Source</dt><dd>{{ event.source }}</dd></div>
+            </dl>
+          </aside>
+
+          <div class="mtl-empty" *ngIf="!currentDocument && !loading">
+            <p class="mtl-empty__title">Drop clinical timeline files here</p>
+            <p class="mtl-empty__formats">
+              <span class="mtl-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p>{{ formatsHint }} Paste JSON, CSV, HL7, or CDA with <kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>V</kbd>. Press <kbd>/</kbd> to filter.</p>
+            <div class="mtl-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="mtl-loading" *ngIf="loading">Building timeline…</div>
+        </div>
+
+        <div class="mtl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="mtl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="mtl-disclaimer">Education and research preview only — not validated for clinical diagnosis or treatment decisions.</p>
+      </section>
+
+      <aside id="mtl-details-sidebar" class="mtl-sidebar" aria-label="Timeline details" [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentDocument">
+          <header class="ctl__panel-head">Timeline overview</header>
+          <div class="ctl__panel-body">
+            <p *ngIf="currentDocument.parsed.patientLabel"><strong>{{ currentDocument.parsed.patientLabel }}</strong></p>
+            <p>{{ currentDocument.parsed.events.length }} events · {{ filteredEvents.length }} visible</p>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="currentDocument">
+          <header class="ctl__panel-head">Categories</header>
+          <div class="ctl__panel-body">
+            <ul class="mtl-counts">
+              <li *ngFor="let item of categoryStats"><strong>{{ item.category }}</strong><span>{{ item.count }}</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="mtl-related">
+              <li *ngFor="let tool of relatedTools"><a [routerLink]="tool.path"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a></li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help mtl-footer-help">
+      <summary>How to use Medical Timeline Viewer</summary>
+      <ul>
+        <li>Upload JSON, CSV, FHIR, or HL7 files. Events are extracted locally and grouped by month or category.</li>
+        <li>Filter with search (<kbd>/</kbd>) or category chips. Click a chip again to clear it. Select an event for detail.</li>
+        <li>Export original, summary JSON, events JSON, or CSV. Files never leave your browser.</li>
+      </ul>
+    </details>
+  </main>
+  <div class="mtl-drop-overlay" *ngIf="showDropZone" aria-hidden="true"><p>Drop timeline files to open</p><p>{{ formatsLabel }}</p></div>
+</div>

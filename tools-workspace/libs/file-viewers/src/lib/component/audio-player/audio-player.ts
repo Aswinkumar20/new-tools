@@ -1,101 +1,116 @@
 import {
-  Component,
-  OnInit,
-  OnDestroy,
   AfterViewInit,
-  ViewChild,
-  ElementRef,
   ChangeDetectorRef,
+  Component,
+  ElementRef,
   HostListener,
+  Inject,
+  OnDestroy,
+  OnInit,
   PLATFORM_ID,
-  Inject
+  ViewChild,
+  inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-
-interface AudioFile {
-  name: string;
-  file: File;
-  url: string;
-  size: number;
-  duration: number;
-  artist?: string;
-  title?: string;
-  album?: string;
-  loaded: boolean;
-}
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
+import {
+  AUDIO_ACCEPT_ATTR,
+  AUDIO_DEFAULT_VOLUME,
+  AUDIO_PLAYBACK_RATES,
+  AUDIO_RELATED_TOOLS,
+  AUDIO_TRACK_LOAD_DELAY_MS,
+  AUDIO_VIS_CANVAS_HEIGHT,
+  AUDIO_VIS_COLORS,
+  AUDIO_VIS_FFT_SIZE
+} from '../../constants/audio-player.constants';
+import type { AudioRepeatMode, AudioTrackFile } from '../../types/audio-player.types';
+import {
+  clampVolumePercent,
+  cycleRepeatMode,
+  filterValidAudioFiles,
+  formatAudioFileSize,
+  formatAudioTime,
+  generateShuffledIndices,
+  isIgnorablePlaybackError,
+  loadAudioDuration,
+  resolveAudioSuggestion,
+  resolveNextTrackIndex,
+  resolvePreviousTrackIndex,
+  shouldStopAtPlaylistEnd
+} from '../../utils/audio-player.utils';
 
 @Component({
   selector: 'lib-audio-player',
   standalone: true,
   templateUrl: './audio-player.html',
   styleUrls: ['./audio-player.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective]
 })
 export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+
   @ViewChild('audioElement') audioElement!: ElementRef<HTMLAudioElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('waveformCanvas') waveformCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('progressBar') progressBar!: ElementRef<HTMLDivElement>;
 
-  audioFiles: AudioFile[] = [];
-  currentTrackIndex: number = -1;
-  currentTrack: AudioFile | null = null;
+  readonly acceptAttr = AUDIO_ACCEPT_ATTR;
+  readonly playbackRates = AUDIO_PLAYBACK_RATES;
+  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = AUDIO_RELATED_TOOLS;
 
-  // Playback state
-  isPlaying: boolean = false;
-  isLoading: boolean = false;
-  currentTime: number = 0;
-  duration: number = 0;
-  volume: number = 100;
-  playbackRate: number = 1;
-  isMuted: boolean = false;
-  previousVolume: number = 100;
-  isPlayingPromise: boolean = false;
+  audioFiles: AudioTrackFile[] = [];
+  currentTrackIndex = -1;
+  currentTrack: AudioTrackFile | null = null;
 
-  // Playback modes
-  repeatMode: 'none' | 'one' | 'all' = 'none';
-  shuffleMode: boolean = false;
+  isPlaying = false;
+  isLoading = false;
+  currentTime = 0;
+  duration = 0;
+  volume = AUDIO_DEFAULT_VOLUME;
+  playbackRate = 1;
+  isMuted = false;
+  previousVolume = AUDIO_DEFAULT_VOLUME;
+  isPlayingPromise = false;
+
+  repeatMode: AudioRepeatMode = 'none';
+  shuffleMode = false;
   shuffledIndices: number[] = [];
 
-  // UI state
-  showDropZone: boolean = false;
-  showAbout: boolean = false;
-  showPlaylist: boolean = true;
-  showEqualizer: boolean = false;
-  loading: boolean = false;
-  errorMessage: string = '';
+  showDropZone = false;
+  showPlaylist = true;
+  loading = false;
+  errorMessage = '';
 
-  // Audio visualization
+  dismissedSuggestionId: string | null = null;
+
   audioContext: AudioContext | null = null;
   analyser: AnalyserNode | null = null;
   dataArray: Uint8Array | null = null;
   animationFrameId: number | null = null;
 
-  // Playlist scroll position
-  playlistScrollTop: number = 0;
-
-  private readonly supportedFormats = [
-    '.mp3',
-    '.wav',
-    '.ogg',
-    '.flac',
-    '.aac',
-    '.m4a',
-    '.opus',
-    '.webm',
-    '.wma',
-    '.aiff',
-    '.au'
-  ];
-
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
 
   constructor(
     private readonly cdr: ChangeDetectorRef,
-    @Inject(PLATFORM_ID) private readonly platformId: Object
+    @Inject(PLATFORM_ID) private readonly platformId: object
   ) {}
+
+  get primarySuggestion() {
+    const suggestion = resolveAudioSuggestion({
+      hasTracks: this.audioFiles.length > 0,
+      hasError: !!this.errorMessage,
+      isPlaying: this.isPlaying,
+      trackCount: this.audioFiles.length
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
 
   ngOnInit(): void {
     this.setupDragAndDrop();
@@ -115,8 +130,15 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     this.cleanup();
   }
 
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+    this.cdr.markForCheck();
+  }
+
   setupDragAndDrop(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -129,22 +151,33 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     e.stopPropagation();
   }
 
-  onDragEnter(): void {
-    this.showDropZone = true;
-    this.cdr.markForCheck();
+  @HostListener('dragenter', ['$event'])
+  onDragEnter(e: DragEvent): void {
+    if (e.dataTransfer?.types.includes('Files')) {
+      this.showDropZone = true;
+      this.cdr.markForCheck();
+    }
   }
 
-  onDragLeave(): void {
-    this.showDropZone = false;
-    this.cdr.markForCheck();
+  @HostListener('dragleave', ['$event'])
+  onDragLeave(e: DragEvent): void {
+    const currentTarget = e.currentTarget as HTMLElement | null;
+    const relatedTarget = e.relatedTarget as Node | null;
+    if (currentTarget && relatedTarget && !currentTarget.contains(relatedTarget)) {
+      this.showDropZone = false;
+      this.cdr.markForCheck();
+    }
   }
 
+  @HostListener('drop', ['$event'])
   onDrop(e: DragEvent): void {
+    this.preventDefaults(e);
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      this.handleFiles(Array.from(files));
+      void this.handleFiles(Array.from(files));
     }
+    this.cdr.markForCheck();
   }
 
   openFileDialog(): void {
@@ -154,25 +187,24 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.handleFiles(Array.from(input.files));
+      void this.handleFiles(Array.from(input.files));
     }
   }
 
   async handleFiles(files: File[]): Promise<void> {
-    const validFiles = files.filter(file => {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-      return this.supportedFormats.includes(ext) || 
-             file.type.startsWith('audio/');
-    });
+    const validFiles = filterValidAudioFiles(files);
 
     if (validFiles.length === 0) {
       this.errorMessage = 'Please select valid audio files (.mp3, .wav, .ogg, .flac, etc.)';
+      this.dismissedSuggestionId = null;
+      this.toast.error('No supported audio files found');
       this.cdr.markForCheck();
       return;
     }
 
     this.loading = true;
     this.errorMessage = '';
+    this.dismissedSuggestionId = null;
     this.cdr.markForCheck();
 
     try {
@@ -189,17 +221,16 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   async loadAudioFile(file: File): Promise<void> {
     try {
       const url = URL.createObjectURL(file);
-      
-      const audioFile: AudioFile = {
+
+      const audioFile: AudioTrackFile = {
         name: file.name,
-        file: file,
-        url: url,
+        file,
+        url,
         size: file.size,
         duration: 0,
         loaded: false
       };
 
-      // Load metadata
       await this.loadAudioMetadata(audioFile);
 
       this.audioFiles.push(audioFile);
@@ -212,32 +243,21 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
       this.loading = false;
       this.cdr.markForCheck();
     } catch (error) {
-      console.error('Error loading audio file:', error);
-      throw new Error(`Failed to load audio file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to load audio file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
-  async loadAudioMetadata(audioFile: AudioFile): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const audio = new Audio();
-      audio.preload = 'metadata';
-      
-      audio.addEventListener('loadedmetadata', () => {
-        audioFile.duration = audio.duration;
-        audioFile.loaded = true;
-        resolve();
-      });
-
-      audio.addEventListener('error', () => {
-        reject(new Error('Failed to load audio metadata'));
-      });
-
-      audio.src = audioFile.url;
-    });
+  async loadAudioMetadata(audioFile: AudioTrackFile): Promise<void> {
+    audioFile.duration = await loadAudioDuration(audioFile.url);
+    audioFile.loaded = true;
   }
 
   setupAudioElement(): void {
-    if (!this.audioElement?.nativeElement) return;
+    if (!this.audioElement?.nativeElement) {
+      return;
+    }
 
     const audio = this.audioElement.nativeElement;
 
@@ -280,6 +300,7 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     audio.addEventListener('error', () => {
       this.errorMessage = 'Error playing audio file';
       this.isLoading = false;
+      this.dismissedSuggestionId = null;
       this.cdr.markForCheck();
     });
   }
@@ -289,7 +310,6 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
       return;
     }
 
-    // Pause current playback if playing to prevent AbortError
     if (this.audioElement?.nativeElement) {
       const audio = this.audioElement.nativeElement;
       if (!audio.paused) {
@@ -317,7 +337,6 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
       return;
     }
 
-    // Check if already playing
     if (this.isPlaying) {
       return;
     }
@@ -325,15 +344,10 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     try {
       this.isPlayingPromise = true;
       await this.audioElement.nativeElement.play();
-      // Playback started successfully - isPlaying will be set by the 'play' event listener
-    } catch (error: any) {
-      // AbortError is expected when play() is interrupted by pause() or load()
-      // This is not a real error, just the browser's way of handling interrupted play requests
-      if (error.name === 'AbortError' || error.name === 'NotAllowedError') {
-        // Silently ignore - these are expected in certain scenarios
-      } else {
-        console.error('Error playing audio:', error);
+    } catch (error: unknown) {
+      if (!isIgnorablePlaybackError(error)) {
         this.errorMessage = 'Error playing audio. Please try again.';
+        this.dismissedSuggestionId = null;
         this.cdr.markForCheck();
       }
     } finally {
@@ -356,64 +370,67 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   previousTrack(): void {
-    if (this.audioFiles.length === 0) return;
-
-    let newIndex: number;
-    if (this.shuffleMode && this.shuffledIndices.length > 0) {
-      const currentShuffleIndex = this.shuffledIndices.indexOf(this.currentTrackIndex);
-      newIndex = currentShuffleIndex > 0 
-        ? this.shuffledIndices[currentShuffleIndex - 1]
-        : this.shuffledIndices[this.shuffledIndices.length - 1];
-    } else {
-      newIndex = this.currentTrackIndex > 0 
-        ? this.currentTrackIndex - 1 
-        : this.audioFiles.length - 1;
-    }
-
-    this.loadTrack(newIndex);
-    this.play();
-  }
-
-  nextTrack(): void {
-    if (this.audioFiles.length === 0) return;
-
-    if (this.repeatMode === 'one') {
-      this.loadTrack(this.currentTrackIndex);
-      this.play();
+    if (this.audioFiles.length === 0) {
       return;
     }
 
-    let newIndex: number;
-    if (this.shuffleMode) {
-      this.generateShuffledIndices();
-      const currentShuffleIndex = this.shuffledIndices.indexOf(this.currentTrackIndex);
-      newIndex = currentShuffleIndex < this.shuffledIndices.length - 1
-        ? this.shuffledIndices[currentShuffleIndex + 1]
-        : this.shuffledIndices[0];
-    } else {
-      newIndex = this.currentTrackIndex < this.audioFiles.length - 1
-        ? this.currentTrackIndex + 1
-        : 0;
+    const newIndex = resolvePreviousTrackIndex({
+      trackCount: this.audioFiles.length,
+      currentIndex: this.currentTrackIndex,
+      shuffleMode: this.shuffleMode,
+      shuffledIndices: this.shuffledIndices
+    });
+
+    this.loadTrack(newIndex);
+    void this.play();
+  }
+
+  nextTrack(): void {
+    if (this.audioFiles.length === 0) {
+      return;
     }
 
-    if (newIndex === 0 && this.repeatMode === 'none' && this.currentTrackIndex === this.audioFiles.length - 1) {
+    if (this.repeatMode === 'one') {
+      this.loadTrack(this.currentTrackIndex);
+      void this.play();
+      return;
+    }
+
+    if (this.shuffleMode) {
+      this.generateShuffledIndices();
+    }
+
+    const newIndex = resolveNextTrackIndex({
+      trackCount: this.audioFiles.length,
+      currentIndex: this.currentTrackIndex,
+      shuffleMode: this.shuffleMode,
+      shuffledIndices: this.shuffledIndices
+    });
+
+    if (
+      shouldStopAtPlaylistEnd({
+        repeatMode: this.repeatMode,
+        currentIndex: this.currentTrackIndex,
+        nextIndex: newIndex,
+        trackCount: this.audioFiles.length
+      })
+    ) {
       this.stop();
       return;
     }
 
     this.loadTrack(newIndex);
-    // Wait a bit for the track to load before playing
     setTimeout(() => {
-      this.play();
-    }, 100);
+      void this.play();
+    }, AUDIO_TRACK_LOAD_DELAY_MS);
   }
 
   onTrackEnd(): void {
     if (this.repeatMode === 'one') {
       this.loadTrack(this.currentTrackIndex);
       setTimeout(() => {
-        this.play();
-      }, 100);
+        void this.play();
+      }, AUDIO_TRACK_LOAD_DELAY_MS);
     } else if (this.repeatMode === 'all') {
       this.nextTrack();
     } else {
@@ -429,16 +446,17 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   onProgressBarClick(event: MouseEvent): void {
-    if (!this.progressBar?.nativeElement || !this.duration) return;
+    if (!this.progressBar?.nativeElement || !this.duration) {
+      return;
+    }
 
     const rect = this.progressBar.nativeElement.getBoundingClientRect();
     const percent = (event.clientX - rect.left) / rect.width;
-    const newTime = percent * this.duration;
-    this.seekTo(newTime);
+    this.seekTo(percent * this.duration);
   }
 
   setVolume(value: number): void {
-    this.volume = Math.max(0, Math.min(100, value));
+    this.volume = clampVolumePercent(value);
     if (this.audioElement?.nativeElement) {
       this.audioElement.nativeElement.volume = this.volume / 100;
     }
@@ -466,9 +484,7 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   toggleRepeat(): void {
-    const modes: Array<'none' | 'one' | 'all'> = ['none', 'all', 'one'];
-    const currentIndex = modes.indexOf(this.repeatMode);
-    this.repeatMode = modes[(currentIndex + 1) % modes.length];
+    this.repeatMode = cycleRepeatMode(this.repeatMode);
     this.cdr.markForCheck();
   }
 
@@ -481,24 +497,20 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   generateShuffledIndices(): void {
-    this.shuffledIndices = Array.from({ length: this.audioFiles.length }, (_, i) => i);
-    // Fisher-Yates shuffle
-    for (let i = this.shuffledIndices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.shuffledIndices[i], this.shuffledIndices[j]] = [this.shuffledIndices[j], this.shuffledIndices[i]];
-    }
+    this.shuffledIndices = generateShuffledIndices(this.audioFiles.length);
   }
 
   selectTrack(index: number): void {
     this.loadTrack(index);
-    // Wait a bit for the track to load before playing
     setTimeout(() => {
-      this.play();
-    }, 100);
+      void this.play();
+    }, AUDIO_TRACK_LOAD_DELAY_MS);
   }
 
   removeTrack(index: number): void {
-    if (index < 0 || index >= this.audioFiles.length) return;
+    if (index < 0 || index >= this.audioFiles.length) {
+      return;
+    }
 
     const audioFile = this.audioFiles[index];
     URL.revokeObjectURL(audioFile.url);
@@ -524,14 +536,18 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   setupAudioVisualization(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
 
     try {
-      this.audioContext = new (globalThis.AudioContext || (globalThis as any).webkitAudioContext)();
+      const AudioCtx =
+        globalThis.AudioContext ||
+        (globalThis as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.audioContext = new AudioCtx();
       this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 256;
-      const bufferLength = this.analyser.frequencyBinCount;
-      this.dataArray = new Uint8Array(bufferLength);
+      this.analyser.fftSize = AUDIO_VIS_FFT_SIZE;
+      this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
       if (this.audioElement?.nativeElement) {
         const source = this.audioContext.createMediaElementSource(this.audioElement.nativeElement);
@@ -540,29 +556,37 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
       }
 
       this.resizeCanvas();
-    } catch (error) {
-      console.warn('Audio visualization not available:', error);
+    } catch {
+      // Visualization is optional when AudioContext is blocked
     }
   }
 
   resizeCanvas(): void {
-    if (!this.waveformCanvas?.nativeElement) return;
+    if (!this.waveformCanvas?.nativeElement) {
+      return;
+    }
 
     const canvas = this.waveformCanvas.nativeElement;
     const container = canvas.parentElement;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const rect = container.getBoundingClientRect();
-    canvas.width = rect.width - 32; // Account for padding
-    canvas.height = 150;
+    canvas.width = rect.width - 32;
+    canvas.height = AUDIO_VIS_CANVAS_HEIGHT;
   }
 
   startVisualization(): void {
-    if (!this.analyser || !this.waveformCanvas?.nativeElement || !this.dataArray || this.dataArray.length === 0) return;
+    if (!this.analyser || !this.waveformCanvas?.nativeElement || !this.dataArray || this.dataArray.length === 0) {
+      return;
+    }
 
     const canvas = this.waveformCanvas.nativeElement;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
 
     const draw = (): void => {
       if (!this.isPlaying || !this.analyser || !this.dataArray) {
@@ -578,18 +602,17 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
       const height = canvas.height;
       const barWidth = width / this.dataArray.length;
 
-      ctx.fillStyle = '#1a237e';
+      ctx.fillStyle = AUDIO_VIS_COLORS.background;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.fillStyle = '#2196f3';
+      ctx.fillStyle = AUDIO_VIS_COLORS.bars;
       for (let i = 0; i < this.dataArray.length; i++) {
         const barHeight = (this.dataArray[i] / 255) * height;
         ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
       }
 
-      // Draw waveform
       this.analyser.getByteTimeDomainData(this.dataArray as any);
-      ctx.strokeStyle = '#4caf50';
+      ctx.strokeStyle = AUDIO_VIS_COLORS.waveform;
       ctx.lineWidth = 2;
       ctx.beginPath();
 
@@ -598,7 +621,7 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
 
       for (let i = 0; i < this.dataArray.length; i++) {
         const v = this.dataArray[i] / 128;
-        const y = v * height / 2;
+        const y = (v * height) / 2;
 
         if (i === 0) {
           ctx.moveTo(x, y);
@@ -624,37 +647,39 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
   }
 
   formatTime(seconds: number): string {
-    if (Number.isNaN(seconds) || !Number.isFinite(seconds)) {
-      return '0:00';
-    }
-
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    return formatAudioTime(seconds);
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return formatAudioFileSize(bytes);
   }
 
-  downloadTrack(track: AudioFile): void {
+  downloadTrack(track: AudioTrackFile): void {
     const link = document.createElement('a');
     link.href = track.url;
     link.download = track.name;
     link.click();
+    this.toast.info(`Downloaded ${track.name}`);
   }
 
-  toggleAbout(): void {
-    this.showAbout = !this.showAbout;
+  clearAll(): void {
+    this.stop();
+    this.stopVisualization();
+    for (const audioFile of this.audioFiles) {
+      try {
+        URL.revokeObjectURL(audioFile.url);
+      } catch {
+        // Ignore invalid object URLs during teardown
+      }
+    }
+    this.audioFiles = [];
+    this.currentTrackIndex = -1;
+    this.currentTrack = null;
+    this.currentTime = 0;
+    this.duration = 0;
+    this.errorMessage = '';
+    this.dismissedSuggestionId = null;
+    this.toast.info('Playlist cleared');
     this.cdr.markForCheck();
   }
 
@@ -663,24 +688,24 @@ export class FileViewerAudioPlayerComponent implements OnInit, AfterViewInit, On
     this.cdr.markForCheck();
   }
 
-  toggleEqualizer(): void {
-    this.showEqualizer = !this.showEqualizer;
-    this.cdr.markForCheck();
-  }
-
   cleanup(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
 
     this.stop();
     this.stopVisualization();
 
     if (this.audioContext) {
-      this.audioContext.close();
+      void this.audioContext.close();
     }
 
-    // Cleanup object URLs
     for (const audioFile of this.audioFiles) {
-      URL.revokeObjectURL(audioFile.url);
+      try {
+        URL.revokeObjectURL(audioFile.url);
+      } catch {
+        // Ignore invalid object URLs during teardown
+      }
     }
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {

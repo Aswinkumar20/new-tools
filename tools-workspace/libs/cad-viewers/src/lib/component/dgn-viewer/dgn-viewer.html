@@ -1,0 +1,304 @@
+<div class="ctl dg cad-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dg-eyebrow">CAD viewers</span>
+        <h1>DGN Viewer <span class="dg-live-badge">Local &amp; private</span></h1>
+        <p>Inspect MicroStation DGN levels and civil features locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="DGN Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="dg-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dg-suggest__body">
+        <p class="dg-suggest__title">{{ suggestion.title }}</p>
+        <p class="dg-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dg-suggest__actions">
+        <button type="button" class="dg-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="dg-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="dg-toolbar">
+      <div class="dg-toolbar__group">
+        <input #fileInput class="dg-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn dg-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dg-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dg-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="dg-files" *ngIf="files.length">
+          <div class="dg-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dg-files__chip--active]="i === currentIndex">
+            <button type="button" class="dg-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="dg-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="dg-tab-bar" *ngIf="currentFile" role="tablist">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="dg-toolbar__status"><span class="dg-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="dg-workspace" [class.dg-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dg-panel" #viewerPanel>
+        <header class="dg-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.version || '—' }} · {{ parsed?.units || 'm' }} · {{ filteredLayers.length }} levels · {{ filteredCivil.length }} civil</span>
+            <p class="dg-view-hint" *ngIf="viewMode !== 'table'">Drag to pan · click to select · wheel zoom · <kbd>0</kbd> fit</p>
+          </div>
+          <div class="dg-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1 / 1.2)" [disabled]="!parsed" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="isolateSelected()" [disabled]="!selectedLayerId" [attr.aria-label]="selectedLayerId ? 'Isolate selected layer' : 'Select a layer to isolate'" [appTooltip]="selectedLayerId ? 'Isolate selected layer' : 'Select a layer to isolate'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="showAllLayers()" [disabled]="!hiddenLayerIds.size" [attr.aria-label]="hiddenLayerIds.size ? 'Show all layers' : 'All layers visible'" [appTooltip]="hiddenLayerIds.size ? 'Show all layers' : 'All layers visible'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="dg-map-wrap">
+          <canvas
+            #canvasHost
+            class="dg-map"
+            [class.dg-map--panning]="panning"
+            *ngIf="currentFile && viewMode !== 'table'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp($event)"
+            (pointerleave)="onCanvasPointerUp($event)"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="dg-cards" *ngIf="currentFile && viewMode === 'layers'">
+            <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" tabindex="0" role="button" (click)="selectLayer(layer.id)" (keydown.enter)="selectLayer(layer.id)" (keydown.space)="selectLayer(layer.id); $event.preventDefault()">
+              <header>
+                <i class="dg-swatch" [style.background]="layer.colorHex || tint('layer', layer.index)"></i>
+                <strong>{{ layer.name }}</strong>
+                <span>level</span>
+                <button type="button" class="dg-eye" (click)="toggleLayerVisible(layer.id, $event)" [attr.aria-label]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" [appTooltip]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
+              </header>
+              <p>ACI {{ layer.color }} · {{ layer.entityCount }} entities</p>
+            </article>
+            <p class="dg-empty-filter" *ngIf="parsed && !filteredLayers.length">No levels match the current filter.</p>
+          </div>
+          <div class="dg-cards" *ngIf="currentFile && viewMode === 'civil'">
+            <article *ngFor="let item of filteredCivil; trackBy: trackByCivil" [class.is-active]="selectedCivil?.id === item.id" tabindex="0" role="button" (click)="selectCivil(item.id)" (keydown.enter)="selectCivil(item.id)" (keydown.space)="selectCivil(item.id); $event.preventDefault()">
+              <header>
+                <i class="dg-swatch" [style.background]="tint(item.type, item.index)"></i>
+                <strong>{{ item.name }}</strong>
+                <span>{{ item.type }}</span>
+              </header>
+              <p>{{ item.label || item.length }} · {{ item.level }} · elev {{ item.elevation }}</p>
+            </article>
+            <p class="dg-empty-filter" *ngIf="parsed && !filteredCivil.length">No civil features match the current filter.</p>
+          </div>
+          <div class="dg-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
+              <header>
+                <i class="dg-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
+                <strong>{{ entity.name }}</strong>
+                <span>{{ entity.type }}</span>
+              </header>
+              <p>{{ entity.level }} · {{ entity.text || entity.length || '—' }}</p>
+            </article>
+            <p class="dg-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+          </div>
+          <div class="dg-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="dg-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="dg-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a DGN dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="dg-loading" *ngIf="loading">Parsing DGN dump…</div>
+        </div>
+
+        <div class="dg-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dg-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dg-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for MicroStation, Bentley View, or ProjectWise. Binary DGN V7/V8 is not expanded; use a dump or JSON.</p>
+      </section>
+
+      <aside class="dg-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dg-empty-panel">Upload a file or load the sample to inspect the model here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="dg-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search design</summary>
+          <div class="ctl__panel-body">
+            <div class="dg-search-row">
+              <input #searchInput class="dg-search" type="search" placeholder="level:CIVIL type:alignment civil:aisle (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+              <button type="button" class="ctl__icon-btn" *ngIf="query" (click)="clearSearch()" aria-label="Clear search" appTooltip="Clear search" tooltipPosition="top"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" /></button>
+            </div>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'layers' && filteredLayers.length" open>
+          <summary class="ctl__panel-head">Levels</summary>
+          <div class="ctl__panel-body dg-units">
+            <button type="button" *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayerId === layer.id" (click)="selectLayer(layer.id)">
+              <i class="dg-swatch" [style.background]="layer.colorHex || tint('layer', layer.index)"></i>
+              <span>{{ layer.name }} <small>{{ layer.entityCount }} ents · ACI {{ layer.color }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'civil' && filteredCivil.length" open>
+          <summary class="ctl__panel-head">Civil</summary>
+          <div class="ctl__panel-body dg-units">
+            <button type="button" *ngFor="let item of filteredCivil; trackBy: trackByCivil" [class.is-active]="selectedCivilId === item.id" (click)="selectCivil(item.id)">
+              <i class="dg-swatch" [style.background]="tint(item.type, item.index)"></i>
+              <span>{{ item.name }} <small>{{ item.type }} · {{ item.label || item.length }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredEntities.length" open>
+          <summary class="ctl__panel-head">Entities</summary>
+          <div class="ctl__panel-body dg-units">
+            <button type="button" *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
+              <i class="dg-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
+              <span>{{ entity.name }} <small>{{ entity.type }} · {{ entity.level }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'layers' && selectedLayer" open>
+          <summary class="ctl__panel-head">Selected level</summary>
+          <div class="ctl__panel-body">
+            <dl class="dg-meta">
+              <div *ngFor="let row of layerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'civil' && selectedCivil" open>
+          <summary class="ctl__panel-head">Selected civil</summary>
+          <div class="ctl__panel-body">
+            <dl class="dg-meta">
+              <div *ngFor="let row of civilMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && selectedEntity" open>
+          <summary class="ctl__panel-head">Selected entity</summary>
+          <div class="ctl__panel-body">
+            <dl class="dg-meta">
+              <div *ngFor="let row of entityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed && !hasSelection" open>
+          <summary class="ctl__panel-head">Selection</summary>
+          <div class="ctl__panel-body">
+            <p class="dg-empty-panel">Click the model or a tree item to inspect properties.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dg-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help cad-footer-help">
+      <summary>How to use DGN Viewer</summary>
+      <ol class="cad-help-steps">
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Drag to pan, click to select, wheel zoom, or use Fit / Reset. Shortcuts: <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> <kbd>/</kbd>.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter layers or entities, isolate a layer, and inspect properties in the side panel.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native CAD kernel.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="dg-drop" *ngIf="showDropZone"><p>Drop DGN dump to preview</p></div>
+</div>

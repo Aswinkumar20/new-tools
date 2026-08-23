@@ -1,0 +1,309 @@
+<div class="ctl lidar">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="lidar-eyebrow">GIS tools</span>
+        <h1>LiDAR Map Viewer <span class="lidar-live-badge">Local &amp; private</span></h1>
+        <p>
+          2D point density and classification preview for LAS point clouds — color by class, elevation, or intensity.
+        </p>
+      </header>
+    </div>
+
+    <aside class="lidar-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="lidar-suggest__body">
+        <p class="lidar-suggest__title">{{ suggestion.title }}</p>
+        <p class="lidar-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="lidar-suggest__actions">
+        <a class="lidar-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="lidar-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="lidar-toolbar" aria-label="LiDAR map viewer controls">
+      <div class="lidar-toolbar__group">
+        <label class="sr-only" for="lidar-file-upload">Upload LiDAR files</label>
+        <input
+          #fileInput
+          id="lidar-file-upload"
+          class="lidar-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn lidar-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample LAS block" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="lidar-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="lidar-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded .las / .laz</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Header, bounds, histogram</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('classification-csv', $event)">
+              <strong>Classification CSV</strong>
+              <span>Class histogram counts</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('points-geojson', $event)">
+              <strong>Points GeoJSON</strong>
+              <span>Preview points (capped)</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="lidarFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="lidar-files" *ngIf="lidarFiles.length > 0" aria-label="Loaded LiDAR files">
+          <div
+            class="lidar-files__chip"
+            *ngFor="let file of lidarFiles; let i = index; trackBy: trackByFileId"
+            [class.lidar-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="lidar-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="lidar-files__name">{{ file.name }}</span>
+              <span class="lidar-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="lidar-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="lidar-toolbar__status">
+        <span class="lidar-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="lidar-workspace"
+      [class.lidar-workspace--fullscreen]="isFullscreen"
+      [class.lidar-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="lidar-panel" aria-label="LiDAR map">
+        <header class="lidar-map-head" *ngIf="currentFile">
+          <div class="lidar-map-head__identity">
+            <span class="lidar-map-head__file">{{ currentFile.name }}</span>
+            <span class="lidar-map-head__meta" *ngIf="stats">
+              {{ stats.previewCount | number }} pts · fmt {{ stats.pointFormat }} · z
+              {{ stats.zMin | number:'1.1-1' }}–{{ stats.zMax | number:'1.1-1' }}
+            </span>
+          </div>
+          <div class="lidar-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="lidar-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="lidar-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="lidar-view-controls__divider"></span>
+            <button
+              type="button"
+              class="lidar-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="lidar-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="lidar-map-wrap" [class.lidar-map-wrap--empty]="!currentFile">
+          <div #mapHost class="lidar-map" [attr.aria-busy]="loading" aria-label="Interactive LiDAR map"></div>
+          <div class="lidar-empty" *ngIf="!currentFile && !loading">
+            <p class="lidar-empty__title">Drop a LAS point cloud here</p>
+            <p class="lidar-empty__formats">
+              <span class="lidar-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="lidar-empty__hint">
+              {{ formatsHint }}. Shortcuts: <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="lidar-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="lidar-loading" *ngIf="loading">Loading LiDAR…</div>
+        </div>
+
+        <div class="lidar-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="lidar-error" *ngIf="errorMessage" role="alert">
+          <p class="lidar-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="lidar-details-sidebar"
+        class="lidar-sidebar"
+        aria-label="LiDAR analytics"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Point cloud overview</span>
+            <span class="lidar-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="lidar-process-name">{{ currentFile?.name }}</p>
+            <div class="lidar-stat-grid lidar-stat-grid--dense" aria-label="LiDAR statistics">
+              <div><strong>{{ stats.pointCount | number }}</strong><span>Points</span></div>
+              <div><strong>{{ stats.previewCount | number }}</strong><span>Preview</span></div>
+              <div><strong>{{ stats.zMin | number:'1.1-1' }}</strong><span>Z min</span></div>
+              <div><strong>{{ stats.zMax | number:'1.1-1' }}</strong><span>Z max</span></div>
+              <div><strong>{{ stats.pointFormat }}</strong><span>Format</span></div>
+              <div>
+                <strong>{{ stats.densityPerSqM == null ? '—' : (stats.densityPerSqM | number:'1.1-2') }}</strong>
+                <span>Density /m²</span>
+              </div>
+            </div>
+            <dl class="lidar-meta lidar-meta--compact">
+              <div><dt>Version</dt><dd>{{ stats.version }}</dd></div>
+              <div><dt>Record len</dt><dd>{{ stats.pointRecordLength }}</dd></div>
+              <div><dt>CRS</dt><dd>{{ stats.looksGeographic ? 'Geographic-like' : 'Projected?' }}</dd></div>
+              <div><dt>Bounds</dt><dd class="lidar-meta__bounds">{{ boundsLabel }}</dd></div>
+              <div><dt>Scale</dt><dd>{{ stats.scale.x }}, {{ stats.scale.y }}, {{ stats.scale.z }}</dd></div>
+              <div>
+                <dt>Offset</dt>
+                <dd>{{ stats.offset.x | number:'1.2-4' }}, {{ stats.offset.y | number:'1.2-4' }}, {{ stats.offset.z | number:'1.1-2' }}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && stats && !currentFile.isLaz">
+          <header class="ctl__panel-head">Display</header>
+          <div class="ctl__panel-body">
+            <div class="lidar-controls">
+              <label>
+                <span>Color mode</span>
+                <select [value]="colorMode" (change)="onColorModeChange($event)">
+                  <option value="classification">Classification</option>
+                  <option value="elevation">Elevation</option>
+                  <option value="intensity">Intensity</option>
+                </select>
+              </label>
+              <label>
+                <span>Point size <span class="lidar-opacity-value">{{ pointSize }}</span></span>
+                <input type="range" min="1" max="6" step="1" [value]="pointSize" (change)="onPointSizeChange($event)" />
+              </label>
+              <label>
+                <span>Opacity <span class="lidar-opacity-value">{{ opacity | number:'1.2-2' }}</span></span>
+                <input type="range" min="0.2" max="1" step="0.05" [value]="opacity" (change)="onOpacityChange($event)" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="classEntries.length">
+          <header class="ctl__panel-head">Classification filter</header>
+          <div class="ctl__panel-body">
+            <ul class="lidar-class-list">
+              <li *ngFor="let entry of classEntries; trackBy: trackByClass">
+                <label class="lidar-class-list__item">
+                  <input
+                    type="checkbox"
+                    [checked]="isClassEnabled(entry.classification)"
+                    (change)="toggleClass(entry.classification)" />
+                  <span class="lidar-class-list__swatch" [style.background]="classColor(entry.classification)"></span>
+                  <strong>{{ entry.classification }}</strong>
+                  <span>{{ entry.label }} ({{ entry.count }})</span>
+                </label>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="lidar-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help lidar-footer-help">
+      <summary>How to use LiDAR Map Viewer</summary>
+      <ul>
+        <li>Upload uncompressed <code>.las</code> (formats 0–3). <code>.laz</code> is listed but needs conversion first.</li>
+        <li>Color by ASPRS classification, elevation, or intensity; toggle classes in the sidebar.</li>
+        <li>Large clouds are subsampled for map preview (configurable cap).</li>
+        <li>Export summary JSON, classification CSV, original LAS, or capped GeoJSON points.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="lidar-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop LiDAR files to open</p>
+    <p class="lidar-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

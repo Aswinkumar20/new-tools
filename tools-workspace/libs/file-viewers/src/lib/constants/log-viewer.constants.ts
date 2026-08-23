@@ -3,9 +3,6 @@ import { LogLevel, type LogLevelPattern } from '../types/log-viewer.types';
 
 export const LOG_ACCEPT_ATTR = '.log,.txt,text/plain';
 
-export const LOG_CHARTJS_CDN =
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
-
 export const LOG_LEVEL_PATTERNS: ReadonlyArray<LogLevelPattern> = [
   { level: LogLevel.FATAL, pattern: /\b(FATAL|FATALITY|CRITICAL)\b/i },
   { level: LogLevel.ERROR, pattern: /\b(ERROR|ERR|EXCEPTION|FAILED|FAILURE)\b/i },

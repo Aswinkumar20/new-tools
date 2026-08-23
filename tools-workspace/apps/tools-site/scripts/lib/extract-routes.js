@@ -1,10 +1,11 @@
 /**
- * Shared route extraction from app.routes.ts
+ * Shared route extraction from app.routes.ts + category *.routes.ts
  */
 const fs = require('fs');
 const path = require('path');
 
 const ROUTES_FILE = path.join(__dirname, '../../src/app/app.routes.ts');
+const ROUTES_DIR = path.join(__dirname, '../../src/app/routes');
 
 const CATEGORY_META = {
   'text-utilities': {
@@ -85,43 +86,100 @@ const CATEGORY_META = {
     faIcon: 'fas fa-gamepad',
     materialIcon: 'sports_esports',
   },
+  'cad-viewers': {
+    name: 'CAD & Engineering Viewers',
+    description: 'Open DWG, DXF, STEP, IFC, and PCB files in the browser.',
+    faIcon: 'fas fa-drafting-compass',
+    materialIcon: 'architecture',
+  },
+  'gis-viewers': {
+    name: 'GIS & Mapping Viewers',
+    description: 'Explore GeoJSON, GPX, Shapefiles, and maps online.',
+    faIcon: 'fas fa-map-marked-alt',
+    materialIcon: 'map',
+  },
+  'medical-viewers': {
+    name: 'Medical & Healthcare Viewers',
+    description: 'DICOM, NIfTI, FHIR, and clinical file viewers.',
+    faIcon: 'fas fa-notes-medical',
+    materialIcon: 'medical_services',
+  },
+  'science-viewers': {
+    name: 'Scientific Data Viewers',
+    description: 'NetCDF, HDF5, FITS, seismic, and research datasets.',
+    faIcon: 'fas fa-flask',
+    materialIcon: 'science',
+  },
+  'network-viewers': {
+    name: 'Network & Traffic Viewers',
+    description: 'HAR, PCAP, and protocol analysis in the browser.',
+    faIcon: 'fas fa-network-wired',
+    materialIcon: 'lan',
+  },
+  'process-viewers': {
+    name: 'Process & Workflow Viewers',
+    description: 'BPMN, DMN, Petri nets, and process mining tools.',
+    faIcon: 'fas fa-project-diagram',
+    materialIcon: 'account_tree',
+  },
+  'diagram-viewers': {
+    name: 'Diagram & Graph Viewers',
+    description: 'Mermaid, PlantUML, Graphviz, UML, and mind maps.',
+    faIcon: 'fas fa-sitemap',
+    materialIcon: 'schema',
+  },
+  'data-explorers': {
+    name: 'Data Explorers',
+    description: 'Browse Parquet, Avro, SQLite, and columnar files.',
+    faIcon: 'fas fa-table',
+    materialIcon: 'table_chart',
+  },
+  'ml-viewers': {
+    name: 'ML Model Viewers',
+    description: 'Inspect ONNX and other ML model graphs.',
+    faIcon: 'fas fa-brain',
+    materialIcon: 'psychology',
+  },
 };
 
 function readRoutesFile() {
-  return fs.readFileSync(ROUTES_FILE, 'utf8');
+  const chunks = [fs.readFileSync(ROUTES_FILE, 'utf8')];
+  if (fs.existsSync(ROUTES_DIR)) {
+    for (const name of fs.readdirSync(ROUTES_DIR).filter((f) => f.endsWith('.routes.ts'))) {
+      chunks.push(`\n/* ${name} */\n${fs.readFileSync(path.join(ROUTES_DIR, name), 'utf8')}`);
+    }
+  }
+  return chunks.join('\n');
 }
 
-function extractRoutedTools(content = readRoutesFile()) {
+function extractRoutedTools() {
   const toolsByCategory = new Map();
-  const lines = content.split('\n');
-  let currentCategory = null;
+  if (!fs.existsSync(ROUTES_DIR)) {
+    return toolsByCategory;
+  }
 
-  for (let i = 0; i < lines.length; i++) {
-    const nextLines = lines.slice(i, i + 6);
-    const catMatch = lines[i].match(/^\s*path:\s*'([^']+)',\s*$/);
-    if (catMatch && lines[i + 1]?.includes('children:')) {
-      const cat = catMatch[1];
-      if (cat !== 'tools' && cat !== '**') {
-        currentCategory = cat;
-        if (!toolsByCategory.has(cat)) {
-          toolsByCategory.set(cat, []);
-        }
-      }
-      continue;
+  for (const name of fs.readdirSync(ROUTES_DIR).filter((f) => f.endsWith('.routes.ts'))) {
+    const slug = name.replace(/\.routes\.ts$/, '');
+    if (slug === 'tools') continue;
+    const src = fs.readFileSync(path.join(ROUTES_DIR, name), 'utf8');
+    const tools = [];
+    const re = /path:\s*'([^']*)',(?:(?!\bpath:\s*')[\s\S])*?loadComponent:/g;
+    let match;
+    while ((match = re.exec(src))) {
+      const toolPath = match[1];
+      if (!toolPath || toolPath === '404') continue;
+      tools.push(toolPath);
     }
-
-    const toolMatch = lines[i].match(/^\s*path:\s*'([^']+)',\s*$/);
-    if (toolMatch && currentCategory && nextLines.some((l) => l.includes('loadComponent'))) {
-      toolsByCategory.get(currentCategory).push(toolMatch[1]);
-    }
+    toolsByCategory.set(slug, tools);
   }
 
   return toolsByCategory;
 }
 
-function extractPrerenderRoutes(content = readRoutesFile()) {
+function extractPrerenderRoutes() {
   const routes = ['/tools/home'];
-  for (const [category, tools] of extractRoutedTools(content)) {
+  for (const [category, tools] of extractRoutedTools()) {
+    routes.push(`/${category}`);
     for (const tool of tools) {
       routes.push(`/${category}/${tool}`);
     }
@@ -138,6 +196,7 @@ function slugToTitle(slug) {
 
 module.exports = {
   ROUTES_FILE,
+  ROUTES_DIR,
   CATEGORY_META,
   readRoutesFile,
   extractRoutedTools,

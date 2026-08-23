@@ -1,0 +1,196 @@
+<div class="ctl lx">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="lx-eyebrow">File viewers</span>
+        <h1>LaTeX Viewer <span class="lx-live-badge">Local &amp; private</span></h1>
+        <p>Inspect LaTeX structure, preview, and source locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="lx-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="lx-suggest__body">
+        <p class="lx-suggest__title">{{ suggestion.title }}</p>
+        <p class="lx-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="lx-suggest__actions">
+        <button type="button" class="lx-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="lx-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="lx-toolbar">
+      <div class="lx-toolbar__group">
+        <input #fileInput class="lx-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn lx-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="lx-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="lx-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('source-tex', $event)">Source TeX</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="lx-files" *ngIf="files.length">
+          <div class="lx-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.lx-files__chip--active]="i === currentIndex">
+            <button type="button" class="lx-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="lx-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="lx-toolbar__status"><span class="lx-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="lx-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="lx-workspace" [class.lx-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="lx-panel">
+        <header class="lx-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.author || '—' }} · {{ parsed?.docClass || '—' }} · {{ filteredSections.length }} sections · {{ filteredCommands.length }} commands · {{ filteredEnvs.length }} envs</span>
+          </div>
+          <div class="lx-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="lx-map-wrap" [class.lx-map-wrap--empty]="!currentFile">
+          <article class="lx-preview" *ngIf="currentFile && viewMode === 'preview'">
+            <h1>{{ parsed?.title || parsed?.name }}</h1>
+            <p class="lx-preview__author">{{ parsed?.author || '—' }} · {{ parsed?.docClass || 'article' }}</p>
+            <ng-container *ngFor="let section of filteredSections; trackBy: trackBySection">
+              <h2 [class.is-active]="selectedSectionId === section.id">{{ section.title }}</h2>
+              <p>{{ section.text }}</p>
+            </ng-container>
+            <div class="lx-env" *ngFor="let env of filteredEnvs; trackBy: trackByEnv" [class.lx-env--equation]="env.kind === 'equation'">
+              <span class="lx-env__kind">{{ env.kind }} · {{ env.name }}</span>
+              <p [class.lx-env__math]="env.kind === 'equation'">{{ env.body || '—' }}</p>
+            </div>
+            <p class="lx-empty-filter" *ngIf="parsed && !filteredSections.length && !filteredEnvs.length">No sections match the current filter.</p>
+          </article>
+          <div class="lx-cards" *ngIf="currentFile && viewMode === 'structure'">
+            <article *ngFor="let section of filteredSections; trackBy: trackBySection" [class.is-active]="selectedSection?.id === section.id" (click)="selectSection(section.id)">
+              <header>
+                <strong>{{ section.title }}</strong>
+                <span>section</span>
+                <span>L{{ section.level }}</span>
+              </header>
+              <p>{{ section.text }}</p>
+            </article>
+            <article *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" (click)="selectCommand(command.id)">
+              <header>
+                <strong>\{{ command.name }}</strong>
+                <span>command</span>
+              </header>
+              <p>{{ command.value || '—' }}</p>
+            </article>
+            <article *ngFor="let env of filteredEnvs; trackBy: trackByEnv" [class.is-active]="selectedEnv?.id === env.id" (click)="selectEnv(env.id)">
+              <header>
+                <strong>{{ env.kind }}</strong>
+                <span>env</span>
+                <span>{{ env.name }}</span>
+              </header>
+              <p>{{ env.body || '—' }}</p>
+            </article>
+            <p class="lx-empty-filter" *ngIf="parsed && !filteredSections.length && !filteredCommands.length && !filteredEnvs.length">No structure matches the current filter.</p>
+          </div>
+          <pre class="lx-source" *ngIf="currentFile && viewMode === 'source'">{{ parsed?.sourceText }}</pre>
+          <div class="lx-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="lx-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="lx-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a LaTeX dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="lx-loading" *ngIf="loading">Parsing LaTeX dump…</div>
+        </div>
+
+        <div class="lx-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="lx-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="lx-disclaimer">Education and research preview only — not a substitute for Overleaf, TeX Live, or a full LaTeX kernel. ASCII dumps and a TeX subset (\documentclass, \section, environments) are supported.</p>
+      </section>
+
+      <aside class="lx-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="lx-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search LaTeX</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="lx-search" type="search" placeholder="sec:Introduction cmd:title env:figure (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'structure' || viewMode === 'source') && filteredSections.length">
+          <header class="ctl__panel-head">Sections</header>
+          <div class="ctl__panel-body lx-units">
+            <button type="button" *ngFor="let section of filteredSections; trackBy: trackBySection" [class.is-active]="selectedSectionId === section.id" (click)="selectSection(section.id)">
+              <span>{{ section.title }} <small>{{ section.name }} · L{{ section.level }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'structure' && filteredCommands.length">
+          <header class="ctl__panel-head">Commands</header>
+          <div class="ctl__panel-body lx-units">
+            <button type="button" *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommandId === command.id" (click)="selectCommand(command.id)">
+              <span>\{{ command.name }} <small>{{ command.value || '—' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'structure' || viewMode === 'table') && filteredEnvs.length">
+          <header class="ctl__panel-head">Environments</header>
+          <div class="ctl__panel-body lx-units">
+            <button type="button" *ngFor="let env of filteredEnvs; trackBy: trackByEnv" [class.is-active]="selectedEnvId === env.id" (click)="selectEnv(env.id)">
+              <span>{{ env.kind }} <small>{{ env.name }} · {{ env.body || '—' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'structure') && selectedSection">
+          <header class="ctl__panel-head">Selected section</header>
+          <div class="ctl__panel-body">
+            <dl class="lx-meta">
+              <div *ngFor="let row of sectionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="lx-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="lx-drop" *ngIf="showDropZone"><p>Drop LaTeX dump to preview</p></div>
+  </main>
+</div>

@@ -1,14 +1,13 @@
 import type { FvToolSuggestion } from '../shared/fv-tool-suggestion.model';
 import {
-  PDF_JS_CDN,
-  PDF_JS_WORKER_CDN,
   PDF_LARGE_FILE_SUGGEST_BYTES,
   PDF_MANY_PAGES_SUGGEST_THRESHOLD,
   PDF_MAX_FILE_SIZE_BYTES,
   PDF_MAX_FILE_SIZE_LABEL,
   PDF_MAX_ZOOM,
   PDF_MIN_ZOOM,
-  PDF_ZOOM_STEP
+  PDF_ZOOM_STEP,
+  PDFJS_WORKER_SRC
 } from '../constants/pdf-viewer.constants';
 import type {
   PdfFile,
@@ -17,11 +16,6 @@ import type {
   PDFDocumentProxy
 } from '../types/pdf-viewer.types';
 
-declare global {
-  interface Window {
-    pdfjsLib?: PdfJsLibrary;
-  }
-}
 
 export function isPdfFile(file: Pick<File, 'name' | 'type'>): boolean {
   return (
@@ -151,34 +145,17 @@ export function computeFitToWidthZoom(
   return clampPdfZoom(Math.round(scale * 100));
 }
 
-export async function loadPdfJsLibrary(
-  scriptUrl: string = PDF_JS_CDN,
-  workerUrl: string = PDF_JS_WORKER_CDN
-): Promise<PdfJsLibrary> {
+export async function loadPdfJsLibrary(): Promise<PdfJsLibrary> {
   if (globalThis.window === undefined) {
     throw new TypeError('PDF.js can only be loaded in browser environment');
   }
 
-  if (globalThis.window.pdfjsLib) {
-    return globalThis.window.pdfjsLib;
+  const pdfjs = (await import('pdfjs-dist')) as unknown as PdfJsLibrary;
+  if (!pdfjs?.getDocument) {
+    throw new Error('Failed to load PDF.js library');
   }
-
-  const script = document.createElement('script');
-  script.src = scriptUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const pdfjs = globalThis.window.pdfjsLib;
-      if (!pdfjs) {
-        reject(new Error('Failed to load PDF.js library'));
-        return;
-      }
-      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-      resolve(pdfjs);
-    };
-    script.onerror = () => reject(new Error('Failed to load PDF.js library'));
-  });
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
+  return pdfjs;
 }
 
 export function resolvePdfSuggestion(options: {

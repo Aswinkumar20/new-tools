@@ -1,0 +1,396 @@
+<div class="ctl pet">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pet-eyebrow">Medical tools</span>
+        <h1>PET Scan Viewer <span class="pet-live-badge">Local &amp; private</span></h1>
+        <p>
+          Local private PET/CT review — hot colormap, SUV probe, optional PT+CT fuse overlay, and PET window presets.
+          <strong class="pet-disclaimer">Education/research only — not for diagnosis.</strong>
+        </p>
+      </header>
+    </div>
+
+    <aside class="pet-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pet-suggest__body">
+        <p class="pet-suggest__title">{{ suggestion.title }}</p>
+        <p class="pet-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pet-suggest__actions">
+        <a
+          class="pet-suggest__action"
+          *ngIf="suggestion.id === 'dicom-alt'; else petLocalAction"
+          [routerLink]="suggestion.path"
+          >{{ suggestion.actionLabel }}</a
+        >
+        <ng-template #petLocalAction>
+          <button type="button" class="pet-suggest__action" (click)="applySuggestion(suggestion)">
+            {{ suggestion.actionLabel }}
+          </button>
+        </ng-template>
+        <button type="button" class="pet-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="pet-toolbar" aria-label="PET scan viewer controls">
+      <div class="pet-toolbar__group">
+        <label class="sr-only" for="pet-file-upload">Upload PET DICOM files</label>
+        <input
+          #fileInput
+          id="pet-file-upload"
+          class="pet-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn pet-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample FDG PET" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleColormap()"
+          [attr.aria-pressed]="colormap === 'hot'"
+          appTooltip="Toggle hot / grayscale (C)"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">{{ colormap === 'hot' ? 'Hot' : 'Gray' }}</span>
+        </button>
+
+        <div class="pet-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="pet-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded DICOM</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Tag keyword → value table</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Geometry, window, modality</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="petFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="pet-files" *ngIf="petFiles.length > 0" aria-label="Loaded PET DICOM files">
+          <div
+            class="pet-files__chip"
+            *ngFor="let file of seriesFiles; let i = index; trackBy: trackByFileId"
+            [class.pet-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="pet-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="pet-files__name">{{ file.name }}</span>
+              <span class="pet-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="pet-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pet-toolbar__status">
+        <span class="pet-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="pet-workspace"
+      [class.pet-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.pet-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pet-panel" aria-label="PET viewport">
+        <header class="pet-map-head" *ngIf="currentFile">
+          <div class="pet-map-head__identity">
+            <span class="pet-map-head__file">{{ currentFile.name }}</span>
+            <span class="pet-map-head__meta" *ngIf="parsed">
+              {{ sliceLabel }} · {{ parsed.modality || 'OT' }} · WC {{ windowCenter | number:'1.0-2' }} / WW
+              {{ windowWidth | number:'1.0-2' }}
+              <span *ngIf="fuseEnabled && fusionPair"> · Fuse {{ fuseOpacity }}%</span>
+            </span>
+          </div>
+          <div class="pet-view-controls" aria-label="View controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <button type="button" (click)="toggleInvert()" [attr.aria-pressed]="invert" appTooltip="Invert" tooltipPosition="bottom">Invert</button>
+            <span class="pet-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="pet-view-controls__divider"></span>
+            <button
+              type="button"
+              class="pet-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="pet-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="pet-map-wrap" [class.pet-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="pet-map"
+            [attr.aria-busy]="loading"
+            aria-label="PET image viewport"
+            (click)="onCanvasClick($event)"
+            (wheel)="onCanvasWheel($event)"></canvas>
+          <div class="pet-empty" *ngIf="!currentFile && !loading">
+            <p class="pet-empty__title">Drop PET DICOM files here</p>
+            <p class="pet-empty__formats">
+              <span class="pet-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="pet-empty__hint">
+              {{ formatsHint }} <kbd>+</kbd>/<kbd>−</kbd> zoom · Shift+± window · arrows/wheel slices · <kbd>F</kbd> fit · <kbd>C</kbd> colormap.
+            </p>
+            <div class="pet-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="pet-loading" *ngIf="loading">Loading PET…</div>
+        </div>
+
+        <div class="pet-probe" *ngIf="probe">
+          Probe ({{ probe.x }}, {{ probe.y }}) · raw {{ probe.raw | number:'1.0-2' }}
+          <span *ngIf="probe.suv != null"> · {{ petUnitsLabel() }} {{ probe.suv | number:'1.0-3' }}</span>
+          <span *ngIf="probe.suv == null && probe.hu != null"> · rescaled {{ probe.hu | number:'1.0-3' }}</span>
+        </div>
+
+        <div class="pet-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="pet-error" *ngIf="errorMessage" role="alert">
+          <p class="pet-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="pet-details-sidebar"
+        class="pet-sidebar"
+        aria-label="PET details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">
+            <span>Study overview</span>
+            <span class="pet-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="pet-process-name">{{ currentFile?.name }}</p>
+            <div class="pet-stat-grid pet-stat-grid--dense" aria-label="Image statistics">
+              <div><strong>{{ parsed.rows }}</strong><span>Rows</span></div>
+              <div><strong>{{ parsed.columns }}</strong><span>Columns</span></div>
+              <div><strong>{{ parsed.bitsAllocated }}</strong><span>Bits</span></div>
+              <div><strong>{{ parsed.modality || '—' }}</strong><span>Modality</span></div>
+              <div><strong>{{ petFiles.length }}</strong><span>Files</span></div>
+              <div><strong>{{ colormap }}</strong><span>Colormap</span></div>
+            </div>
+            <dl class="pet-meta pet-meta--compact">
+              <div><dt>Patient</dt><dd>{{ parsed.patientName || '—' }}</dd></div>
+              <div><dt>Patient ID</dt><dd>{{ parsed.patientId || '—' }}</dd></div>
+              <div><dt>Transfer</dt><dd>{{ parsed.transferSyntaxUid || '—' }}</dd></div>
+            </dl>
+            <p class="pet-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel pet-fuse-panel" *ngIf="canFuse && fusionPair as pair">
+          <header class="ctl__panel-head">PT + CT fuse</header>
+          <div class="ctl__panel-body">
+            <p class="pet-fuse-panel__hint">
+              Overlay <strong>{{ pair.ptLabel }}</strong> on <strong>{{ pair.anatomyLabel }}</strong> (education preview only).
+            </p>
+            <label class="pet-fuse-panel__toggle">
+              <input type="checkbox" [checked]="fuseEnabled" (change)="onFuseToggle($event)" />
+              <span>Enable fuse overlay</span>
+            </label>
+            <label *ngIf="fuseEnabled">
+              <span>Overlay opacity <span class="pet-opacity-value">{{ fuseOpacity }}%</span></span>
+              <input type="range" min="0" max="100" step="1" [value]="fuseOpacity" (input)="onFuseOpacityChange($event)" />
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="seriesGroups.length > 1">
+          <header class="ctl__panel-head">Series</header>
+          <div class="ctl__panel-body">
+            <label>
+              <span>Series picker</span>
+              <select [value]="activeSeriesIndex" (change)="onSeriesChange($event)">
+                <option *ngFor="let series of seriesGroups; let i = index" [value]="i">{{ series.label }}</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="seriesDescription || protocolName">
+          <header class="ctl__panel-head">Acquisition</header>
+          <div class="ctl__panel-body">
+            <dl class="pet-meta pet-meta--compact">
+              <div *ngIf="seriesDescription"><dt>Series</dt><dd>{{ seriesDescription }}</dd></div>
+              <div *ngIf="protocolName"><dt>Protocol</dt><dd>{{ protocolName }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="seriesFiles.length > 1">
+          <header class="ctl__panel-head">Series slices</header>
+          <div class="ctl__panel-body">
+            <label>
+              <span>Slice {{ currentFileIndex + 1 }} / {{ seriesFiles.length }}</span>
+              <input
+                type="range"
+                min="0"
+                [max]="seriesFiles.length - 1"
+                step="1"
+                [value]="currentFileIndex"
+                (input)="onSliceSlider($event)" />
+            </label>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && parsed && !currentFile.softFail">
+          <header class="ctl__panel-head">Window / level</header>
+          <div class="ctl__panel-body">
+            <div class="pet-controls">
+              <div class="pet-controls__presets" role="group" aria-label="Window presets">
+                <button
+                  type="button"
+                  *ngFor="let preset of windowPresets"
+                  [class.is-active]="activePresetId === preset.id"
+                  (click)="applyPreset(preset.id)">
+                  {{ preset.label }}
+                </button>
+              </div>
+              <label>
+                <span>Center <span class="pet-opacity-value">{{ windowCenter | number:'1.0-2' }}</span></span>
+                <input type="range" [min]="wlCenterMin" [max]="wlCenterMax" step="0.1" [value]="windowCenter" (input)="onWindowCenterChange($event)" />
+              </label>
+              <label>
+                <span>Width <span class="pet-opacity-value">{{ windowWidth | number:'1.0-2' }}</span></span>
+                <input type="range" min="0.1" [max]="wlWidthMax" step="0.1" [value]="windowWidth" (input)="onWindowWidthChange($event)" />
+              </label>
+              <p class="pet-controls__hint">Click image to probe SUV · Shift+± adjusts window width · <kbd>C</kbd> toggles colormap</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="parsed?.metadataRows?.length">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body" style="max-height: 14rem; overflow: auto">
+            <table class="pet-meta-table">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of parsed?.metadataRows">
+                  <td>{{ row.keyword }}</td>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="pet-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help pet-footer-help">
+      <summary>How to use PET Scan Viewer</summary>
+      <ul>
+        <li>Upload uncompressed PT <code>.dcm</code> / <code>.dicom</code> / <code>.ima</code>. Non-PT modalities soft-warn but still load.</li>
+        <li>Hot colormap is default; toggle grayscale with the toolbar or <kbd>C</kbd>. Click to probe rescaled SUV-like values.</li>
+        <li>Load CT alongside PT to enable fuse overlay — anatomy grayscale plus hot PET with adjustable opacity.</li>
+        <li>Wheel or arrow keys navigate slices. Export original, metadata JSON, summary JSON, or PNG snapshot.</li>
+        <li><strong>Education/research only — not for diagnosis.</strong> Files never leave your browser.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="pet-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop PET DICOM files to open</p>
+    <p class="pet-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

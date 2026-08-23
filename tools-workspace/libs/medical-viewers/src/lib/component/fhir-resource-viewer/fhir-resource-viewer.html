@@ -1,0 +1,219 @@
+<div class="ctl fhir">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="fhir-eyebrow">Medical tools</span>
+        <h1>FHIR Resource Viewer <span class="fhir-live-badge">Local &amp; private</span></h1>
+        <p>
+          Navigate FHIR JSON/XML resources with tree view, reference graph, and date timeline. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="fhir-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="fhir-suggest__body">
+        <p class="fhir-suggest__title">{{ suggestion.title }}</p>
+        <p class="fhir-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="fhir-suggest__actions">
+        <button type="button" class="fhir-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="fhir-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="fhir-toolbar" aria-label="FHIR viewer controls">
+      <div class="fhir-toolbar__group">
+        <input #fileInput class="fhir-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn fhir-primary-action" (click)="openFilePicker()" [appTooltip]="'Upload · ' + formatsLabel" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample FHIR Bundle" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="fhir-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="toggleExportMenu($event)" [attr.aria-expanded]="showExportMenu" aria-haspopup="menu" aria-label="Export options">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="fhir-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)"><strong>Original file</strong><span>Download uploaded document</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)"><strong>Summary JSON</strong><span>Resource types and counts</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('references-json', $event)"><strong>References JSON</strong><span>Reference graph list</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('timeline-json', $event)"><strong>Timeline JSON</strong><span>Extracted date events</span></button>
+          </div>
+        </div>
+
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="resources.length === 0" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="fhir-files" *ngIf="resources.length > 0">
+          <div class="fhir-files__chip" *ngFor="let item of resources; let i = index; trackBy: trackByResourceId" [class.fhir-files__chip--active]="i === currentIndex">
+            <button type="button" class="fhir-files__select" (click)="selectResource(i)">
+              <span class="fhir-files__name">{{ item.name }}</span>
+              <span class="fhir-files__size">{{ formatSize(item.size) }}</span>
+            </button>
+            <button type="button" class="fhir-files__remove" (click)="removeResource(i, $event)" aria-label="Remove file">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="fhir-toolbar__status"><span class="fhir-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="fhir-tab-bar" *ngIf="currentResource" role="tablist" aria-label="FHIR views">
+      <button
+        type="button"
+        role="tab"
+        *ngFor="let tab of viewTabs"
+        [class.is-active]="activeTab === tab.id"
+        [attr.aria-selected]="activeTab === tab.id"
+        (click)="setActiveTab(tab.id)">
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <div class="fhir-workspace" [class.fhir-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="fhir-panel" aria-label="FHIR resource viewport">
+        <header class="fhir-map-head" *ngIf="currentResource">
+          <div class="fhir-map-head__identity">
+            <span class="fhir-map-head__file">{{ currentResource.name }}</span>
+            <span class="fhir-map-head__meta">{{ resourceSummaryLabel }} · {{ currentResource.format | uppercase }}</span>
+          </div>
+          <div class="fhir-view-controls">
+            <button type="button" class="fhir-sidebar-toggle" (click)="toggleSidebar()" [attr.aria-expanded]="!sidebarCollapsed" aria-controls="fhir-details-sidebar">Panel</button>
+          </div>
+        </header>
+
+        <div class="fhir-search-row" *ngIf="currentResource">
+          <label class="fhir-search">
+            <span class="sr-only">Search content</span>
+            <input #contentSearchInput type="search" [(ngModel)]="contentQuery" (ngModelChange)="onContentQueryChange()" placeholder="Search full tree, references, or dates… (/)" />
+          </label>
+          <div class="fhir-tree-actions" *ngIf="activeTab === 'tree'">
+            <button type="button" (click)="expandAllTree()">Expand all</button>
+            <button type="button" (click)="collapseAllTree()">Collapse</button>
+          </div>
+        </div>
+
+        <div class="fhir-map-wrap" [class.fhir-map-wrap--empty]="!currentResource">
+          <div class="fhir-tree-view" *ngIf="currentResource && activeTab === 'tree'">
+            <button
+              type="button"
+              class="fhir-tree-row"
+              *ngFor="let row of visibleTreeRows; trackBy: trackByTreeNodeId"
+              [class.is-selected]="selectedTreeNodeId === row.node.id"
+              [style.padding-left.rem]="0.55 + row.depth * 0.85"
+              (click)="toggleTreeNode(row.node, $event)">
+              <span class="fhir-tree-row__caret" *ngIf="row.node.children?.length">{{ isTreeExpanded(row.node) ? '▾' : '▸' }}</span>
+              <span class="fhir-tree-row__kind">{{ row.node.kind }}</span>
+              <span class="fhir-tree-row__key">{{ row.node.key }}</span>
+              <span class="fhir-tree-row__value" *ngIf="nodeValueLabel(row.node)">{{ nodeValueLabel(row.node) }}</span>
+            </button>
+            <p class="fhir-empty-filter" *ngIf="visibleTreeRows.length === 0">No tree nodes match the current filter.</p>
+          </div>
+
+          <div class="fhir-ref-view" *ngIf="currentResource && activeTab === 'references'">
+            <div class="fhir-ref-card" *ngFor="let ref of filteredReferences; trackBy: trackByReferenceId">
+              <strong>{{ ref.reference }}</strong>
+              <span>{{ ref.path }}</span>
+              <span class="fhir-ref-card__display" *ngIf="ref.display">{{ ref.display }}</span>
+            </div>
+            <p class="fhir-empty-filter" *ngIf="filteredReferences.length === 0">No references match the current filter.</p>
+          </div>
+
+          <div class="fhir-timeline-view" *ngIf="currentResource && activeTab === 'timeline'">
+            <div class="fhir-timeline-item" *ngFor="let event of filteredTimeline; trackBy: trackByTimelineId">
+              <div class="fhir-timeline-item__date">{{ event.date }}</div>
+              <div class="fhir-timeline-item__body">
+                <strong>{{ event.label }}</strong>
+                <span>{{ event.path }}<ng-container *ngIf="event.resourceType"> · {{ event.resourceType }}</ng-container></span>
+              </div>
+            </div>
+            <p class="fhir-empty-filter" *ngIf="filteredTimeline.length === 0">No timeline events match the current filter.</p>
+          </div>
+
+          <div class="fhir-empty" *ngIf="!currentResource && !loading">
+            <p class="fhir-empty__title">Drop FHIR resources here</p>
+            <p class="fhir-empty__formats"><span class="fhir-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span></p>
+            <p class="fhir-empty__hint">{{ formatsHint }} Paste JSON/XML with <kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>V</kbd>.</p>
+            <div class="fhir-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="fhir-loading" *ngIf="loading">Parsing FHIR…</div>
+        </div>
+
+        <div class="fhir-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+        <div class="fhir-error" *ngIf="errorMessage" role="alert">
+          <p>{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+        <p class="fhir-disclaimer" role="note">Education and research preview only — not validated for clinical diagnosis or treatment decisions.</p>
+      </section>
+
+      <aside id="fhir-details-sidebar" class="fhir-sidebar" [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentResource">
+          <header class="ctl__panel-head"><span>Document overview</span><span class="fhir-overview__status">Ready</span></header>
+          <div class="ctl__panel-body">
+            <p class="fhir-process-name">{{ currentResource.name }}</p>
+            <div class="fhir-stat-grid">
+              <div><strong>{{ currentResource.parsed.primaryResourceType }}</strong><span>Primary type</span></div>
+              <div><strong>{{ currentResource.parsed.resources.length }}</strong><span>Resources</span></div>
+              <div><strong>{{ currentResource.parsed.references.length }}</strong><span>References</span></div>
+            </div>
+            <p class="fhir-meta-line"><span>Timeline events</span> {{ currentResource.parsed.timeline.length }}</p>
+            <p class="fhir-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentResource">
+          <header class="ctl__panel-head">Resources in document</header>
+          <div class="ctl__panel-body">
+            <ul class="fhir-resource-list">
+              <li *ngFor="let res of currentResource.parsed.resources">
+                <strong>{{ res.resourceType }}</strong>
+                <span>{{ res.id || 'no id' }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="fhir-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help fhir-footer-help">
+      <summary>How to use FHIR Resource Viewer</summary>
+      <ul>
+        <li>Upload or paste FHIR R4 JSON or XML resources, including Bundles with multiple entries.</li>
+        <li>Search the full resource tree — matching nodes expand even when collapsed.</li>
+        <li>Explore the resource tree, reference list, and extracted date timeline.</li>
+        <li>Export summary, references, or timeline JSON for offline review.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="fhir-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop FHIR resources to open</p>
+    <p class="fhir-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

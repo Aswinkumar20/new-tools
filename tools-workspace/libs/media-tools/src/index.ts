@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/voice-recorder/voice-recorder';
 export * from './lib/component/audio-player/audio-player';
 export * from './lib/component/audio-trimmer/audio-trimmer';

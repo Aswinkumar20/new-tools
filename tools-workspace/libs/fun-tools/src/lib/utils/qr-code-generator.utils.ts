@@ -1,42 +1,17 @@
 import type { FtToolSuggestion } from '../shared/ft-tool-suggestion.model';
 import {
-  QR_CODE_CDN,
   QR_LONG_TEXT_ECC_THRESHOLD,
   QR_SHORT_NUMERIC_MAX_LENGTH
 } from '../constants/qr-code-generator.constants';
-import type { QrCodeApi, QrCodeOptions, QrErrorCorrectionLevel } from '../types/qr-code-generator.types';
+import type { QrCodeOptions, QrErrorCorrectionLevel } from '../types/qr-code-generator.types';
+import QRCode from 'qrcode';
 
-function getQrCodeApi(): QrCodeApi | undefined {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-  return window.QRCode;
-}
-
-/** Load qrcode.js from CDN once; resolves when the global is available. */
+/** Import qrcode from the installed npm package. */
 export async function loadQrCodeLibrary(): Promise<void> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('QR code generation requires a browser environment.');
   }
-
-  if (getQrCodeApi()) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = QR_CODE_CDN;
-    script.async = true;
-    script.onload = () => {
-      if (getQrCodeApi()) {
-        resolve();
-        return;
-      }
-      reject(new Error('Failed to load QR code library.'));
-    };
-    script.onerror = () => reject(new Error('Failed to load QR code library.'));
-    document.head.appendChild(script);
-  });
+  await import('qrcode');
 }
 
 export function looksLikeUrl(text: string): boolean {
@@ -56,39 +31,16 @@ export function looksLikeWifiPayload(text: string): boolean {
   return /^WIFI:/i.test(text.trim());
 }
 
-/** Render QR code to a PNG data URL using the loaded QRCode global (callback API). */
+/** Render QR code to a PNG data URL using the npm qrcode package. */
 export function renderQrCodeToDataUrl(options: QrCodeOptions): Promise<string> {
-  const qrCode = getQrCodeApi();
-  if (!qrCode) {
-    return Promise.reject(new Error('QR code library is not loaded.'));
-  }
-
-  return new Promise((resolve, reject) => {
-    try {
-      const canvas = document.createElement('canvas');
-      qrCode.toCanvas(
-        canvas,
-        options.text,
-        {
-          width: options.size,
-          margin: options.margin,
-          color: {
-            dark: options.darkColor,
-            light: options.lightColor
-          },
-          errorCorrectionLevel: options.errorCorrectionLevel
-        },
-        (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve(canvas.toDataURL('image/png'));
-        }
-      );
-    } catch (e) {
-      reject(e instanceof Error ? e : new Error('Failed to generate QR code.'));
-    }
+  return QRCode.toDataURL(options.text, {
+    width: options.size,
+    margin: options.margin,
+    color: {
+      dark: options.darkColor,
+      light: options.lightColor
+    },
+    errorCorrectionLevel: options.errorCorrectionLevel
   });
 }
 

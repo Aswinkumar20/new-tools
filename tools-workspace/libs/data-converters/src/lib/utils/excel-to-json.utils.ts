@@ -1,8 +1,5 @@
 import type { DcToolSuggestion } from '../shared/dc-tool-suggestion.model';
-import {
-  EXCEL_TO_JSON_SHEETJS_URL,
-  EXCEL_TO_JSON_VALID_EXTENSIONS
-} from '../constants/excel-to-json.constants';
+import { EXCEL_TO_JSON_VALID_EXTENSIONS } from '../constants/excel-to-json.constants';
 import type {
   ExcelCastOptions,
   ExcelColumnMapping,
@@ -350,26 +347,12 @@ export async function loadSheetJsLibrary(
     throw new Error('Excel parsing is only available in a browser environment.');
   }
 
-  const globalXlsx = (globalThis as typeof globalThis & { XLSX?: SheetJsModule }).XLSX;
-  if (globalXlsx) {
-    return globalXlsx;
+  const xlsxMod = await import('xlsx');
+  const loaded = (xlsxMod.default ?? xlsxMod) as unknown as SheetJsModule;
+  if (!loaded?.read) {
+    throw new Error('Unable to load Excel parsing library.');
   }
-
-  const script = document.createElement('script');
-  script.src = EXCEL_TO_JSON_SHEETJS_URL;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const loaded = (globalThis as typeof globalThis & { XLSX?: SheetJsModule }).XLSX;
-      if (!loaded) {
-        reject(new Error('Unable to load Excel parsing library.'));
-        return;
-      }
-      resolve(loaded);
-    };
-    script.onerror = () => reject(new Error('Unable to load Excel parsing library.'));
-  });
+  return loaded;
 }
 
 export function looksLikeCsvTextFile(fileName: string): boolean {

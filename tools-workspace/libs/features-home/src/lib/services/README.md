@@ -9,7 +9,7 @@ Manages the current language state and provides language switching functionality
 
 **Usage:**
 ```typescript
-import { LanguageService } from '@libs/features-home/services/language.service';
+import { LanguageService } from '@tools-workspace/features-home';
 
 constructor(private languageService: LanguageService) {}
 
@@ -33,7 +33,7 @@ Handles loading and providing translations for the current language.
 
 **Usage:**
 ```typescript
-import { TranslationService } from '@libs/features-home/services/translation.service';
+import { TranslationService } from '@tools-workspace/features-home';
 
 constructor(private translationService: TranslationService) {}
 
@@ -99,7 +99,7 @@ Translation files are located in `apps/tools-site/src/assets/i18n/` as JSON file
 
 1. **Import the TranslatePipe:**
 ```typescript
-import { TranslatePipe } from '@libs/features-home/pipe/translate.pipe';
+import { TranslatePipe } from '@tools-workspace/features-home';
 
 @Component({
   imports: [TranslatePipe],

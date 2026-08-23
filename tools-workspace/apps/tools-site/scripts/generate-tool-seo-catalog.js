@@ -8,7 +8,6 @@ const fs = require('fs');
 const path = require('path');
 const {
   CATEGORY_META,
-  readRoutesFile,
   extractRoutedTools,
   extractPrerenderRoutes,
   slugToTitle,
@@ -115,13 +114,12 @@ function escapeTs(str) {
 }
 
 function generate() {
-  const routesContent = readRoutesFile();
   const footerContent = fs.readFileSync(FOOTER_FILE, 'utf8');
   const textCatalogContent = fs.readFileSync(TEXT_CATALOG_FILE, 'utf8');
   const homepageContent = fs.readFileSync(HOMEPAGE_FILE, 'utf8');
 
-  const prerenderRoutes = extractPrerenderRoutes(routesContent);
-  const toolsByCategory = extractRoutedTools(routesContent);
+  const prerenderRoutes = extractPrerenderRoutes();
+  const toolsByCategory = extractRoutedTools();
   const descriptions = new Map();
 
   for (const [routePath, entry] of extractToolEntries(footerContent)) {
@@ -160,6 +158,15 @@ function generate() {
       description: `${slugToTitle(categorySlug)} tools`,
       faIcon: 'fas fa-wrench',
       materialIcon: 'build',
+    };
+
+    seoCatalog[`/${categorySlug}`] = {
+      name: meta.name,
+      category: meta.name,
+      categorySlug,
+      title: `${meta.name} - Free Online Tools`,
+      description: buildSeoDescription(meta.description, meta.name, categorySlug),
+      keywords: `${meta.name.toLowerCase()}, free online tools, easytoolhub, ${categorySlug.replace(/-/g, ' ')}`,
     };
 
     const subCategories = toolSlugs.map((toolSlug) => {

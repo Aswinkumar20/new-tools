@@ -2,7 +2,6 @@ import type { FvToolSuggestion } from '../shared/fv-tool-suggestion.model';
 import {
   EXCEL_MAX_ZOOM,
   EXCEL_MIN_ZOOM,
-  EXCEL_SHEETJS_CDN,
   EXCEL_SUPPORTED_EXTENSIONS,
   EXCEL_ZOOM_STEP
 } from '../constants/excel-viewer.constants';
@@ -14,12 +13,6 @@ import type {
   XLSXCell,
   XLSXWorksheet
 } from '../types/excel-viewer.types';
-
-declare global {
-  interface Window {
-    XLSX?: XLSX;
-  }
-}
 
 export function getExcelFileExtension(fileName: string): string {
   const parts = fileName.split('.');
@@ -198,30 +191,17 @@ export function isFullscreenActive(doc: Document = document): boolean {
   );
 }
 
-export async function loadSheetJSLibrary(cdnUrl: string = EXCEL_SHEETJS_CDN): Promise<XLSX> {
+export async function loadSheetJSLibrary(): Promise<XLSX> {
   if (globalThis.window === undefined) {
     throw new TypeError('SheetJS can only be loaded in browser environment');
   }
 
-  if (globalThis.window.XLSX) {
-    return globalThis.window.XLSX;
+  const xlsxMod = await import('xlsx');
+  const lib = (xlsxMod.default ?? xlsxMod) as unknown as XLSX;
+  if (!lib?.read) {
+    throw new Error('Failed to load SheetJS library');
   }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const lib = globalThis.window.XLSX;
-      if (!lib) {
-        reject(new Error('Failed to load SheetJS library'));
-        return;
-      }
-      resolve(lib);
-    };
-    script.onerror = () => reject(new Error('Failed to load SheetJS library'));
-  });
+  return lib;
 }
 
 export function resolveExcelSuggestion(options: {

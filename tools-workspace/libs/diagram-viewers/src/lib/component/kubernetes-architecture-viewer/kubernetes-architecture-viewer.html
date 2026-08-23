@@ -1,0 +1,264 @@
+<div class="ctl k8s dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="k8s-eyebrow">Diagram viewers</span>
+        <h1>Kubernetes Architecture Viewer <span class="k8s-live-badge">Local &amp; private</span></h1>
+        <p>Preview Kubernetes workloads and services locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Kubernetes Architecture Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="k8s-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="k8s-suggest__body">
+        <p class="k8s-suggest__title">{{ suggestion.title }}</p>
+        <p class="k8s-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="k8s-suggest__actions">
+        <button type="button" class="k8s-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="k8s-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="k8s-toolbar" role="toolbar" aria-label="Kubernetes Architecture Viewer actions">
+      <div class="k8s-toolbar__group">
+        <input #fileInput class="k8s-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn k8s-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="k8s-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="k8s-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('workloads-csv', $event)">Workloads CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('services-csv', $event)">Services CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="k8s-files" *ngIf="files.length">
+          <div class="k8s-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.k8s-files__chip--active]="i === currentIndex">
+            <button type="button" class="k8s-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="k8s-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="k8s-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Kubernetes Architecture Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="k8s-toolbar__status"><span class="k8s-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="k8s-workspace" [class.k8s-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="k8s-panel">
+        <header class="k8s-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.workloads?.length || 0 }} workloads · {{ parsed?.services?.length || 0 }} services · {{ parsed?.links?.length || 0 }} links</span>
+          </div>
+          <div class="k8s-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="k8s-map-wrap">
+          <canvas #canvasHost class="k8s-map" [class.k8s-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="k8s-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'workloads')">
+            <article *ngFor="let workload of filteredWorkloads; trackBy: trackByWorkload" [class.is-active]="selectedWorkload?.id === workload.id" (click)="selectWorkload(workload.id)">
+              <header>
+                <i class="k8s-swatch" [style.background]="tint(workload.kind, workload.index)"></i>
+                <strong>{{ workload.name }}</strong>
+                <span>{{ workload.kind }}</span>
+              </header>
+              <p>{{ workload.namespace }} · {{ workload.replicas }} replicas</p>
+            </article>
+            <p class="k8s-empty-filter" *ngIf="parsed && !filteredWorkloads.length">No workloads match the current filter.</p>
+          </div>
+          <div class="k8s-cards" *ngIf="currentFile && viewMode === 'services'">
+            <article *ngFor="let service of filteredServices; trackBy: trackByService" [class.is-active]="selectedService?.id === service.id" (click)="selectService(service.id)">
+              <header>
+                <i class="k8s-swatch" [style.background]="tint(service.kind, service.index)"></i>
+                <strong>{{ service.name }}</strong>
+                <span>{{ service.kind }}</span>
+              </header>
+              <p>{{ service.namespace }}{{ service.ports ? ' · ' + service.ports : '' }}</p>
+            </article>
+            <p class="k8s-empty-filter" *ngIf="parsed && !filteredServices.length">No services match the current filter.</p>
+          </div>
+          <div class="k8s-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>From</th>
+                  <th>Rel</th>
+                  <th>To</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let link of filteredLinks; trackBy: trackByLink" [class.is-active]="selectedLink?.id === link.id" (click)="selectLink(link.id)">
+                  <td>{{ link.index + 1 }}</td>
+                  <td>{{ link.sourceName }}</td>
+                  <td>{{ link.rel }}</td>
+                  <td>{{ link.targetName }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="k8s-empty-filter" *ngIf="parsed && !filteredLinks.length">No links match the current filter.</p>
+          </div>
+          <div class="k8s-empty" *ngIf="!currentFile && !loading">
+            <p>Drop Kubernetes manifest here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="k8s-loading" *ngIf="loading">Parsing Kubernetes…</div>
+        </div>
+
+        <div class="k8s-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="k8s-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="k8s-disclaimer">Education and research preview only — not a substitute for kubectl, Lens, or cluster consoles.</p>
+      </section>
+
+      <aside class="k8s-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="k8s-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search cluster</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="k8s-search" type="search" placeholder="workload:web kind:Service rel:selects (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredLinks.length" open>
+          <summary class="ctl__panel-head">Links</summary>
+          <div class="ctl__panel-body k8s-units">
+            <button type="button" *ngFor="let link of filteredLinks; trackBy: trackByLink" [class.is-active]="selectedLinkId === link.id" (click)="selectLink(link.id)">
+              <i class="k8s-swatch" [style.background]="tint(link.rel, link.index)"></i>
+              <span>{{ link.sourceName }} {{ link.rel }} {{ link.targetName }}</span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'services' && filteredServices.length" open>
+          <summary class="ctl__panel-head">Services</summary>
+          <div class="ctl__panel-body k8s-units">
+            <button type="button" *ngFor="let service of filteredServices; trackBy: trackByService" [class.is-active]="selectedServiceId === service.id" (click)="selectService(service.id)">
+              <i class="k8s-swatch" [style.background]="tint(service.kind, service.index)"></i>
+              <span>{{ service.name }} <small>{{ service.kind }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'services' && filteredWorkloads.length" open>
+          <summary class="ctl__panel-head">Workloads</summary>
+          <div class="ctl__panel-body k8s-units">
+            <button type="button" *ngFor="let workload of filteredWorkloads; trackBy: trackByWorkload" [class.is-active]="selectedWorkloadId === workload.id" (click)="selectWorkload(workload.id)">
+              <i class="k8s-swatch" [style.background]="tint(workload.kind, workload.index)"></i>
+              <span>{{ workload.name }} <small>{{ workload.kind }} · {{ workload.replicas }} replicas</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && selectedLink" open>
+          <summary class="ctl__panel-head">Selected link</summary>
+          <div class="ctl__panel-body">
+            <dl class="k8s-meta">
+              <div *ngFor="let row of linkMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'services' && selectedService" open>
+          <summary class="ctl__panel-head">Selected service</summary>
+          <div class="ctl__panel-body">
+            <dl class="k8s-meta">
+              <div *ngFor="let row of serviceMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'services' && selectedWorkload" open>
+          <summary class="ctl__panel-head">Selected workload</summary>
+          <div class="ctl__panel-body">
+            <dl class="k8s-meta">
+              <div *ngFor="let row of workloadMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="k8s-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use Kubernetes Architecture Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="k8s-drop" *ngIf="showDropZone"><p>Drop Kubernetes manifest to preview</p></div>
+  </main>
+</div>

@@ -1,0 +1,247 @@
+<div class="ctl drl dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="drl-eyebrow">Diagram viewers</span>
+        <h1>Drools Rule Viewer <span class="drl-live-badge">Local &amp; private</span></h1>
+        <p>Inspect Drools .drl rules and conditions locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Drools Rule Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="drl-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="drl-suggest__body">
+        <p class="drl-suggest__title">{{ suggestion.title }}</p>
+        <p class="drl-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="drl-suggest__actions">
+        <button type="button" class="drl-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="drl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="drl-toolbar" role="toolbar" aria-label="Drools Rule Viewer actions">
+      <div class="drl-toolbar__group">
+        <input #fileInput class="drl-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn drl-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="drl-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="drl-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('rules-csv', $event)">Rules CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('conditions-csv', $event)">Conditions CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="drl-files" *ngIf="files.length">
+          <div class="drl-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.drl-files__chip--active]="i === currentIndex">
+            <button type="button" class="drl-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="drl-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="drl-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Drools Rule Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="drl-toolbar__status"><span class="drl-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="drl-workspace" [class.drl-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="drl-panel">
+        <header class="drl-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.packageName || parsed?.title || parsed?.name }} · {{ parsed?.rules?.length || 0 }} rules · {{ parsed?.conditions?.length || 0 }} conditions</span>
+          </div>
+          <div class="drl-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="drl-map-wrap">
+          <canvas #canvasHost class="drl-map" [class.drl-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="drl-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'rules')">
+            <article *ngFor="let rule of filteredRules; trackBy: trackByRule" [class.is-active]="selectedRule?.id === rule.id" (click)="selectRule(rule.id)">
+              <header>
+                <i class="drl-swatch" [style.background]="tint(rule.index)"></i>
+                <strong>{{ rule.name }}</strong>
+                <span>{{ rule.salience ? 's' + rule.salience : 'rule' }}</span>
+              </header>
+              <p>{{ rule.thenText || rule.whenText || rule.id }}</p>
+            </article>
+            <p class="drl-empty-filter" *ngIf="parsed && !filteredRules.length">No rules match the current filter.</p>
+          </div>
+          <div class="drl-cards" *ngIf="currentFile && viewMode === 'conditions'">
+            <article *ngFor="let condition of filteredConditions; trackBy: trackByCondition" [class.is-active]="selectedCondition?.id === condition.id" (click)="selectCondition(condition.id)">
+              <header>
+                <i class="drl-swatch" [style.background]="tint(condition.index)"></i>
+                <strong>{{ condition.factType || 'condition' }}</strong>
+                <span>{{ condition.modifier || 'when' }}</span>
+              </header>
+              <p>{{ condition.ruleName }} · {{ condition.constraints || '—' }}</p>
+            </article>
+            <p class="drl-empty-filter" *ngIf="parsed && !filteredConditions.length">No conditions match the current filter.</p>
+          </div>
+          <div class="drl-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Rule</th>
+                  <th>Fact</th>
+                  <th>Constraints</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let condition of filteredConditions; trackBy: trackByCondition" [class.is-active]="selectedCondition?.id === condition.id" (click)="selectCondition(condition.id)">
+                  <td>{{ condition.index + 1 }}</td>
+                  <td>{{ condition.ruleName }}</td>
+                  <td>{{ condition.modifier ? condition.modifier + ' ' : '' }}{{ condition.factType }}</td>
+                  <td>{{ condition.constraints || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="drl-empty-filter" *ngIf="parsed && !filteredConditions.length">No conditions match the current filter.</p>
+          </div>
+          <div class="drl-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a .drl file here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="drl-loading" *ngIf="loading">Parsing Drools rules…</div>
+        </div>
+
+        <div class="drl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="drl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="drl-disclaimer">Education and research preview only — not a substitute for Drools, KIE, or production rule engines.</p>
+      </section>
+
+      <aside class="drl-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="drl-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search rules</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="drl-search" type="search" placeholder="rule:shipping fact:Order salience:10 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'conditions' || viewMode === 'table') && filteredConditions.length" open>
+          <summary class="ctl__panel-head">Conditions</summary>
+          <div class="ctl__panel-body drl-units">
+            <button type="button" *ngFor="let condition of filteredConditions; trackBy: trackByCondition" [class.is-active]="selectedConditionId === condition.id" (click)="selectCondition(condition.id)">
+              <i class="drl-swatch" [style.background]="tint(condition.index)"></i>
+              <span>{{ condition.factType || 'cond' }} <small>{{ condition.ruleName }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'conditions' && viewMode !== 'table' && filteredRules.length" open>
+          <summary class="ctl__panel-head">Rules</summary>
+          <div class="ctl__panel-body drl-units">
+            <button type="button" *ngFor="let rule of filteredRules; trackBy: trackByRule" [class.is-active]="selectedRuleId === rule.id" (click)="selectRule(rule.id)">
+              <i class="drl-swatch" [style.background]="tint(rule.index)"></i>
+              <span>{{ rule.name }} <small>{{ rule.salience ? 'salience ' + rule.salience : 'rule' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'conditions' || viewMode === 'table') && selectedCondition" open>
+          <summary class="ctl__panel-head">Selected condition</summary>
+          <div class="ctl__panel-body">
+            <dl class="drl-meta">
+              <div *ngFor="let row of conditionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'conditions' && viewMode !== 'table' && selectedRule" open>
+          <summary class="ctl__panel-head">Selected rule</summary>
+          <div class="ctl__panel-body">
+            <dl class="drl-meta">
+              <div *ngFor="let row of ruleMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="drl-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use Drools Rule Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="drl-drop" *ngIf="showDropZone"><p>Drop .drl to preview</p></div>
+  </main>
+</div>

@@ -1,0 +1,271 @@
+<div class="ctl erd dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="erd-eyebrow">Diagram viewers</span>
+        <h1>ER Diagram Viewer <span class="erd-live-badge">Local &amp; private</span></h1>
+        <p>Preview entities, primary/foreign keys, and relationships locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="ER Diagram Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="erd-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="erd-suggest__body">
+        <p class="erd-suggest__title">{{ suggestion.title }}</p>
+        <p class="erd-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="erd-suggest__actions">
+        <button type="button" class="erd-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="erd-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="erd-toolbar" role="toolbar" aria-label="ER Diagram Viewer actions">
+      <div class="erd-toolbar__group">
+        <input #fileInput class="erd-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn erd-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="erd-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="erd-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('entities-csv', $event)">Entities CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('keys-csv', $event)">Keys CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="erd-files" *ngIf="files.length">
+          <div class="erd-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.erd-files__chip--active]="i === currentIndex">
+            <button type="button" class="erd-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="erd-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="erd-tab-bar" *ngIf="currentFile" role="tablist" aria-label="ER Diagram Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="erd-toolbar__status"><span class="erd-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="erd-workspace" [class.erd-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="erd-panel">
+        <header class="erd-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.entities?.length || 0 }} entities · {{ parsed?.keys?.length || 0 }} keys</span>
+          </div>
+          <div class="erd-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="erd-map-wrap">
+          <canvas #canvasHost class="erd-map" [class.erd-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="erd-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'entities')">
+            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" (click)="selectEntity(entity.id)">
+              <header>
+                <i class="erd-swatch" [style.background]="tint(entity.stereotype, entity.index)"></i>
+                <strong>{{ entity.name }}</strong>
+                <span>{{ entity.columns.length }} cols</span>
+              </header>
+              <p>
+                <span *ngFor="let col of entity.columns" class="erd-col">
+                  <b *ngIf="columnBadge(col)">{{ columnBadge(col) }}</b>
+                  {{ col.name }}{{ col.type ? ': ' + col.type : '' }}
+                </span>
+              </p>
+            </article>
+            <p class="erd-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+          </div>
+          <div class="erd-cards" *ngIf="currentFile && viewMode === 'keys'">
+            <article *ngFor="let key of filteredKeys; trackBy: trackByKey" [class.is-active]="selectedKey?.id === key.id" (click)="selectKey(key.id)">
+              <header>
+                <i class="erd-swatch" [style.background]="tint(key.kind, key.index)"></i>
+                <strong>{{ key.entityName }}.{{ key.column }}</strong>
+                <span>{{ key.kind | uppercase }}</span>
+              </header>
+              <p>{{ key.type || '—' }}{{ key.refEntity ? ' → ' + key.refEntity + '.' + (key.refColumn || 'id') : '' }}</p>
+            </article>
+            <p class="erd-empty-filter" *ngIf="parsed && !filteredKeys.length">No keys match the current filter.</p>
+          </div>
+          <div class="erd-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>From</th>
+                  <th>Card</th>
+                  <th>To</th>
+                  <th>Label</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let rel of filteredRelations; trackBy: trackByRelation" [class.is-active]="selectedRelation?.id === rel.id" (click)="selectRelation(rel.id)">
+                  <td>{{ rel.index + 1 }}</td>
+                  <td>{{ rel.sourceName }}</td>
+                  <td>{{ rel.sourceCard }} … {{ rel.targetCard }}</td>
+                  <td>{{ rel.targetName }}</td>
+                  <td>{{ rel.label || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="erd-empty-filter" *ngIf="parsed && !filteredRelations.length">No relationships match the current filter.</p>
+          </div>
+          <div class="erd-empty" *ngIf="!currentFile && !loading">
+            <p>Drop ER diagram source here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="erd-loading" *ngIf="loading">Parsing ER diagram…</div>
+        </div>
+
+        <div class="erd-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="erd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="erd-disclaimer">Education and research preview only — not a substitute for database design or modeling tools.</p>
+      </section>
+
+      <aside class="erd-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="erd-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search diagram</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="erd-search" type="search" placeholder="entity:Customer key:pk attr:email rel:places (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'keys' && filteredKeys.length" open>
+          <summary class="ctl__panel-head">Keys</summary>
+          <div class="ctl__panel-body erd-units">
+            <button type="button" *ngFor="let key of filteredKeys; trackBy: trackByKey" [class.is-active]="selectedKeyId === key.id" (click)="selectKey(key.id)">
+              <i class="erd-swatch" [style.background]="tint(key.kind, key.index)"></i>
+              <span>{{ key.entityName }}.{{ key.column }} <small>{{ key.kind | uppercase }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredRelations.length" open>
+          <summary class="ctl__panel-head">Relations</summary>
+          <div class="ctl__panel-body erd-units">
+            <button type="button" *ngFor="let rel of filteredRelations; trackBy: trackByRelation" [class.is-active]="selectedRelationId === rel.id" (click)="selectRelation(rel.id)">
+              <i class="erd-swatch" [style.background]="tint(rel.label, rel.index)"></i>
+              <span>{{ rel.sourceName }} → {{ rel.targetName }} <small>{{ rel.label || rel.sourceCard }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'keys' && filteredEntities.length" open>
+          <summary class="ctl__panel-head">Entities</summary>
+          <div class="ctl__panel-body erd-units">
+            <button type="button" *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
+              <i class="erd-swatch" [style.background]="tint(entity.stereotype, entity.index)"></i>
+              <span>{{ entity.name }} <small>{{ entity.columns.length }} columns</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'keys' && selectedKey" open>
+          <summary class="ctl__panel-head">Selected key</summary>
+          <div class="ctl__panel-body">
+            <dl class="erd-meta">
+              <div *ngFor="let row of keyMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && selectedRelation" open>
+          <summary class="ctl__panel-head">Selected relation</summary>
+          <div class="ctl__panel-body">
+            <dl class="erd-meta">
+              <div *ngFor="let row of relationMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'keys' && selectedEntity" open>
+          <summary class="ctl__panel-head">Selected entity</summary>
+          <div class="ctl__panel-body">
+            <dl class="erd-meta">
+              <div *ngFor="let row of entityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="erd-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use ER Diagram Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="erd-drop" *ngIf="showDropZone"><p>Drop ER diagram source to preview</p></div>
+  </main>
+</div>

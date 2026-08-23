@@ -20,22 +20,3 @@ export type QrCodeFormGroup = FormGroup<{
   margin: FormControl<number>;
 }>;
 
-export interface QrCodeApi {
-  toCanvas(
-    canvas: HTMLCanvasElement,
-    text: string,
-    options: {
-      width: number;
-      margin: number;
-      color: { dark: string; light: string };
-      errorCorrectionLevel: QrErrorCorrectionLevel;
-    },
-    callback: (error: Error | null) => void
-  ): void;
-}
-
-declare global {
-  interface Window {
-    QRCode?: QrCodeApi;
-  }
-}

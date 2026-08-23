@@ -34,9 +34,13 @@ Align OG image URL with the file actually deployed (`public/og-image.svg` vs `/a
 | `tool-seo-catalog.generated.ts` | Auto SEO — **do not hand-edit** |
 | `route-seo.config.ts` → `SEO_OVERRIDES` | Manual overrides |
 | `tools-catalog.generated.ts` | Home/nav catalog |
-| `prerender-routes.txt` | Prerender list |
+| `prerender-routes.txt` | Discovered public URLs (tools + category indexes) |
 
-Generator: `apps/tools-site/scripts/generate-tool-seo-catalog.js` (reads `app.routes.ts` + enrichment).
+Generator: `apps/tools-site/scripts/generate-tool-seo-catalog.js` (reads `app.routes.ts` + `src/app/routes/*.routes.ts` + enrichment).
+
+Do **not** add hreflang while UI language is client-side on the same URL. Locale prefixes (`/es/...`) would be a separate project.
+
+Unknown URLs must return **HTTP 404** + NotFound (`noindex, follow`), not a redirect to `/tools`.
 
 ```bash
 npx nx run tools-site:generate-tool-seo-catalog
@@ -51,8 +55,8 @@ Build/prerender depend on sitemap generation.
 
 ## Add SEO for a new tool
 
-1. Add route in `app.routes.ts`.  
-2. `npx nx run tools-site:generate-sitemap` (or production build).  
+1. Add a deep `loadComponent` in `apps/tools-site/src/app/routes/<category>.routes.ts`.  
+2. `npx nx run tools-site:generate-sitemap` (or `tools-site:build-prod`).  
 3. Optional: `SEO_OVERRIDES` in `route-seo.config.ts`.  
 4. Optional enrichment: `scripts/lib/tool-seo-enrichment.js`.  
 5. Verify View Source / Rich Results / `/sitemap.xml`.
@@ -63,6 +67,7 @@ Build/prerender depend on sitemap generation.
 - Internal links; image `alt`  
 - Keep generators in sync with routes  
 - Submit sitemap in Search Console / Bing  
+- After deploy: coverage (no soft-404 spike), sitemap count includes category indexes not `/404`, view-source unique titles, fake URL returns HTTP 404  
 
 ## Troubleshooting
 

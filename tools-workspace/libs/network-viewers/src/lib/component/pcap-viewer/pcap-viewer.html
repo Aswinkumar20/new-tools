@@ -1,0 +1,162 @@
+<div class="ctl pcap">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pcap-eyebrow">Network tools</span>
+        <h1>PCAP Viewer <span class="pcap-live-badge">Local &amp; private</span></h1>
+        <p>Inspect packet captures locally with filters, hex dump, and TCP follow-stream. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="pcap-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pcap-suggest__body">
+        <p class="pcap-suggest__title">{{ suggestion.title }}</p>
+        <p class="pcap-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pcap-suggest__actions">
+        <button type="button" class="pcap-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="pcap-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="pcap-toolbar">
+      <div class="pcap-toolbar__group">
+        <input #fileInput class="pcap-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn pcap-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pcap-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="pcap-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('packets-csv', $event)">Packets CSV</button>
+            <button type="button" (click)="exportAs('stream-txt', $event)">Follow-stream text</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="pcap-files" *ngIf="files.length">
+          <div class="pcap-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pcap-files__chip--active]="i === currentIndex">
+            <button type="button" class="pcap-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="pcap-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="pcap-toolbar__status"><span class="pcap-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="pcap-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="pcap-workspace" [class.pcap-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pcap-panel">
+        <header class="pcap-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.format }} · {{ parsed?.linkTypeName }} · {{ filteredPackets.length }} packets · {{ streams.length }} streams</span>
+          </div>
+          <div class="pcap-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="pcap-map-wrap" [class.pcap-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="pcap-map" *ngIf="currentFile && viewMode === 'timeline'"></canvas>
+          <div class="pcap-table" *ngIf="currentFile && (viewMode === 'packets' || viewMode === 'table')">
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Time</th>
+                  <th>Proto</th>
+                  <th>Source</th>
+                  <th>Destination</th>
+                  <th>Len</th>
+                  <th>Info</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let pkt of filteredPackets; trackBy: trackByPacket" [class.is-active]="selectedPacket?.index === pkt.index" (click)="selectPacket(pkt.index)">
+                  <td>{{ pkt.index + 1 }}</td>
+                  <td>{{ pkt.relMs | number:'1.1-3' }}</td>
+                  <td><i class="pcap-swatch" [style.background]="protoColor(pkt.protocol)"></i>{{ pkt.protocol }}</td>
+                  <td>{{ pkt.srcPort != null ? pkt.srcIp + ':' + pkt.srcPort : (pkt.srcIp || pkt.srcMac || '—') }}</td>
+                  <td>{{ pkt.dstPort != null ? pkt.dstIp + ':' + pkt.dstPort : (pkt.dstIp || pkt.dstMac || '—') }}</td>
+                  <td>{{ pkt.inclLen }}</td>
+                  <td>{{ pkt.info }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="pcap-empty-filter" *ngIf="parsed && !filteredPackets.length">No packets match the current filter.</p>
+          </div>
+          <pre class="pcap-hex" *ngIf="currentFile && viewMode === 'hex'">{{ hexDump || 'Select a packet to view hex.' }}</pre>
+          <div class="pcap-stream" *ngIf="currentFile && viewMode === 'stream'">
+            <div class="pcap-filters" *ngIf="streams.length">
+              <button type="button" *ngFor="let stream of streams; trackBy: trackByStream" [class.is-active]="selectedStream?.id === stream.id" (click)="selectStream(stream.id)">
+                {{ stream.protocol }} {{ stream.src }} ↔ {{ stream.dst }}
+              </button>
+            </div>
+            <pre *ngIf="selectedStream">{{ selectedStream.text }}</pre>
+            <p class="pcap-empty-filter" *ngIf="!streams.length">No TCP streams in this capture.</p>
+          </div>
+          <div class="pcap-empty" *ngIf="!currentFile && !loading">
+            <p>Drop PCAP / PCAPNG files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="pcap-loading" *ngIf="loading">Parsing capture…</div>
+        </div>
+
+        <div class="pcap-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pcap-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pcap-disclaimer">Education and research preview only — not a substitute for Wireshark or production packet forensics.</p>
+      </section>
+
+      <aside class="pcap-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="pcap-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Filter packets</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="pcap-search" type="search" placeholder="tcp udp dns host 10.0.0.10 port 80 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredPackets.length">
+          <header class="ctl__panel-head">Packets</header>
+          <div class="ctl__panel-body pcap-units">
+            <button type="button" *ngFor="let pkt of filteredPackets; trackBy: trackByPacket" [class.is-active]="selectedPacketIndex === pkt.index" (click)="selectPacket(pkt.index)">
+              <i class="pcap-swatch" [style.background]="protoColor(pkt.protocol)"></i>
+              <span>#{{ pkt.index + 1 }} {{ pkt.protocol }} <small>{{ pkt.info }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedPacket">
+          <header class="ctl__panel-head">Selected packet</header>
+          <div class="ctl__panel-body">
+            <dl class="pcap-meta">
+              <div *ngFor="let row of packetMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pcap-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="pcap-drop" *ngIf="showDropZone"><p>Drop packet captures to preview</p></div>
+  </main>
+</div>

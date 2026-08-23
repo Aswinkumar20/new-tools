@@ -1,0 +1,337 @@
+<div class="ctl wsi">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="wsi-eyebrow">Medical tools</span>
+        <h1>Whole Slide Image Viewer <span class="wsi-live-badge">Local &amp; private</span></h1>
+        <p>
+          Local whole-slide preview with pyramid zoom, minimap navigation, and region-of-interest tools. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="wsi-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="wsi-suggest__body">
+        <p class="wsi-suggest__title">{{ suggestion.title }}</p>
+        <p class="wsi-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="wsi-suggest__actions">
+        <button type="button" class="wsi-suggest__action" (click)="applySuggestion(suggestion)">
+          {{ suggestion.actionLabel }}
+        </button>
+        <button type="button" class="wsi-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="wsi-toolbar" aria-label="Whole slide image viewer controls">
+      <div class="wsi-toolbar__group">
+        <label class="sr-only" for="wsi-file-upload">Upload whole slide images</label>
+        <input
+          #fileInput
+          id="wsi-file-upload"
+          class="wsi-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn wsi-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample WSI slide" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="wsi-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="wsi-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded slide</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('regions-json', $event)">
+              <strong>Regions JSON</strong>
+              <span>ROI rectangles and coordinates</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Dimensions, pyramid, region count</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="slideFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="wsi-files" *ngIf="slideFiles.length > 0" aria-label="Loaded slides">
+          <div
+            class="wsi-files__chip"
+            *ngFor="let file of slideFiles; let i = index; trackBy: trackByFileId"
+            [class.wsi-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="wsi-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="wsi-files__name">{{ file.name }}</span>
+              <span class="wsi-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="wsi-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="wsi-toolbar__status">
+        <span class="wsi-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="wsi-workspace"
+      [class.wsi-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.wsi-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="wsi-panel" aria-label="Whole slide viewport">
+        <header class="wsi-map-head" *ngIf="currentFile">
+          <div class="wsi-map-head__identity">
+            <span class="wsi-map-head__file">{{ currentFile.name }}</span>
+            <span class="wsi-map-head__meta" *ngIf="dimensionLabel">
+              {{ dimensionLabel }} · {{ pyramidLabel }}
+            </span>
+          </div>
+          <div class="wsi-view-controls" aria-label="View controls">
+            <button
+              type="button"
+              [class.is-active]="activeTool === 'pan'"
+              (click)="setTool('pan')"
+              appTooltip="Pan tool (V)"
+              tooltipPosition="bottom">
+              Pan
+            </button>
+            <button
+              type="button"
+              [class.is-active]="activeTool === 'region'"
+              (click)="setTool('region')"
+              appTooltip="Region ROI tool (R)"
+              tooltipPosition="bottom">
+              Region
+            </button>
+            <span class="wsi-view-controls__divider"></span>
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <span class="wsi-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="wsi-view-controls__divider"></span>
+            <button
+              type="button"
+              class="wsi-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="wsi-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="wsi-map-wrap" [class.wsi-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="wsi-map"
+            [class.wsi-map--pan]="canPan"
+            [class.wsi-map--panning]="panning"
+            [class.wsi-map--region]="activeTool === 'region'"
+            [attr.aria-busy]="loading"
+            aria-label="Whole slide image viewport"
+            (mousedown)="onCanvasMouseDown($event)"
+            (mousemove)="onCanvasMouseMove($event)"
+            (mouseup)="onCanvasMouseUp($event)"
+            (mouseleave)="onCanvasMouseLeave()"
+            (wheel)="onCanvasWheel($event)"></canvas>
+
+          <div class="wsi-minimap-panel" *ngIf="currentFile && dimensionLabel" aria-label="Slide minimap">
+            <span class="wsi-minimap-panel__label">Minimap</span>
+            <canvas #minimapHost class="wsi-minimap" aria-hidden="true"></canvas>
+          </div>
+
+          <div class="wsi-empty" *ngIf="!currentFile && !loading">
+            <p class="wsi-empty__title">Drop whole slide images here</p>
+            <p class="wsi-empty__formats">
+              <span class="wsi-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="wsi-empty__hint">
+              {{ formatsHint }} <kbd>+</kbd>/<kbd>−</kbd> zoom · <kbd>R</kbd> region · <kbd>V</kbd> pan · <kbd>F</kbd> fit · drag to pan when zoomed.
+            </p>
+            <div class="wsi-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="wsi-loading" *ngIf="loading">Loading slide…</div>
+        </div>
+
+        <div class="wsi-pyramid-bar" *ngIf="currentFile && pyramidLevelCount > 0" aria-label="Pyramid level controls">
+          <button type="button" (click)="stepPyramidLevel(-1)" [disabled]="activePyramidLevelIndex <= 0" aria-label="Previous pyramid level">
+            − Level
+          </button>
+          <span class="wsi-pyramid-bar__label">{{ pyramidLabel }}</span>
+          <button
+            type="button"
+            (click)="stepPyramidLevel(1)"
+            [disabled]="activePyramidLevelIndex >= pyramidLevelCount - 1"
+            aria-label="Next pyramid level">
+            + Level
+          </button>
+          <div class="wsi-pyramid-bar__steps" role="group" aria-label="Jump to pyramid level">
+            <button
+              type="button"
+              *ngFor="let i of pyramidLevelIndices"
+              [class.is-active]="i === activePyramidLevelIndex"
+              (click)="goToPyramidLevel(i)"
+              [attr.aria-label]="'Pyramid level ' + i"
+              [attr.aria-pressed]="i === activePyramidLevelIndex">
+              L{{ i }}
+            </button>
+          </div>
+        </div>
+
+        <div class="wsi-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="wsi-error" *ngIf="errorMessage" role="alert">
+          <p class="wsi-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="wsi-details-sidebar"
+        class="wsi-sidebar"
+        aria-label="Whole slide details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">
+            <span>Slide overview</span>
+            <span class="wsi-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="wsi-process-name">{{ currentFile.name }}</p>
+            <div class="wsi-stat-grid wsi-stat-grid--dense" aria-label="Slide statistics">
+              <div><strong>{{ currentFile.fullWidth }}</strong><span>Width</span></div>
+              <div><strong>{{ currentFile.fullHeight }}</strong><span>Height</span></div>
+              <div><strong>{{ currentFile.pyramidLevelCount }}</strong><span>Pyramid</span></div>
+              <div><strong>{{ regions.length }}</strong><span>Regions</span></div>
+              <div><strong>{{ slideFiles.length }}</strong><span>Files</span></div>
+              <div><strong>{{ currentFile.extension }}</strong><span>Format</span></div>
+            </div>
+            <p class="wsi-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">
+            <span>Regions</span>
+            <button type="button" class="wsi-panel-action" (click)="clearRegions()" [disabled]="regions.length === 0">Clear</button>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="wsi-regions-hint" *ngIf="regions.length === 0">
+              Select the Region tool and drag on the slide to define ROIs. Export as regions JSON from the toolbar.
+            </p>
+            <ul class="wsi-regions-list" *ngIf="regions.length > 0">
+              <li *ngFor="let region of regions; trackBy: trackByRegionId" class="wsi-regions-list__item">
+                <span class="wsi-regions-list__swatch" [style.background]="region.color"></span>
+                <div class="wsi-regions-list__body">
+                  <strong>{{ region.name }}</strong>
+                  <span>{{ region.x }}, {{ region.y }} · {{ region.width }}×{{ region.height }}</span>
+                </div>
+                <button type="button" class="wsi-regions-list__remove" (click)="removeRegion(region.id, $event)" [attr.aria-label]="'Remove ' + region.name">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="wsi-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help wsi-footer-help">
+      <summary>How to use Whole Slide Image Viewer</summary>
+      <ul>
+        <li>Upload PNG/JPEG/WebP/BMP/TIF exports or rendered whole-slide images. Native SVS pyramids warn softly.</li>
+        <li>Use pyramid level controls and zoom to navigate large slides. The minimap shows your viewport rectangle.</li>
+        <li>Draw rectangular regions of interest with the Region tool. List and export them as JSON from the sidebar or toolbar.</li>
+        <li>Export original, regions JSON, summary JSON, or a PNG snapshot. Education/research only — not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="wsi-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop whole slide images to open</p>
+    <p class="wsi-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

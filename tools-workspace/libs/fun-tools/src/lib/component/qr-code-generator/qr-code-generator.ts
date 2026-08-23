@@ -1,68 +1,89 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { Subscription } from 'rxjs';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-
-interface QRCodeOptions {
-  text: string;
-  size: number;
-  errorCorrectionLevel: 'L' | 'M' | 'Q' | 'H';
-  darkColor: string;
-  lightColor: string;
-  margin: number;
-}
-
-type QRCodeFormGroup = FormGroup<{
-  text: FormControl<string>;
-  size: FormControl<number>;
-  errorCorrectionLevel: FormControl<'L' | 'M' | 'Q' | 'H'>;
-  darkColor: FormControl<string>;
-  lightColor: FormControl<string>;
-  margin: FormControl<number>;
-}>;
-
-declare const QRCode: any;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Subscription } from 'rxjs';
+import {
+  QR_CODE_DEFAULT_OPTIONS,
+  QR_CODE_RELATED_TOOLS
+} from '../../constants/qr-code-generator.constants';
+import { ftCopyText } from '../../shared/ft-clipboard.util';
+import type { FtRelatedToolLink } from '../../shared/ft-tool-suggestion.model';
+import type { QrCodeFormGroup, QrCodeOptions } from '../../types/qr-code-generator.types';
+import {
+  copyQrCodeImageToClipboard,
+  downloadQrCodeDataUrl,
+  loadQrCodeLibrary,
+  mapQrGenerationError,
+  renderQrCodeToDataUrl,
+  resolveQrCodeSuggestion
+} from '../../utils/qr-code-generator.utils';
 
 @Component({
   selector: 'lib-qr-code-generator',
   standalone: true,
   templateUrl: './qr-code-generator.html',
   styleUrls: ['./qr-code-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class QrCodeGeneratorComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  readonly assetService = inject(AssetService);
   private formSubscription?: Subscription;
+  private generateRequestId = 0;
 
-  readonly form: QRCodeFormGroup = this.fb.group({
-    text: this.fb.control('https://example.com', { nonNullable: true }),
-    size: this.fb.control(256, { nonNullable: true }),
-    errorCorrectionLevel: this.fb.control<'L' | 'M' | 'Q' | 'H'>('M', { nonNullable: true }),
-    darkColor: this.fb.control('#000000', { nonNullable: true }),
-    lightColor: this.fb.control('#ffffff', { nonNullable: true }),
-    margin: this.fb.control(4, { nonNullable: true })
+  readonly form: QrCodeFormGroup = this.fb.group({
+    text: this.fb.control(QR_CODE_DEFAULT_OPTIONS.text, { nonNullable: true }),
+    size: this.fb.control(QR_CODE_DEFAULT_OPTIONS.size, { nonNullable: true }),
+    errorCorrectionLevel: this.fb.control(QR_CODE_DEFAULT_OPTIONS.errorCorrectionLevel, {
+      nonNullable: true
+    }),
+    darkColor: this.fb.control(QR_CODE_DEFAULT_OPTIONS.darkColor, { nonNullable: true }),
+    lightColor: this.fb.control(QR_CODE_DEFAULT_OPTIONS.lightColor, { nonNullable: true }),
+    margin: this.fb.control(QR_CODE_DEFAULT_OPTIONS.margin, { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
   readonly qrCodeDataUrl = signal<string | null>(null);
   readonly libraryLoaded = signal(false);
+  readonly formSnapshot = signal<QrCodeOptions>(this.form.getRawValue());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasQRCode = computed(() => this.qrCodeDataUrl() !== null);
-  readonly canGenerate = computed(() => {
-    const text = this.form.controls.text.value.trim();
-    return text.length > 0 && this.libraryLoaded();
+  readonly relatedTools: ReadonlyArray<FtRelatedToolLink> = QR_CODE_RELATED_TOOLS;
+
+  readonly primarySuggestion = computed(() => {
+    const snapshot = this.formSnapshot();
+    const suggestion = resolveQrCodeSuggestion({
+      text: snapshot.text,
+      errorCorrectionLevel: snapshot.errorCorrectionLevel,
+      hasQrCode: this.hasQRCode(),
+      hasError: this.errors().length > 0,
+      libraryLoaded: this.libraryLoaded()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
   });
 
   constructor() {
-    // Subscribe to form changes to regenerate QR code
     this.formSubscription = this.form.valueChanges.subscribe(() => {
-      if (this.libraryLoaded()) {
-        const values = this.form.getRawValue();
-        if (values.text.trim().length > 0) {
-          this.generateQRCode(values);
-        }
+      const values = this.form.getRawValue();
+      this.formSnapshot.set(values);
+      if (this.libraryLoaded() && values.text.trim().length > 0) {
+        void this.generateQRCode(values);
       }
     });
   }
@@ -71,73 +92,42 @@ export class QrCodeGeneratorComponent implements OnInit, OnDestroy {
     await this.loadQRCodeLibrary();
   }
 
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
   private async loadQRCodeLibrary(): Promise<void> {
     if (typeof window === 'undefined') {
       return;
     }
 
-    if ((window as any).QRCode) {
-      this.libraryLoaded.set(true);
-      this.generateQRCode(this.form.getRawValue());
-      return;
-    }
-
     try {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-      script.async = true;
-
-      await new Promise<void>((resolve, reject) => {
-        script.onload = () => {
-          this.libraryLoaded.set(true);
-          this.generateQRCode(this.form.getRawValue());
-          resolve();
-        };
-        script.onerror = () => {
-          this.errors.set(['Failed to load QR code library.']);
-          reject(new Error('Failed to load QR code library'));
-        };
-        document.head.appendChild(script);
-      });
+      await loadQrCodeLibrary();
+      this.libraryLoaded.set(true);
+      await this.generateQRCode(this.form.getRawValue());
     } catch (e) {
       this.errors.set([e instanceof Error ? e.message : 'Failed to load QR code library.']);
     }
   }
 
-  private generateQRCode(options: QRCodeOptions): void {
-    if (!this.libraryLoaded() || typeof QRCode === 'undefined') {
+  private async generateQRCode(options: QrCodeOptions): Promise<void> {
+    if (!this.libraryLoaded()) {
       return;
     }
 
+    const requestId = ++this.generateRequestId;
     try {
-      const canvas = document.createElement('canvas');
-      const qrOptions = {
-        width: options.size,
-        margin: options.margin,
-        color: {
-          dark: options.darkColor,
-          light: options.lightColor
-        },
-        errorCorrectionLevel: options.errorCorrectionLevel
-      };
-
-      QRCode.toCanvas(
-        canvas,
-        options.text,
-        qrOptions,
-        (error: Error | null) => {
-          if (error) {
-            this.errors.set([error.message || 'Failed to generate QR code.']);
-            this.qrCodeDataUrl.set(null);
-            return;
-          }
-
-          this.qrCodeDataUrl.set(canvas.toDataURL('image/png'));
-          this.errors.set([]);
-        }
-      );
+      const dataUrl = await renderQrCodeToDataUrl(options);
+      if (requestId !== this.generateRequestId) {
+        return;
+      }
+      this.qrCodeDataUrl.set(dataUrl);
+      this.errors.set([]);
     } catch (e) {
-      this.errors.set([e instanceof Error ? e.message : 'Failed to generate QR code.']);
+      if (requestId !== this.generateRequestId) {
+        return;
+      }
+      this.errors.set([mapQrGenerationError(e)]);
       this.qrCodeDataUrl.set(null);
     }
   }
@@ -149,36 +139,33 @@ export class QrCodeGeneratorComponent implements OnInit, OnDestroy {
     }
 
     try {
-      const link = document.createElement('a');
-      link.download = `qrcode-${Date.now()}.png`;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      downloadQrCodeDataUrl(dataUrl);
+      this.toast.info('QR code downloaded');
     } catch (e) {
-      this.errors.set([e instanceof Error ? e.message : 'Failed to download QR code.']);
+      const message = e instanceof Error ? e.message : 'Failed to download QR code.';
+      this.errors.set([message]);
+      this.toast.error(message);
     }
   }
 
-  copyQRCode(): void {
+  async copyContent(): Promise<void> {
+    await ftCopyText(this.toast, this.form.controls.text.value.trim(), 'QR content');
+  }
+
+  async copyQRCode(): Promise<void> {
     const dataUrl = this.qrCodeDataUrl();
     if (!dataUrl) {
       return;
     }
 
-    fetch(dataUrl)
-      .then((res) => res.blob())
-      .then((blob) => navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]))
-      .then(() => {
-        // Success - could show a toast notification
-      })
-      .catch(() => {
-        this.errors.set(['Failed to copy QR code to clipboard.']);
-      });
-  }
-
-  formatSize(size: number): string {
-    return `${size}px`;
+    try {
+      await copyQrCodeImageToClipboard(dataUrl);
+      this.toast.info('QR code image copied to clipboard');
+    } catch {
+      const message = 'Failed to copy QR code to clipboard.';
+      this.errors.set([message]);
+      this.toast.error(message);
+    }
   }
 
   ngOnDestroy(): void {

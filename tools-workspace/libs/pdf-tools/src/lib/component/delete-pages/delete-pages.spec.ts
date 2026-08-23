@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { DeletePagesComponent } from './delete-pages';
 
 describe('DeletePagesComponent', () => {
@@ -7,7 +8,8 @@ describe('DeletePagesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DeletePagesComponent]
+      imports: [DeletePagesComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(DeletePagesComponent);

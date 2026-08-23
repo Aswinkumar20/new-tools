@@ -1,59 +1,20 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule, NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { downloadBytes } from '../../shared/pdf.utils';
+import { PdfJsLoaderService, type PdfJsLib } from '../../services/pdf-js-loader.service';
 
-// PDF.js types - using dynamic import to avoid build-time dependency issues
 interface PDFDocumentProxy {
   numPages: number;
   getPage(pageNumber: number): Promise<PDFPageProxy>;
-  destroy(): void;
+  destroy?: () => void;
 }
 
 interface PDFPageProxy {
   getViewport(params: { scale: number }): { width: number; height: number };
-  render(params: { canvasContext: CanvasRenderingContext2D; viewport: any }): { promise: Promise<void>; cancel(): void };
-}
-
-declare const pdfjsLib: {
-  version: string;
-  GlobalWorkerOptions: { workerSrc: string };
-  getDocument(src: { 
-    url: string;
-    password?: string;
-    passwordCallback?: (updatePassword: (password: string) => void, reason: any) => void;
-  }): { promise: Promise<PDFDocumentProxy> };
-  PasswordResponses: {
-    NEED_PASSWORD: number;
-    INCORRECT_PASSWORD: number;
-  };
-};
-
-// Load PDF.js dynamically from CDN
-async function loadPdfJs(): Promise<typeof pdfjsLib> {
-  if (globalThis.window === undefined) {
-    throw new TypeError('PDF.js can only be loaded in browser environment');
-  }
-
-  // Check if already loaded
-  if ((globalThis as any).pdfjsLib) {
-    return (globalThis as any).pdfjsLib;
-  }
-
-  // Load PDF.js from CDN
-  const script = document.createElement('script');
-  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const pdfjs = (globalThis as any).pdfjsLib;
-      pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      (globalThis as any).pdfjsLib = pdfjs;
-      resolve(pdfjs);
-    };
-    script.onerror = () => reject(new Error('Failed to load PDF.js library'));
-  });
+  render(params: { canvasContext: CanvasRenderingContext2D; viewport: any }): { promise: Promise<void>; cancel?: () => void };
 }
 
 interface PdfFile {
@@ -73,9 +34,12 @@ interface PdfFile {
   standalone: true,
   templateUrl: './pdf-viewer.html',
   styleUrls: ['./pdf-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf]
+  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf, TooltipDirective]
 })
 export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+  private readonly pdfJsLoader = inject(PdfJsLoaderService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfContainer') pdfContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('canvasContainer') canvasContainer!: ElementRef<HTMLDivElement>;
@@ -89,7 +53,6 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   zoomLevel: number = 100;
   isFullscreen: boolean = false;
   loading: boolean = false;
-  errorMessage: string = '';
   showDropZone: boolean = false;
   showPasswordDialog: boolean = false;
   passwordInput: string = '';
@@ -114,9 +77,9 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     // Initialize PDF.js library
-    loadPdfJs().catch(err => {
+    this.pdfJsLoader.getPdfJs().catch(err => {
       console.error('Failed to load PDF.js:', err);
-      this.errorMessage = 'Failed to load PDF viewer library. Please refresh the page.';
+      pdfNotifyError(this.toast, 'Failed to load PDF viewer library. Please refresh the page.');
     });
   }
 
@@ -177,17 +140,16 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async processFiles(files: File[]): Promise<void> {
-    this.errorMessage = '';
     this.loading = true;
     
     // Ensure PDF.js is loaded
-    let pdfjs: typeof pdfjsLib;
+    let pdfjs: PdfJsLib;
     try {
-      pdfjs = await loadPdfJs();
+      pdfjs = await this.pdfJsLoader.getPdfJs();
     } catch (error: unknown) {
       this.loading = false;
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.errorMessage = `Failed to load PDF viewer library: ${message}. Please refresh the page.`;
+      pdfNotifyError(this.toast, `Failed to load PDF viewer library: ${message}. Please refresh the page.`);
       console.error('PDF.js load error:', error);
       return;
     }
@@ -210,7 +172,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (errors.length > 0) {
-      this.errorMessage = errors.join('\n');
+      pdfNotifyError(this.toast, errors.join('\n'));
     }
 
     for (const file of validFiles) {
@@ -235,7 +197,8 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         
         if (this.currentPdfIndex === -1 && pdfFile.pdfDoc) {
           this.currentPdfIndex = this.pdfFiles.length - 1;
-          await this.loadPdf(pdfFile);
+          this.totalPages = pdfFile.totalPages;
+          this.currentPage = 1;
         }
         
         this.cdr.detectChanges();
@@ -246,7 +209,13 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.loading = false;
     if (errors.length > 0) {
-      this.errorMessage = errors.join('\n');
+      pdfNotifyError(this.toast, errors.join('\n'));
+    }
+
+    this.cdr.detectChanges();
+
+    if (this.currentPdf?.pdfDoc) {
+      await this.scheduleRenderPage();
     }
     
     if (this.fileInput?.nativeElement) {
@@ -256,7 +225,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async loadPdfWithPassword(pdfFile: PdfFile, password?: string): Promise<void> {
     try {
-      const pdfjs = await loadPdfJs();
+      const pdfjs = await this.pdfJsLoader.getPdfJs();
       
       // If password is provided, use it
       if (password) {
@@ -298,7 +267,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const pdfjsInstance = await loadPdfJs();
+      const pdfjsInstance = await this.pdfJsLoader.getPdfJs();
       
       // Check if it's a password error
       const isPasswordError = errorMessage.toLowerCase().includes('password') || 
@@ -315,7 +284,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.detectChanges();
         throw error;
       } else {
-        this.errorMessage = `Failed to load PDF: ${errorMessage}`;
+        pdfNotifyError(this.toast, `Failed to load PDF: ${errorMessage}`);
         throw error;
       }
     }
@@ -333,7 +302,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     
     this.totalPages = pdfFile.totalPages;
     this.currentPage = 1;
-    await this.renderPage();
+    await this.scheduleRenderPage();
   }
 
   submitPassword(): void {
@@ -420,6 +389,13 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private async scheduleRenderPage(): Promise<void> {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    await this.renderPage();
+  }
+
   async renderPage(): Promise<void> {
     if (!this.currentPdf || !this.currentPdf.pdfDoc || this.isRendering) {
       return;
@@ -491,7 +467,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cdr.detectChanges();
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
-        this.errorMessage = `Failed to render page: ${error.message}`;
+        pdfNotifyError(this.toast, `Failed to render page: ${error.message}`);
       }
     } finally {
       this.isRendering = false;
@@ -564,7 +540,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       
       setTimeout(() => {
-        this.renderPage();
+        void this.scheduleRenderPage();
       }, 100);
     }, 0);
   }
@@ -589,7 +565,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     
     setTimeout(() => {
-      this.renderPage();
+      void this.scheduleRenderPage();
     }, 100);
     
     this.cdr.detectChanges();
@@ -614,6 +590,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!isCurrentlyFullscreen && this.isFullscreen) {
       this.isFullscreen = false;
       this.cdr.detectChanges();
+      void this.scheduleRenderPage();
     }
   }
 
@@ -629,14 +606,19 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   downloadPdf(): void {
+    void this.downloadPdfAsync();
+  }
+
+  private async downloadPdfAsync(): Promise<void> {
     if (!this.currentPdf) return;
-    
-    const link = document.createElement('a');
-    link.href = this.currentPdf.url;
-    link.download = this.currentPdf.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+
+    try {
+      const buffer = await this.currentPdf.file.arrayBuffer();
+      downloadBytes(new Uint8Array(buffer), this.currentPdf.name);
+      pdfNotifySuccess(this.toast, 'Download started');
+    } catch (error) {
+      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Download failed');
+    }
   }
 
   printPdf(): void {
@@ -659,7 +641,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       
       if (pdfFile.pdfDoc) {
-        pdfFile.pdfDoc.destroy();
+        pdfFile.pdfDoc.destroy?.();
       }
       
       this.pdfFiles.splice(index, 1);
@@ -690,7 +672,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         URL.revokeObjectURL(pdfFile.url);
       }
       if (pdfFile.pdfDoc) {
-        pdfFile.pdfDoc.destroy();
+        pdfFile.pdfDoc.destroy?.();
       }
     }
     

@@ -1,0 +1,1075 @@
+<div class="ctl fv">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>XES Viewer</h1>
+        <p>
+          Open process-mining event logs (.xes) in your browser with
+          <strong>PM4JS</strong> — explore cases, events, activities, and variants privately.
+        </p>
+      </header>
+
+      <div class="ctl__stats" aria-label="Event log statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.cases ?? '—' }}</span>
+          <span class="ctl__stat-label">Cases</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.events ?? '—' }}</span>
+          <span class="ctl__stat-label">Events</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.activities ?? '—' }}</span>
+          <span class="ctl__stat-label">Activities</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.variants ?? '—' }}</span>
+          <span class="ctl__stat-label">Variants</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fv-workflow" aria-label="XES viewer controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <label
+          class="ctl__tool-btn"
+          aria-label="Upload XES event logs"
+          appTooltip="Upload XES event logs"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
+        </label>
+        <div class="xes-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="xes-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <ng-container *ngFor="let group of exportGroups">
+              <p class="xes-export__group">{{ group.label }}</p>
+              <button
+                type="button"
+                role="menuitem"
+                *ngFor="let option of group.options"
+                (click)="exportAs(option.id, $event)">
+                <strong>{{ option.label }}</strong>
+                <span>{{ option.description }}</span>
+              </button>
+            </ng-container>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="xesFiles.length === 0"
+          aria-label="Clear all files"
+          appTooltip="Clear all files"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+
+      <ng-container *ngIf="currentFileIndex >= 0">
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+        <div class="xes-view-tabs" role="tablist" aria-label="View mode">
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'insights'"
+            [attr.aria-selected]="viewMode === 'insights'"
+            (click)="setViewMode('insights')">
+            <span class="xes-view-tab__icon" aria-hidden="true">◈</span>
+            <span>Insights</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'events'"
+            [attr.aria-selected]="viewMode === 'events'"
+            (click)="setViewMode('events')">
+            <span class="xes-view-tab__icon" aria-hidden="true">≡</span>
+            <span>Events</span>
+            <span class="xes-view-tab__count">{{ allEvents.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'traces'"
+            [attr.aria-selected]="viewMode === 'traces'"
+            (click)="setViewMode('traces')">
+            <span class="xes-view-tab__icon" aria-hidden="true">▤</span>
+            <span>Cases</span>
+            <span class="xes-view-tab__count">{{ traces.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'activities'"
+            [attr.aria-selected]="viewMode === 'activities'"
+            (click)="setViewMode('activities')">
+            <span class="xes-view-tab__icon" aria-hidden="true">◉</span>
+            <span>Activities</span>
+            <span class="xes-view-tab__count">{{ activityCounts.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'variants'"
+            [attr.aria-selected]="viewMode === 'variants'"
+            (click)="setViewMode('variants')">
+            <span class="xes-view-tab__icon" aria-hidden="true">⑂</span>
+            <span>Variants</span>
+            <span class="xes-view-tab__count">{{ variantCounts.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="xes-view-tab"
+            [class.active]="viewMode === 'log'"
+            [attr.aria-selected]="viewMode === 'log'"
+            (click)="setViewMode('log')">
+            <span class="xes-view-tab__icon" aria-hidden="true">ⓘ</span>
+            <span>Log info</span>
+          </button>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor ctl__editor--merged fv-viewer-panel xes-viewer-panel" aria-label="XES event log preview">
+          <div class="fv-loading" *ngIf="loading">
+            <div class="fv-spinner" aria-hidden="true"></div>
+            <p>Parsing event log with PM4JS…</p>
+          </div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert">
+            <p>{{ errorMessage }}</p>
+          </div>
+
+          <aside class="ev__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="ev__suggest-body">
+              <p class="ev__suggest-title">{{ suggestion.title }}</p>
+              <p class="ev__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="ev__suggest-actions">
+              <a class="ev__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="ev__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+
+          <div class="fv-viewer-body" *ngIf="xesFiles.length > 0 && currentFile">
+            <header class="xes-dataset-head">
+              <div class="xes-dataset-head__identity">
+                <span class="xes-dataset-head__icon" aria-hidden="true">XES</span>
+                <div>
+                  <p class="xes-dataset-head__eyebrow">Current event log</p>
+                  <h2 [title]="metadata?.name || currentFile.name">
+                    {{ metadata?.name || currentFile.name }}
+                  </h2>
+                  <p>{{ currentFile.name }} · {{ formatFileSize(currentFile.size) }}</p>
+                </div>
+              </div>
+              <div class="xes-dataset-head__facts" *ngIf="stats">
+                <div>
+                  <span>Coverage</span>
+                  <strong>{{ stats.timeSpanLabel }}</strong>
+                </div>
+                <div>
+                  <span>Resources</span>
+                  <strong>{{ stats.resources }}</strong>
+                </div>
+                <div>
+                  <span>Start / end</span>
+                  <strong>{{ stats.startActivities }} / {{ stats.endActivities }}</strong>
+                </div>
+              </div>
+            </header>
+
+            <section class="xes-view-heading" [ngSwitch]="viewMode">
+              <div>
+                <p class="xes-view-heading__eyebrow">Analysis view</p>
+                <ng-container *ngSwitchCase="'insights'">
+                  <h2>Process insights</h2>
+                  <p>
+                    Start with high-level patterns — case shape, start/end activities, resources, and
+                    common transitions.
+                  </p>
+                </ng-container>
+                <ng-container *ngSwitchCase="'events'">
+                  <h2>Event explorer</h2>
+                  <p>Inspect every recorded step, then expand a row to see all XES attributes.</p>
+                </ng-container>
+                <ng-container *ngSwitchCase="'traces'">
+                  <h2>Case journeys</h2>
+                  <p>Compare process instances by event count, elapsed time, and activity path.</p>
+                </ng-container>
+                <ng-container *ngSwitchCase="'activities'">
+                  <h2>Activity frequency</h2>
+                  <p>See which process steps occur most often and their share of all events.</p>
+                </ng-container>
+                <ng-container *ngSwitchCase="'variants'">
+                  <h2>Process variants</h2>
+                  <p>Compare the distinct paths cases follow and identify dominant behavior.</p>
+                </ng-container>
+                <ng-container *ngSwitchCase="'log'">
+                  <h2>Log structure</h2>
+                  <p>Review XES metadata, extensions, classifiers, defaults, and attribute keys.</p>
+                </ng-container>
+              </div>
+              <span class="xes-view-heading__result" *ngIf="viewMode === 'insights' && insights">
+                {{ insights.variantCoverage }}% path diversity
+              </span>
+              <span class="xes-view-heading__result" *ngIf="viewMode === 'events'">
+                {{ filteredEvents.length }} / {{ allEvents.length }} events
+              </span>
+              <span class="xes-view-heading__result" *ngIf="viewMode === 'traces'">
+                {{ traces.length }} cases
+              </span>
+              <span class="xes-view-heading__result" *ngIf="viewMode === 'activities'">
+                {{ activityCounts.length }} activities
+              </span>
+              <span class="xes-view-heading__result" *ngIf="viewMode === 'variants'">
+                {{ variantCounts.length }} paths
+              </span>
+            </section>
+
+            <div class="table-container" *ngIf="viewMode === 'insights' && insights as insight">
+              <div class="xes-insights">
+                <section class="xes-findings" *ngIf="insight.findings.length > 0" aria-label="Key findings">
+                  <header>
+                    <h3>Key findings</h3>
+                    <p>Auto-generated highlights from this event log</p>
+                  </header>
+                  <ol>
+                    <li *ngFor="let finding of insight.findings">{{ finding }}</li>
+                  </ol>
+                </section>
+
+                <div class="xes-kpi-grid xes-kpi-grid--dense">
+                  <article class="xes-kpi">
+                    <span>Avg events / case</span>
+                    <strong>{{ insight.avgEventsPerCase }}</strong>
+                    <p>
+                      Median {{ insight.medianEventsPerCase }} · range
+                      {{ insight.minEventsPerCase }}–{{ insight.maxEventsPerCase }}
+                    </p>
+                  </article>
+                  <article class="xes-kpi">
+                    <span>Avg case duration</span>
+                    <strong>{{ insight.avgDurationLabel }}</strong>
+                    <p>Median {{ insight.medianDurationLabel }}</p>
+                  </article>
+                  <article class="xes-kpi">
+                    <span>Path diversity</span>
+                    <strong>{{ insight.variantCoverage }}%</strong>
+                    <p>{{ variantCounts.length }} variants across {{ traces.length }} cases</p>
+                  </article>
+                  <article class="xes-kpi">
+                    <span>Rework cases</span>
+                    <strong>{{ insight.reworkCaseShare }}%</strong>
+                    <p>{{ insight.selfLoopCount }} self-loops · {{ insight.eventsPerDayLabel }}</p>
+                  </article>
+                </div>
+
+                <div class="xes-insight-grid">
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Case length</h3>
+                      <p>How many events each case typically contains</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let bucket of insight.caseLengthBuckets; trackBy: trackByLabel">
+                        <div class="xes-bars__meta">
+                          <span>{{ bucket.label }}</span>
+                          <strong>{{ bucket.count }} · {{ formatShare(bucket.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="bucket.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Case duration</h3>
+                      <p>Elapsed time from first to last event</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let bucket of insight.durationBuckets; trackBy: trackByLabel">
+                        <div class="xes-bars__meta">
+                          <span>{{ bucket.label }}</span>
+                          <strong>{{ bucket.count }} · {{ formatShare(bucket.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="bucket.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Start activities</h3>
+                      <p>Where cases usually begin</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.startActivities; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <button type="button" class="xes-link" (click)="selectActivity(item.name)">
+                            {{ item.name }}
+                          </button>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>End activities</h3>
+                      <p>Where cases usually finish</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.endActivities; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <button type="button" class="xes-link" (click)="selectActivity(item.name)">
+                            {{ item.name }}
+                          </button>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Resources</h3>
+                      <p>Who performs the most events</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.resources; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <span>{{ item.name }}</span>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                      <li *ngIf="insight.resources.length === 0" class="xes-bars__empty">
+                        No org:resource values in this log.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Lifecycle</h3>
+                      <p>Lifecycle transition mix across events</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.lifecycleCounts; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <span>{{ item.name }}</span>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                      <li *ngIf="insight.lifecycleCounts.length === 0" class="xes-bars__empty">
+                        No lifecycle:transition values in this log.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Activity by hour</h3>
+                      <p>When events tend to occur during the day</p>
+                    </header>
+                    <ul class="xes-bars xes-bars--compact" *ngIf="insight.hourlyBuckets.length > 0; else noHourly">
+                      <li *ngFor="let bucket of insight.hourlyBuckets; trackBy: trackByLabel">
+                        <div class="xes-bars__meta">
+                          <span>{{ bucket.label }}</span>
+                          <strong>{{ bucket.count }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="bucket.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                    <ng-template #noHourly>
+                      <p class="xes-bars__empty">No timestamps available for hourly analysis.</p>
+                    </ng-template>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Activity by weekday</h3>
+                      <p>Which days carry the most event volume</p>
+                    </header>
+                    <ul class="xes-bars" *ngIf="insight.weekdayBuckets.length > 0; else noWeekday">
+                      <li *ngFor="let bucket of insight.weekdayBuckets; trackBy: trackByLabel">
+                        <div class="xes-bars__meta">
+                          <span>{{ bucket.label }}</span>
+                          <strong>{{ bucket.count }} · {{ formatShare(bucket.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="bucket.share"></span>
+                        </div>
+                      </li>
+                    </ul>
+                    <ng-template #noWeekday>
+                      <p class="xes-bars__empty">No timestamps available for weekday analysis.</p>
+                    </ng-template>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Rework activities</h3>
+                      <p>Activities that repeat inside the same case</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.reworkActivities; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <button type="button" class="xes-link" (click)="selectActivity(item.name)">
+                            {{ item.name }}
+                          </button>
+                          <strong>{{ item.count }} cases · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                      <li *ngIf="insight.reworkActivities.length === 0" class="xes-bars__empty">
+                        No repeated activities detected.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Self-loops</h3>
+                      <p>Immediate A → A repetitions</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.selfLoops; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <span>{{ item.name }} → {{ item.name }}</span>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                      <li *ngIf="insight.selfLoops.length === 0" class="xes-bars__empty">
+                        No self-loops detected.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card xes-insight-card--wide">
+                    <header>
+                      <h3>Top transitions</h3>
+                      <p>Most common directly-follows pairs (A → B)</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.transitions; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <span class="xes-bars__path" [title]="item.name">{{ item.name }}</span>
+                          <strong>{{ item.count }} · {{ formatShare(item.share) }}</strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.share"></span>
+                        </div>
+                      </li>
+                      <li *ngIf="insight.transitions.length === 0" class="xes-bars__empty">
+                        Not enough multi-event cases to derive transitions.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card xes-insight-card--wide">
+                    <header>
+                      <h3>Variant coverage</h3>
+                      <p>How quickly the top paths cover the case population</p>
+                    </header>
+                    <ul class="xes-bars">
+                      <li *ngFor="let item of insight.variantPareto; trackBy: trackByName">
+                        <div class="xes-bars__meta">
+                          <span class="xes-bars__path" [title]="item.name">{{ item.name }}</span>
+                          <strong>
+                            {{ item.count }} · {{ formatShare(item.share) }} · cum
+                            {{ formatShare(item.cumulativeShare) }}
+                          </strong>
+                        </div>
+                        <div class="xes-bars__track">
+                          <span [style.width.%]="item.cumulativeShare"></span>
+                        </div>
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Longest cases</h3>
+                      <p>Highest elapsed duration</p>
+                    </header>
+                    <ul class="xes-case-highlights">
+                      <li *ngFor="let item of insight.longestCases">
+                        <button type="button" class="xes-link" (click)="selectCase(item.caseId)">
+                          {{ item.caseId }}
+                        </button>
+                        <span>{{ item.durationLabel }} · {{ item.eventCount }} events</span>
+                        <p>{{ item.pathPreview }}</p>
+                      </li>
+                      <li *ngIf="insight.longestCases.length === 0" class="xes-bars__empty">
+                        No timed cases available.
+                      </li>
+                    </ul>
+                  </section>
+
+                  <section class="xes-insight-card">
+                    <header>
+                      <h3>Busiest cases</h3>
+                      <p>Highest event counts</p>
+                    </header>
+                    <ul class="xes-case-highlights">
+                      <li *ngFor="let item of insight.busiestCases">
+                        <button type="button" class="xes-link" (click)="selectCase(item.caseId)">
+                          {{ item.caseId }}
+                        </button>
+                        <span>{{ item.eventCount }} events · {{ item.durationLabel }}</span>
+                        <p>{{ item.pathPreview }}</p>
+                      </li>
+                    </ul>
+                  </section>
+                </div>
+
+                <div class="xes-insight-actions">
+                  <button type="button" class="ctl__tool-btn" (click)="setViewMode('variants')">
+                    Inspect variants
+                  </button>
+                  <button type="button" class="ctl__tool-btn" (click)="setViewMode('events')">
+                    Browse events
+                  </button>
+                  <button type="button" class="ctl__tool-btn" (click)="exportAs('full-report-pdf')">
+                    Export PDF report
+                  </button>
+                  <button type="button" class="ctl__tool-btn" (click)="exportAs('full-report-csv')">
+                    Export full CSV
+                  </button>
+                  <button type="button" class="ctl__tool-btn" (click)="exportAs('markdown-report')">
+                    Export Markdown
+                  </button>
+                  <button type="button" class="ctl__tool-btn" (click)="exportAs('dfg-dot')">
+                    Export DFG DOT
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="search-toolbar" *ngIf="viewMode === 'events'">
+              <div class="search-box">
+                <svg
+                  class="search-box__icon"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input
+                  type="search"
+                  [(ngModel)]="searchText"
+                  (ngModelChange)="onSearchChange()"
+                  placeholder="Search any event attribute…"
+                  class="search-input"
+                  aria-label="Search events" />
+              </div>
+              <div class="xes-filter">
+                <span class="xes-filter__label">Activity</span>
+                <lib-select-box
+                  class="xes-filter__control"
+                  [(ngModel)]="selectedActivity"
+                  (ngModelChange)="applyFilters()"
+                  [options]="activityOptions"
+                  ariaLabel="Filter events by activity"
+                  placeholder="All activities">
+                </lib-select-box>
+              </div>
+              <button
+                type="button"
+                class="ctl__tool-btn ctl__tool-btn--icon xes-filter-reset"
+                *ngIf="searchText || selectedCaseId || selectedActivity"
+                (click)="clearFilters()"
+                aria-label="Clear filters"
+                appTooltip="Clear filters"
+                tooltipPosition="bottom">
+                Reset
+              </button>
+            </div>
+
+            <div
+              class="xes-active-filters"
+              *ngIf="viewMode === 'events' && (searchText || selectedCaseId || selectedActivity)"
+              aria-label="Active filters">
+              <span class="xes-active-filters__label">Showing filtered results:</span>
+              <button type="button" *ngIf="searchText" (click)="searchText = ''; applyFilters()">
+                Search: “{{ searchText }}” <span aria-hidden="true">×</span>
+              </button>
+              <button type="button" *ngIf="selectedCaseId" (click)="selectCase(null)">
+                Case: {{ selectedCaseId }} <span aria-hidden="true">×</span>
+              </button>
+              <button type="button" *ngIf="selectedActivity" (click)="selectActivity(null)">
+                Activity: {{ selectedActivity }} <span aria-hidden="true">×</span>
+              </button>
+            </div>
+
+            <div class="table-container" *ngIf="viewMode === 'events'">
+              <div class="table-wrapper">
+                <table class="xes-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Case</th>
+                      <th>Activity</th>
+                      <th>Timestamp</th>
+                      <th>Resource</th>
+                      <th>Lifecycle</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <ng-container *ngFor="let row of pagedEvents; trackBy: trackByEventId">
+                      <tr [class.xes-row--open]="expandedEventId === row.id">
+                        <td class="row-number">
+                          <button
+                            type="button"
+                            class="xes-expand"
+                            (click)="toggleEventDetail(row)"
+                            [attr.aria-expanded]="expandedEventId === row.id"
+                            [attr.aria-label]="
+                              expandedEventId === row.id
+                                ? 'Hide all attributes'
+                                : 'Show all attributes'
+                            ">
+                            {{ expandedEventId === row.id ? '−' : '+' }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="xes-link" (click)="selectCase(row.caseId)">
+                            {{ row.caseId }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="xes-link" (click)="selectActivity(row.activity)">
+                            {{ row.activity }}
+                          </button>
+                        </td>
+                        <td>{{ row.timestamp }}</td>
+                        <td>{{ row.resource }}</td>
+                        <td>
+                          <span
+                            class="xes-lifecycle"
+                            [class.xes-lifecycle--complete]="row.lifecycle === 'complete'"
+                            [class.xes-lifecycle--muted]="row.lifecycle === '—'">
+                            {{ row.lifecycle }}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr *ngIf="expandedEventId === row.id" class="xes-detail-row">
+                        <td colspan="6">
+                          <dl class="xes-attrs">
+                            <ng-container *ngFor="let attribute of row.attributes">
+                              <dt>{{ attribute.key }}</dt>
+                              <dd>{{ attribute.value || '—' }}</dd>
+                            </ng-container>
+                          </dl>
+                        </td>
+                      </tr>
+                    </ng-container>
+                    <tr *ngIf="pagedEvents.length === 0">
+                      <td colspan="6" class="xes-empty-row">No events match the current filters.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="xes-pager" *ngIf="filteredEvents.length > pageSize">
+                <button type="button" class="fv-icon-btn" (click)="previousPage()" [disabled]="pageIndex === 0">
+                  Prev
+                </button>
+                <span>Page {{ pageIndex + 1 }} / {{ totalPages }}</span>
+                <button
+                  type="button"
+                  class="fv-icon-btn"
+                  (click)="nextPage()"
+                  [disabled]="pageIndex >= totalPages - 1">
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div class="table-container" *ngIf="viewMode === 'traces'">
+              <div class="table-wrapper">
+                <table class="xes-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Case ID</th>
+                      <th>Events</th>
+                      <th>Start</th>
+                      <th>End</th>
+                      <th>Duration</th>
+                      <th>Path preview</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <ng-container *ngFor="let trace of traces; trackBy: trackByTraceIndex">
+                      <tr [class.xes-row--open]="expandedTraceIndex === trace.index">
+                        <td class="row-number">
+                          <button
+                            type="button"
+                            class="xes-expand"
+                            (click)="toggleTraceDetail(trace)"
+                            [attr.aria-expanded]="expandedTraceIndex === trace.index"
+                            [attr.aria-label]="
+                              expandedTraceIndex === trace.index
+                                ? 'Hide case attributes'
+                                : 'Show case attributes'
+                            ">
+                            {{ expandedTraceIndex === trace.index ? '−' : '+' }}
+                          </button>
+                        </td>
+                        <td>
+                          <button type="button" class="xes-link" (click)="selectCase(trace.caseId)">
+                            {{ trace.caseId }}
+                          </button>
+                        </td>
+                        <td>{{ trace.eventCount }}</td>
+                        <td>{{ trace.startTime }}</td>
+                        <td>{{ trace.endTime }}</td>
+                        <td>{{ trace.durationLabel }}</td>
+                        <td class="xes-path" [title]="trace.activities.join(' → ')">
+                          {{ trace.activities.slice(0, 6).join(' → ')
+                          }}<ng-container *ngIf="trace.activities.length > 6"> …</ng-container>
+                        </td>
+                      </tr>
+                      <tr *ngIf="expandedTraceIndex === trace.index" class="xes-detail-row">
+                        <td colspan="7">
+                          <p class="xes-detail-title">Case attributes</p>
+                          <dl class="xes-attrs">
+                            <ng-container *ngFor="let attribute of trace.attributes">
+                              <dt>{{ attribute.key }}</dt>
+                              <dd>{{ attribute.value || '—' }}</dd>
+                            </ng-container>
+                          </dl>
+                          <p class="xes-detail-title">Full path</p>
+                          <p class="xes-detail-path">{{ trace.activities.join(' → ') }}</p>
+                        </td>
+                      </tr>
+                    </ng-container>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="table-container" *ngIf="viewMode === 'activities'">
+              <div class="table-wrapper">
+                <table class="xes-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Activity</th>
+                      <th>Events</th>
+                      <th>Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let item of activityCounts; let i = index; trackBy: trackByName">
+                      <td class="row-number">
+                        <span class="xes-rank" [class.xes-rank--top]="i < 3">{{ i + 1 }}</span>
+                      </td>
+                      <td>
+                        <button type="button" class="xes-link" (click)="selectActivity(item.name)">
+                          {{ item.name }}
+                        </button>
+                      </td>
+                      <td>{{ item.count }}</td>
+                      <td class="xes-share">
+                        <span class="xes-bar" [style.width.%]="(item.count / allEvents.length) * 100"></span>
+                        <span class="xes-share__label">{{ sharePercent(item.count, allEvents.length) }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="table-container" *ngIf="viewMode === 'variants'">
+              <div class="table-wrapper">
+                <table class="xes-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Variant path</th>
+                      <th>Cases</th>
+                      <th>Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let item of variantCounts; let i = index; trackBy: trackByName">
+                      <td class="row-number">
+                        <span class="xes-rank" [class.xes-rank--top]="i < 3">{{ i + 1 }}</span>
+                      </td>
+                      <td class="xes-path" [title]="item.name">{{ item.name }}</td>
+                      <td>{{ item.count }}</td>
+                      <td class="xes-share">
+                        <span class="xes-bar" [style.width.%]="(item.count / traces.length) * 100"></span>
+                        <span class="xes-share__label">{{ sharePercent(item.count, traces.length) }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="table-container" *ngIf="viewMode === 'log' && metadata as meta">
+              <div class="xes-info">
+                <section class="xes-info__card">
+                  <h2>Overview</h2>
+                  <dl class="xes-attrs">
+                    <dt>Log name</dt>
+                    <dd>{{ meta.name }}</dd>
+                    <dt>Cases</dt>
+                    <dd>{{ stats?.cases }}</dd>
+                    <dt>Events</dt>
+                    <dd>{{ stats?.events }}</dd>
+                    <dt>Distinct activities</dt>
+                    <dd>{{ stats?.activities }}</dd>
+                    <dt>Variants</dt>
+                    <dd>{{ stats?.variants }}</dd>
+                    <dt>Resources</dt>
+                    <dd>{{ stats?.resources }}</dd>
+                    <dt>Start activities</dt>
+                    <dd>{{ stats?.startActivities }}</dd>
+                    <dt>End activities</dt>
+                    <dd>{{ stats?.endActivities }}</dd>
+                    <dt>Time span</dt>
+                    <dd>{{ stats?.timeSpanLabel }}</dd>
+                  </dl>
+                </section>
+
+                <section class="xes-info__card" *ngIf="meta.attributes.length > 0">
+                  <h2>Log attributes</h2>
+                  <dl class="xes-attrs">
+                    <ng-container *ngFor="let attribute of meta.attributes">
+                      <dt>{{ attribute.key }}</dt>
+                      <dd>{{ attribute.value || '—' }}</dd>
+                    </ng-container>
+                  </dl>
+                </section>
+
+                <section class="xes-info__card" *ngIf="meta.extensions.length > 0">
+                  <h2>Extensions</h2>
+                  <ul class="xes-info__list">
+                    <li *ngFor="let extension of meta.extensions">
+                      <strong>{{ extension.name }}</strong>
+                      <span class="xes-chip">{{ extension.prefix }}</span>
+                      <span class="xes-info__uri">{{ extension.uri }}</span>
+                    </li>
+                  </ul>
+                </section>
+
+                <section class="xes-info__card" *ngIf="meta.classifiers.length > 0">
+                  <h2>Classifiers</h2>
+                  <dl class="xes-attrs">
+                    <ng-container *ngFor="let classifier of meta.classifiers">
+                      <dt>{{ classifier.name }}</dt>
+                      <dd>{{ classifier.keys }}</dd>
+                    </ng-container>
+                  </dl>
+                </section>
+
+                <section class="xes-info__card" *ngFor="let global of meta.globals">
+                  <h2>Global defaults — {{ global.scope }}</h2>
+                  <dl class="xes-attrs">
+                    <ng-container *ngFor="let attribute of global.attributes">
+                      <dt>{{ attribute.key }}</dt>
+                      <dd>{{ attribute.value || '—' }}</dd>
+                    </ng-container>
+                  </dl>
+                </section>
+
+                <section class="xes-info__card">
+                  <h2>Attribute keys</h2>
+                  <p class="xes-info__subtitle">Event level</p>
+                  <p class="xes-chips">
+                    <span class="xes-chip" *ngFor="let key of meta.eventAttributeKeys">{{ key }}</span>
+                  </p>
+                  <p class="xes-info__subtitle" *ngIf="meta.traceAttributeKeys.length > 0">Case level</p>
+                  <p class="xes-chips" *ngIf="meta.traceAttributeKeys.length > 0">
+                    <span class="xes-chip" *ngFor="let key of meta.traceAttributeKeys">{{ key }}</span>
+                  </p>
+                </section>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="xesFiles.length === 0 && !loading"
+            [class.fv-dropzone--active]="showDropZone"
+            (click)="openFileDialog()"
+            aria-label="Upload XES files by clicking or dragging files here">
+            <img
+              class="fv-dropzone__icon"
+              [src]="assetService.getAssetPath('icons/upload.svg')"
+              alt=""
+              width="40"
+              height="40" />
+            <p class="fv-dropzone__title">Drop XES event logs here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">
+              .xes / .xml · powered by PM4JS · max 50&nbsp;MB · stays on your device
+              <ng-container *ngIf="!libraryReady"> · loading library…</ng-container>
+            </p>
+            <span class="xes-dropzone-guide" aria-hidden="true">
+              <span><strong>1</strong> Upload log</span>
+              <span class="xes-dropzone-guide__line"></span>
+              <span><strong>2</strong> Explore cases</span>
+              <span class="xes-dropzone-guide__line"></span>
+              <span><strong>3</strong> Compare paths</span>
+            </span>
+          </button>
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="Files and related tools">
+        <div class="ctl__panel" *ngIf="xesFiles.length > 0">
+          <header class="ctl__panel-head">Files ({{ xesFiles.length }})</header>
+          <div class="ctl__panel-body">
+            <ul class="fv-files">
+              <li *ngFor="let file of xesFiles; let i = index">
+                <button
+                  type="button"
+                  class="fv-file"
+                  [class.fv-file--selected]="i === currentFileIndex"
+                  (click)="selectFile(i)">
+                  <span class="fv-file__info">
+                    <strong>{{ file.name }}</strong>
+                    <span>{{ formatFileSize(file.size) }}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="fv-file-remove"
+                  (click)="removeFile(i); $event.stopPropagation()"
+                  aria-label="Remove">
+                  ×
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="traces.length > 0">
+          <header class="ctl__panel-head">Cases</header>
+          <div class="ctl__panel-body xes-case-list">
+            <button
+              type="button"
+              class="xes-case"
+              [class.active]="selectedCaseId === null"
+              (click)="selectCase(null)">
+              All cases ({{ traces.length }})
+            </button>
+            <button
+              type="button"
+              class="xes-case"
+              *ngFor="let trace of traces | slice: 0:40"
+              [class.active]="selectedCaseId === trace.caseId"
+              (click)="selectCase(trace.caseId)"
+              [title]="trace.caseId">
+              <span class="xes-case__main">
+                <strong>{{ trace.caseId }}</strong>
+                <span class="xes-case__count">{{ trace.eventCount }}</span>
+              </span>
+              <span>{{ trace.eventCount }} events · {{ trace.durationLabel }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="ctl__panel ev__related">
+          <header class="ctl__panel-head">Related tools</header>
+          <ul class="ev__related-list">
+            <li *ngFor="let tool of relatedTools">
+              <a class="ev__related-link" [routerLink]="tool.path">
+                <strong>{{ tool.label }}</strong>
+                <span>{{ tool.description }}</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>
+              Parsed locally with
+              <strong>PM4JS</strong>
+              — nothing is uploaded to a server.
+            </p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Upload a <code>.xes</code> (or XML) process-mining event log.</li>
+        <li>Start on <strong>Insights</strong> for findings, rework, temporal patterns, and variant coverage.</li>
+        <li>Use <strong>Export</strong> for CSV/TSV/JSON, timeline, DFG DOT, Markdown report, or the original XES.</li>
+      </ul>
+    </details>
+  </main>
+</div>

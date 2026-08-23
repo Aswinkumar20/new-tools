@@ -1,4 +1,3 @@
-import { provideMonacoEditor } from 'ngx-monaco-editor-v2';
 import {
   ApplicationConfig,
   provideBrowserGlobalErrorListeners,
@@ -10,6 +9,7 @@ import {
   provideClientHydration,
   withEventReplay,
 } from '@angular/platform-browser';
+import { provideHttpClient, withFetch } from '@angular/common/http';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -17,6 +17,6 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(appRoutes),
-    provideMonacoEditor({ baseUrl: 'assets/monaco-editor/min/vs' }),
+    provideHttpClient(withFetch()),
   ],
 };

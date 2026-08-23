@@ -1,0 +1,158 @@
+<div class="ctl hdf5">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="hdf5-eyebrow">Science tools</span>
+        <h1>HDF5 Viewer <span class="hdf5-live-badge">Local &amp; private</span></h1>
+        <p>Browse hierarchical HDF5 groups, inspect dataset metadata, and preview numeric arrays locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="hdf5-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="hdf5-suggest__body">
+        <p class="hdf5-suggest__title">{{ suggestion.title }}</p>
+        <p class="hdf5-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="hdf5-suggest__actions">
+        <button type="button" class="hdf5-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="hdf5-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="hdf5-toolbar">
+      <div class="hdf5-toolbar__group">
+        <input #fileInput class="hdf5-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn hdf5-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="hdf5-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="hdf5-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('tree-json', $event)">Tree JSON</button>
+            <button type="button" (click)="exportAs('dataset-json', $event)">Dataset JSON</button>
+            <button type="button" (click)="exportAs('dataset-csv', $event)">Dataset CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="hdf5-files" *ngIf="files.length">
+          <div class="hdf5-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.hdf5-files__chip--active]="i === currentIndex">
+            <button type="button" class="hdf5-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="hdf5-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="hdf5-toolbar__status"><span class="hdf5-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="hdf5-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="hdf5-workspace" [class.hdf5-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="hdf5-panel">
+        <header class="hdf5-map-head" *ngIf="currentFile">
+          <div><strong>{{ currentFile.name }}</strong><span>{{ planeLabel }}</span></div>
+          <div class="hdf5-view-controls" *ngIf="viewMode === 'preview'">
+            <button type="button" (click)="zoomOut()">−</button>
+            <button type="button" (click)="zoomIn()">+</button>
+            <button type="button" (click)="fitZoom()">Fit</button>
+            <button type="button" (click)="resetZoom()">100%</button>
+            <button type="button" (click)="toggleInvert()" [class.is-active]="invert">Invert</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="hdf5-search-row" *ngIf="currentFile && viewMode === 'tree'">
+          <input #treeSearchInput type="search" [(ngModel)]="treeQuery" placeholder="Filter tree… (/)" />
+        </div>
+
+        <div class="hdf5-controls" *ngIf="preview && preview.rank >= 3 && viewMode === 'preview'">
+          <label *ngFor="let p of planes">
+            <input type="radio" name="h5plane" [checked]="plane === p" (change)="setPlane(p)" /> {{ p }}
+          </label>
+          <input type="range" [min]="0" [max]="maxSlice" [value]="sliceIndex" (input)="setSlice(+$any($event.target).value)" />
+        </div>
+
+        <div class="hdf5-map-wrap" [class.hdf5-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="hdf5-map" *ngIf="viewMode === 'preview'" (wheel)="onCanvasWheel($event)"></canvas>
+
+          <div class="hdf5-tree-view" *ngIf="currentFile && viewMode === 'tree'">
+            <button type="button" class="hdf5-tree-node" *ngFor="let node of flatTree; trackBy: trackByNodePath" [class.is-group]="node.kind === 'group'" [class.is-active]="selectedPath === node.path" (click)="selectNode(node)">
+              <span class="hdf5-tree-node__kind">{{ node.kind === 'group' ? '▸' : '◆' }}</span>
+              <span class="hdf5-tree-node__path">{{ node.path }}</span>
+              <span class="hdf5-tree-node__meta" *ngIf="node.shape?.length">{{ node.dtype }} · {{ node.shape?.join('×') }}</span>
+            </button>
+            <p class="hdf5-empty-filter" *ngIf="flatTree.length === 0">No nodes match the current filter.</p>
+          </div>
+
+          <div class="hdf5-attrs-view" *ngIf="currentFile && viewMode === 'attributes' && preview">
+            <h3>{{ preview.path }}</h3>
+            <p>{{ preview.dtype }} · {{ preview.shape.join('×') }}</p>
+            <dl>
+              <div *ngFor="let attr of preview.attributes"><dt>{{ attr.name }}</dt><dd>{{ attr.value }}</dd></div>
+            </dl>
+            <p *ngIf="!preview.attributes.length" class="hdf5-empty-filter">No attributes on this dataset.</p>
+          </div>
+
+          <div class="hdf5-empty" *ngIf="!currentFile && !loading">
+            <p>Drop HDF5 files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="hdf5-loading" *ngIf="loading">Parsing HDF5…</div>
+        </div>
+
+        <div class="hdf5-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="hdf5-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="hdf5-disclaimer">Education and research preview only — compressed, compound, or vlen datasets may have limited support.</p>
+      </section>
+
+      <aside class="hdf5-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">File overview</header>
+          <div class="ctl__panel-body">
+            <dl class="hdf5-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+              <div><dt>Tree nodes</dt><dd>{{ allTreeCount }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="parsed?.datasets?.length">
+          <header class="ctl__panel-head">Datasets</header>
+          <div class="ctl__panel-body">
+            <button type="button" class="hdf5-ds" *ngFor="let ds of parsed!.datasets; trackBy: trackByDatasetPath" [class.is-active]="selectedPath === ds.path" (click)="selectNode({ path: ds.path, name: ds.path.split('/').pop() || ds.path, kind: 'dataset', shape: ds.shape, dtype: ds.dtype })">
+              <strong>{{ ds.path }}</strong>
+              <span>{{ ds.dtype }} · {{ ds.shape.join('×') }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="histogramBars.length">
+          <header class="ctl__panel-head">Histogram</header>
+          <div class="ctl__panel-body hdf5-hist">
+            <div class="hdf5-hist__bar" *ngFor="let bar of histogramBars" [style.height.%]="bar.heightPct" [title]="bar.label + ': ' + bar.count"></div>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="preview">
+          <header class="ctl__panel-head">Colormap</header>
+          <div class="ctl__panel-body hdf5-colormaps">
+            <button type="button" *ngFor="let c of colormaps" [class.is-active]="colormap === c" (click)="setColormap(c)">{{ c }}</button>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="hdf5-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="hdf5-drop" *ngIf="showDropZone"><p>Drop HDF5 files to preview</p></div>
+  </main>
+</div>

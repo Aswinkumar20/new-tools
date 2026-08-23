@@ -1,112 +1,125 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-
-interface GeneratedNumber {
-  value: number;
-  timestamp: number;
-}
-
-type RandomFormGroup = FormGroup<{
-  min: FormControl<number>;
-  max: FormControl<number>;
-  count: FormControl<number>;
-  integerOnly: FormControl<boolean>;
-  decimals: FormControl<number>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Subscription } from 'rxjs';
+import {
+  RNG_DEFAULT_OPTIONS,
+  RNG_ERROR_COPY,
+  RNG_RELATED_TOOLS
+} from '../../constants/random-number-generator.constants';
+import { ftCopyText } from '../../shared/ft-clipboard.util';
+import type { FtRelatedToolLink } from '../../shared/ft-tool-suggestion.model';
+import type {
+  GeneratedNumber,
+  RandomFormGroup,
+  RandomNumberOptions
+} from '../../types/random-number-generator.types';
+import {
+  computeRandomNumberStats,
+  formatRandomNumber,
+  formatResultsText,
+  generateRandomNumbers,
+  prependGeneratedHistory,
+  resolveRandomNumberSuggestion,
+  validateRandomNumberOptions
+} from '../../utils/random-number-generator.utils';
 
 @Component({
   selector: 'lib-random-number-generator',
   standalone: true,
   templateUrl: './random-number-generator.html',
   styleUrls: ['./random-number-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class RandomNumberGeneratorComponent {
+export class RandomNumberGeneratorComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  readonly assetService = inject(AssetService);
+  private formSubscription?: Subscription;
 
   readonly form: RandomFormGroup = this.fb.group({
-    min: this.fb.control(1, { nonNullable: true }),
-    max: this.fb.control(100, { nonNullable: true }),
-    count: this.fb.control(1, { nonNullable: true }),
-    integerOnly: this.fb.control(true, { nonNullable: true }),
-    decimals: this.fb.control(2, { nonNullable: true })
+    min: this.fb.control(RNG_DEFAULT_OPTIONS.min, { nonNullable: true }),
+    max: this.fb.control(RNG_DEFAULT_OPTIONS.max, { nonNullable: true }),
+    count: this.fb.control(RNG_DEFAULT_OPTIONS.count, { nonNullable: true }),
+    integerOnly: this.fb.control(RNG_DEFAULT_OPTIONS.integerOnly, { nonNullable: true }),
+    decimals: this.fb.control(RNG_DEFAULT_OPTIONS.decimals, { nonNullable: true })
   });
 
   readonly generatedNumbers = signal<GeneratedNumber[]>([]);
   readonly errors = signal<string[]>([]);
+  readonly formSnapshot = signal<RandomNumberOptions>(this.form.getRawValue());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
+
+  readonly relatedTools: ReadonlyArray<FtRelatedToolLink> = RNG_RELATED_TOOLS;
 
   readonly hasResults = computed(() => this.generatedNumbers().length > 0);
-  readonly stats = computed(() => {
-    const numbers = this.generatedNumbers();
-    if (numbers.length === 0) {
-      return { count: 0, min: 0, max: 0, average: 0, sum: 0 };
-    }
-
-    const values = numbers.map((n) => n.value);
-    const sum = values.reduce((acc, val) => acc + val, 0);
-    return {
-      count: numbers.length,
-      min: Math.min(...values),
-      max: Math.max(...values),
-      average: sum / values.length,
-      sum
-    };
-  });
+  readonly stats = computed(() => computeRandomNumberStats(this.generatedNumbers()));
 
   readonly latestResults = computed(() => {
-    const count = this.form.controls.count.value;
+    const count = this.formSnapshot().count;
     return this.generatedNumbers().slice(0, count);
   });
 
-  constructor() {
-    // Subscribe to integerOnly changes to update decimals
-    this.form.controls.integerOnly.valueChanges.subscribe((isInteger) => {
-      if (isInteger) {
-        this.form.controls.decimals.setValue(0);
-      }
+  readonly resultsText = computed(() => {
+    const { integerOnly, decimals } = this.formSnapshot();
+    return formatResultsText(this.latestResults(), integerOnly, decimals);
+  });
+
+  readonly primarySuggestion = computed(() => {
+    const snapshot = this.formSnapshot();
+    const suggestion = resolveRandomNumberSuggestion({
+      hasResults: this.hasResults(),
+      hasError: this.errors().length > 0,
+      min: snapshot.min,
+      max: snapshot.max,
+      count: snapshot.count,
+      integerOnly: snapshot.integerOnly
     });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
+
+  constructor() {
+    this.formSubscription = new Subscription();
+    this.formSubscription.add(
+      this.form.controls.integerOnly.valueChanges.subscribe((isInteger) => {
+        if (isInteger) {
+          this.form.controls.decimals.setValue(0);
+        }
+      })
+    );
+    this.formSubscription.add(
+      this.form.valueChanges.subscribe(() => {
+        this.formSnapshot.set(this.form.getRawValue());
+      })
+    );
   }
 
   generate(): void {
     this.errors.set([]);
-    const { min, max, count, integerOnly, decimals } = this.form.getRawValue();
+    const options = this.form.getRawValue();
+    this.formSnapshot.set(options);
 
-    if (min >= max) {
-      this.errors.set(['Minimum value must be less than maximum value.']);
+    const validationError = validateRandomNumberOptions(options);
+    if (validationError) {
+      this.errors.set([validationError]);
       return;
     }
 
-    if (count < 1 || count > 1000) {
-      this.errors.set(['Count must be between 1 and 1000.']);
-      return;
-    }
-
-    if (!integerOnly && (decimals < 0 || decimals > 10)) {
-      this.errors.set(['Decimal places must be between 0 and 10.']);
-      return;
-    }
-
-    const numbers: GeneratedNumber[] = [];
-    const timestamp = Date.now();
-
-    for (let i = 0; i < count; i++) {
-      let value: number;
-
-      if (integerOnly) {
-        value = Math.floor(Math.random() * (max - min + 1)) + min;
-      } else {
-        const random = Math.random() * (max - min) + min;
-        const multiplier = Math.pow(10, decimals);
-        value = Math.round(random * multiplier) / multiplier;
-      }
-
-      numbers.push({ value, timestamp: timestamp + i });
-    }
-
-    this.generatedNumbers.update((current) => [...numbers, ...current].slice(0, 100));
+    const numbers = generateRandomNumbers(options);
+    this.generatedNumbers.update((current) => prependGeneratedHistory(current, numbers));
   }
 
   clearResults(): void {
@@ -114,44 +127,36 @@ export class RandomNumberGeneratorComponent {
     this.errors.set([]);
   }
 
-  copyResults(): void {
-    const numbers = this.latestResults();
-    if (numbers.length === 0) {
+  async copyResults(): Promise<void> {
+    const text = this.resultsText();
+    if (!text) {
       return;
     }
-
-    const text = numbers.map((n) => n.value.toString()).join(', ');
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success - could show a toast notification
-      })
-      .catch(() => {
-        this.errors.set(['Failed to copy to clipboard.']);
-      });
+    const copied = await ftCopyText(this.toast, text, 'Results');
+    if (!copied) {
+      this.errors.set([RNG_ERROR_COPY]);
+    }
   }
 
-  copySingle(value: number): void {
-    navigator.clipboard
-      .writeText(value.toString())
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set(['Failed to copy to clipboard.']);
-      });
+  async copySingle(value: number): Promise<void> {
+    const { integerOnly, decimals } = this.form.getRawValue();
+    const text = formatRandomNumber(value, integerOnly, decimals);
+    const copied = await ftCopyText(this.toast, text, 'Number');
+    if (!copied) {
+      this.errors.set([RNG_ERROR_COPY]);
+    }
   }
 
   formatNumber(value: number): string {
     const { integerOnly, decimals } = this.form.getRawValue();
-    if (integerOnly) {
-      return value.toString();
-    }
-    return value.toFixed(decimals);
+    return formatRandomNumber(value, integerOnly, decimals);
   }
 
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
+  ngOnDestroy(): void {
+    this.formSubscription?.unsubscribe();
   }
 }

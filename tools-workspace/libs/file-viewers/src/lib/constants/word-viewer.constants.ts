@@ -17,9 +17,6 @@ export const WORD_FIT_BASE_WIDTH_PX = 900;
 export const WORD_NORMAL_FIT_PADDING_PX = 100;
 export const WORD_FULLSCREEN_FIT_PADDING_PX = 80;
 
-export const WORD_MAMMOTH_CDN =
-  'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
-
 export const WORD_MAMMOTH_STYLE_MAP: ReadonlyArray<string> = [
   "p[style-name='Heading 1'] => h1:fresh",
   "p[style-name='Heading 2'] => h2:fresh",

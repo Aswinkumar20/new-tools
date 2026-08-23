@@ -12,6 +12,7 @@ export interface SeoMetadata {
   url?: string;
   type?: string;
   author?: string;
+  robots?: string;
   structuredData?: unknown | unknown[];
 }
 
@@ -61,6 +62,7 @@ export class SeoService {
     this.updateMetaTag('name', 'title', title);
     this.updateMetaTag('name', 'description', metadata.description || '');
     this.updateMetaTag('name', 'keywords', metadata.keywords || '');
+    this.updateMetaTag('name', 'robots', metadata.robots || 'index, follow');
     if (metadata.author) {
       this.updateMetaTag('name', 'author', metadata.author);
     }

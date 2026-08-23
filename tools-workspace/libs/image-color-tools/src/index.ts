@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/image-to-base64/image-to-base64';
 export * from './lib/component/image-resizer/image-resizer';
 export * from './lib/component/image-compressor/image-compressor';

@@ -1,277 +1,229 @@
-<div class="sic">
-  <div class="sic__nav">
-    <lib-navigation></lib-navigation>
-  </div>
-
-  <section class="sic__hero">
-    <div class="sic__badge">Growth planner</div>
-    <h1>Simple & Compound Interest Lab</h1>
-    <p>
-      Compare simple and compound growth, see how contributions accelerate savings, and track progress toward your
-      targets over time.
-    </p>
-
-    <div class="sic__actions">
-      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
-      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+<div class="ctl md">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Interest Calculator</h1>
+        <p>Compare simple and compound growth with contributions and goals.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Interest statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.futureValue) : '—' }}</span>
+          <span class="ctl__stat-label">Future</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.interestEarned) : '—' }}</span>
+          <span class="ctl__stat-label">Interest</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ formSnapshot().mode === 'compound' ? 'Compound' : 'Simple' }}</span>
+          <span class="ctl__stat-label">Mode</span>
+        </div>
+      </div>
     </div>
 
-    @if (statusMessage()) {
-      <div class="sic__status">{{ statusMessage() }}</div>
-    }
-  </section>
-
-  <div class="sic__layout">
-    <section class="sic__card sic__card--form">
-      <header class="sic__card-header">
-        <div>
-          <h2>Set up calculation</h2>
-          <p>Pick a growth model, supply the basics, and fine-tune contribution settings.</p>
-        </div>
-      </header>
-
-      <div class="sic__mode-group">
-        @for (mode of modes; track trackMode($index, mode)) {
-          <button
-            type="button"
-            class="sic__mode"
-            [class.is-active]="form.get('mode')?.value === mode.id"
-            (click)="setMode(mode.id)"
-          >
-            <span class="sic__mode-icon">{{ mode.icon }}</span>
-            <span>
-              <strong>{{ mode.label }}</strong>
-              <small>{{ mode.description }}</small>
-            </span>
-          </button>
-        }
+    <div class="md-workflow" aria-label="Interest actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="submit()" appTooltip="Recalculate" tooltipPosition="bottom" aria-label="Recalculate">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Calculate</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!history().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
+    </div>
 
-      <form class="sic__form" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="sic__input-grid">
-          <div class="sic__input">
-            <label for="principal">Principal amount</label>
-            <input id="principal" type="number" step="0.01" formControlName="principal" />
-          </div>
-          <div class="sic__input">
-            <label for="rate">Annual rate (%)</label>
-            <input id="rate" type="number" step="0.01" formControlName="rate" />
-          </div>
-          <div class="sic__input">
-            <label for="time">Time (years)</label>
-            <input id="time" type="number" step="0.1" formControlName="time" />
-          </div>
-        </div>
-
-        @if (form.get('mode')?.value === 'compound') {
-          <div class="sic__input-grid">
-            <div class="sic__input">
-              <label for="frequency">Compounding frequency</label>
-              <select id="frequency" formControlName="frequency">
-                @for (freq of compoundingFrequencies; track trackFrequencyOption($index, freq)) {
-                  <option [value]="freq.id">{{ freq.label }}</option>
-                }
-              </select>
-            </div>
-
-            <div class="sic__input">
-              <label for="contributions">Regular contribution</label>
-              <input id="contributions" type="number" step="0.01" formControlName="contributions" />
-            </div>
-
-            <div class="sic__input">
-              <label for="contributionFrequency">Contribution frequency</label>
-              <select id="contributionFrequency" formControlName="contributionFrequency">
-                @for (freq of contributionFrequencyOptions; track trackContributionOption($index, freq)) {
-                  <option [value]="freq.id">{{ freq.label }}</option>
-                }
-              </select>
-            </div>
-          </div>
-        }
-
-        <details class="sic__advanced" open>
-          <summary>Extras</summary>
-          <div class="sic__advanced-grid">
-            <label>
-              <span>Target amount (optional)</span>
-              <input type="number" step="0.01" formControlName="targetAmount" placeholder="Goal to compare" />
-            </label>
-            <label>
-              <input type="checkbox" formControlName="includeTimeline" />
-              <span>Show yearly timeline</span>
-            </label>
-            <label>
-              <input type="checkbox" formControlName="includeBreakdown" />
-              <span>Show breakdown summary</span>
-            </label>
-          </div>
-        </details>
-
-        @if (errorMessage()) {
-          <div class="sic__error">{{ errorMessage() }}</div>
-        }
-
-        <div class="sic__form-actions">
-          <button type="submit" class="btn btn--primary">Calculate</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="sic__card sic__card--summary">
-      <header class="sic__card-header">
-        <div>
-          <h2>Summary</h2>
-          <p>Headline results from your inputs.</p>
-        </div>
-      </header>
-
-      @if (summary()) {
-        <div class="sic__summary">
-          <div class="sic__summary-pill">
-            {{ formatCurrency(summary()!.futureValue) }}
-            <small>Future value</small>
-          </div>
-
-          <div class="sic__metric-grid">
-            <div class="sic__metric">
-              <span>Interest earned</span>
-              <strong>{{ formatCurrency(summary()!.interestEarned) }}</strong>
-            </div>
-            <div class="sic__metric">
-              <span>Total contributions</span>
-              <strong>{{ formatCurrency(summary()!.totalContributions) }}</strong>
-            </div>
-            <div class="sic__metric">
-              <span>Simple equivalent</span>
-              <strong>{{ formatCurrency(summary()!.simpleInterestEquivalent) }}</strong>
-            </div>
-            <div class="sic__metric">
-              <span>Compound gain</span>
-              <strong>{{ formatCurrency(summary()!.compoundGain) }}</strong>
-            </div>
-            <div class="sic__metric">
-              <span>Effective annual rate</span>
-              <strong>{{ (summary()!.effectiveAnnualRate * 100) | number:'1.2-2' }}%</strong>
-            </div>
-          </div>
-
-          @if (goals()) {
-            <div class="sic__goal" [class.is-met]="goals()!.reached">
-              <div>
-                <span>Target amount</span>
-                <strong>{{ formatCurrency(goals()!.targetAmount) }}</strong>
-              </div>
-              <div>
-                <span>Status</span>
-                <strong>{{ goals()!.reached ? 'Reached' : 'Not yet' }}</strong>
-              </div>
-              <div>
-                <span>Difference</span>
-                <strong>{{ formatCurrency(goals()!.difference) }}</strong>
-              </div>
-              @if (goals()!.estimatedTime) {
-                <div>
-                  <span>Estimated time</span>
-                  <strong>{{ goals()!.estimatedTime | number:'1.1-1' }} years</strong>
-                </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
+          <header class="ctl__editor-head"><span>Inputs</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <div class="sic__modes" role="group" aria-label="Interest mode">
+              @for (mode of modes; track trackMode($index, mode)) {
+                <button
+                  type="button"
+                  class="sic__mode"
+                  [class.sic__mode--active]="formSnapshot().mode === mode.id"
+                  [attr.aria-pressed]="formSnapshot().mode === mode.id"
+                  (click)="setMode(mode.id)">
+                  {{ mode.icon }} {{ mode.label }}
+                </button>
               }
             </div>
-          }
-        </div>
-      } @else {
-        <div class="sic__empty">Enter details to see future value.</div>
-      }
-    </section>
+            <label class="ctl__field" for="principal">
+              <span>Principal</span>
+              <input id="principal" type="number" step="0.01" formControlName="principal" />
+            </label>
+            <label class="ctl__field" for="rate">
+              <span>Annual rate (%)</span>
+              <input id="rate" type="number" step="0.01" formControlName="rate" />
+            </label>
+            <label class="ctl__field" for="time">
+              <span>Time (years)</span>
+              <input id="time" type="number" step="0.1" formControlName="time" />
+            </label>
+            @if (formSnapshot().mode === 'compound') {
+              <label class="ctl__field" for="frequency">
+                <span>Compounding</span>
+                <select id="frequency" formControlName="frequency">
+                  @for (freq of compoundingFrequencies; track trackFrequency($index, freq)) {
+                    <option [value]="freq.id">{{ freq.label }}</option>
+                  }
+                </select>
+              </label>
+              <label class="ctl__field" for="contributions">
+                <span>Contribution</span>
+                <input id="contributions" type="number" step="0.01" formControlName="contributions" />
+              </label>
+            }
+            @if (errorMessage()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            }
+          </div>
+        </section>
 
-    <section class="sic__card sic__card--timeline">
-      <header class="sic__card-header">
-        <h2>Timeline</h2>
-      </header>
-      @if (timelineSegments().length > 0 && form.get('includeTimeline')?.value) {
-        <div class="sic__timeline">
-          @for (point of timelineSegments(); track trackTimeline($index, point)) {
-            <div class="sic__timeline-item">
-              <div class="sic__timeline-bar" [style.flex-basis.%]="point.proportion"></div>
-              <div class="sic__timeline-content">
-                <strong>{{ point.label }}</strong>
-                <span>Balance: {{ formatCurrency(point.balance) }}</span>
-                <small>Interest accrued: {{ formatCurrency(point.interest) }}</small>
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Results</span>
+            <div class="ctl__editor-actions">
+              @if (summary()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy results" tooltipPosition="bottom" aria-label="Copy results">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="sic__suggest" aria-label="Suggested next step">
+              <div class="sic__suggest-body">
+                <p class="sic__suggest-title">{{ suggestion.title }}</p>
+                <p class="sic__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="sic__suggest-actions">
+                <a class="sic__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="sic__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          @if (summary()) {
+            <div class="ctl__editor-body sic__results" aria-live="polite">
+              <div class="sic__pill">
+                <strong>{{ formatCurrency(summary()!.futureValue) }}</strong>
+                <span>Future value</span>
+              </div>
+              <div class="sic__grid">
+                <div class="sic__metric">
+                  <span>Interest earned</span>
+                  <strong>{{ formatCurrency(summary()!.interestEarned) }}</strong>
+                </div>
+                <div class="sic__metric">
+                  <span>Effective rate</span>
+                  <strong>{{ summary()!.effectiveAnnualRate | number:'1.2-2' }}%</strong>
+                </div>
+                <div class="sic__metric">
+                  <span>Contributions</span>
+                  <strong>{{ formatCurrency(summary()!.totalContributions) }}</strong>
+                </div>
               </div>
             </div>
-          }
-        </div>
-      } @else {
-        <div class="sic__empty">Timeline is available for compound mode.</div>
-      }
-    </section>
-
-    <section class="sic__card sic__card--breakdown">
-      <header class="sic__card-header">
-        <h2>Breakdown</h2>
-      </header>
-      @if (breakdown()) {
-        <div class="sic__breakdown">
-          <div>
-            <span>Principal</span>
-            <strong>{{ formatCurrency(breakdown()!.totalPrincipal) }}</strong>
-          </div>
-          <div>
-            <span>Interest earned</span>
-            <strong>{{ formatCurrency(breakdown()!.totalInterestEarned) }}</strong>
-          </div>
-          <div>
-            <span>Contributions</span>
-            <strong>{{ formatCurrency(breakdown()!.totalContributions) }}</strong>
-          </div>
-          <div>
-            <span>Total value</span>
-            <strong>{{ formatCurrency(breakdown()!.totalFutureValue) }}</strong>
-          </div>
-        </div>
-      } @else {
-        <div class="sic__empty">Enable breakdown to view detailed totals.</div>
-      }
-    </section>
-
-    <section class="sic__card sic__card--presets">
-      <header class="sic__card-header">
-        <h2>Quick presets</h2>
-      </header>
-      <div class="sic__preset-grid">
-        @for (preset of presets; track trackPreset($index, preset)) {
-          <button type="button" class="sic__preset" (click)="applyPreset(preset)">
-            <strong>{{ preset.label }}</strong>
-            <small>{{ preset.mode | titlecase }} · {{ preset.rate }}% for {{ preset.time }} years</small>
-          </button>
-        }
-      </div>
-    </section>
-
-    <section class="sic__card sic__card--history">
-      <header class="sic__card-header">
-        <h2>History</h2>
-        <span class="sic__history-count">{{ history().length }}</span>
-      </header>
-      <div class="sic__history-list">
-        @for (entry of history(); track trackHistory($index, entry)) {
-          <article>
-            <div class="sic__history-head">
-              <div>
-                <strong>{{ entry.summary.futureValue | number:'1.0-2' }}</strong>
-                <span>{{ entry.mode | titlecase }} · {{ entry.time }} years · {{ entry.rate }}% </span>
-              </div>
-              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter values to see growth projection.</p>
             </div>
-            <p class="sic__history-meta">
-              Principal {{ entry.principal }} · Contributions {{ entry.contributions }}
-            </p>
-          </article>
-        }
-        @if (history().length === 0) {
-          <div class="sic__empty">Your recent interest comparisons will be listed here.</div>
-        }
+          }
+        </section>
       </div>
-    </section>
-  </div>
+
+      <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Presets</header>
+            <div class="ctl__panel-body">
+              <div class="sic__presets">
+                @for (preset of presets; track trackPreset($index, preset)) {
+                  <button type="button" class="sic__preset" (click)="applyPreset(preset)">
+                    <strong>{{ preset.label }}</strong>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length > 0) {
+                <ul class="sic__history">
+                  @for (entry of history(); track trackHistory($index, entry)) {
+                    <li>
+                      <button type="button" class="sic__history-item" (click)="restoreHistory(entry)">
+                        <strong>{{ formatCurrency(entry.summary.futureValue) }}</strong>
+                        <span>{{ entry.mode }} · {{ entry.principal }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Calculations appear here.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body sic__related">
+              <ul class="sic__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="sic__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose simple or compound mode.</li>
+        <li>Enter principal, rate, and time.</li>
+        <li>Copy results or restore from history.</li>
+      </ul>
+    </details>
+  </main>
 </div>

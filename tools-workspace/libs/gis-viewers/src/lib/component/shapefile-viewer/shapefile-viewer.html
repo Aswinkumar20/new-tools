@@ -1,0 +1,384 @@
+<div class="ctl shapefile">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="shapefile-eyebrow">GIS tools</span>
+        <h1>Shapefile Viewer <span class="shapefile-live-badge">Local &amp; private</span></h1>
+        <p>
+          Open ESRI Shapefiles on an interactive map — inspect attributes, preview the table, and export GeoJSON.
+        </p>
+      </header>
+    </div>
+
+    <aside class="shapefile-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="shapefile-suggest__body">
+        <p class="shapefile-suggest__title">{{ suggestion.title }}</p>
+        <p class="shapefile-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="shapefile-suggest__actions">
+        <a class="shapefile-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="shapefile-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="shapefile-toolbar" aria-label="Shapefile viewer controls">
+      <div class="shapefile-toolbar__group">
+        <label class="sr-only" for="shapefile-file-upload">Upload Shapefile files</label>
+        <input
+          #fileInput
+          id="shapefile-file-upload"
+          class="shapefile-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn shapefile-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload shapefile · Supported: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample city points shapefile"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="shapefile-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="shapefile-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('geojson', $event)">
+              <strong>GeoJSON</strong>
+              <span>Converted FeatureCollection</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('features-csv', $event)">
+              <strong>Features CSV</strong>
+              <span>Attributes as a table</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Stats and feature inventory</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          *ngIf="currentFile"
+          (click)="copyGeoJson()"
+          appTooltip="Copy converted GeoJSON"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Copy JSON</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="shapefileFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="shapefile-files" *ngIf="shapefileFiles.length > 0" aria-label="Loaded shapefiles">
+          <div
+            class="shapefile-files__chip"
+            *ngFor="let file of shapefileFiles; let i = index; trackBy: trackByFileId"
+            [class.shapefile-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="shapefile-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="shapefile-files__name">{{ file.name }}</span>
+              <span class="shapefile-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="shapefile-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="shapefile-toolbar__status">
+        <span class="shapefile-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="shapefile-workspace"
+      [class.shapefile-workspace--fullscreen]="isFullscreen"
+      [class.shapefile-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="shapefile-panel" aria-label="Shapefile map">
+        <header class="shapefile-map-head" *ngIf="currentFile">
+          <div class="shapefile-map-head__identity">
+            <span class="shapefile-map-head__file">{{ currentFile.name }}</span>
+            <span class="shapefile-map-head__meta">
+              {{ stats?.layerName || 'Shapefile' }} · {{ stats?.features ?? 0 }} features
+            </span>
+          </div>
+          <div class="shapefile-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="shapefile-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="shapefile-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit features (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="Reset zoom (0)" tooltipPosition="bottom">World</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="shapefile-view-controls__divider"></span>
+            <button
+              type="button"
+              class="shapefile-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="shapefile-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="shapefile-map-wrap" [class.shapefile-map-wrap--empty]="!currentFile">
+          <div #mapHost class="shapefile-map" [attr.aria-busy]="loading" aria-label="Interactive Shapefile map"></div>
+          <div class="shapefile-empty" *ngIf="!currentFile && !loading">
+            <p class="shapefile-empty__title">Drop a Shapefile here</p>
+            <p class="shapefile-empty__formats">
+              <span class="shapefile-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="shapefile-empty__hint">
+              {{ formatsHint }}. Or load the sample city points. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>0</kbd> world.
+            </p>
+            <div class="shapefile-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="shapefile-loading" *ngIf="loading">Loading map…</div>
+        </div>
+
+        <div class="shapefile-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings">{{ warning }}</p>
+        </div>
+
+        <div class="shapefile-error" *ngIf="errorMessage" role="alert">
+          <p class="shapefile-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample map
+          </button>
+        </div>
+      </section>
+
+      <aside
+        id="shapefile-details-sidebar"
+        class="shapefile-sidebar"
+        aria-label="Dataset details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Dataset overview</span>
+            <span class="shapefile-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="shapefile-process-name">{{ stats.title }}</p>
+            <div class="shapefile-stat-grid shapefile-stat-grid--kinds" aria-label="Feature statistics">
+              <div><strong>{{ stats.points }}</strong><span>Points</span></div>
+              <div><strong>{{ stats.lines }}</strong><span>Lines</span></div>
+              <div><strong>{{ stats.polygons }}</strong><span>Polygons</span></div>
+              <div><strong>{{ stats.other }}</strong><span>Other</span></div>
+            </div>
+            <dl class="shapefile-meta shapefile-meta--compact">
+              <div><dt>Features</dt><dd>{{ stats.features }}</dd></div>
+              <div><dt>Property keys</dt><dd>{{ stats.propertyKeys }}</dd></div>
+              <div><dt>Layer</dt><dd>{{ stats.layerName }}</dd></div>
+              <div><dt>Bounds</dt><dd class="shapefile-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="selectedFeature as feature">
+          <header class="ctl__panel-head">Selection</header>
+          <div class="ctl__panel-body">
+            <p class="shapefile-selection__name">{{ feature.name }}</p>
+            <p class="shapefile-selection__type">{{ feature.geometryType }} · {{ feature.kind }}</p>
+            <p class="shapefile-selection__id">{{ feature.id }}</p>
+            <ul class="shapefile-props" *ngIf="feature.propertyCount > 0">
+              <li *ngFor="let entry of feature.properties | keyvalue">
+                <strong>{{ entry.key }}</strong>
+                <span>{{ formatPropertyValue(entry.value) }}</span>
+              </li>
+            </ul>
+            <button type="button" class="shapefile-selection__copy" (click)="copySelectedId()">Copy ID</button>
+          </div>
+        </div>
+
+        <div class="ctl__panel shapefile-features-panel">
+          <header class="ctl__panel-head">Features</header>
+          <div class="ctl__panel-body">
+            <div class="shapefile-kind-filters" role="tablist" aria-label="Geometry type filters">
+              <button
+                type="button"
+                *ngFor="let filter of featureFilters; trackBy: trackByFilterId"
+                role="tab"
+                class="shapefile-kind-filters__btn"
+                [class.shapefile-kind-filters__btn--active]="featureFilter === filter.id"
+                [attr.aria-selected]="featureFilter === filter.id"
+                (click)="setFeatureFilter(filter.id)">
+                {{ filter.label }}
+                <span>{{ kindCounts[filter.id] }}</span>
+              </button>
+            </div>
+
+            <label class="shapefile-filter">
+              <span class="sr-only">Filter features</span>
+              <input
+                type="search"
+                placeholder="Search name, id, or property"
+                [value]="featureSearch"
+                (input)="onFeatureSearchInput($event)" />
+            </label>
+
+            <ul class="shapefile-feature-list" *ngIf="filteredFeatures.length > 0; else noFeatures">
+              <li *ngFor="let feature of filteredFeatures; trackBy: trackByFeatureId">
+                <button
+                  type="button"
+                  class="shapefile-feature-list__btn"
+                  [class.shapefile-feature-list__btn--active]="feature.id === selectedFeatureId"
+                  (click)="focusFeature(feature)">
+                  <strong>{{ feature.name }}</strong>
+                  <span>{{ feature.geometryType }}</span>
+                </button>
+              </li>
+            </ul>
+            <ng-template #noFeatures>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No features match this filter.' : 'Upload a shapefile to inspect features.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="attributeTable && attributeTable.columns.length > 0">
+          <header class="ctl__panel-head">
+            <span>Attribute table</span>
+            <span *ngIf="attributeTable.truncatedRows" class="shapefile-table__cap">
+              {{ attributeTable.rows.length }} / {{ attributeTable.totalRows }}
+            </span>
+          </header>
+          <div class="ctl__panel-body">
+            <div class="shapefile-table-wrap" role="region" aria-label="Attribute preview" tabindex="0">
+              <table class="shapefile-table">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col" *ngFor="let col of attributeTable.columns; trackBy: trackByColumn">{{ col }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    *ngFor="let row of attributeTable.rows; let i = index; trackBy: trackByRowId"
+                    [class.shapefile-table__row--active]="row.featureId === selectedFeatureId"
+                    (click)="focusFeatureById(row.featureId)">
+                    <td>{{ i + 1 }}</td>
+                    <td *ngFor="let cell of row.cells">{{ cell }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="shapefile-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help shapefile-footer-help">
+      <summary>How to use Shapefile Viewer</summary>
+      <ul>
+        <li>
+          Supported uploads: a <code>.zip</code> shapefile archive, or multi-select
+          <code>.shp</code> + <code>.dbf</code> + <code>.shx</code> (optional <code>.prj</code>, <code>.cpg</code>).
+        </li>
+        <li>Scroll to zoom, drag to pan, or use Fit / Zoom controls (<kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd> <kbd>0</kbd>).</li>
+        <li>Filter features by geometry type, then click to focus and open attributes.</li>
+        <li>Export GeoJSON, CSV, or summary JSON — all processed in your browser. Map tiles load from OpenStreetMap.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="shapefile-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop Shapefile files to open</p>
+    <p class="shapefile-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

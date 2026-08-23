@@ -34,8 +34,8 @@ export const MOCK_JSON_FIELD_PLACEHOLDERS: Readonly<Record<MockJsonFieldType, st
 };
 
 export const MOCK_JSON_DEFAULT_FIELDS = [
-  { key: 'name', type: 'string' as const, value: 'John Doe' },
-  { key: 'age', type: 'number' as const, value: '25' },
+  { key: 'name', type: 'string' as const, value: 'Ada Lovelace' },
+  { key: 'email', type: 'email' as const, value: 'ada@analytical.engine' },
   { key: 'active', type: 'boolean' as const, value: 'true' }
 ];
 

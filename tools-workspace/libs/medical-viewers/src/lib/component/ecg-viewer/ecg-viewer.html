@@ -1,0 +1,336 @@
+<div class="ctl ecg">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ecg-eyebrow">Medical tools</span>
+        <h1>ECG Viewer <span class="ecg-live-badge">Local &amp; private</span></h1>
+        <p>
+          Multi-lead electrocardiogram review with gain, paper speed, calipers, and lead toggles. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="ecg-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ecg-suggest__body">
+        <p class="ecg-suggest__title">{{ suggestion.title }}</p>
+        <p class="ecg-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ecg-suggest__actions">
+        <button type="button" class="ecg-suggest__action" (click)="applySuggestion(suggestion)">
+          {{ suggestion.actionLabel }}
+        </button>
+        <button type="button" class="ecg-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="ecg-toolbar" aria-label="ECG viewer controls">
+      <div class="ecg-toolbar__group">
+        <label class="sr-only" for="ecg-file-upload">Upload ECG waveforms</label>
+        <input
+          #fileInput
+          id="ecg-file-upload"
+          class="ecg-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn ecg-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample 12-lead ECG" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="ecg-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="ecg-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded recording</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Leads, duration, sample rate</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('calipers-json', $event)">
+              <strong>Calipers JSON</strong>
+              <span>Time/amplitude measurements</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="recordings.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="ecg-files" *ngIf="recordings.length > 0" aria-label="Loaded ECG recordings">
+          <div
+            class="ecg-files__chip"
+            *ngFor="let rec of recordings; let i = index; trackBy: trackByRecordingId"
+            [class.ecg-files__chip--active]="i === currentIndex">
+            <button type="button" class="ecg-files__select" [attr.aria-pressed]="i === currentIndex" (click)="selectRecording(i)">
+              <span class="ecg-files__name">{{ rec.name }}</span>
+              <span class="ecg-files__size">{{ formatSize(rec.size) }}</span>
+            </button>
+            <button type="button" class="ecg-files__remove" [attr.aria-label]="'Remove ' + rec.name" (click)="removeRecording(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ecg-toolbar__status">
+        <span class="ecg-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div class="ecg-mode-bar" *ngIf="currentRecording" aria-label="Interaction tools">
+      <span class="ecg-mode-bar__label">Mode</span>
+      <div class="ecg-mode-bar__modes" role="group" aria-label="Interaction mode">
+        <button
+          type="button"
+          *ngFor="let mode of interactionModes"
+          [class.is-active]="interactionMode === mode.id"
+          (click)="setInteractionMode(mode.id)"
+          [attr.aria-pressed]="interactionMode === mode.id">
+          {{ mode.label }}
+        </button>
+      </div>
+      <span class="ecg-mode-bar__hint" *ngIf="interactionMode === 'caliper'">Click two points to measure time and amplitude · <kbd>C</kbd> toggle</span>
+      <span class="ecg-mode-bar__hint" *ngIf="interactionMode === 'navigate'">Use scroll slider or arrow keys to move through the recording</span>
+    </div>
+
+    <div
+      class="ecg-workspace"
+      [class.ecg-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.ecg-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ecg-panel" aria-label="ECG waveform viewport">
+        <header class="ecg-map-head" *ngIf="currentRecording">
+          <div class="ecg-map-head__identity">
+            <span class="ecg-map-head__file">{{ currentRecording.name }}</span>
+            <span class="ecg-map-head__meta">{{ durationLabel }} · {{ visibleChannels.length }} leads</span>
+          </div>
+          <div class="ecg-view-controls" aria-label="View controls">
+            <button type="button" (click)="adjustGain(-4)" appTooltip="Decrease gain (−)" tooltipPosition="bottom" aria-label="Decrease gain">−</button>
+            <button type="button" (click)="adjustGain(4)" appTooltip="Increase gain (+)" tooltipPosition="bottom" aria-label="Increase gain">+</button>
+            <span class="ecg-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="ecg-view-controls__divider"></span>
+            <button
+              type="button"
+              class="ecg-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="ecg-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="ecg-controls-row" *ngIf="currentRecording">
+          <label>
+            <span>Gain <span class="ecg-value">{{ gain }}</span></span>
+            <input type="range" min="8" max="80" step="1" [value]="gain" (input)="onGainChange($event)" />
+          </label>
+          <label>
+            <span>Speed <span class="ecg-value">{{ pixelsPerSecond }} px/s</span></span>
+            <input type="range" min="40" max="240" step="5" [value]="pixelsPerSecond" (input)="onSpeedChange($event)" />
+            <span class="ecg-speed-presets" role="group" aria-label="Paper speed presets">
+              <button
+                type="button"
+                *ngFor="let preset of paperSpeedPresets"
+                [class.is-active]="pixelsPerSecond === preset.pixelsPerSecond"
+                (click)="setPaperSpeed(preset.pixelsPerSecond)">
+                {{ preset.label }}
+              </button>
+            </span>
+          </label>
+          <label>
+            <span>Window <span class="ecg-value">{{ windowSamples }} samples</span></span>
+            <input type="range" min="500" max="8000" step="100" [value]="windowSamples" (input)="onWindowChange($event)" />
+          </label>
+          <label class="ecg-scroll-label">
+            <span>Scroll</span>
+            <input type="range" min="0" [max]="maxScrollSample" step="10" [value]="startSample" (input)="onScrollChange($event)" />
+          </label>
+        </div>
+
+        <div class="ecg-map-wrap" [class.ecg-map-wrap--empty]="!currentRecording">
+          <canvas
+            #canvasHost
+            class="ecg-map"
+            [class.ecg-map--caliper]="interactionMode === 'caliper'"
+            [attr.aria-busy]="loading"
+            aria-label="ECG waveform viewport"
+            (click)="onCanvasClick($event)"
+            (mousemove)="onCanvasMouseMove($event)"></canvas>
+
+          <div class="ecg-empty" *ngIf="!currentRecording && !loading">
+            <p class="ecg-empty__title">Drop ECG waveforms here</p>
+            <p class="ecg-empty__formats">
+              <span class="ecg-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="ecg-empty__hint">
+              {{ formatsHint }} Paste JSON/CSV with <kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>V</kbd>. <kbd>+</kbd>/<kbd>−</kbd> gain · <kbd>←</kbd>/<kbd>→</kbd> scroll · <kbd>C</kbd> calipers.
+            </p>
+            <div class="ecg-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="ecg-loading" *ngIf="loading">Loading ECG…</div>
+        </div>
+
+        <div class="ecg-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="ecg-error" *ngIf="errorMessage" role="alert">
+          <p class="ecg-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+
+        <p class="ecg-disclaimer" role="note">
+          Education and research preview only — not validated for clinical diagnosis or treatment decisions.
+        </p>
+      </section>
+
+      <aside
+        id="ecg-details-sidebar"
+        class="ecg-sidebar"
+        aria-label="ECG details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">
+            <span>Recording overview</span>
+            <span class="ecg-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="ecg-process-name">{{ currentRecording.name }}</p>
+            <div class="ecg-stat-grid ecg-stat-grid--dense" aria-label="Recording statistics">
+              <div><strong>{{ currentRecording.waveform.sampleRateHz }}</strong><span>Hz</span></div>
+              <div><strong>{{ currentRecording.waveform.durationSec | number:'1.1-1' }}</strong><span>Seconds</span></div>
+              <div><strong>{{ currentRecording.waveform.channels.length }}</strong><span>Leads</span></div>
+            </div>
+            <p class="ecg-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">
+            Leads
+            <button type="button" class="ecg-panel-action" (click)="showAllLeads()">Show all</button>
+          </header>
+          <div class="ctl__panel-body">
+            <div class="ecg-leads" role="group" aria-label="Lead visibility">
+              <label class="ecg-leads__item" *ngFor="let ch of currentRecording.waveform.channels; trackBy: trackByLeadId">
+                <input type="checkbox" [checked]="isLeadVisible(ch.id)" (change)="toggleLead(ch.id)" />
+                <span>{{ ch.label }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">Calipers ({{ calipers.length }})</header>
+          <div class="ctl__panel-body">
+            <p class="ecg-controls__hint" *ngIf="calipers.length === 0">Switch to Calipers mode and click two points on the waveform.</p>
+            <ul class="ecg-calipers" *ngIf="calipers.length">
+              <li *ngFor="let cal of calipers; trackBy: trackByCaliperId">
+                <div class="ecg-calipers__info">
+                  <strong>{{ cal.label }}</strong>
+                  <span>{{ cal.deltaTimeMs | number:'1.1-1' }} ms · {{ cal.deltaAmplitude | number:'1.3-3' }} mV</span>
+                  <span class="ecg-calipers__bpm" *ngIf="heartRateLabel(cal)">{{ heartRateLabel(cal) }}</span>
+                </div>
+                <button type="button" class="ecg-calipers__delete" (click)="deleteCaliper(cal.id)" aria-label="Delete caliper">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="ecg-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help ecg-footer-help">
+      <summary>How to use ECG Viewer</summary>
+      <ul>
+        <li>Upload CSV/JSON ECG waveforms with lead columns or a JSON <code>leads</code> object plus <code>sampleRateHz</code>.</li>
+        <li>Toggle individual leads, adjust gain and paper speed, and scroll through the recording.</li>
+        <li>Use Calipers mode to measure intervals — export caliper JSON or a PNG snapshot.</li>
+        <li>Education/research only — not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="ecg-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop ECG waveforms to open</p>
+    <p class="ecg-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

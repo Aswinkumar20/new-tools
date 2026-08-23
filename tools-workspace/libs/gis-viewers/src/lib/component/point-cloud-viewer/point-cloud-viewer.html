@@ -1,0 +1,305 @@
+<div class="ctl point-cloud">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="point-cloud-eyebrow">GIS tools</span>
+        <h1>Point Cloud Viewer <span class="point-cloud-live-badge">Local &amp; private</span></h1>
+        <p>
+          Orbit, Z-clip, and color LAS / PLY / PCD clouds in a canvas 3D viewport — no server upload.
+        </p>
+      </header>
+    </div>
+
+    <aside class="point-cloud-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="point-cloud-suggest__body">
+        <p class="point-cloud-suggest__title">{{ suggestion.title }}</p>
+        <p class="point-cloud-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="point-cloud-suggest__actions">
+        <a class="point-cloud-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="point-cloud-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="point-cloud-toolbar" aria-label="Point cloud viewer controls">
+      <div class="point-cloud-toolbar__group">
+        <label class="sr-only" for="point-cloud-file-upload">Upload point cloud files</label>
+        <input
+          #fileInput
+          id="point-cloud-file-upload"
+          class="point-cloud-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn point-cloud-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample ASCII PLY" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="point-cloud-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="point-cloud-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded cloud</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Bounds, attrs, format</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('xyz-csv', $event)">
+              <strong>XYZ CSV</strong>
+              <span>Capped point table</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="cloudFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="point-cloud-files" *ngIf="cloudFiles.length > 0" aria-label="Loaded point clouds">
+          <div
+            class="point-cloud-files__chip"
+            *ngFor="let file of cloudFiles; let i = index; trackBy: trackByFileId"
+            [class.point-cloud-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="point-cloud-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="point-cloud-files__name">{{ file.name }}</span>
+              <span class="point-cloud-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="point-cloud-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="point-cloud-toolbar__status">
+        <span class="point-cloud-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="point-cloud-workspace"
+      [class.point-cloud-workspace--fullscreen]="isFullscreen"
+      [class.point-cloud-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="point-cloud-panel" aria-label="Point cloud viewport">
+        <header class="point-cloud-map-head" *ngIf="currentFile">
+          <div class="point-cloud-map-head__identity">
+            <span class="point-cloud-map-head__file">{{ currentFile.name }}</span>
+            <span class="point-cloud-map-head__meta" *ngIf="stats">
+              {{ stats.previewCount | number }} pts · {{ stats.formatLabel }} · z
+              {{ stats.zMin | number:'1.1-1' }}–{{ stats.zMax | number:'1.1-1' }}
+            </span>
+          </div>
+          <div class="point-cloud-view-controls" aria-label="3D view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="point-cloud-view-controls__divider"></span>
+            <button type="button" (click)="resetView()" appTooltip="Reset view (R)" tooltipPosition="bottom">Reset</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="point-cloud-view-controls__divider"></span>
+            <button
+              type="button"
+              class="point-cloud-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="point-cloud-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="point-cloud-map-wrap" [class.point-cloud-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="point-cloud-map"
+            [attr.aria-busy]="loading"
+            aria-label="Interactive point cloud viewport"
+            (pointerdown)="onPointerDown($event)"
+            (pointermove)="onPointerMove($event)"
+            (pointerup)="onPointerUp($event)"
+            (pointercancel)="onPointerUp($event)"
+            (wheel)="onWheel($event)"
+            (contextmenu)="onContextMenu($event)"></canvas>
+          <div class="point-cloud-empty" *ngIf="!currentFile && !loading">
+            <p class="point-cloud-empty__title">Drop a point cloud here</p>
+            <p class="point-cloud-empty__formats">
+              <span class="point-cloud-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="point-cloud-empty__hint">
+              {{ formatsHint }}. Drag to orbit, Shift/right-drag to pan, wheel to zoom, <kbd>R</kbd> reset.
+            </p>
+            <div class="point-cloud-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="point-cloud-loading" *ngIf="loading">Loading cloud…</div>
+        </div>
+
+        <div class="point-cloud-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="point-cloud-error" *ngIf="errorMessage" role="alert">
+          <p class="point-cloud-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="point-cloud-details-sidebar"
+        class="point-cloud-sidebar"
+        aria-label="Point cloud details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Cloud overview</span>
+            <span class="point-cloud-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="point-cloud-process-name">{{ currentFile?.name }}</p>
+            <div class="point-cloud-stat-grid point-cloud-stat-grid--dense" aria-label="Point cloud statistics">
+              <div><strong>{{ stats.pointCount | number }}</strong><span>Points</span></div>
+              <div><strong>{{ stats.previewCount | number }}</strong><span>Preview</span></div>
+              <div><strong>{{ stats.zMin | number:'1.1-1' }}</strong><span>Z min</span></div>
+              <div><strong>{{ stats.zMax | number:'1.1-1' }}</strong><span>Z max</span></div>
+              <div><strong>{{ stats.hasRgb ? 'Yes' : 'No' }}</strong><span>RGB</span></div>
+              <div><strong>{{ stats.hasIntensity ? 'Yes' : 'No' }}</strong><span>Intensity</span></div>
+            </div>
+            <dl class="point-cloud-meta point-cloud-meta--compact">
+              <div><dt>Format</dt><dd>{{ stats.formatLabel }}</dd></div>
+              <div><dt>Classification</dt><dd>{{ stats.hasClassification ? 'Yes' : 'No' }}</dd></div>
+              <div><dt>Bounds</dt><dd class="point-cloud-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && stats && !currentFile.softFail">
+          <header class="ctl__panel-head">Display</header>
+          <div class="ctl__panel-body">
+            <div class="point-cloud-controls">
+              <label>
+                <span>Color mode</span>
+                <select [value]="colorMode" (change)="onColorModeChange($event)">
+                  <option *ngFor="let mode of colorModes" [value]="mode">{{ mode }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Point size <span class="point-cloud-opacity-value">{{ pointSize }}</span></span>
+                <input type="range" min="1" max="8" step="1" [value]="pointSize" (input)="onPointSizeChange($event)" />
+              </label>
+              <label>
+                <span>Opacity <span class="point-cloud-opacity-value">{{ opacity | number:'1.2-2' }}</span></span>
+                <input type="range" min="0.2" max="1" step="0.05" [value]="opacity" (input)="onOpacityChange($event)" />
+              </label>
+              <label>
+                <span>Z clip min <span class="point-cloud-opacity-value">{{ clipMinZ | number:'1.2-2' }}</span></span>
+                <input
+                  type="range"
+                  [min]="stats.zMin"
+                  [max]="stats.zMax"
+                  step="any"
+                  [value]="clipMinZ"
+                  (input)="onClipMinChange($event)" />
+              </label>
+              <label>
+                <span>Z clip max <span class="point-cloud-opacity-value">{{ clipMaxZ | number:'1.2-2' }}</span></span>
+                <input
+                  type="range"
+                  [min]="stats.zMin"
+                  [max]="stats.zMax"
+                  step="any"
+                  [value]="clipMaxZ"
+                  (input)="onClipMaxChange($event)" />
+              </label>
+              <p class="point-cloud-controls__hint">Drag to orbit · Shift/right-drag pan · wheel zoom</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="point-cloud-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help point-cloud-footer-help">
+      <summary>How to use Point Cloud Viewer</summary>
+      <ul>
+        <li>Upload <code>.las</code>, ASCII <code>.ply</code>, or ASCII <code>.pcd</code>. <code>.laz</code> / <code>.e57</code> soft-fail with convert notes.</li>
+        <li>Orbit with drag, pan with Shift or right-drag, zoom with the wheel, reset with <kbd>R</kbd>.</li>
+        <li>Clip by Z and color by intensity, elevation, RGB, or classification.</li>
+        <li>Export summary JSON, capped XYZ CSV, or the original file.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="point-cloud-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop point cloud files to open</p>
+    <p class="point-cloud-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

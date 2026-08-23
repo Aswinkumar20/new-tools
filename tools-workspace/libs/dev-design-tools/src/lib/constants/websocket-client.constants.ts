@@ -1,6 +1,7 @@
 import type { DdRelatedToolLink } from '../shared/dd-tool-suggestion.model';
 
 export const WEBSOCKET_DEFAULT_URL = 'wss://echo.websocket.events';
+export const WEBSOCKET_SAMPLE_MESSAGE = '{"type":"ping","client":"easytoolhub","ts":1}';
 export const WEBSOCKET_CONNECT_TIMEOUT_MS = 10_000;
 export const WEBSOCKET_MESSAGE_LIMIT = 100;
 export const WEBSOCKET_URL_HISTORY_LIMIT = 10;

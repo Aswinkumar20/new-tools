@@ -1,0 +1,156 @@
+<div class="ctl fq">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="fq-eyebrow">Science tools</span>
+        <h1>FASTQ Viewer <span class="fq-live-badge">Local &amp; private</span></h1>
+        <p>Inspect sequencing reads locally with Phred quality, filters, and per-base plots. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="fq-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="fq-suggest__body">
+        <p class="fq-suggest__title">{{ suggestion.title }}</p>
+        <p class="fq-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="fq-suggest__actions">
+        <button type="button" class="fq-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="fq-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="fq-toolbar">
+      <div class="fq-toolbar__group">
+        <input #fileInput class="fq-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn fq-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="fq-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="fq-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('reads-csv', $event)">Reads CSV</button>
+            <button type="button" (click)="exportAs('filtered-fastq', $event)">Filtered FASTQ</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="fq-files" *ngIf="files.length">
+          <div class="fq-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.fq-files__chip--active]="i === currentIndex">
+            <button type="button" class="fq-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="fq-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="fq-toolbar__status"><span class="fq-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="fq-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="fq-workspace" [class.fq-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="fq-panel">
+        <header class="fq-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ selectedRead?.id || currentFile.name }}</strong>
+            <span>{{ selectedRead ? (selectedRead.length + ' bp · Q ' + (selectedRead.meanQ | number:'1.0-1')) : formatsLabel }}</span>
+          </div>
+          <div class="fq-view-controls">
+            <button type="button" *ngFor="let enc of encodings" [class.is-active]="encoding === enc" (click)="setEncoding(enc)" title="Toggle encoding (E)">{{ enc === 'phred33' ? 'Phred+33' : 'Phred+64' }}</button>
+            <button type="button" (click)="toggleColor()" [class.is-active]="colorize">Color</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="fq-filters" *ngIf="currentFile">
+          <label>Min length <input type="range" min="0" max="100" [ngModel]="minLength" (ngModelChange)="minLength = +$event; onFilterChange()" /></label>
+          <span>{{ minLength }}</span>
+          <label>Min mean Q <input type="range" min="0" max="40" [ngModel]="minMeanQ" (ngModelChange)="minMeanQ = +$event; onFilterChange()" /></label>
+          <span>{{ minMeanQ }}</span>
+        </div>
+
+        <div #mapWrap class="fq-map-wrap" [class.fq-map-wrap--empty]="!currentFile">
+          <div class="fq-read" *ngIf="currentFile && viewMode === 'reads' && selectedRead">
+            <div class="fq-seq-block" *ngFor="let line of wrappedSeq">
+              <div class="fq-line">
+                <span class="fq-pos">{{ line.start }}</span>
+                <span class="fq-bases">
+                  <ng-container *ngIf="colorize; else plainSeq">
+                    <span *ngFor="let ch of line.text.split(''); let i = index; trackBy: trackByPos" [ngStyle]="baseStyle(ch)">{{ ch }}</span>
+                  </ng-container>
+                  <ng-template #plainSeq>{{ line.text }}</ng-template>
+                </span>
+              </div>
+              <div class="fq-qual">
+                <span class="fq-pos"></span>
+                <span class="fq-ticks">
+                  <i *ngFor="let q of selectedRead.scores.slice(line.start - 1, line.start - 1 + line.text.length); trackBy: trackByPos" [style.background]="scoreColor(q)" [title]="'Q ' + q"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+          <canvas #canvasHost class="fq-map" *ngIf="viewMode === 'quality'"></canvas>
+          <div class="fq-empty" *ngIf="!currentFile && !loading">
+            <p>Drop FASTQ files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="fq-loading" *ngIf="loading">Parsing FASTQ…</div>
+        </div>
+
+        <div class="fq-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="fq-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="fq-disclaimer">Education and research preview only — not validated for clinical sequencing or production QC pipelines.</p>
+      </section>
+
+      <aside class="fq-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="fq-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+              <div><dt>Visible</dt><dd>{{ visibleReads.length }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Reads</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="fq-search" type="search" placeholder="Search id / sequence (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <button type="button" class="fq-rec" *ngFor="let read of visibleReads; let i = index; trackBy: trackByRead" [class.is-active]="selectedRead?.index === read.index" (click)="selectRead(i)">
+              <strong>{{ read.id }}</strong>
+              <span>{{ read.length }} bp · Q {{ read.meanQ | number:'1.0-1' }} · GC {{ read.gcPercent | number:'1.0-0' }}%</span>
+            </button>
+            <p class="fq-empty-filter" *ngIf="parsed && !visibleReads.length">No reads match the current filters.</p>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedRead">
+          <header class="ctl__panel-head">Selected read</header>
+          <div class="ctl__panel-body">
+            <dl class="fq-meta">
+              <div *ngFor="let row of readMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="qualityBars.length">
+          <header class="ctl__panel-head">Quality histogram</header>
+          <div class="ctl__panel-body fq-hist">
+            <div class="fq-hist__bar" *ngFor="let bar of qualityBars" [style.height.%]="bar.heightPct" [style.background]="bar.color" [title]="'Q ' + bar.label + ': ' + bar.count"></div>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="fq-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="fq-drop" *ngIf="showDropZone"><p>Drop FASTQ files to preview</p></div>
+  </main>
+</div>

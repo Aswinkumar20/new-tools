@@ -1,0 +1,64 @@
+<div class="select-box" [class.select-box--open]="open" [class.select-box--disabled]="disabled">
+  <button
+    type="button"
+    class="select-box__trigger"
+    aria-haspopup="menu"
+    [attr.aria-label]="ariaLabel"
+    [attr.aria-expanded]="open"
+    [attr.aria-controls]="listboxId"
+    [disabled]="disabled"
+    (click)="toggle($event)"
+    (keydown)="onTriggerKeydown($event)"
+    (blur)="markTouched()">
+    <span class="select-box__value" [class.select-box__value--placeholder]="!selectedOption">
+      {{ selectedOption?.label || placeholder }}
+    </span>
+    <svg
+      class="select-box__chevron"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      aria-hidden="true">
+      <path d="m6 9 6 6 6-6"></path>
+    </svg>
+  </button>
+
+  <div
+    *ngIf="open"
+    class="select-box__panel"
+    [id]="listboxId"
+    role="menu"
+    [attr.aria-label]="ariaLabel">
+    <button
+      type="button"
+      role="menuitemradio"
+      class="select-box__option"
+      *ngFor="let option of options; let i = index; trackBy: trackByValue"
+      [class.select-box__option--active]="i === activeIndex"
+      [class.select-box__option--selected]="selectedOption === option"
+      [attr.aria-checked]="selectedOption === option"
+      [disabled]="option.disabled"
+      (click)="select(option, $event)">
+      <span>
+        <strong>{{ option.label }}</strong>
+        <small *ngIf="option.description">{{ option.description }}</small>
+      </span>
+      <svg
+        *ngIf="selectedOption === option"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        aria-hidden="true">
+        <path d="m5 12 4 4L19 6"></path>
+      </svg>
+    </button>
+
+    <p class="select-box__empty" *ngIf="options.length === 0">{{ emptyText }}</p>
+  </div>
+</div>

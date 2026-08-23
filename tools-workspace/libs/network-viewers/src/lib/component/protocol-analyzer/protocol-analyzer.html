@@ -1,0 +1,187 @@
+<div class="ctl proto">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="proto-eyebrow">Network tools</span>
+        <h1>Protocol Analyzer <span class="proto-live-badge">Local &amp; private</span></h1>
+        <p>Protocol-centric analysis with dissectors, mix, and timeline. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="proto-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="proto-suggest__body">
+        <p class="proto-suggest__title">{{ suggestion.title }}</p>
+        <p class="proto-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="proto-suggest__actions">
+        <button type="button" class="proto-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="proto-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="proto-toolbar">
+      <div class="proto-toolbar__group">
+        <input #fileInput class="proto-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn proto-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="proto-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="proto-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('dissectors-csv', $event)">Dissectors CSV</button>
+            <button type="button" (click)="exportAs('protocols-csv', $event)">Packets CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="proto-files" *ngIf="files.length">
+          <div class="proto-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.proto-files__chip--active]="i === currentIndex">
+            <button type="button" class="proto-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="proto-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="proto-toolbar__status"><span class="proto-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="proto-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="proto-workspace" [class.proto-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="proto-panel">
+        <header class="proto-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ filteredDissectors.length }} dissectors · {{ parsed?.totalPackets }} pkts · {{ formatSize(parsed?.totalBytes || 0) }}</span>
+          </div>
+          <div class="proto-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="proto-filters" *ngIf="currentFile && filteredDissectors.length">
+          <button type="button" [class.is-active]="!selectedProtocol" (click)="selectDissector('')">All</button>
+          <button type="button" *ngFor="let d of filteredDissectors; trackBy: trackByDissector" [class.is-active]="selectedProtocol === d.name" (click)="selectDissector(d.name)">{{ d.name }}</button>
+        </div>
+
+        <div #mapWrap class="proto-map-wrap" [class.proto-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="proto-map" *ngIf="currentFile && (viewMode === 'timeline' || viewMode === 'protocols')"></canvas>
+          <div class="proto-cards" *ngIf="currentFile && viewMode === 'dissectors'">
+            <article class="proto-card" *ngFor="let d of filteredDissectors; trackBy: trackByDissector" [class.is-active]="selectedDissector?.name === d.name" (click)="selectDissector(d.name)">
+              <header>
+                <i class="proto-swatch" [style.background]="protoColor(d.name)"></i>
+                <strong>{{ d.name }}</strong>
+              </header>
+              <p>{{ d.packets }} pkts · {{ formatSize(d.bytes) }} · {{ d.conversations }} conv</p>
+              <p class="proto-card__info" *ngIf="d.sampleInfo.length">{{ d.sampleInfo[0] }}</p>
+            </article>
+            <p class="proto-empty-filter" *ngIf="parsed && !filteredDissectors.length">No dissectors match the current search.</p>
+          </div>
+          <div class="proto-table" *ngIf="currentFile && viewMode === 'table'">
+            <table *ngIf="filteredPackets.length">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Time</th>
+                  <th>Proto</th>
+                  <th>Source</th>
+                  <th>Destination</th>
+                  <th>Len</th>
+                  <th>Info</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let pkt of filteredPackets; trackBy: trackByPacket" [class.is-active]="selectedPacket?.index === pkt.index" (click)="selectPacket(pkt.index)">
+                  <td>{{ pkt.index + 1 }}</td>
+                  <td>{{ pkt.relMs | number:'1.1-3' }}</td>
+                  <td><i class="proto-swatch" [style.background]="protoColor(pkt.protocol)"></i>{{ pkt.protocol }}</td>
+                  <td>{{ pkt.srcPort != null ? pkt.srcIp + ':' + pkt.srcPort : (pkt.srcIp || '—') }}</td>
+                  <td>{{ pkt.dstPort != null ? pkt.dstIp + ':' + pkt.dstPort : (pkt.dstIp || '—') }}</td>
+                  <td>{{ pkt.inclLen }}</td>
+                  <td>{{ pkt.info }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table *ngIf="!filteredPackets.length">
+              <thead>
+                <tr>
+                  <th>Protocol</th>
+                  <th>Packets</th>
+                  <th>Bytes</th>
+                  <th>Conversations</th>
+                  <th>Ports</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let d of filteredDissectors; trackBy: trackByDissector" [class.is-active]="selectedDissector?.name === d.name" (click)="selectDissector(d.name)">
+                  <td>{{ d.name }}</td>
+                  <td>{{ d.packets }}</td>
+                  <td>{{ formatSize(d.bytes) }}</td>
+                  <td>{{ d.conversations }}</td>
+                  <td>{{ d.ports.join(', ') || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="proto-empty" *ngIf="!currentFile && !loading">
+            <p>Drop captures or protocol dumps here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="proto-loading" *ngIf="loading">Analyzing protocols…</div>
+        </div>
+
+        <div class="proto-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="proto-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="proto-disclaimer">Education and research preview only — not a substitute for production protocol analyzers.</p>
+      </section>
+
+      <aside class="proto-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="proto-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search protocols</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="proto-search" type="search" placeholder="http dns tcp port (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredDissectors.length">
+          <header class="ctl__panel-head">Dissectors</header>
+          <div class="ctl__panel-body proto-units">
+            <button type="button" *ngFor="let d of filteredDissectors; trackBy: trackByDissector" [class.is-active]="selectedProtocol === d.name" (click)="selectDissector(d.name)">
+              <i class="proto-swatch" [style.background]="protoColor(d.name)"></i>
+              <span>{{ d.name }} <small>{{ d.packets }} pkts · {{ formatSize(d.bytes) }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedDissector">
+          <header class="ctl__panel-head">Selected protocol</header>
+          <div class="ctl__panel-body">
+            <dl class="proto-meta">
+              <div *ngFor="let row of dissectorMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="proto-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="proto-drop" *ngIf="showDropZone"><p>Drop protocol traces to analyze</p></div>
+  </main>
+</div>

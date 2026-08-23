@@ -1,232 +1,301 @@
-<div class="main-container">
+<div class="td">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Diff viewer</p>
-          <h1>Compare original and modified content visually</h1>
-          <p class="strapline">
-            Drop two versions of any document, switch languages or themes, and inspect highlighted differences in real time.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Monaco editor</span>
-          <span class="meta-pill">Realtime updates</span>
-          <span class="meta-pill">Multi-language</span>
-        </div>
+  <main class="td__main">
+    <div class="td__top">
+      <header class="td__header">
+        <h1>Text Difference Viewer</h1>
+        <p>Compare original and modified content side by side with syntax-aware highlighting.</p>
       </header>
 
-      <div class="editor-toolbar diff-toolbar" aria-label="Diff viewer controls">
-        <div class="toolbar-stats" aria-label="Diff statistics">
-          <div class="stat-chip">
-            <span class="stat-label">Original</span>
-            <span class="stat-value">{{ originalModel.code.length || 0 }} chars</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Modified</span>
-            <span class="stat-value">{{ modifiedModel.code.length || 0 }} chars</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Original lines</span>
-            <span class="stat-value">{{ getDiffStats().originalLines }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Modified lines</span>
-            <span class="stat-value">{{ getDiffStats().modifiedLines }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Theme</span>
-            <span class="stat-value">{{ editorOptions.theme }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Language</span>
-            <span class="stat-value">{{ editorOptions.language === 'plaintext' ? 'Plain Text' : editorOptions.language }}</span>
-          </div>
+      <div class="td__stats" aria-label="Diff statistics">
+        <div class="td__stat">
+          <span class="td__stat-value">{{ diffStats.originalChars }}</span>
+          <span class="td__stat-label">Original</span>
+        </div>
+        <div class="td__stat">
+          <span class="td__stat-value">{{ diffStats.modifiedChars }}</span>
+          <span class="td__stat-label">Modified</span>
+        </div>
+        <div class="td__stat">
+          <span class="td__stat-value">{{ diffStats.changes }}</span>
+          <span class="td__stat-label">Changes</span>
+        </div>
+        <div class="td__stat td__stat--mode">
+          <span class="td__stat-value" [title]="viewModeLabel">{{ viewModeLabel }}</span>
+          <span class="td__stat-label">View</span>
         </div>
       </div>
+    </div>
 
-      <div class="editor-shell diff-shell">
-        <section class="panel panel-editor">
-          <header class="panel-header">
-            <div>
-              <h2>Side-by-side diff</h2>
-              <p>Paste original content on the left and the updated version on the right. Differences highlight automatically.</p>
-            </div>
-            <div class="panel-actions editor-controls">
-              <div class="editor-dropdowns">
-                <label class="select-field" for="theme-select">
-                  <span>Theme</span>
-                  <div class="select-wrapper">
-                    <select id="theme-select"
-                            [ngModel]="editorOptions.theme"
-                            (ngModelChange)="onThemeChange($event)">
-                      <option *ngFor="let theme of themes" [value]="theme">{{ theme }}</option>
-                    </select>
-                  </div>
-                </label>
-                <label class="select-field" for="language-select">
-                  <span>Language</span>
-                  <div class="select-wrapper">
-                    <select id="language-select"
-                            [ngModel]="editorOptions.language === 'plaintext' ? 'text/plain' : editorOptions.language"
-                            (ngModelChange)="onLanguageChange($event)">
-                      <option *ngFor="let language of languages" [value]="language === 'plaintext' ? 'text/plain' : language">
-                        {{ language === 'plaintext' ? 'Plain Text' : language }}
-                      </option>
-                    </select>
-                  </div>
-                </label>
-              </div>
-              <div class="editor-actions">
-                <button type="button" 
-                        class="clear-btn-sm" 
-                        (click)="clearOriginal()"
-                        [disabled]="!originalModel.code || originalModel.code.length === 0"
-                        aria-label="Clear original content">
-                  Clear Original
-                </button>
-                <button type="button" 
-                        class="clear-btn-sm" 
-                        (click)="clearModified()"
-                        [disabled]="!modifiedModel.code || modifiedModel.code.length === 0"
-                        aria-label="Clear modified content">
-                  Clear Modified
-                </button>
-                <button type="button" 
-                        class="clear-btn-sm" 
-                        (click)="clearAll()"
-                        [disabled]="(!originalModel.code || originalModel.code.length === 0) && (!modifiedModel.code || modifiedModel.code.length === 0)"
-                        aria-label="Clear all content">
-                  Clear All
-                </button>
-              </div>
-            </div>
-          </header>
-          <div class="diff-labels" aria-hidden="true">
-            <span>Original</span>
-            <span>Modified</span>
-          </div>
-          <div class="diff-editor-container" #editorContainer>
-            <ngx-monaco-diff-editor
-              class="diff-editor"
-              [options]="editorOptions"
-              [originalModel]="originalModel"
-              [modifiedModel]="modifiedModel"
-              (onInit)="onEditorInit($event)">
-            </ngx-monaco-diff-editor>
-          </div>
-        </section>
+    <div class="td__workflow" aria-label="Diff viewer controls">
+      @if (!isMobileView) {
+        <button
+          type="button"
+          class="td__chip-btn"
+          [class.td__chip-btn--active]="showSideBySide"
+          (click)="setViewMode(true)">
+          Split view
+        </button>
+        <button
+          type="button"
+          class="td__chip-btn"
+          [class.td__chip-btn--active]="!showSideBySide"
+          (click)="setViewMode(false)">
+          Unified view
+        </button>
+      }
+      <button
+        type="button"
+        class="td__chip-btn"
+        [class.td__chip-btn--active]="showSidebar"
+        (click)="toggleSidebar()"
+        aria-label="Toggle properties panel"
+        appTooltip="Show or hide properties panel"
+        tooltipPosition="bottom">
+        Properties
+      </button>
+    </div>
 
-        <footer class="editor-footer diff-footer">
-          <div class="editor-metric">
-            <span class="metric-label">Font size</span>
-            <span class="metric-value">{{ editorOptions.fontSize }} px</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Original editable</span>
-            <span class="metric-value">{{ editorOptions.originalEditable ? 'Yes' : 'No' }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Language</span>
-            <span class="metric-value">{{ originalModel.language === 'plaintext' ? 'Plain Text' : originalModel.language }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Word wrap</span>
-            <span class="metric-value">{{ editorOptions.wordWrap === 'on' ? 'On' : 'Off' }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Minimap</span>
-            <span class="metric-value">{{ editorOptions.minimap && editorOptions.minimap.enabled ? 'On' : 'Off' }}</span>
-          </div>
-        </footer>
-      </div>
-    </section>
+    @if (primarySuggestion; as suggestion) {
+      <aside class="td__suggest" aria-label="Suggested next step">
+        <div class="td__suggest-body">
+          <p class="td__suggest-title">{{ suggestion.title }}</p>
+          <p class="td__suggest-reason">{{ suggestion.reason }}</p>
+        </div>
+        <div class="td__suggest-actions">
+          <a class="td__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+          <button
+            type="button"
+            class="td__suggest-dismiss"
+            (click)="dismissSuggestion(suggestion.id)"
+            aria-label="Dismiss suggestion">
+            Dismiss
+          </button>
+        </div>
+      </aside>
+    }
 
-    <aside class="workspace-secondary">
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How to use</h2>
-          <p>Align your review workflow with rapid, readable diffs for docs, code, or configuration.</p>
+    <div class="td__workspace" [class.td__workspace--sidebar-hidden]="!showSidebar">
+      <section class="td__editor-panel" aria-label="Side-by-side diff">
+        <header class="td__editor-head" aria-label="Diff editor actions">
+          <span class="td__editor-title">Diff editor</span>
+          <div class="td__toolbar">
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="uploadOriginal()"
+              aria-label="Upload original"
+              appTooltip="Upload original file"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="td__tool-btn-label">Orig</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="uploadModified()"
+              aria-label="Upload modified"
+              appTooltip="Upload modified file"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="td__tool-btn-label">Mod</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="copyOriginal()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Copy original"
+              appTooltip="Copy original"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Copy O</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="copyModified()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Copy modified"
+              appTooltip="Copy modified"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Copy M</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="swapSides()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Swap sides"
+              appTooltip="Swap original and modified"
+              tooltipPosition="bottom">
+              <span class="td__tool-btn-label">⇄ Swap</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="downloadOriginal()"
+              [disabled]="!diffStats.originalChars"
+              aria-label="Download original"
+              appTooltip="Download original TXT"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">O TXT</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="downloadModified()"
+              [disabled]="!diffStats.modifiedChars"
+              aria-label="Download modified"
+              appTooltip="Download modified TXT"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">M TXT</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn"
+              (click)="clearAll()"
+              [disabled]="!diffStats.hasContent"
+              aria-label="Clear all"
+              appTooltip="Clear all"
+              tooltipPosition="bottom">
+              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+              <span class="td__tool-btn-label">Clear</span>
+            </button>
+            <button
+              type="button"
+              class="td__tool-btn td__tool-btn--panel"
+              [class.td__tool-btn--active]="showSidebar"
+              (click)="toggleSidebar()"
+              aria-label="Toggle properties panel"
+              appTooltip="Toggle properties panel"
+              tooltipPosition="bottom">
+              <span class="td__tool-btn-label">Props</span>
+            </button>
+          </div>
         </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Paste or type directly in the panels to update the diff in real time.</li>
-            <li>Switch languages to enable syntax-aware highlighting for more clarity.</li>
-            <li>Toggle themes to match your editor preferences when sharing screenshots.</li>
-          </ul>
+
+        <div class="td__diff-labels" aria-hidden="true">
+          <span>Original</span>
+          <span>Modified</span>
+        </div>
+
+        <div class="td__diff-container" #editorContainer>
+          <ngx-monaco-diff-editor
+            class="td__diff-editor"
+            [options]="editorOptions"
+            [originalModel]="originalModel"
+            [modifiedModel]="modifiedModel"
+            (onInit)="onEditorInit($event)">
+          </ngx-monaco-diff-editor>
         </div>
       </section>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Keyboard shortcuts</h2>
-          <p>Monaco brings familiar editor productivity to the diff surface.</p>
-        </header>
-        <div class="insight-body shortcut-list">
-          <div>
-            <span class="shortcut">⌘ / Ctrl + S</span>
-            <p>Trigger browser save dialog with the current content snapshot.</p>
-          </div>
-          <div>
-            <span class="shortcut">⌘ / Ctrl + F</span>
-            <p>Open in-editor search inside each pane to jump to changes.</p>
-          </div>
-          <div>
-            <span class="shortcut">Alt + F12</span>
-            <p>Peek definitions when using code languages such as TS or JS.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our visual diff viewer.</p>
-        </header>
-
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              The Text Difference Viewer is a powerful side-by-side comparison tool powered by Monaco Editor. 
-              It highlights differences between two versions of text, code, or documents in real-time, making 
-              it easy to spot changes, review edits, and understand modifications.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Monaco editor</strong>
-                <p>Powered by the same editor that drives VS Code for familiar, powerful editing.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Syntax highlighting</strong>
-                <p>Support for multiple languages with syntax-aware color coding.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Theme support</strong>
-                <p>Switch between light and dark themes to match your preferences.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Real-time updates</strong>
-                <p>Differences highlight instantly as you type or paste content in either panel.</p>
-              </div>
-            </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>Code review and comparison</li>
-                <li>Document version control</li>
-                <li>Configuration file diffing</li>
-                <li>Content editing workflows</li>
-                <li>Merge conflict resolution</li>
-                <li>Change documentation</li>
-              </ul>
+      @if (showSidebar) {
+        <aside class="td__sidebar" aria-label="Editor settings">
+          <div class="td__panel">
+            <header class="td__panel-head">
+              <span>Editor settings</span>
+              <button
+                type="button"
+                class="td__panel-close"
+                (click)="toggleSidebar()"
+                aria-label="Hide properties panel"
+                appTooltip="Hide panel"
+                tooltipPosition="bottom">
+                ✕
+              </button>
+            </header>
+            <div class="td__settings">
+              <label class="td__field" for="theme-select">
+                <span>Theme</span>
+                <select
+                  id="theme-select"
+                  [ngModel]="editorOptions.theme"
+                  (ngModelChange)="onThemeChange($event)">
+                  @for (theme of themes; track theme) {
+                    <option [value]="theme">{{ theme }}</option>
+                  }
+                </select>
+              </label>
+              <label class="td__field" for="language-select">
+                <span>Language</span>
+                <select
+                  id="language-select"
+                  [ngModel]="editorOptions.language === 'plaintext' ? 'text/plain' : editorOptions.language"
+                  (ngModelChange)="onLanguageChange($event)">
+                  @for (language of languages; track language) {
+                    <option [value]="language === 'plaintext' ? 'text/plain' : language">
+                      {{ language === 'plaintext' ? 'Plain Text' : language }}
+                    </option>
+                  }
+                </select>
+              </label>
+              <label class="td__field" for="font-size">
+                <span>Font size</span>
+                <input
+                  id="font-size"
+                  type="number"
+                  min="8"
+                  max="32"
+                  [ngModel]="editorOptions.fontSize"
+                  (ngModelChange)="onFontSizeChange(+$event)" />
+              </label>
+              <label class="td__toggle">
+                <input
+                  type="checkbox"
+                  [(ngModel)]="ignoreTrimWhitespace"
+                  (ngModelChange)="onIgnoreWhitespaceChange()" />
+                <span>Ignore trim whitespace</span>
+              </label>
             </div>
           </div>
-        </div>
-      </section>
-    </aside>
-  </div>
+
+          <div class="td__info">
+            <div class="td__info-item">
+              <span class="td__info-dot td__info-dot--accent"></span>
+              <p>Type or paste in either pane — diffs update in real time.</p>
+            </div>
+            <div class="td__info-item">
+              <span class="td__info-dot"></span>
+              <p>Hide <strong>Properties</strong> for a wider editor view.</p>
+            </div>
+            <div class="td__info-item">
+              <span class="td__info-dot"></span>
+              <p><kbd>Ctrl+F</kbd> opens in-editor search within each pane.</p>
+            </div>
+          </div>
+
+          <div class="td__related-panel">
+            <header class="td__panel-head">Related tools</header>
+            <ul class="td__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="td__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        </aside>
+      }
+    </div>
+
+    <details class="td__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste original content on the left and modified on the right in the diff editor.</li>
+        <li>Use <strong>Orig</strong> / <strong>Mod</strong> upload to load files into each side.</li>
+        <li>Toggle <strong>Properties</strong> to hide the settings panel for more editor space.</li>
+        <li>Switch <strong>Split</strong> or <strong>Unified</strong> view on desktop.</li>
+        <li>Use <strong>⇄ Swap</strong> to exchange original and modified content.</li>
+      </ul>
+    </details>
+  </main>
 </div>

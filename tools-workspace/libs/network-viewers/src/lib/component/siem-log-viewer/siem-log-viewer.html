@@ -1,0 +1,211 @@
+<div class="ctl siem">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="siem-eyebrow">Network tools</span>
+        <h1>SIEM Log Viewer <span class="siem-live-badge">Local &amp; private</span></h1>
+        <p>Browse security events locally with severity, MITRE mapping, and rule/source correlation. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="siem-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="siem-suggest__body">
+        <p class="siem-suggest__title">{{ suggestion.title }}</p>
+        <p class="siem-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="siem-suggest__actions">
+        <button type="button" class="siem-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="siem-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="siem-toolbar">
+      <div class="siem-toolbar__group">
+        <input #fileInput class="siem-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn siem-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="siem-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="siem-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('events-csv', $event)">Events CSV</button>
+            <button type="button" (click)="exportAs('correlations-csv', $event)">Correlations CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="siem-files" *ngIf="files.length">
+          <div class="siem-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.siem-files__chip--active]="i === currentIndex">
+            <button type="button" class="siem-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="siem-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="siem-toolbar__status"><span class="siem-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="siem-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="siem-workspace" [class.siem-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="siem-panel">
+        <header class="siem-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ filteredEvents.length }} events · {{ filteredCorrelations.length }} clusters · {{ parsed?.sourceKind }}</span>
+          </div>
+          <div class="siem-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="siem-map-wrap" [class.siem-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="siem-map" [class.siem-map--tall]="viewMode === 'correlate'" *ngIf="currentFile && (viewMode === 'correlate' || viewMode === 'severity')"></canvas>
+          <div class="siem-cards" *ngIf="currentFile && viewMode === 'events'">
+            <article *ngFor="let event of filteredEvents; trackBy: trackByEvent" [class.is-active]="selectedEvent?.id === event.id" (click)="selectEvent(event.id)">
+              <header>
+                <i class="siem-swatch" [style.background]="severityTint(event.severity)"></i>
+                <strong>{{ event.severity }}</strong>
+                <span>{{ event.rule }}</span>
+              </header>
+              <p>{{ event.host || '—' }} · {{ event.src || '—' }} → {{ event.dst || '—' }}</p>
+              <p>{{ event.technique || event.tactic || '—' }} · ×{{ event.count }}</p>
+            </article>
+          </div>
+          <div class="siem-cards" *ngIf="currentFile && viewMode === 'correlate'">
+            <article *ngFor="let corr of filteredCorrelations; trackBy: trackByCorr" [class.is-active]="selectedCorrelation?.id === corr.id" (click)="selectCorrelation(corr.id)">
+              <header>
+                <i class="siem-swatch" [style.background]="severityTint(corr.severity)"></i>
+                <strong>{{ corr.severity }}</strong>
+                <span>{{ corr.events }} events</span>
+              </header>
+              <p>{{ corr.label }}</p>
+              <p>{{ corr.hosts.join(', ') || '—' }}</p>
+            </article>
+          </div>
+          <div class="siem-cards" *ngIf="currentFile && viewMode === 'severity'">
+            <article *ngFor="let sev of parsed?.severities" [class.is-active]="query.toLowerCase() === sev.name" (click)="query = sev.name; onFilterChange()">
+              <header>
+                <i class="siem-swatch" [style.background]="severityTint(sev.name)"></i>
+                <strong>{{ sev.name }}</strong>
+                <span>{{ sev.count }} events</span>
+              </header>
+            </article>
+          </div>
+          <div class="siem-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Sev</th>
+                  <th>Rule</th>
+                  <th>Host</th>
+                  <th>Src</th>
+                  <th>Technique</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let event of filteredEvents; trackBy: trackByEvent" [class.is-active]="selectedEvent?.id === event.id" (click)="selectEvent(event.id)">
+                  <td>{{ event.index + 1 }}</td>
+                  <td>{{ event.time }}</td>
+                  <td><i class="siem-swatch" [style.background]="severityTint(event.severity)"></i>{{ event.severity }}</td>
+                  <td>{{ event.rule }}</td>
+                  <td>{{ event.host || '—' }}</td>
+                  <td>{{ event.src || '—' }}</td>
+                  <td>{{ event.technique || '—' }}</td>
+                  <td>{{ event.count }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="siem-empty-filter" *ngIf="parsed && !filteredEvents.length">No events match the current filter.</p>
+          </div>
+          <div class="siem-empty" *ngIf="!currentFile && !loading">
+            <p>Drop SIEM exports here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="siem-loading" *ngIf="loading">Parsing SIEM export…</div>
+        </div>
+
+        <div class="siem-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="siem-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="siem-disclaimer">Education and research preview only — not a substitute for Splunk, Elastic SIEM, Sentinel, or production SOC tooling.</p>
+      </section>
+
+      <aside class="siem-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="siem-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search events</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="siem-search" type="search" placeholder="critical T1110 host:gw-01 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'correlate' && filteredCorrelations.length">
+          <header class="ctl__panel-head">Clusters</header>
+          <div class="ctl__panel-body siem-units">
+            <button type="button" *ngFor="let corr of filteredCorrelations; trackBy: trackByCorr" [class.is-active]="selectedCorrId === corr.id" (click)="selectCorrelation(corr.id)">
+              <i class="siem-swatch" [style.background]="severityTint(corr.severity)"></i>
+              <span>{{ corr.label }} <small>{{ corr.events }} · {{ corr.severity }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'correlate' && filteredEvents.length">
+          <header class="ctl__panel-head">Events</header>
+          <div class="ctl__panel-body siem-units">
+            <button type="button" *ngFor="let event of filteredEvents; trackBy: trackByEvent" [class.is-active]="selectedId === event.id" (click)="selectEvent(event.id)">
+              <i class="siem-swatch" [style.background]="severityTint(event.severity)"></i>
+              <span>{{ event.rule }} <small>{{ event.severity }} · {{ event.host || event.src || '—' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'correlate' && selectedCorrelation">
+          <header class="ctl__panel-head">Selected cluster</header>
+          <div class="ctl__panel-body">
+            <dl class="siem-meta">
+              <div *ngFor="let row of correlationMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'correlate' && selectedEvent">
+          <header class="ctl__panel-head">Selected event</header>
+          <div class="ctl__panel-body">
+            <dl class="siem-meta">
+              <div *ngFor="let row of eventMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'correlate' && relatedCorrelationEvents.length">
+          <header class="ctl__panel-head">Cluster events</header>
+          <div class="ctl__panel-body siem-units">
+            <button type="button" *ngFor="let event of relatedCorrelationEvents; trackBy: trackByEvent" [class.is-active]="selectedId === event.id" (click)="selectEvent(event.id)">
+              <i class="siem-swatch" [style.background]="severityTint(event.severity)"></i>
+              <span>{{ event.message || event.rule }} <small>{{ event.time }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="siem-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="siem-drop" *ngIf="showDropZone"><p>Drop SIEM exports to inspect</p></div>
+  </main>
+</div>

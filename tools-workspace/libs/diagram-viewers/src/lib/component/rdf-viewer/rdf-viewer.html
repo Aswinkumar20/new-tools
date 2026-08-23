@@ -1,0 +1,247 @@
+<div class="ctl rdf dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="rdf-eyebrow">Diagram viewers</span>
+        <h1>RDF Viewer <span class="rdf-live-badge">Local &amp; private</span></h1>
+        <p>Preview RDF triples and graphs locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="RDF Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="rdf-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="rdf-suggest__body">
+        <p class="rdf-suggest__title">{{ suggestion.title }}</p>
+        <p class="rdf-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="rdf-suggest__actions">
+        <button type="button" class="rdf-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="rdf-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="rdf-toolbar" role="toolbar" aria-label="RDF Viewer actions">
+      <div class="rdf-toolbar__group">
+        <input #fileInput class="rdf-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn rdf-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="rdf-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="rdf-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('triples-csv', $event)">Triples CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('nodes-csv', $event)">Nodes CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="rdf-files" *ngIf="files.length">
+          <div class="rdf-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.rdf-files__chip--active]="i === currentIndex">
+            <button type="button" class="rdf-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="rdf-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="rdf-tab-bar" *ngIf="currentFile" role="tablist" aria-label="RDF Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="rdf-toolbar__status"><span class="rdf-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="rdf-workspace" [class.rdf-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="rdf-panel">
+        <header class="rdf-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.prefixes?.length || 0 }} prefixes · {{ parsed?.nodes?.length || 0 }} nodes · {{ parsed?.triples?.length || 0 }} triples</span>
+          </div>
+          <div class="rdf-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="rdf-map-wrap">
+          <canvas #canvasHost class="rdf-map" [class.rdf-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="rdf-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'graph')">
+            <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
+              <header>
+                <i class="rdf-swatch" [style.background]="tint(node.kind, node.index)"></i>
+                <strong>{{ node.name }}</strong>
+                <span>{{ node.kind }}</span>
+              </header>
+              <p>{{ node.prefix || node.iri }}</p>
+            </article>
+            <p class="rdf-empty-filter" *ngIf="parsed && !filteredNodes.length">No graph nodes match the current filter.</p>
+          </div>
+          <div class="rdf-cards" *ngIf="currentFile && viewMode === 'triples'">
+            <article *ngFor="let triple of filteredTriples; trackBy: trackByTriple" [class.is-active]="selectedTriple?.id === triple.id" (click)="selectTriple(triple.id)">
+              <header>
+                <i class="rdf-swatch" [style.background]="tint(triple.literal ? 'blank' : 'iri', triple.index)"></i>
+                <strong>{{ triple.predicateName }}</strong>
+                <span>{{ triple.literal ? 'literal' : 'iri' }}</span>
+              </header>
+              <p>{{ triple.subjectName }} → {{ triple.objectName }}</p>
+            </article>
+            <p class="rdf-empty-filter" *ngIf="parsed && !filteredTriples.length">No triples match the current filter.</p>
+          </div>
+          <div class="rdf-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Subject</th>
+                  <th>Predicate</th>
+                  <th>Object</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let triple of filteredTriples; trackBy: trackByTriple" [class.is-active]="selectedTriple?.id === triple.id" (click)="selectTriple(triple.id)">
+                  <td>{{ triple.index + 1 }}</td>
+                  <td>{{ triple.subjectName }}</td>
+                  <td>{{ triple.predicateName }}</td>
+                  <td>{{ triple.objectName }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="rdf-empty-filter" *ngIf="parsed && !filteredTriples.length">No triples match the current filter.</p>
+          </div>
+          <div class="rdf-empty" *ngIf="!currentFile && !loading">
+            <p>Drop RDF / Turtle here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="rdf-loading" *ngIf="loading">Parsing RDF…</div>
+        </div>
+
+        <div class="rdf-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="rdf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="rdf-disclaimer">Education and research preview only — not a substitute for Protégé, Jena, or RDF stores.</p>
+      </section>
+
+      <aside class="rdf-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="rdf-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search graph</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="rdf-search" type="search" placeholder="sub:Web pred:type obj:Service (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'triples' || viewMode === 'table') && filteredTriples.length" open>
+          <summary class="ctl__panel-head">Triples</summary>
+          <div class="ctl__panel-body rdf-units">
+            <button type="button" *ngFor="let triple of filteredTriples; trackBy: trackByTriple" [class.is-active]="selectedTripleId === triple.id" (click)="selectTriple(triple.id)">
+              <i class="rdf-swatch" [style.background]="tint('iri', triple.index)"></i>
+              <span>{{ triple.subjectName }} {{ triple.predicateName }} {{ triple.objectName }}</span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'triples' && viewMode !== 'table' && filteredNodes.length" open>
+          <summary class="ctl__panel-head">Graph nodes</summary>
+          <div class="ctl__panel-body rdf-units">
+            <button type="button" *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
+              <i class="rdf-swatch" [style.background]="tint(node.kind, node.index)"></i>
+              <span>{{ node.name }} <small>{{ node.kind }}{{ node.prefix ? ' · ' + node.prefix : '' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'triples' || viewMode === 'table') && selectedTriple" open>
+          <summary class="ctl__panel-head">Selected triple</summary>
+          <div class="ctl__panel-body">
+            <dl class="rdf-meta">
+              <div *ngFor="let row of tripleMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'triples' && viewMode !== 'table' && selectedNode" open>
+          <summary class="ctl__panel-head">Selected node</summary>
+          <div class="ctl__panel-body">
+            <dl class="rdf-meta">
+              <div *ngFor="let row of nodeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="rdf-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use RDF Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="rdf-drop" *ngIf="showDropZone"><p>Drop RDF / Turtle to preview</p></div>
+  </main>
+</div>

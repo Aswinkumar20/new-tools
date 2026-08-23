@@ -1,18 +1,11 @@
 import type { FvToolSuggestion } from '../shared/fv-tool-suggestion.model';
 import {
-  LOG_CHARTJS_CDN,
   LOG_LEVEL_COLORS,
   LOG_LEVEL_ICONS,
   LOG_MESSAGE_PREVIEW_MAX_CHARS
 } from '../constants/log-viewer.constants';
 import type { ChartJsConstructor, LogLevel, LogStats } from '../types/log-viewer.types';
 import { LogLevel as LogLevelEnum } from '../types/log-viewer.types';
-
-declare global {
-  interface Window {
-    Chart?: ChartJsConstructor;
-  }
-}
 
 export function isValidLogFile(file: Pick<File, 'name' | 'type'>): boolean {
   const lowerName = file.name.toLowerCase();
@@ -102,32 +95,14 @@ export function buildLogLevelChartConfig(stats: LogStats): unknown {
   };
 }
 
-export async function loadChartJsLibrary(
-  cdnUrl: string = LOG_CHARTJS_CDN
-): Promise<ChartJsConstructor> {
+export async function loadChartJsLibrary(): Promise<ChartJsConstructor> {
   if (typeof window === 'undefined') {
     throw new TypeError('Chart.js can only be loaded in browser environment');
   }
 
-  if (window.Chart) {
-    return window.Chart;
-  }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const lib = window.Chart;
-      if (!lib) {
-        reject(new Error('Failed to load Chart.js library'));
-        return;
-      }
-      resolve(lib);
-    };
-    script.onerror = () => reject(new Error('Failed to load Chart.js library'));
-  });
+  const chartMod = await import('chart.js');
+  chartMod.Chart.register(...chartMod.registerables);
+  return chartMod.Chart as unknown as ChartJsConstructor;
 }
 
 export function resolveLogSuggestion(options: {

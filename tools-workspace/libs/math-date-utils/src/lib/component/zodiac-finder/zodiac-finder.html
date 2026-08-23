@@ -1,214 +1,275 @@
-<div class="zf">
-  <div class="zf__nav">
-    <lib-navigation></lib-navigation>
-  </div>
-
-  <section class="zf__hero">
-    <div class="zf__badge">Astro insights</div>
-    <h1>Discover Your Zodiac Story</h1>
-    <p>
-      Decode your sun sign, Chinese zodiac, numerology, and energetic allies instantly. Functional yet inspiring,
-      designed for every screen and every level of stargazer.
-    </p>
-
-    @if (result()) {
-      @let current = result()!;
-      <div class="zf__hero-meta">
-        <div>
-          <span class="zf__meta-label">Sun sign</span>
-          <strong>{{ current.sunSign.symbol }} {{ current.sunSign.name }}</strong>
+<div class="ctl md">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Zodiac Finder</h1>
+        <p>Discover sun sign, Chinese zodiac, numerology, and energetic insights.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Zodiac statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result()?.sunSign?.name ?? '—' }}</span>
+          <span class="ctl__stat-label">Sun</span>
         </div>
-        <div>
-          <span class="zf__meta-label">Chinese zodiac</span>
-          <strong>{{ current.chineseAnimal.animal }}</strong>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result()?.chineseAnimal?.animal ?? '—' }}</span>
+          <span class="ctl__stat-label">Chinese</span>
         </div>
-        <div>
-          <span class="zf__meta-label">Life path</span>
-          <strong>{{ current.lifePathNumber }}</strong>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result()?.lifePathNumber ?? '—' }}</span>
+          <span class="ctl__stat-label">Life path</span>
         </div>
-        <div>
-          <span class="zf__meta-label">Season & Moon</span>
-          <strong>{{ current.season }} · {{ current.lunarPhase }}</strong>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
         </div>
       </div>
-    } @else {
-      <div class="zf__hero-meta zf__hero-meta--placeholder">
-        Enter your birth details to reveal multi-layered zodiac insights.
-      </div>
-    }
-  </section>
-
-  <section class="zf__quick" [formGroup]="form">
-    @let summary = result();
-    <div class="zf__quick-actions">
-      <button type="button" class="btn btn--primary" (click)="preset('today')">Today</button>
-      <button type="button" class="btn btn--ghost" (click)="preset('yesterday')">Yesterday</button>
-      <button type="button" class="btn btn--ghost" (click)="preset('newYear')">New year</button>
-      <button type="button" class="btn btn--ghost" (click)="randomize()">Surprise me</button>
     </div>
 
-    <div class="zf__quick-summary">
-      <div>
-        <span>Sun sign</span>
-        <strong>{{ summary ? summary.sunSign.name : '—' }}</strong>
-      </div>
-      <div>
-        <span>Chinese zodiac</span>
-        <strong>{{ summary ? summary.chineseAnimal.animal : '—' }}</strong>
-      </div>
-      <div>
-        <span>Life path</span>
-        <strong>{{ summary ? summary.lifePathNumber : '—' }}</strong>
-      </div>
-      <div>
-        <span>Lucky colors</span>
-        <strong>{{ summary ? summary.luckyColors.join(', ') : '—' }}</strong>
+    <div class="md-workflow" aria-label="Zodiac actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="preset('today')"
+          appTooltip="Today"
+          tooltipPosition="bottom"
+          aria-label="Today">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Today</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="randomize()"
+          appTooltip="Surprise me"
+          tooltipPosition="bottom"
+          aria-label="Surprise me">
+          <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Random</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyResult()"
+          [disabled]="!result()"
+          appTooltip="Copy result"
+          tooltipPosition="bottom"
+          aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
       </div>
     </div>
-  </section>
 
-  <div class="zf__layout" [formGroup]="form">
-    <section class="zf__card zf__card--inputs">
-      <header class="zf__card-header">
-        <div>
-          <h2>Birth details</h2>
-          <p>Adjust your birth date, optional time, and preferred time zone.</p>
-        </div>
-      </header>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
+          <header class="ctl__editor-head"><span>Birth details</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <label class="ctl__field" for="zf-date">
+              <span>Birth date</span>
+              <input id="zf-date" type="date" formControlName="birthDate" />
+            </label>
+            <label class="ctl__field" for="zf-time">
+              <span>Birth time (optional)</span>
+              <input id="zf-time" type="time" formControlName="birthTime" />
+            </label>
+            <label class="ctl__field" for="zf-timezone">
+              <span>Time zone</span>
+              <select id="zf-timezone" formControlName="timezone">
+                @for (zone of timezones; track zone) {
+                  <option [value]="zone">{{ zone }}</option>
+                }
+              </select>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeHistory" />
+              <div>
+                <strong>Remember lookups</strong>
+                <span>Store in history.</span>
+              </div>
+            </label>
+            <div class="zf__quick">
+              <button type="button" class="zf__quick-btn" (click)="preset('yesterday')">Yesterday</button>
+              <button type="button" class="zf__quick-btn" (click)="preset('newYear')">New year</button>
+            </div>
+          </div>
+        </section>
 
-      <form class="zf__form" novalidate>
-        <div class="zf__form-grid">
-          <label class="zf__input" for="zf-date">
-            <span>Birth date</span>
-            <input id="zf-date" type="date" formControlName="birthDate" />
-          </label>
-
-          <label class="zf__input" for="zf-time">
-            <span>Birth time (optional)</span>
-            <input id="zf-time" type="time" formControlName="birthTime" />
-          </label>
-
-          <label class="zf__input" for="zf-tz">
-            <span>Time zone</span>
-            <select id="zf-tz" formControlName="timezone">
-              @for (zone of timezones; track zone) {
-                <option [value]="zone">{{ zone }}</option>
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Cosmic snapshot</span>
+            <div class="ctl__editor-actions">
+              @if (result()) {
+                <span class="ctl__editor-badge">Ready</span>
               }
-            </select>
-          </label>
-        </div>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyResult()"
+                [disabled]="!result()"
+                appTooltip="Copy snapshot"
+                tooltipPosition="bottom"
+                aria-label="Copy snapshot">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
 
-        <label class="zf__toggle">
-          <input type="checkbox" formControlName="includeHistory" />
-          <span>Remember recent lookups</span>
-        </label>
-      </form>
-    </section>
-
-    <section class="zf__card zf__card--result">
-      <header class="zf__card-header">
-        <div>
-          <h2>Cosmic snapshot</h2>
-          <p>Signature energies and practical takeaways.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-
-        <div class="zf__result-cards">
-          @for (card of summaryCards(); track card.title) {
-            <article>
-              <span>{{ card.title }}</span>
-              <strong>{{ card.value }}</strong>
-              @if (card.footnote) {
-                <small>{{ card.footnote }}</small>
-              }
-            </article>
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="zf__suggest" aria-label="Suggested next step">
+              <div class="zf__suggest-body">
+                <p class="zf__suggest-title">{{ suggestion.title }}</p>
+                <p class="zf__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="zf__suggest-actions">
+                <a class="zf__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="zf__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
           }
-        </div>
 
-        <div class="zf__insights">
-          <h3>Essentials</h3>
-          <ul>
-            @for (line of current.summary; track line) {
-              <li>{{ line }}</li>
-            }
-          </ul>
-        </div>
+          @if (result(); as current) {
+            <div class="ctl__editor-body zf__results" aria-live="polite">
+              <div class="zf__cards">
+                @for (card of summaryCards(); track card.title) {
+                  <div class="zf__card">
+                    <span>{{ card.title }}</span>
+                    <strong>{{ card.value }}</strong>
+                    @if (card.footnote) {
+                      <small>{{ card.footnote }}</small>
+                    }
+                  </div>
+                }
+              </div>
+              <ul class="zf__summary">
+                @for (line of current.summary; track line) {
+                  <li>{{ line }}</li>
+                }
+              </ul>
+              <div class="zf__compat">
+                @for (card of compatibilityCards(); track card.heading) {
+                  <div>
+                    <h4>{{ card.heading }}</h4>
+                    <p>{{ card.description }}</p>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="ctl__empty"><p>Enter your birth date to reveal zodiac insights.</p></div>
+          }
+        </section>
+      </div>
 
-        <div class="zf__compatibility">
-          @for (card of compatibilityCards(); track card.heading) {
-            <div class="zf__compat-item">
-              <h4>{{ card.heading }}</h4>
-              <p>{{ card.description }}</p>
+      <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button
+          type="button"
+          class="md-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Traits and history">
+          @if (result()) {
+            <div class="ctl__panel">
+              <header class="ctl__panel-head">Traits</header>
+              <div class="ctl__panel-body zf__traits">
+                <div>
+                  <h4>Strengths</h4>
+                  <ul>
+                    @for (keyword of result()!.sunSign.keywords; track keyword) {
+                      <li>{{ keyword }}</li>
+                    }
+                  </ul>
+                </div>
+                <div>
+                  <h4>Shadow</h4>
+                  <ul>
+                    @for (trait of result()!.sunSign.shadowTraits; track trait) {
+                      <li>{{ trait }}</li>
+                    }
+                  </ul>
+                </div>
+              </div>
             </div>
           }
-        </div>
-      } @else {
-        <div class="zf__empty">
-          Provide your birth date to unlock sun sign traits, compatible matches, numerology, and lunar context.
-        </div>
-      }
-    </section>
-
-    <section class="zf__card zf__card--utility">
-      <header class="zf__card-header">
-        <div>
-          <h2>Traits & history</h2>
-          <p>Deepen understanding or revisit previous lookups.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="zf__traits-grid">
-          <div>
-            <h3>Signature strengths</h3>
-            <ul>
-              @for (keyword of current.sunSign.keywords; track keyword) {
-                <li>{{ keyword }}</li>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!hasHistory()"
+                appTooltip="Clear history"
+                tooltipPosition="bottom"
+                aria-label="Clear history">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (hasHistory()) {
+                <ul class="zf__history">
+                  @for (entry of history(); track entry.recordedAt) {
+                    <li>
+                      <button type="button" class="zf__history-item" (click)="applyHistory(entry)">
+                        <strong>{{ entry.birthDate }} · {{ entry.sunSign }}</strong>
+                        <span>{{ entry.chineseAnimal }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Enable history to save lookups.</p></div>
               }
-            </ul>
+            </div>
           </div>
-          <div>
-            <h3>Shadow patterns</h3>
-            <ul>
-              @for (trait of current.sunSign.shadowTraits; track trait) {
-                <li>{{ trait }}</li>
-              }
-            </ul>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body zf__related">
+              <ul class="zf__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="zf__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-          <div>
-            <h3>Chinese zodiac notes</h3>
-            <p>{{ current.chineseAnimal.years }}</p>
-          </div>
-        </div>
-      }
+        </aside>
+      </details>
+    </div>
 
-      <div class="zf__history">
-        <div class="zf__history-header">
-          <h3>Recent lookups</h3>
-          <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
-        </div>
-
-        @if (hasHistory()) {
-          <ul>
-            @for (entry of history(); track entry.recordedAt) {
-              <li>
-                <button type="button" (click)="applyHistory(entry)">
-                  <span class="zf__history-primary">{{ entry.birthDate }} · {{ entry.sunSign }}</span>
-                  <span class="zf__history-meta">{{ entry.chineseAnimal }}</span>
-                </button>
-              </li>
-            }
-          </ul>
-        } @else {
-          <div class="zf__empty">
-            No lookups stored yet—enable history to build a quick reference gallery.
-          </div>
-        }
-      </div>
-    </section>
-  </div>
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Enter birth date and optional time.</li>
+        <li>Explore sun sign, Chinese zodiac, and compatibility.</li>
+        <li>Copy the snapshot or restore from history.</li>
+      </ul>
+    </details>
+  </main>
 </div>

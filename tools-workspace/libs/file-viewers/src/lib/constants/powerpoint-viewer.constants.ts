@@ -21,9 +21,6 @@ export const PPT_DEFAULT_SLIDE_HEIGHT_EMU = 6858000;
 export const PPT_BASE_SLIDE_WIDTH_PX = 960;
 export const PPT_FULLSCREEN_BASE_WIDTH_PX = 1100;
 
-export const PPT_JSZIP_CDN =
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-
 export const PPT_OOXML_RELATIONSHIPS_NS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 

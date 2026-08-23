@@ -2,7 +2,7 @@ import type { DdRelatedToolLink } from '../shared/dd-tool-suggestion.model';
 import type { HttpRequestCodeFormatOption } from '../types/http-request-generator.types';
 
 export const HTTP_REQUEST_HISTORY_LIMIT = 10;
-export const HTTP_REQUEST_DEFAULT_URL = 'https://api.example.com/endpoint';
+export const HTTP_REQUEST_DEFAULT_URL = 'https://api.github.com/users/octocat';
 export const HTTP_REQUEST_DEFAULT_METHOD = 'GET';
 export const HTTP_REQUEST_DEFAULT_FORMAT = 'fetch';
 export const HTTP_REQUEST_DEFAULT_CONTENT_TYPE = 'application/json';

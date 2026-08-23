@@ -1,0 +1,359 @@
+<div class="ctl eeg">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="eeg-eyebrow">Medical tools</span>
+        <h1>EEG Viewer <span class="eeg-live-badge">Local &amp; private</span></h1>
+        <p>
+          Multi-channel electroencephalogram review with montage presets, channel toggles, and time scrolling. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="eeg-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="eeg-suggest__body">
+        <p class="eeg-suggest__title">{{ suggestion.title }}</p>
+        <p class="eeg-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="eeg-suggest__actions">
+        <button type="button" class="eeg-suggest__action" (click)="applySuggestion(suggestion)">
+          {{ suggestion.actionLabel }}
+        </button>
+        <button type="button" class="eeg-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="eeg-toolbar" aria-label="EEG viewer controls">
+      <div class="eeg-toolbar__group">
+        <label class="sr-only" for="eeg-file-upload">Upload EEG recordings</label>
+        <input
+          #fileInput
+          id="eeg-file-upload"
+          class="eeg-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn eeg-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample 8-channel EEG" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="eeg-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="eeg-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded recording</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Channels, montage, duration</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('visible-json', $event)">
+              <strong>Visible window JSON</strong>
+              <span>Current montage window samples</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('calipers-json', $event)">
+              <strong>Calipers JSON</strong>
+              <span>Time and amplitude marks</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="recordings.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="eeg-files" *ngIf="recordings.length > 0" aria-label="Loaded EEG recordings">
+          <div
+            class="eeg-files__chip"
+            *ngFor="let rec of recordings; let i = index; trackBy: trackByRecordingId"
+            [class.eeg-files__chip--active]="i === currentIndex">
+            <button type="button" class="eeg-files__select" [attr.aria-pressed]="i === currentIndex" (click)="selectRecording(i)">
+              <span class="eeg-files__name">{{ rec.name }}</span>
+              <span class="eeg-files__size">{{ formatSize(rec.size) }}</span>
+            </button>
+            <button type="button" class="eeg-files__remove" [attr.aria-label]="'Remove ' + rec.name" (click)="removeRecording(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="eeg-toolbar__status">
+        <span class="eeg-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div class="eeg-montage-bar" *ngIf="currentRecording" aria-label="Montage presets">
+      <span class="eeg-montage-bar__label">Montage</span>
+      <div class="eeg-montage-bar__modes" role="group" aria-label="Montage mode">
+        <button
+          type="button"
+          *ngFor="let preset of montagePresets"
+          [class.is-active]="montageMode === preset.id"
+          (click)="setMontage(preset.id)"
+          [attr.aria-pressed]="montageMode === preset.id"
+          [appTooltip]="preset.description"
+          tooltipPosition="bottom">
+          {{ preset.label }}
+        </button>
+      </div>
+      <span class="eeg-montage-bar__hint"><kbd>+</kbd>/<kbd>−</kbd> gain · <kbd>←</kbd>/<kbd>→</kbd> scroll · <kbd>C</kbd> calipers</span>
+    </div>
+
+    <div class="eeg-mode-bar" *ngIf="currentRecording" aria-label="Interaction tools">
+      <span class="eeg-mode-bar__label">Mode</span>
+      <div class="eeg-mode-bar__modes" role="group" aria-label="Interaction mode">
+        <button
+          type="button"
+          *ngFor="let mode of interactionModes"
+          [class.is-active]="interactionMode === mode.id"
+          (click)="setInteractionMode(mode.id)"
+          [attr.aria-pressed]="interactionMode === mode.id">
+          {{ mode.label }}
+        </button>
+      </div>
+      <span class="eeg-mode-bar__hint" *ngIf="interactionMode === 'caliper'">Click two points to measure time and amplitude · <kbd>C</kbd> toggle</span>
+      <span class="eeg-mode-bar__hint" *ngIf="interactionMode === 'navigate'">Scroll slider or arrow keys move through the recording</span>
+    </div>
+
+    <div
+      class="eeg-workspace"
+      [class.eeg-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.eeg-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="eeg-panel" aria-label="EEG waveform viewport">
+        <header class="eeg-map-head" *ngIf="currentRecording">
+          <div class="eeg-map-head__identity">
+            <span class="eeg-map-head__file">{{ currentRecording.name }}</span>
+            <span class="eeg-map-head__meta">{{ durationLabel }} · {{ displayChannels.length }} traces</span>
+          </div>
+          <div class="eeg-view-controls" aria-label="View controls">
+            <button type="button" (click)="adjustGain(-4)" appTooltip="Decrease gain (−)" tooltipPosition="bottom" aria-label="Decrease gain">−</button>
+            <button type="button" (click)="adjustGain(4)" appTooltip="Increase gain (+)" tooltipPosition="bottom" aria-label="Increase gain">+</button>
+            <span class="eeg-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="eeg-view-controls__divider"></span>
+            <button
+              type="button"
+              class="eeg-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="eeg-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="eeg-controls-row" *ngIf="currentRecording">
+          <label>
+            <span>Gain <span class="eeg-value">{{ gain }}</span></span>
+            <input type="range" min="8" max="96" step="1" [value]="gain" (input)="onGainChange($event)" />
+          </label>
+          <label>
+            <span>Speed <span class="eeg-value">{{ pixelsPerSecond }} px/s</span></span>
+            <input type="range" min="40" max="200" step="5" [value]="pixelsPerSecond" (input)="onSpeedChange($event)" />
+          </label>
+          <label>
+            <span>Window <span class="eeg-value">{{ windowSamples }} samples</span></span>
+            <input type="range" min="256" max="4096" step="64" [value]="windowSamples" (input)="onWindowChange($event)" />
+          </label>
+          <label class="eeg-scroll-label">
+            <span>Scroll</span>
+            <input type="range" min="0" [max]="maxScrollSample" step="8" [value]="startSample" (input)="onScrollChange($event)" />
+          </label>
+        </div>
+
+        <div class="eeg-map-wrap" [class.eeg-map-wrap--empty]="!currentRecording">
+          <canvas
+            #canvasHost
+            class="eeg-map"
+            [class.eeg-map--caliper]="interactionMode === 'caliper'"
+            [attr.aria-busy]="loading"
+            aria-label="EEG waveform viewport"
+            (click)="onCanvasClick($event)"
+            (mousemove)="onCanvasMouseMove($event)"></canvas>
+
+          <div class="eeg-empty" *ngIf="!currentRecording && !loading">
+            <p class="eeg-empty__title">Drop EEG recordings here</p>
+            <p class="eeg-empty__formats">
+              <span class="eeg-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="eeg-empty__hint">
+              {{ formatsHint }} Paste JSON/CSV with <kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>V</kbd>. <kbd>+</kbd>/<kbd>−</kbd> gain · <kbd>←</kbd>/<kbd>→</kbd> scroll · <kbd>C</kbd> calipers.
+            </p>
+            <div class="eeg-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="eeg-loading" *ngIf="loading">Loading EEG…</div>
+        </div>
+
+        <div class="eeg-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="eeg-error" *ngIf="errorMessage" role="alert">
+          <p class="eeg-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+
+        <p class="eeg-disclaimer" role="note">
+          Education and research preview only — not validated for clinical diagnosis or treatment decisions.
+        </p>
+      </section>
+
+      <aside
+        id="eeg-details-sidebar"
+        class="eeg-sidebar"
+        aria-label="EEG details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">
+            <span>Recording overview</span>
+            <span class="eeg-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="eeg-process-name">{{ currentRecording.name }}</p>
+            <div class="eeg-stat-grid eeg-stat-grid--dense" aria-label="Recording statistics">
+              <div><strong>{{ currentRecording.waveform.sampleRateHz }}</strong><span>Hz</span></div>
+              <div><strong>{{ currentRecording.waveform.durationSec | number:'1.1-1' }}</strong><span>Seconds</span></div>
+              <div><strong>{{ currentRecording.waveform.channels.length }}</strong><span>Channels</span></div>
+            </div>
+            <p class="eeg-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">
+            Channels
+            <button type="button" class="eeg-panel-action" (click)="showAllChannels()">Show all</button>
+          </header>
+          <div class="ctl__panel-body">
+            <div class="eeg-channels" role="group" aria-label="Channel visibility">
+              <label class="eeg-channels__item" *ngFor="let ch of currentRecording.waveform.channels; trackBy: trackByChannelId">
+                <input type="checkbox" [checked]="isChannelVisible(ch.id)" (change)="toggleChannel(ch.id)" />
+                <span>{{ ch.label }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">Montage info</header>
+          <div class="ctl__panel-body">
+            <p class="eeg-montage-info">
+              <strong>{{ montageMode }}</strong>
+              <span *ngIf="montageMode === 'referential'">Raw channel traces as uploaded.</span>
+              <span *ngIf="montageMode === 'bipolar'">Adjacent visible channel differences.</span>
+              <span *ngIf="montageMode === 'average'">Each channel minus the common average.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentRecording">
+          <header class="ctl__panel-head">Calipers ({{ calipers.length }})</header>
+          <div class="ctl__panel-body">
+            <p class="eeg-controls__hint" *ngIf="calipers.length === 0">Switch to Calipers mode and click two points on the waveform.</p>
+            <ul class="eeg-calipers" *ngIf="calipers.length">
+              <li *ngFor="let cal of calipers; trackBy: trackByCaliperId">
+                <div class="eeg-calipers__info">
+                  <strong>{{ cal.label }}</strong>
+                  <span>{{ cal.deltaTimeMs | number:'1.1-1' }} ms · {{ cal.deltaAmplitude | number:'1.3-3' }} µV-eq</span>
+                </div>
+                <button type="button" class="eeg-calipers__delete" (click)="deleteCaliper(cal.id)" aria-label="Delete caliper">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="eeg-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help eeg-footer-help">
+      <summary>How to use EEG Viewer</summary>
+      <ul>
+        <li>Upload CSV/JSON EEG recordings with channel columns or a JSON <code>channels</code> array plus <code>sampleRateHz</code>.</li>
+        <li>Toggle channels, pick referential/bipolar/average montage, and scroll through time.</li>
+        <li>Use Calipers mode to measure intervals — export caliper JSON or a PNG snapshot.</li>
+        <li>Education/research only — not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="eeg-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop EEG recordings to open</p>
+    <p class="eeg-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

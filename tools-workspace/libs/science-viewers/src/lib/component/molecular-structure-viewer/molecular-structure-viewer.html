@@ -1,0 +1,135 @@
+<div class="ctl mol">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="mol-eyebrow">Science tools</span>
+        <h1>Molecular Structure Viewer <span class="mol-live-badge">Local &amp; private</span></h1>
+        <p>Preview PDB, MOL, and SDF locally with ball-and-stick, spacefill, and wireframe. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="mol-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="mol-suggest__body">
+        <p class="mol-suggest__title">{{ suggestion.title }}</p>
+        <p class="mol-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="mol-suggest__actions">
+        <button type="button" class="mol-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="mol-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="mol-toolbar">
+      <div class="mol-toolbar__group">
+        <input #fileInput class="mol-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn mol-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="mol-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="mol-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('atoms-csv', $event)">Atoms CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="mol-files" *ngIf="files.length">
+          <div class="mol-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.mol-files__chip--active]="i === currentIndex">
+            <button type="button" class="mol-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="mol-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="mol-toolbar__status"><span class="mol-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="mol-workspace" [class.mol-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="mol-panel">
+        <header class="mol-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ hoverLabel || (parsed?.title || formatsLabel) }}</span>
+          </div>
+          <div class="mol-view-controls">
+            <button type="button" (click)="zoomOut()">−</button>
+            <button type="button" (click)="zoomIn()">+</button>
+            <button type="button" (click)="fitZoom()">Fit</button>
+            <button type="button" (click)="resetView()">Reset</button>
+            <button type="button" (click)="toggleHydrogens()" [class.is-active]="showHydrogens" title="Toggle hydrogens (H)">H</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="mol-map-wrap" [class.mol-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="mol-map"
+            (wheel)="onCanvasWheel($event)"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp()"
+            (pointerleave)="onCanvasPointerUp()"
+          ></canvas>
+          <div class="mol-empty" *ngIf="!currentFile && !loading">
+            <p>Drop PDB / MOL / SDF files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="mol-loading" *ngIf="loading">Parsing molecule…</div>
+        </div>
+
+        <div class="mol-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="mol-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="mol-disclaimer">Education and research preview only — not a substitute for crystallography or docking software.</p>
+      </section>
+
+      <aside class="mol-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="mol-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Style</header>
+          <div class="ctl__panel-body mol-styles">
+            <button type="button" *ngFor="let s of styles" [class.is-active]="style === s" (click)="setStyle(s)">{{ s }}</button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="elements.length">
+          <header class="ctl__panel-head">Elements</header>
+          <div class="ctl__panel-body mol-elements">
+            <span class="mol-el" *ngFor="let item of elements; trackBy: trackByElement">
+              <i [style.background]="item.color"></i>{{ item.el }} {{ item.count }}
+            </span>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="highlighted as atom">
+          <header class="ctl__panel-head">Selected atom</header>
+          <div class="ctl__panel-body">
+            <dl class="mol-meta">
+              <div><dt>Element</dt><dd>{{ atom.element }}</dd></div>
+              <div><dt>Name</dt><dd>{{ atom.name }}</dd></div>
+              <div><dt>Serial</dt><dd>{{ atom.serial }}</dd></div>
+              <div><dt>XYZ</dt><dd>{{ atom.x | number:'1.2-2' }}, {{ atom.y | number:'1.2-2' }}, {{ atom.z | number:'1.2-2' }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="mol-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="mol-drop" *ngIf="showDropZone"><p>Drop molecule files to preview</p></div>
+  </main>
+</div>

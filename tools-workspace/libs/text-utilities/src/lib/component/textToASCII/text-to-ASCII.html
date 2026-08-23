@@ -1,323 +1,288 @@
-<div class="main-container">
+<div class="tta">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Encoding studio</p>
-          <h1>Translate between text, ASCII, binary, and hex instantly</h1>
-          <p class="strapline">
-            Choose your source and destination formats, convert in one click, and keep copies of the output for sharing with teammates.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Multi-format</span>
-          <span class="meta-pill">Clipboard friendly</span>
-          <span class="meta-pill">Swap-ready</span>
-        </div>
+  <main class="tta__main">
+    <div class="tta__top">
+      <header class="tta__header">
+        <h1>Text to ASCII Converter</h1>
+        <p>Convert between text, ASCII, binary, and hex — live as you type.</p>
       </header>
 
-      <div class="editor-toolbar" aria-label="Conversion statistics">
-        <div class="toolbar-stats" aria-label="Conversion statistics">
-          <div class="stat-chip">
-            <span class="stat-label">Input length</span>
-            <span class="stat-value">{{ inputValue ? inputValue.length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Output length</span>
-            <span class="stat-value">{{ outputValue ? outputValue.length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">From</span>
-            <span class="stat-value">{{ leftType }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">To</span>
-            <span class="stat-value">{{ rightType }}</span>
-          </div>
-          @if (isConverting) {
-            <div class="stat-chip converting">
-              <span class="stat-label">Status</span>
-              <span class="stat-value">Converting...</span>
-            </div>
-          }
+      <div class="tta__stats" aria-label="Conversion statistics">
+        <div class="tta__stat">
+          <span class="tta__stat-value">{{ inputValue.length }}</span>
+          <span class="tta__stat-label">Input</span>
+        </div>
+        <div class="tta__stat">
+          <span class="tta__stat-value">{{ outputValue.length }}</span>
+          <span class="tta__stat-label">Output</span>
+        </div>
+        <div class="tta__stat tta__stat--format">
+          <span class="tta__stat-value" [title]="fromLabel">{{ fromLabel }}</span>
+          <span class="tta__stat-label">From</span>
+        </div>
+        <div class="tta__stat tta__stat--format">
+          <span class="tta__stat-value" [title]="toLabel">{{ toLabel }}</span>
+          <span class="tta__stat-label">To</span>
         </div>
       </div>
+    </div>
 
-      <div class="editor-shell">
-        <div class="conversion-controls">
-          <div class="format-selector-group">
-            <label class="select-field" for="input-type">
-              <span>Input format</span>
-              <div class="select-wrapper">
-                <select id="input-type" [(ngModel)]="leftType" (ngModelChange)="onFormatChange()" class="format-select">
-                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
-                </select>
-              </div>
-              <small>{{ getTypeDescription(leftType) }}</small>
-            </label>
-            
-            <button type="button"
-                    class="swap-button"
-                    (click)="swapTypes()"
-                    aria-label="Swap conversion direction"
-                    title="Swap input and output formats">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 4L3 8L7 12M13 4L17 8L13 12M3 8H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-            
-            <label class="select-field" for="output-type">
-              <span>Output format</span>
-              <div class="select-wrapper">
-                <select id="output-type" [(ngModel)]="rightType" (ngModelChange)="onFormatChange()" class="format-select">
-                  <option *ngFor="let option of typeOptions" [value]="option.value">{{ option.label }}</option>
-                </select>
-              </div>
-              <small>{{ getTypeDescription(rightType) }}</small>
-            </label>
-          </div>
-        </div>
-
-        <div class="panel-grid">
-          <section class="panel panel-input">
-            <header class="panel-header">
-              <div>
-                <h2>Source input</h2>
-                <p>Paste or type your content - conversion happens automatically as you type.</p>
-              </div>
-              <div class="panel-actions">
-                <button type="button"
-                        class="panel-btn"
-                        (click)="clearInput()"
-                        [disabled]="!inputValue"
-                        aria-label="Clear input"
-                        title="Clear input">
-                  <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-                </button>
-              </div>
-            </header>
-            <label class="sr-only" for="conversion-input">Enter value to convert</label>
-            <div class="textarea-wrapper">
-              <textarea id="conversion-input"
-                        class="text-area text-area--input"
-                        [(ngModel)]="inputValue"
-                        (input)="onInputChange()"
-                        rows="10"
-                        placeholder="Paste or type the content you want to transform…"></textarea>
-            </div>
-            <div class="panel-footer-actions">
-              <button type="button"
-                      class="action-btn"
-                      (click)="convert()"
-                      [disabled]="!inputValue"
-                      aria-label="Convert manually">
-                <img class="btn-icon" src="/assets/icons/stats.svg" alt="" />
-                <span>Convert</span>
+    <div class="tta__workspace">
+      <div class="tta__editors" aria-label="Source and converted text">
+        <section
+          class="tta__editor"
+          [class.tta__editor--dragover]="isDragOver"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)">
+          <header class="tta__editor-head" aria-label="Input editor actions">
+            <span class="tta__editor-title">Input ({{ fromLabel }})</span>
+            <div class="tta__toolbar">
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="uploadTextFile()"
+                [disabled]="isReadingFile"
+                aria-label="Upload text file"
+                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Copy</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="undo()"
+                [disabled]="!canUndo"
+                aria-label="Undo"
+                appTooltip="Undo (Ctrl+Z)"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Undo</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="redo()"
+                [disabled]="!canRedo"
+                aria-label="Redo"
+                appTooltip="Redo (Ctrl+Y)"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Redo</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="clear()"
+                [disabled]="!hasInput && !outputValue"
+                aria-label="Clear all"
+                appTooltip="Clear all"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Clear</span>
               </button>
             </div>
-          </section>
+          </header>
 
-          <section class="panel panel-output">
-            <header class="panel-header">
-              <div>
-                <h2>Converted output</h2>
-                <p>Your converted content appears here automatically.</p>
+          @if (primarySuggestion; as suggestion) {
+            <aside class="tta__suggest" aria-label="Suggested next step">
+              <div class="tta__suggest-body">
+                <p class="tta__suggest-title">{{ suggestion.title }}</p>
+                <p class="tta__suggest-reason">{{ suggestion.reason }}</p>
               </div>
-              <div class="panel-actions">
-                @if (outputValue && !errorMessage) {
-                  <span class="panel-badge">Ready to copy</span>
-                }
-                @if (errorMessage) {
-                  <span class="panel-badge error-badge">Error</span>
-                }
-                <button type="button"
-                        class="panel-btn"
-                        (click)="copyOutput()"
-                        [disabled]="!outputValue"
-                        aria-label="Copy output"
-                        title="Copy to clipboard">
-                  <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+              <div class="tta__suggest-actions">
+                <a class="tta__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="tta__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
                 </button>
-                @if (copied) {
-                  <span class="copy-feedback-inline">Copied!</span>
-                }
               </div>
-            </header>
+            </aside>
+          }
 
-            <div class="textarea-wrapper" [class.has-error]="errorMessage">
-              <textarea class="text-area text-area--output"
-                        readonly
-                        rows="10"
-                        [value]="errorMessage ? '' : outputValue"
-                        [placeholder]="errorMessage ? 'Fix the input format to see converted output...' : 'Converted output will appear here...'"
-                        aria-label="Converted output preview"></textarea>
-              @if (errorMessage) {
-                <div class="error-overlay">
-                  <div class="error-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </div>
-                  <p class="error-text">{{ errorMessage }}</p>
-                </div>
+          <label class="sr-only" for="conversion-input">Enter value to convert</label>
+          <textarea
+            #inputTextarea
+            id="conversion-input"
+            class="tta__textarea tta__textarea--mono"
+            [(ngModel)]="inputValue"
+            (input)="onInputChange()"
+            rows="1"
+            placeholder="Paste, type, or drop a text file here…"></textarea>
+        </section>
+
+        <section class="tta__editor tta__editor--output" [class.tta__editor--error]="errorMessage">
+          <header class="tta__editor-head" aria-label="Output editor actions">
+            <div class="tta__editor-head-left">
+              <span class="tta__editor-title">Output ({{ toLabel }})</span>
+              @if (isConverting) {
+                <span class="tta__editor-badge tta__editor-badge--busy">Converting…</span>
+              } @else if (outputValue && !errorMessage) {
+                <span class="tta__editor-badge">Ready</span>
+              } @else if (errorMessage) {
+                <span class="tta__editor-badge tta__editor-badge--error">Error</span>
               }
             </div>
-
-            <div class="panel-footer-actions">
-              <button type="button"
-                      class="action-btn secondary"
-                      (click)="copyOutput()"
-                      [disabled]="!outputValue"
-                      aria-label="Copy converted output">
-                <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
-                <span>Copy output</span>
+            <div class="tta__toolbar">
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="copyOutput()"
+                [disabled]="!outputValue"
+                aria-label="Copy output"
+                appTooltip="Copy output"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">Copy</span>
               </button>
-              <button type="button"
-                      class="action-btn"
-                      (click)="swapTypes()"
-                      aria-label="Swap formats"
-                      title="Swap input and output formats">
-                <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
-                <span>Swap</span>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="downloadText()"
+                [disabled]="!outputValue"
+                aria-label="Download TXT"
+                appTooltip="Download TXT"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
+                <span class="tta__tool-btn-label">TXT</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="useOutputAsInput()"
+                [disabled]="!outputValue"
+                aria-label="Use output as input"
+                appTooltip="Use output as new input"
+                tooltipPosition="bottom">
+                <span class="tta__tool-btn-label">→ In</span>
+              </button>
+              <button
+                type="button"
+                class="tta__tool-btn"
+                (click)="swapTypes()"
+                [disabled]="!outputValue && !hasInput"
+                aria-label="Swap formats and values"
+                appTooltip="Swap formats and values"
+                tooltipPosition="bottom">
+                <span class="tta__tool-btn-label">⇄ Swap</span>
               </button>
             </div>
-          </section>
-        </div>
-
-        <footer class="editor-footer">
-          <div class="editor-metric">
-            <span class="metric-label">Input type</span>
-            <span class="metric-value">{{ leftType }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Output type</span>
-            <span class="metric-value">{{ rightType }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Copy status</span>
-            <span class="metric-value">{{ copied ? 'Copied' : 'Ready' }}</span>
-          </div>
-          <button type="button"
-                  class="clear-btn"
-                  (click)="clear()"
-                  [disabled]="!inputValue && !outputValue"
-                  aria-label="Clear converter">
-            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-            <span>Clear all</span>
-          </button>
-        </footer>
+          </header>
+          @if (errorMessage) {
+            <div class="tta__error" role="alert">
+              <p>{{ errorMessage }}</p>
+            </div>
+          } @else if (outputValue) {
+            <textarea
+              class="tta__textarea tta__textarea--output tta__textarea--mono"
+              readonly
+              rows="1"
+              [value]="outputValue"
+              aria-label="Converted output"></textarea>
+          } @else {
+            <div class="tta__empty" aria-live="polite">
+              <p>Converted output appears here as you type.</p>
+            </div>
+          }
+        </section>
       </div>
-    </section>
 
-    <aside class="workspace-secondary">
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Format cheat sheet</h2>
-          <p>Refresh how each representation works before sharing results with engineering or content teams.</p>
-        </header>
-        <div class="insight-body format-grid">
-          <div class="format-card" *ngFor="let option of typeOptions">
-            <h3>{{ option.label }}</h3>
-            <p>{{ option.description }}</p>
+      <aside class="tta__sidebar" aria-label="Format settings and related tools">
+        <div class="tta__format-bar">
+          <span class="tta__format-label" id="tta-from-label">From</span>
+          <span class="tta__format-label tta__format-label--spacer" aria-hidden="true"></span>
+          <span class="tta__format-label" id="tta-to-label">To</span>
+
+          <select
+            id="input-type"
+            class="tta__select"
+            [(ngModel)]="leftType"
+            (ngModelChange)="onFormatChange()"
+            aria-labelledby="tta-from-label"
+            aria-label="Input format">
+            @for (option of typeOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+
+          <button
+            type="button"
+            class="tta__swap-btn"
+            (click)="swapTypes()"
+            aria-label="Swap formats"
+            appTooltip="Swap formats"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M7 4L3 8L7 12M13 4L17 8L13 12M3 8H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <select
+            id="output-type"
+            class="tta__select"
+            [(ngModel)]="rightType"
+            (ngModelChange)="onFormatChange()"
+            aria-labelledby="tta-to-label"
+            aria-label="Output format">
+            @for (option of typeOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="tta__panel">
+          <p class="tta__panel-hint">{{ getTypeDescription(leftType) }}</p>
+          <div class="tta__format-list">
+            @for (option of typeOptions; track option.value) {
+              <div class="tta__format-card" [class.tta__format-card--active]="leftType === option.value || rightType === option.value">
+                <span class="tta__format-card-title">{{ option.label }}</span>
+                <p class="tta__format-card-desc">{{ option.description }}</p>
+              </div>
+            }
           </div>
         </div>
-      </section>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Tips</h2>
-          <p>Keep data accurate across text transformations.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Spaces separate encoded values. Remove extra whitespace for reliable conversions.</li>
-            <li>Swap input/output types after conversion to verify reversibility.</li>
-            <li>Binary and hex outputs use padded byte groups for clarity.</li>
+        <div class="tta__panel tta__related-panel">
+          <header class="tta__panel-head">Related tools</header>
+          <ul class="tta__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="tta__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            }
           </ul>
         </div>
-      </section>
+      </aside>
+    </div>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How to use</h2>
-          <p>Convert text between different encoding formats in just a few steps.</p>
-        </header>
-
-        <div class="insight-body">
-          <ol class="how-to-list">
-            <li>
-              <strong>Select input type</strong>
-              <p>Choose the format of your input text (Text, Decimal, Binary, Hex, etc.).</p>
-            </li>
-            <li>
-              <strong>Choose output type</strong>
-              <p>Select the desired output format for conversion.</p>
-            </li>
-            <li>
-              <strong>Enter your value</strong>
-              <p>Paste or type your content in the input field. Conversion happens instantly.</p>
-            </li>
-            <li>
-              <strong>Review results</strong>
-              <p>Check the converted output in the right panel. Errors display clearly if conversion fails.</p>
-            </li>
-            <li>
-              <strong>Copy or swap</strong>
-              <p>Copy the output or use the swap button to reverse input/output types for verification.</p>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our text-to-ASCII converter.</p>
-        </header>
-
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              The Text to ASCII Converter transforms text between multiple encoding formats including 
-              plain text, decimal, binary, hexadecimal, octal, and more. Perfect for developers, 
-              system administrators, and anyone working with different data representations.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Multiple formats</strong>
-                <p>Convert between text, decimal, binary, hex, octal, and other encoding formats.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Bidirectional</strong>
-                <p>Swap input and output types to verify conversions and reverse transformations.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Error handling</strong>
-                <p>Clear error messages help identify and fix invalid input formats.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Real-time conversion</strong>
-                <p>See results instantly as you type or change input/output types.</p>
-              </div>
-            </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>Character encoding conversion</li>
-                <li>Binary data analysis</li>
-                <li>Hexadecimal debugging</li>
-                <li>System administration tasks</li>
-                <li>Data format verification</li>
-                <li>Educational purposes</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-    </aside>
-  </div>
+    <details class="tta__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose <strong>From</strong> and <strong>To</strong> formats in the sidebar.</li>
+        <li>Paste, type, <strong>Upload</strong>, or drag &amp; drop in <strong>Input</strong> — conversion runs automatically.</li>
+        <li>Use <strong>Swap</strong> or <strong>→ In</strong> to reverse formats or reuse output.</li>
+        <li>ASCII, binary, and hex values are space-separated (e.g. <code>72 101 108</code>).</li>
+        <li><kbd>Ctrl+Z</kbd> / <kbd>Cmd+Z</kbd> undo · <kbd>Ctrl+Y</kbd> / <kbd>Cmd+Shift+Z</kbd> redo.</li>
+      </ul>
+    </details>
+  </main>
 </div>

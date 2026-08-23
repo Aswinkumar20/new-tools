@@ -3,7 +3,6 @@ import {
   WORD_DOC_PLACEHOLDER_HTML,
   WORD_DOC_PLACEHOLDER_TEXT,
   WORD_LONG_TEXT_CHAR_THRESHOLD,
-  WORD_MAMMOTH_CDN,
   WORD_MAMMOTH_STYLE_MAP,
   WORD_MAX_FILE_SIZE_BYTES,
   WORD_MAX_FILE_SIZE_LABEL,
@@ -22,38 +21,17 @@ import type {
   WordValidationResult
 } from '../types/word-viewer.types';
 
-declare global {
-  interface Window {
-    mammoth?: MammothLibrary;
-  }
-}
-
-export async function loadMammothLibrary(
-  cdnUrl: string = WORD_MAMMOTH_CDN
-): Promise<MammothLibrary> {
+export async function loadMammothLibrary(): Promise<MammothLibrary> {
   if (globalThis.window === undefined) {
     throw new TypeError('Mammoth.js can only be loaded in browser environment');
   }
 
-  if (globalThis.window.mammoth) {
-    return globalThis.window.mammoth;
+  const mammothMod = await import('mammoth');
+  const mammothLib = (mammothMod.default ?? mammothMod) as unknown as MammothLibrary;
+  if (!mammothLib?.convertToHtml) {
+    throw new Error('Failed to load Mammoth.js library');
   }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const mammothLib = globalThis.window.mammoth;
-      if (!mammothLib) {
-        reject(new Error('Failed to load Mammoth.js library'));
-        return;
-      }
-      resolve(mammothLib);
-    };
-    script.onerror = () => reject(new Error('Failed to load Mammoth.js library'));
-  });
+  return mammothLib;
 }
 
 export function detectDocumentType(file: File): DocumentType {

@@ -20,8 +20,8 @@ export const CSS_GRADIENT_DEFAULT_STOPS = [
 
 export const CSS_GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
   {
-    label: 'Blue gradient',
-    description: 'Linear gradient',
+    label: 'Brand CTA',
+    description: 'Primary button / hero CTA',
     type: 'linear',
     angle: 135,
     colors: [
@@ -30,8 +30,8 @@ export const CSS_GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
     ]
   },
   {
-    label: 'Sunset',
-    description: 'Linear gradient',
+    label: 'Sunset hero',
+    description: 'Landing-page hero wash',
     type: 'linear',
     angle: 45,
     colors: [
@@ -40,8 +40,8 @@ export const CSS_GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
     ]
   },
   {
-    label: 'Ocean',
-    description: 'Linear gradient',
+    label: 'Ocean mesh',
+    description: 'Indigo-to-violet overlay',
     type: 'linear',
     angle: 180,
     colors: [
@@ -51,7 +51,7 @@ export const CSS_GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
   },
   {
     label: 'Radial blue',
-    description: 'Radial gradient',
+    description: 'Spotlight / badge fill',
     type: 'radial',
     position: 'center',
     shape: 'circle',
@@ -62,7 +62,7 @@ export const CSS_GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
   },
   {
     label: 'Conic rainbow',
-    description: 'Conic gradient',
+    description: 'Progress ring / spinner',
     type: 'conic',
     angle: 0,
     position: 'center',

@@ -1,0 +1,365 @@
+<div class="ctl geotiff">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="geotiff-eyebrow">GIS tools</span>
+        <h1>GeoTIFF Viewer <span class="geotiff-live-badge">Local &amp; private</span></h1>
+        <p>
+          Preview georeferenced GeoTIFF rasters on an interactive map — stretch bands and export snapshots.
+        </p>
+      </header>
+    </div>
+
+    <aside class="geotiff-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="geotiff-suggest__body">
+        <p class="geotiff-suggest__title">{{ suggestion.title }}</p>
+        <p class="geotiff-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="geotiff-suggest__actions">
+        <a class="geotiff-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="geotiff-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="geotiff-toolbar" aria-label="GeoTIFF viewer controls">
+      <div class="geotiff-toolbar__group">
+        <label class="sr-only" for="geotiff-file-upload">Upload GeoTIFF files</label>
+        <input
+          #fileInput
+          id="geotiff-file-upload"
+          class="geotiff-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn geotiff-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload GeoTIFF · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample city GeoTIFF"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="geotiff-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="geotiff-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('geotiff', $event)">
+              <strong>GeoTIFF</strong>
+              <span>Download the original raster</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Dimensions, CRS, and tags</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Stats and warnings</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG preview</strong>
+              <span>Current band stretch as PNG</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="geotiffFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="geotiff-files" *ngIf="geotiffFiles.length > 0" aria-label="Loaded GeoTIFF files">
+          <div
+            class="geotiff-files__chip"
+            *ngFor="let file of geotiffFiles; let i = index; trackBy: trackByFileId"
+            [class.geotiff-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="geotiff-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="geotiff-files__name">{{ file.name }}</span>
+              <span class="geotiff-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="geotiff-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="geotiff-toolbar__status">
+        <span class="geotiff-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="geotiff-workspace"
+      [class.geotiff-workspace--fullscreen]="isFullscreen"
+      [class.geotiff-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="geotiff-panel" aria-label="GeoTIFF map">
+        <header class="geotiff-map-head" *ngIf="currentFile">
+          <div class="geotiff-map-head__identity">
+            <span class="geotiff-map-head__file">{{ currentFile.name }}</span>
+            <span class="geotiff-map-head__meta">
+              {{ stats?.width }}×{{ stats?.height }} · {{ stats?.samplesPerPixel }} band(s) ·
+              {{ stats?.photometricLabel || 'raster' }}
+            </span>
+          </div>
+          <div class="geotiff-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="geotiff-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="geotiff-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="geotiff-view-controls__divider"></span>
+            <button
+              type="button"
+              class="geotiff-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="geotiff-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="geotiff-map-wrap" [class.geotiff-map-wrap--empty]="!currentFile">
+          <div #mapHost class="geotiff-map" [attr.aria-busy]="loading" aria-label="Interactive GeoTIFF map"></div>
+          <div class="geotiff-empty" *ngIf="!currentFile && !loading">
+            <p class="geotiff-empty__title">Drop a GeoTIFF file here</p>
+            <p class="geotiff-empty__formats">
+              <span class="geotiff-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="geotiff-empty__hint">
+              {{ formatsHint }}. Or load the sample city tile. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="geotiff-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="geotiff-loading" *ngIf="loading">Loading raster…</div>
+        </div>
+
+        <div class="geotiff-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="geotiff-error" *ngIf="errorMessage" role="alert">
+          <p class="geotiff-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample map
+          </button>
+        </div>
+      </section>
+
+      <aside
+        id="geotiff-details-sidebar"
+        class="geotiff-sidebar"
+        aria-label="Raster details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Raster overview</span>
+            <span class="geotiff-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="geotiff-process-name">{{ stats.title }}</p>
+            <div class="geotiff-stat-grid" aria-label="Raster statistics">
+              <div><strong>{{ stats.width }}×{{ stats.height }}</strong><span>Size</span></div>
+              <div><strong>{{ stats.samplesPerPixel }}</strong><span>Bands</span></div>
+              <div><strong>{{ stats.bitsPerSampleLabel }}</strong><span>Bits</span></div>
+              <div><strong>{{ stats.tiled ? 'Tiled' : 'Strip' }}</strong><span>Layout</span></div>
+            </div>
+            <dl class="geotiff-meta geotiff-meta--compact">
+              <div><dt>Compression</dt><dd>{{ stats.compressionLabel }}</dd></div>
+              <div><dt>Photometric</dt><dd>{{ stats.photometricLabel }}</dd></div>
+              <div><dt>Bounds</dt><dd class="geotiff-meta__bounds">{{ boundsLabel }}</dd></div>
+              <div *ngIf="stats.crsNote"><dt>CRS</dt><dd>{{ stats.crsNote }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Display</header>
+          <div class="ctl__panel-body">
+            <div class="geotiff-controls">
+              <label>
+                <span>Stretch</span>
+                <select [value]="stretchMode" (change)="onStretchChange($event)">
+                  <option *ngFor="let mode of stretchModes" [value]="mode">{{ mode }}</option>
+                </select>
+              </label>
+              <label class="geotiff-controls__row" style="grid-template-columns: auto 1fr; align-items: center;">
+                <input type="checkbox" [checked]="bandSelection.grayscale" (change)="onGrayscaleToggle($event)" />
+                <span>Grayscale (use R band)</span>
+              </label>
+              <div class="geotiff-controls__row" *ngIf="!bandSelection.grayscale">
+                <label>
+                  <span>R</span>
+                  <select [value]="bandSelection.red" (change)="onBandChange('red', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>G</span>
+                  <select [value]="bandSelection.green" (change)="onBandChange('green', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>B</span>
+                  <select [value]="bandSelection.blue" (change)="onBandChange('blue', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+              </div>
+              <label *ngIf="bandSelection.grayscale">
+                <span>Band</span>
+                <select [value]="bandSelection.red" (change)="onBandChange('red', $event)">
+                  <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Opacity <span class="geotiff-opacity-value">{{ (opacity * 100) | number:'1.0-0' }}%</span></span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="1"
+                  [value]="opacity * 100"
+                  (input)="onOpacityChange($event)" />
+              </label>
+              <p class="geotiff-controls__hint">Percentile stretch uses the 2nd–98th percentile per band.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel geotiff-meta-panel">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body">
+            <table class="geotiff-meta-table" *ngIf="metaRows.length > 0; else noMeta">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of metaRows; trackBy: trackByMetaKey">
+                  <th scope="row">{{ row.key }}</th>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <ng-template #noMeta>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No metadata rows found.' : 'Upload a GeoTIFF to inspect metadata.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="geotiff-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help geotiff-footer-help">
+      <summary>How to use GeoTIFF Viewer</summary>
+      <ul>
+        <li>
+          Supported uploads: <code>.tif</code>, <code>.tiff</code>, <code>.geotiff</code> (max 40&nbsp;MB).
+        </li>
+        <li>Choose RGB bands or grayscale, stretch mode, and opacity — the map overlay updates in place.</li>
+        <li>Scroll to zoom, drag to pan, or use Fit / Zoom controls (<kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd>).</li>
+        <li>Export the original GeoTIFF, metadata JSON, summary, or PNG preview — all in your browser.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="geotiff-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop GeoTIFF files to open</p>
+    <p class="geotiff-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

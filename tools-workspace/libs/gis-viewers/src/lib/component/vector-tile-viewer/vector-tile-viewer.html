@@ -1,0 +1,217 @@
+<div class="ctl vector-tile">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="vector-tile-eyebrow">GIS tools</span>
+        <h1>Vector Tile Viewer <span class="vector-tile-live-badge">Local &amp; private</span></h1>
+        <p>
+          Decode Mapbox Vector Tiles (.mvt / .pbf) — inspect layers, attributes, and export GeoJSON.
+        </p>
+      </header>
+    </div>
+
+    <aside class="vector-tile-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="vector-tile-suggest__body">
+        <p class="vector-tile-suggest__title">{{ suggestion.title }}</p>
+        <p class="vector-tile-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="vector-tile-suggest__actions">
+        <a class="vector-tile-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="vector-tile-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="vector-tile-toolbar" aria-label="Vector tile viewer controls">
+      <div class="vector-tile-toolbar__group">
+        <label class="sr-only" for="vector-tile-file-upload">Upload vector tile files</label>
+        <input #fileInput id="vector-tile-file-upload" class="vector-tile-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+
+        <button type="button" class="ctl__tool-btn vector-tile-primary-action" (click)="openFilePicker()" [appTooltip]="'Upload · Supported: ' + formatsLabel" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample landuse MVT (z0)" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="vector-tile-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="toggleExportMenu($event)" [attr.aria-expanded]="showExportMenu" aria-haspopup="menu" aria-label="Export options" appTooltip="Export options" tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="vector-tile-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('geojson', $event)"><strong>GeoJSON</strong><span>Decoded FeatureCollection</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('attributes-csv', $event)"><strong>Attributes CSV</strong><span>Feature properties table</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)"><strong>Summary JSON</strong><span>Layers, stats, warnings</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('mvt', $event)"><strong>Original MVT</strong><span>Raw tile bytes when available</span></button>
+          </div>
+        </div>
+
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="tileFiles.length === 0" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="vector-tile-files" *ngIf="tileFiles.length > 0" aria-label="Loaded tiles">
+          <div class="vector-tile-files__chip" *ngFor="let file of tileFiles; let i = index; trackBy: trackByFileId" [class.vector-tile-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="vector-tile-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="vector-tile-files__name">{{ file.name }}</span>
+              <span class="vector-tile-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="vector-tile-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="vector-tile-toolbar__status"><span class="vector-tile-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div #workspace class="vector-tile-workspace" [class.vector-tile-workspace--fullscreen]="isFullscreen" [class.vector-tile-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="vector-tile-panel" aria-label="Vector tile map">
+        <header class="vector-tile-map-head" *ngIf="currentFile">
+          <div class="vector-tile-map-head__identity">
+            <span class="vector-tile-map-head__file">{{ currentFile.name }}</span>
+            <span class="vector-tile-map-head__meta">{{ stats?.layerCount ?? 0 }} layers · {{ stats?.featureCount ?? 0 }} features · z{{ stats?.z }}/{{ stats?.x }}/{{ stats?.y }}</span>
+          </div>
+          <div class="vector-tile-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="vector-tile-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="vector-tile-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit features (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="toggleFullscreen()" [attr.aria-pressed]="isFullscreen" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></svg>
+            </button>
+            <span class="vector-tile-view-controls__divider"></span>
+            <button type="button" class="vector-tile-sidebar-toggle" (click)="toggleSidebar()" [attr.aria-expanded]="!sidebarCollapsed" aria-controls="vector-tile-details-sidebar" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="vector-tile-map-wrap" [class.vector-tile-map-wrap--empty]="!currentFile">
+          <div #mapHost class="vector-tile-map" [attr.aria-busy]="loading" aria-label="Interactive vector tile map"></div>
+          <div class="vector-tile-empty" *ngIf="!currentFile && !loading">
+            <p class="vector-tile-empty__title">Drop an MVT / PBF tile here</p>
+            <p class="vector-tile-empty__formats"><span class="vector-tile-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span></p>
+            <p class="vector-tile-empty__hint">{{ formatsHint }}</p>
+          </div>
+          <div class="vector-tile-loading" *ngIf="loading"><span>Decoding tile…</span></div>
+        </div>
+
+        <div class="vector-tile-warnings" *ngIf="warnings.length" aria-live="polite">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+        <p class="vector-tile-error" *ngIf="errorMessage" role="alert">{{ errorMessage }}</p>
+      </section>
+
+      <aside id="vector-tile-details-sidebar" class="vector-tile-sidebar" *ngIf="!sidebarCollapsed" aria-label="Tile details">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Tile placement</header>
+          <div class="ctl__panel-body">
+            <div class="vector-tile-controls" style="display:grid;gap:0.5rem;grid-template-columns:repeat(3,minmax(0,1fr));">
+              <label><span>Z</span><input type="number" min="0" max="22" [value]="tileZ" (change)="tileZ = $any($event.target).value; onTileCoordChange()" /></label>
+              <label><span>X</span><input type="number" min="0" [value]="tileX" (change)="tileX = $any($event.target).value; onTileCoordChange()" /></label>
+              <label><span>Y</span><input type="number" min="0" [value]="tileY" (change)="tileY = $any($event.target).value; onTileCoordChange()" /></label>
+            </div>
+            <label style="display:block;margin-top:0.6rem;">
+              <span>Tile URL template</span>
+              <input type="url" placeholder="https://…/&#123;z&#125;/&#123;x&#125;/&#123;y&#125;.pbf" [value]="tileUrlTemplate" (change)="tileUrlTemplate = $any($event.target).value" style="width:100%;" />
+            </label>
+            <button type="button" class="ctl__tool-btn" style="margin-top:0.5rem;" (click)="fetchFromUrl()" [disabled]="!tileUrlTemplate.trim()">Fetch tile</button>
+            <p class="ctl__panel-hint">Set z/x/y before upload for correct placement. Missing coords default to 0/0/0.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Layers</header>
+          <div class="ctl__panel-body">
+            <ul class="vector-tile-related" style="list-style:none;padding:0;margin:0;">
+              <li *ngFor="let layer of currentFile.layers; trackBy: trackByLayerName" style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0;">
+                <input type="checkbox" [checked]="layer.visible" (change)="toggleLayerVisibility(layer.name)" [attr.aria-label]="'Toggle ' + layer.name" />
+                <span [ngStyle]="{ width: '0.65rem', height: '0.65rem', borderRadius: '50%', background: layer.color, display: 'inline-block' }"></span>
+                <strong>{{ layer.name }}</strong>
+                <span style="margin-left:auto;opacity:0.7;">{{ layer.featureCount }}</span>
+              </li>
+            </ul>
+            <div class="vector-tile-controls" style="margin-top:0.75rem;">
+              <label>
+                <span>Opacity <span class="vector-tile-opacity-value">{{ (opacity * 100) | number:'1.0-0' }}%</span></span>
+                <input type="range" min="10" max="100" step="1" [value]="opacity * 100" (input)="onOpacityChange($event)" />
+              </label>
+              <label>
+                <span>Line weight <span class="vector-tile-opacity-value">{{ lineWeight }}</span></span>
+                <input type="range" min="1" max="8" step="1" [value]="lineWeight" (input)="onLineWeightChange($event)" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Features</header>
+          <div class="ctl__panel-body">
+            <button type="button" *ngFor="let feature of featureSummaries; trackBy: trackByFeatureId" (click)="selectFeature(feature)" [attr.aria-pressed]="selectedFeatureId === feature.id" style="display:block;width:100%;text-align:left;margin-bottom:0.25rem;padding:0.35rem 0.5rem;border:1px solid var(--border-color, #e2e8f0);border-radius:6px;" [ngStyle]="{ background: selectedFeatureId === feature.id ? 'rgba(124,58,237,0.08)' : 'transparent' }">
+              <strong>{{ feature.layer }}</strong> · {{ feature.geometryType }} · {{ feature.id }}
+            </button>
+            <p class="ctl__panel-hint" *ngIf="!featureSummaries.length">No features in this tile.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="selectedFeature">
+          <header class="ctl__panel-head">Attributes</header>
+          <div class="ctl__panel-body">
+            <table class="vector-tile-meta-table">
+              <tbody>
+                <tr *ngFor="let key of selectedFeature.properties | keyvalue">
+                  <th scope="row">{{ key.key }}</th>
+                  <td>{{ formatProp(key.value) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ctl__panel vector-tile-meta-panel">
+          <header class="ctl__panel-head">Stats</header>
+          <div class="ctl__panel-body">
+            <table class="vector-tile-meta-table" *ngIf="metaRows.length > 0; else noMeta">
+              <thead><tr><th scope="col">Name</th><th scope="col">Value</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let row of metaRows; trackBy: trackByMetaKey"><th scope="row">{{ row.key }}</th><td>{{ row.value }}</td></tr>
+              </tbody>
+            </table>
+            <ng-template #noMeta><p class="ctl__panel-hint">{{ currentFile ? 'No stats.' : 'Upload a tile to inspect layers.' }}</p></ng-template>
+            <p class="ctl__panel-hint" *ngIf="stats">Bounds: {{ boundsLabel }}</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="vector-tile-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help vector-tile-footer-help">
+      <summary>How to use Vector Tile Viewer</summary>
+      <ul>
+        <li>Upload a single-tile <code>.mvt</code> / <code>.pbf</code>, optional GeoJSON fallback, or fetch via a z/x/y URL template (CORS may block).</li>
+        <li>Toggle layers, click features for attributes, adjust opacity and line weight.</li>
+        <li>Shortcuts: <kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd> <kbd>Esc</kbd>. Export GeoJSON, CSV, summary, or original MVT.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="vector-tile-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop vector tile files to open</p>
+    <p class="vector-tile-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

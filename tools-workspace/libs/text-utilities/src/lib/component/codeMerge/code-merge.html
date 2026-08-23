@@ -1,290 +1,221 @@
-<div class="main-container">
+<div class="cm">
   <lib-navigation></lib-navigation>
 
-  <div class="workspace">
-    <section class="workspace-primary">
-      <header class="primary-header">
-        <div class="primary-heading">
-          <p class="eyebrow">Code merge helper</p>
-          <h1>Stage conflict markers and compare branches side by side</h1>
-          <p class="strapline">
-            Paste content from two branches, review conflict markers, and copy a ready-to-commit merge block.
-          </p>
-        </div>
-        <div class="primary-meta">
-          <span class="meta-pill">Conflict markers</span>
-          <span class="meta-pill">Realtime preview</span>
-          <span class="meta-pill">Clipboard ready</span>
-        </div>
+  <main class="cm__main">
+    <div class="cm__top">
+      <header class="cm__header">
+        <h1>Code Merge Helper</h1>
+        <p>Compare two branches side by side and copy a merge block with optional conflict markers.</p>
       </header>
 
-      <div class="editor-toolbar" aria-label="Merge actions">
-        <div class="toolbar-actions">
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="merge()"
-                  [disabled]="!leftBranch && !rightBranch"
-                  aria-label="Generate merge preview">
-            <img class="btn-icon" src="/assets/icons/stats.svg" alt="" />
-            <span>Merge preview</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn"
-                  (click)="copyMerged()"
-                  [disabled]="!mergedPreview"
-                  aria-label="Copy merged block">
-            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
-            <span>Copy merged</span>
-          </button>
-          <button type="button"
-                  class="toolbar-btn destructive"
-                  (click)="clear()"
-                  [disabled]="!leftBranch && !rightBranch && !mergedPreview"
-                  aria-label="Reset merge workspace">
-            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-            <span>Reset</span>
-          </button>
+      <div class="cm__stats" aria-label="Merge statistics">
+        <div class="cm__stat">
+          <span class="cm__stat-value">{{ leftLineCount }}</span>
+          <span class="cm__stat-label">Left</span>
         </div>
-        <div class="toolbar-stats" aria-label="Merge statistics">
-          <div class="stat-chip">
-            <span class="stat-label">Left lines</span>
-            <span class="stat-value">{{ leftBranch ? leftBranch.split('\n').length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Right lines</span>
-            <span class="stat-value">{{ rightBranch ? rightBranch.split('\n').length : 0 }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Markers</span>
-            <span class="stat-value">{{ includeConflictMarkers ? 'On' : 'Off' }}</span>
-          </div>
-          <div class="stat-chip">
-            <span class="stat-label">Merged length</span>
-            <span class="stat-value">{{ mergedPreview ? mergedPreview.length : 0 }}</span>
-          </div>
+        <div class="cm__stat">
+          <span class="cm__stat-value">{{ rightLineCount }}</span>
+          <span class="cm__stat-label">Right</span>
+        </div>
+        <div class="cm__stat cm__stat--mode">
+          <span class="cm__stat-value">{{ includeConflictMarkers ? 'On' : 'Off' }}</span>
+          <span class="cm__stat-label">Markers</span>
+        </div>
+        <div class="cm__stat">
+          <span class="cm__stat-value">{{ mergedPreview.length }}</span>
+          <span class="cm__stat-label">Merged</span>
         </div>
       </div>
+    </div>
 
-      <div class="editor-shell">
-        <div class="panel-grid">
-          <section class="panel panel-input">
-            <header class="panel-header">
-              <div>
-                <h2>Left branch</h2>
-                <p>Paste the content from your current branch or base revision.</p>
+    <div class="cm__toolbar" aria-label="Merge actions">
+      <button
+        type="button"
+        class="cm__tool-btn"
+        (click)="merge()"
+        [disabled]="!hasLeft && !hasRight"
+        aria-label="Generate merge preview"
+        appTooltip="Merge preview"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+        <span class="cm__tool-btn-label">Merge</span>
+      </button>
+      <button
+        type="button"
+        class="cm__tool-btn"
+        (click)="clear()"
+        [disabled]="!hasLeft && !hasRight && !mergedPreview"
+        aria-label="Clear all"
+        appTooltip="Clear all"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="cm__tool-btn-label">Clear</span>
+      </button>
+    </div>
+
+    @if (primarySuggestion; as suggestion) {
+      <aside class="cm__suggest" aria-label="Suggested next step">
+        <div class="cm__suggest-body">
+          <p class="cm__suggest-title">{{ suggestion.title }}</p>
+          <p class="cm__suggest-reason">{{ suggestion.reason }}</p>
+        </div>
+        <div class="cm__suggest-actions">
+          <a class="cm__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+          <button
+            type="button"
+            class="cm__suggest-dismiss"
+            (click)="dismissSuggestion(suggestion.id)"
+            aria-label="Dismiss suggestion">
+            Dismiss
+          </button>
+        </div>
+      </aside>
+    }
+
+    <div class="cm__workspace">
+      <div class="cm__editors" aria-label="Branch inputs and merged output">
+        <div class="cm__branch-grid">
+          <section class="cm__editor">
+            <header class="cm__editor-head">
+              <span>Left branch</span>
+              <div class="cm__editor-actions">
+                <button
+                  type="button"
+                  class="cm__icon-btn"
+                  (click)="copyLeft()"
+                  [disabled]="!hasLeft"
+                  aria-label="Copy left branch"
+                  appTooltip="Copy left branch"
+                  tooltipPosition="bottom">
+                  <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                </button>
               </div>
             </header>
             <label class="sr-only" for="merge-left">Left branch code</label>
-            <textarea id="merge-left"
-                      class="text-area text-area--input"
-                      [(ngModel)]="leftBranch"
-                      rows="10"
-                      placeholder="Paste the code from your base branch here…"></textarea>
+            <textarea
+              id="merge-left"
+              class="cm__textarea"
+              [(ngModel)]="leftBranch"
+              (input)="onBranchInput()"
+              rows="1"
+              placeholder="Paste base branch content…"></textarea>
           </section>
 
-          <section class="panel panel-input">
-            <header class="panel-header">
-              <div>
-                <h2>Right branch</h2>
-                <p>Add the incoming changes to compare and merge.</p>
+          <section class="cm__editor">
+            <header class="cm__editor-head">
+              <span>Right branch</span>
+              <div class="cm__editor-actions">
+                <button
+                  type="button"
+                  class="cm__icon-btn"
+                  (click)="copyRight()"
+                  [disabled]="!hasRight"
+                  aria-label="Copy right branch"
+                  appTooltip="Copy right branch"
+                  tooltipPosition="bottom">
+                  <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                </button>
               </div>
             </header>
             <label class="sr-only" for="merge-right">Right branch code</label>
-            <textarea id="merge-right"
-                      class="text-area text-area--input"
-                      [(ngModel)]="rightBranch"
-                      rows="10"
-                      placeholder="Paste the code from the incoming branch here…"></textarea>
+            <textarea
+              id="merge-right"
+              class="cm__textarea"
+              [(ngModel)]="rightBranch"
+              (input)="onBranchInput()"
+              rows="1"
+              placeholder="Paste incoming branch content…"></textarea>
           </section>
         </div>
 
-        <section class="panel panel-output">
-          <header class="panel-header">
-            <div>
-              <h2>Merged preview</h2>
-              <p>Conflict markers are optional. Update labels to match your branches before copying.</p>
+        <section class="cm__editor cm__editor--merged">
+          <header class="cm__editor-head">
+            <span>Merged preview</span>
+            <div class="cm__editor-actions">
+              @if (mergedPreview) {
+                <span class="cm__editor-badge">Ready</span>
+              }
+              <button
+                type="button"
+                class="cm__icon-btn"
+                (click)="copyMerged()"
+                [disabled]="!mergedPreview"
+                aria-label="Copy merged preview"
+                appTooltip="Copy merged preview"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-            @if (mergedPreview) {
-              <span class="panel-badge">Ready to copy</span>
-            }
           </header>
+          @if (mergedPreview) {
+            <textarea
+              class="cm__textarea cm__textarea--output"
+              readonly
+              rows="1"
+              [value]="mergedPreview"
+              aria-label="Merged code preview"></textarea>
+          } @else {
+            <div class="cm__empty" aria-live="polite">
+              <p>Click <strong>Merge</strong> to generate a preview with your branch content.</p>
+            </div>
+          }
+        </section>
+      </div>
 
-          <div class="merge-settings">
-            <label class="inline-field">
+      <aside class="cm__sidebar" aria-label="Merge settings">
+        <div class="cm__panel">
+          <header class="cm__panel-head">Merge settings</header>
+          <div class="cm__settings">
+            <label class="cm__field">
               <span>Base label</span>
               <input type="text" [(ngModel)]="baseLabel" placeholder="HEAD" />
             </label>
-            <label class="inline-field">
+            <label class="cm__field">
               <span>Incoming label</span>
               <input type="text" [(ngModel)]="incomingLabel" placeholder="Incoming" />
             </label>
-            <label class="toggle-field">
-              <input type="checkbox" [(ngModel)]="includeConflictMarkers" />
+            <label class="cm__toggle">
+              <input type="checkbox" [(ngModel)]="includeConflictMarkers" (change)="onBranchInput()" />
               <span>Include conflict markers</span>
             </label>
           </div>
+        </div>
 
-          <textarea class="text-area text-area--output"
-                    readonly
-                    rows="12"
-                    [value]="mergedPreview"
-                    aria-label="Merged code preview"></textarea>
-
-          <div class="copy-row">
-            <button type="button"
-                    class="toolbar-btn secondary"
-                    (click)="copyMerged()"
-                    [disabled]="!mergedPreview"
-                    aria-label="Copy merged preview">
-              <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
-              <span>Copy merged</span>
-            </button>
-            @if (copied) {
-              <span class="copy-feedback">Copied!</span>
+        <div class="cm__panel cm__panel--related">
+          <header class="cm__panel-head">Related tools</header>
+          <ul class="cm__related-list">
+            @for (tool of relatedTools; track tool.path) {
+              <li>
+                <a class="cm__related-link" [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
             }
-          </div>
-        </section>
-
-        <footer class="editor-footer">
-          <div class="editor-metric">
-            <span class="metric-label">Base label</span>
-            <span class="metric-value">{{ baseLabel || 'HEAD' }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Incoming label</span>
-            <span class="metric-value">{{ incomingLabel || 'Incoming' }}</span>
-          </div>
-          <div class="editor-metric">
-            <span class="metric-label">Copy status</span>
-            <span class="metric-value">{{ copied ? 'Copied' : 'Ready' }}</span>
-          </div>
-          <button type="button"
-                  class="clear-btn"
-                  (click)="clear()"
-                  [disabled]="!leftBranch && !rightBranch && !mergedPreview"
-                  aria-label="Clear merge helper">
-            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
-            <span>Clear workspace</span>
-          </button>
-        </footer>
-      </div>
-    </section>
-
-    <aside class="workspace-secondary">
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Merge strategy</h2>
-          <p>Conflict markers keep context intact while you resolve differences manually.</p>
-        </header>
-        <div class="insight-body">
-          <ul class="tip-list">
-            <li>Rename labels to match your branches, e.g. <code>feature/cart</code> and <code>main</code>.</li>
-            <li>Disable markers to concatenate files when no conflicts are expected.</li>
-            <li>Copy the preview into your editor to resolve conflicts inline.</li>
           </ul>
         </div>
-      </section>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>Keyboard shortcuts</h2>
-          <p>Speed up editing while preparing your merged snippet.</p>
-        </header>
-        <div class="insight-body shortcut-list">
-          <div>
-            <span class="shortcut">⌘ / Ctrl + A</span>
-            <p>Select all text in the active pane before replacing.</p>
+        <div class="cm__info">
+          <div class="cm__info-item">
+            <span class="cm__info-dot cm__info-dot--accent"></span>
+            <p><strong>Conflict markers</strong> preserve context for manual resolution.</p>
           </div>
-          <div>
-            <span class="shortcut">⌘ / Ctrl + ⬆/⬇</span>
-            <p>Move between lines quickly while comparing branches.</p>
-          </div>
-          <div>
-            <span class="shortcut">⌘ / Ctrl + C</span>
-            <p>Copy segments before merging to avoid losing context.</p>
+          <div class="cm__info-item">
+            <span class="cm__info-dot"></span>
+            <p>Disable markers to concatenate when no conflicts are expected.</p>
           </div>
         </div>
-      </section>
+      </aside>
+    </div>
 
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>How to use</h2>
-          <p>Merge code branches and resolve conflicts with our visual merge helper.</p>
-        </header>
-
-        <div class="insight-body">
-          <ol class="how-to-list">
-            <li>
-              <strong>Enter base content</strong>
-              <p>Paste your base branch or original content in the left panel.</p>
-            </li>
-            <li>
-              <strong>Add incoming changes</strong>
-              <p>Enter the incoming branch or modified content in the right panel.</p>
-            </li>
-            <li>
-              <strong>Configure labels</strong>
-              <p>Optionally rename branch labels to match your workflow (e.g., "main" and "feature").</p>
-            </li>
-            <li>
-              <strong>Toggle conflict markers</strong>
-              <p>Enable or disable conflict markers based on your merge strategy.</p>
-            </li>
-            <li>
-              <strong>Copy merged result</strong>
-              <p>Review the preview and copy the merged output to your editor for final resolution.</p>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      <section class="insight-card">
-        <header class="insight-header">
-          <h2>About this tool</h2>
-          <p>Everything you need to know about our code merge helper.</p>
-        </header>
-
-        <div class="insight-body">
-          <div class="about-content">
-            <p>
-              The Code Merge Helper combines two versions of code or text with conflict markers, 
-              making it easy to visualize differences and resolve merge conflicts. Perfect for 
-              Git workflows, document merging, and collaborative editing scenarios.
-            </p>
-            
-            <div class="feature-grid">
-              <div class="feature-item">
-                <strong>Conflict markers</strong>
-                <p>Automatically inserts standard conflict markers to preserve context during merges.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Custom labels</strong>
-                <p>Rename branch labels to match your Git workflow and team conventions.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Flexible merging</strong>
-                <p>Toggle markers on/off for different merge strategies and use cases.</p>
-              </div>
-              <div class="feature-item">
-                <strong>Real-time preview</strong>
-                <p>See the merged result instantly as you edit either branch or change settings.</p>
-              </div>
-            </div>
-
-            <div class="use-cases">
-              <strong>Perfect for:</strong>
-              <ul class="tip-list">
-                <li>Git merge conflict resolution</li>
-                <li>Code branch comparison</li>
-                <li>Document version merging</li>
-                <li>Configuration file updates</li>
-                <li>Collaborative editing</li>
-                <li>Change integration workflows</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-    </aside>
-  </div>
+    <details class="cm__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste base content in <strong>Left branch</strong> and incoming changes in <strong>Right branch</strong>.</li>
+        <li>Set branch labels and toggle conflict markers in the sidebar.</li>
+        <li>Click <strong>Merge</strong> to generate the preview, then copy from the merged editor.</li>
+        <li>Use per-editor copy icons to grab any pane independently.</li>
+      </ul>
+    </details>
+  </main>
 </div>

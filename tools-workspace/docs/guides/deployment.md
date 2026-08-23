@@ -3,12 +3,13 @@
 ## Build output
 
 ```bash
-npx nx build tools-site --configuration=production
-# or prerender:
+npx nx run tools-site:generate-sitemap
 npx nx run tools-site:build-prod
 ```
 
-Deploy folder: `dist/apps/tools-site/browser/` (SPA). SSR server: `dist/apps/tools-site/server/` via `npx nx server tools-site`.
+Deploy folder: `dist/apps/tools-site/browser/` (prerendered static). Optional Node SSR: `dist/apps/tools-site/server/` (`import.meta` / `createNodeRequestHandler`).
+
+Put **Cloudflare** (or similar) in front of Apache for global TTFB: long cache on hashed JS/CSS, shorter TTL on HTML, keep `sitemap.xml` / `robots.txt` fresh. Use one HTTPS host (`easytoolhub.com`, not www + apex duplicates).
 
 ## Pre-deploy checklist
 
@@ -31,7 +32,7 @@ npx nx serve-static tools-site
 
 | Platform | Notes |
 | -------- | ----- |
-| Apache | Copy `.htaccess`; enable `mod_mime`, `mod_headers`, `AllowOverride` |
+| Apache | Copy `.htaccess`; enable `mod_mime`, `mod_headers`, `mod_rewrite`, `AllowOverride`. Pretty prerendered folders; `ErrorDocument 404 /404.html` — do not SPA-fallback unknown URLs to `index.html`. |
 | Nginx | `location ~* \.svg$ { add_header Content-Type image/svg+xml; ... }` |
 | Netlify | Publish `dist/apps/tools-site/browser`; `_headers` for MIME |
 | Vercel | Output browser dist; `vercel.json` |
@@ -61,3 +62,6 @@ If SVGs serve as `text/html`:
 - [seo.md](./seo.md) — sitemap generation  
 - [compilation.md](./compilation.md) — local build speed  
 - [../architecture.md](../architecture.md) — SSR overview  
+
+
+<!-- scp -r * root@72.60.220.37:/var/www/easytoolhub.com/html/ -->

@@ -1,188 +1,343 @@
-<div class="vr">
-  <div class="vr__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl mt">
+  <lib-navigation></lib-navigation>
 
-  <section class="vr__hero">
-    <div class="vr__badge">Media tools</div>
-    <h1>Voice Recorder</h1>
-    <p>
-      Record audio using your microphone. Play back recordings, download them, and manage your recording history. Visual
-      feedback shows audio levels during recording.
-    </p>
-
-    <div class="vr__hero-meta">
-      <div>
-        <span class="vr__meta-label">Status</span>
-        <strong>
-          {{ isRecording() ? (isPaused() ? 'Paused' : 'Recording') : isPlaying() ? 'Playing' : 'Ready' }}
-        </strong>
-      </div>
-      <div>
-        <span class="vr__meta-label">Time</span>
-        <strong>{{ formattedTime() }}</strong>
-      </div>
-      <div>
-        <span class="vr__meta-label">Recordings</span>
-        <strong>{{ stats().count }}</strong>
-      </div>
-      @if (hasRecordings()) {
-        <div>
-          <span class="vr__meta-label">Total size</span>
-          <strong>{{ formatFileSize(stats().totalSize) }}</strong>
-        </div>
-      }
-    </div>
-  </section>
-
-  <div class="vr__board">
-    <section class="vr__panel vr__panel--recorder">
-      <header class="vr__card-header">
-        <div>
-          <h2>Recorder</h2>
-          <p>Record audio from your microphone.</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Voice Recorder</h1>
+        <p>Record audio from your microphone, play back clips, and download — with live level visualization.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="vr__alert vr__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Recording statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ statusLabel() }}</span>
+          <span class="ctl__stat-label">Status</span>
         </div>
-      }
-
-      <div class="vr__recorder-container">
-        <div class="vr__audio-visualizer">
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 100"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 80"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 100"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 70"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 90"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 85"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 95"></div>
-          <div class="vr__visualizer-bar" [style.height.%]="audioLevel() * 75"></div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ formattedTime() }}</span>
+          <span class="ctl__stat-label">Time</span>
         </div>
-
-        <div class="vr__timer-display">
-          <div class="vr__timer-time">{{ formattedTime() }}</div>
-          <div class="vr__timer-status">
-            {{ isRecording() ? (isPaused() ? 'Paused' : 'Recording...') : 'Ready' }}
-          </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats().count }}</span>
+          <span class="ctl__stat-label">Clips</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasRecordings() ? formatFileSize(stats().totalSize) : '—' }}</span>
+          <span class="ctl__stat-label">Size</span>
         </div>
       </div>
+    </div>
 
-      <div class="vr__controls">
+    <div class="mt-workflow" aria-label="Recorder actions">
+      <div class="mt-workflow__group mt-workflow__group--actions">
         @if (!isRecording()) {
-          <button type="button" class="btn btn--primary btn--large" (click)="startRecording()">
-            Start Recording
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="startRecording()"
+            aria-label="Start recording"
+            appTooltip="Start recording"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+            <span class="ctl__tool-btn-label">Record</span>
           </button>
         } @else {
-          <div class="vr__recording-controls">
-            @if (isPaused()) {
-              <button type="button" class="btn btn--primary" (click)="resumeRecording()">Resume</button>
-            } @else {
-              <button type="button" class="btn btn--ghost" (click)="pauseRecording()">Pause</button>
-            }
-            <button type="button" class="btn btn--danger" (click)="stopRecording()">Stop</button>
+          @if (isPaused()) {
+            <button
+              type="button"
+              class="ctl__tool-btn"
+              (click)="resumeRecording()"
+              aria-label="Resume recording"
+              appTooltip="Resume"
+              tooltipPosition="bottom">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span class="ctl__tool-btn-label">Resume</span>
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="ctl__tool-btn"
+              (click)="pauseRecording()"
+              aria-label="Pause recording"
+              appTooltip="Pause"
+              tooltipPosition="bottom">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+              <span class="ctl__tool-btn-label">Pause</span>
+            </button>
+          }
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="stopRecording()"
+            aria-label="Stop recording"
+            appTooltip="Stop recording"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" />
+            </svg>
+            <span class="ctl__tool-btn-label">Stop</span>
+          </button>
+        }
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearAllRecordings()"
+          [disabled]="!hasRecordings()"
+          aria-label="Clear all recordings"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctl__workspace ctl__workspace--viewer">
+      <section class="ctl__editor mt-viewer-panel" aria-label="Voice recorder">
+        <header class="ctl__editor-head">
+          <span>Recorder</span>
+          @if (isRecording()) {
+            <span class="ctl__editor-badge">{{ isPaused() ? 'Paused' : 'Live' }}</span>
+          }
+        </header>
+
+        @if (errors().length) {
+          <div class="ctl__alert ctl__alert--error" role="alert">
+            <ul>
+              @for (message of errors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
           </div>
         }
-      </div>
 
-      @if (hasCurrentRecording() && currentRecording(); as recording) {
-        <div class="vr__playback">
-          <div class="vr__playback-header">
-            <div>
-              <div class="vr__playback-title">Current Recording</div>
-              <div class="vr__playback-meta">
-                {{ formatTime(recording.duration) }} · {{ formatFileSize(recording.size) }}
-              </div>
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="vr__suggest" aria-label="Suggested next step">
+            <div class="vr__suggest-body">
+              <p class="vr__suggest-title">{{ suggestion.title }}</p>
+              <p class="vr__suggest-reason">{{ suggestion.reason }}</p>
             </div>
-            <div class="vr__playback-actions">
+            <div class="vr__suggest-actions">
+              <a class="vr__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="vr__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+        }
+
+        <div class="ctl__editor-body vr-recorder" aria-live="polite">
+          <div class="vr-recorder__visualizer" aria-hidden="true">
+            @for (h of visualizerHeights; track $index) {
+              <div class="vr-recorder__bar" [style.height.%]="audioLevel() * h"></div>
+            }
+          </div>
+          <div class="vr-recorder__timer">{{ formattedTime() }}</div>
+          <p class="vr-recorder__status">
+            {{ isRecording() ? (isPaused() ? 'Paused' : 'Recording…') : 'Ready to record' }}
+          </p>
+        </div>
+
+        @if (hasCurrentRecording() && currentRecording(); as recording) {
+          <div class="vr-recorder__playback">
+            <div>
+              <strong>Latest clip</strong>
+              <span>{{ formatTime(recording.duration) }} · {{ formatFileSize(recording.size) }}</span>
+            </div>
+            <div class="vr-recorder__playback-actions">
               @if (isPlaying()) {
-                <button type="button" class="btn btn--ghost btn--small" (click)="stopPlayback()">Stop</button>
+                <button
+                  type="button"
+                  class="ctl__icon-btn"
+                  (click)="stopPlayback()"
+                  aria-label="Stop"
+                  appTooltip="Stop"
+                  tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" />
+                  </svg>
+                </button>
               } @else {
-                <button type="button" class="btn btn--primary btn--small" (click)="playRecording(recording)">
-                  Play
+                <button
+                  type="button"
+                  class="ctl__icon-btn"
+                  (click)="playRecording(recording)"
+                  aria-label="Play"
+                  appTooltip="Play"
+                  tooltipPosition="bottom">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
                 </button>
               }
-              <button type="button" class="btn btn--ghost btn--small" (click)="downloadRecording(recording)">
-                Download
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="downloadRecording(recording)"
+                aria-label="Download"
+                appTooltip="Download"
+                tooltipPosition="bottom">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
               </button>
             </div>
           </div>
-        </div>
-      }
-    </section>
+        }
+      </section>
 
-    <section class="vr__panel vr__panel--recordings">
-      <header class="vr__card-header">
-        <div>
-          <h2>Recordings</h2>
-          <p>Your recorded audio files (last 20).</p>
-        </div>
+      <details class="mt-options-flyout">
+        <summary class="mt-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
         <button
           type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearAllRecordings()"
-          [disabled]="!hasRecordings()"
-        >
-          Clear All
-        </button>
-      </header>
+          class="mt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside
+          class="ctl__sidebar mt-options-flyout__panel"
+          (wheel)="$event.stopPropagation()"
+          aria-label="Recording history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              Recordings
+              @if (hasRecordings()) {
+                <span class="ctl__panel-badge">{{ stats().count }}</span>
+              }
+            </header>
+            @if (hasRecordings()) {
+              <ul class="vr-recorder__list">
+                @for (recording of recordings(); track recording.id) {
+                  <li
+                    class="vr-recorder__item"
+                    [class.vr-recorder__item--active]="currentRecording()?.id === recording.id && isPlaying()">
+                    <div class="vr-recorder__item-info">
+                      <strong>{{ formatTime(recording.duration) }}</strong>
+                      <span>{{ formatFileSize(recording.size) }} · {{ formatTimestamp(recording.timestamp) }}</span>
+                    </div>
+                    <div class="vr-recorder__item-actions">
+                      @if (currentRecording()?.id === recording.id && isPlaying()) {
+                        <button
+                          type="button"
+                          class="ctl__icon-btn"
+                          (click)="stopPlayback()"
+                          aria-label="Stop"
+                          appTooltip="Stop"
+                          tooltipPosition="bottom">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <rect x="6" y="6" width="12" height="12" />
+                          </svg>
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="ctl__icon-btn"
+                          (click)="playRecording(recording)"
+                          aria-label="Play"
+                          appTooltip="Play"
+                          tooltipPosition="bottom">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="ctl__icon-btn"
+                        (click)="downloadRecording(recording)"
+                        aria-label="Download"
+                        appTooltip="Download"
+                        tooltipPosition="bottom">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        class="ctl__icon-btn"
+                        (click)="deleteRecording(recording.id)"
+                        aria-label="Delete"
+                        appTooltip="Delete"
+                        tooltipPosition="bottom">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__panel-empty"><p>No recordings yet — press Record to begin.</p></div>
+            }
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body vr__related">
+              <ul class="vr__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="vr__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Audio is captured <strong>locally</strong> — nothing is uploaded to a server.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Up to <strong>20 clips</strong> are kept in session history.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
 
-      @if (hasRecordings()) {
-        <ul class="vr__recordings-list">
-          @for (recording of recordings(); track recording.id) {
-            <li
-              class="vr__recording-item"
-              [class.vr__recording-item--active]="currentRecording()?.id === recording.id && isPlaying()"
-            >
-              <div class="vr__recording-main">
-                <div class="vr__recording-info">
-                  <div class="vr__recording-time">{{ formatTime(recording.duration) }}</div>
-                  <div class="vr__recording-meta">
-                    {{ formatFileSize(recording.size) }} · {{ formatTimestamp(recording.timestamp) }}
-                  </div>
-                </div>
-                <div class="vr__recording-actions">
-                  @if (currentRecording()?.id === recording.id && isPlaying()) {
-                    <button type="button" class="vr__action-btn" (click)="stopPlayback()" title="Stop">
-                      ⏹
-                    </button>
-                  } @else {
-                    <button type="button" class="vr__action-btn" (click)="playRecording(recording)" title="Play">
-                      ▶
-                    </button>
-                  }
-                  <button
-                    type="button"
-                    class="vr__action-btn"
-                    (click)="downloadRecording(recording)"
-                    title="Download"
-                  >
-                    ⬇
-                  </button>
-                  <button
-                    type="button"
-                    class="vr__action-btn vr__action-btn--danger"
-                    (click)="deleteRecording(recording.id)"
-                    title="Delete"
-                  >
-                    🗑
-                  </button>
-                </div>
-              </div>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="vr__empty">
-          <p>No recordings yet. Click "Start Recording" to begin.</p>
-        </div>
-      }
-    </section>
-  </div>
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Click <strong>Record</strong> and allow microphone access when prompted.</li>
+        <li>Use <strong>Pause</strong> / <strong>Resume</strong> mid-session, then <strong>Stop</strong> to save a clip.</li>
+        <li>Play or download clips from the history panel.</li>
+      </ul>
+    </details>
+  </main>
 </div>

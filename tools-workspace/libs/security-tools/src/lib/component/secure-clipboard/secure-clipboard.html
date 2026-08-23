@@ -1,135 +1,245 @@
-<div class="sc">
-  <div class="sc__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl st">
+  <lib-navigation></lib-navigation>
 
-  <section class="sc__hero">
-    <div class="sc__badge">Security toolkit</div>
-    <h1>Secure Clipboard</h1>
-    <p>
-      Temporarily store sensitive text in memory and in your system clipboard with an automatic timeout. Encryption
-      happens locally and nothing is sent to a server.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Secure Clipboard</h1>
+        <p>Copy sensitive text with an auto-expiring in-memory encrypted store.</p>
+      </header>
 
-    <div class="sc__hero-meta">
-      <div>
-        <span class="sc__meta-label">Status</span>
-        <strong [class.sc__status--active]="hasStored()" [class.sc__status--inactive]="!hasStored()">
-          {{ hasStored() ? (isExpired() ? 'Expired' : 'Active') : 'Empty' }}
-        </strong>
-      </div>
-      <div>
-        <span class="sc__meta-label">Time remaining</span>
-        <strong>{{ hasStored() && !isExpired() ? remainingSeconds() + 's' : 'N/A' }}</strong>
-      </div>
-      <div>
-        <span class="sc__meta-label">Expires at</span>
-        <strong>{{ formatExpiresAt() }}</strong>
+      <div class="ctl__stats" aria-label="Clipboard statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ statusLabel() }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ hasStored() && !isExpired() ? remainingSeconds() : '—' }}</span>
+          <span class="ctl__stat-label">Seconds</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ expiresAtLabel() }}</span>
+          <span class="ctl__stat-label">Expires</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ formSnapshot().text.length }}</span>
+          <span class="ctl__stat-label">Input</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="sc__board" [formGroup]="form">
-    <section class="sc__panel sc__panel--input">
-      <header class="sc__card-header">
-        <div>
-          <h2>Clipboard content</h2>
-          <p>Text to copy to the secure clipboard.</p>
-        </div>
-      </header>
-
-      @if (errors().length) {
-        <div class="sc__alert sc__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      @if (warnings().length) {
-        <div class="sc__alert sc__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
-        </div>
-      }
-
-      <div class="sc__field">
-        <label for="text" class="sc__label">Text</label>
-        <textarea
-          id="text"
-          class="sc__textarea"
-          formControlName="text"
-          rows="6"
-          spellcheck="false"
-          placeholder="Paste or type sensitive text here. It will be copied to your clipboard and encrypted in memory."
-        ></textarea>
-      </div>
-
-      <div class="sc__actions">
-        <button type="button" class="btn btn--ghost btn--small" (click)="form.controls.text.setValue('')">
-          Clear text
+    <div class="st-workflow" aria-label="Clipboard actions">
+      <div class="st-workflow__group st-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyToSecureClipboard()"
+          [disabled]="!canStore()"
+          aria-label="Copy to secure clipboard"
+          appTooltip="Copy to secure clipboard"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Secure copy</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearClipboard()"
+          [disabled]="!hasStored()"
+          aria-label="Clear secure clipboard"
+          appTooltip="Clear secure clipboard"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear store</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearText()"
+          [disabled]="!hasText()"
+          aria-label="Clear text"
+          appTooltip="Clear text"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear text</span>
         </button>
       </div>
-    </section>
+    </div>
 
-    <section class="sc__panel sc__panel--settings">
-      <header class="sc__card-header">
-        <div>
-          <h2>Security settings</h2>
-          <p>Password and timeout configuration.</p>
-        </div>
-      </header>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor st-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Clipboard content</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyText()"
+                [disabled]="!hasText()"
+                aria-label="Copy text"
+                appTooltip="Copy text"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
 
-      <div class="sc__field">
-        <label for="password" class="sc__label">Password</label>
-        <input
-          id="password"
-          type="password"
-          class="sc__input"
-          formControlName="password"
-          autocomplete="new-password"
-          placeholder="Password used to encrypt clipboard content"
-        />
-        <p class="sc__hint">
-          Use a strong password. If you forget it, the encrypted clipboard content cannot be recovered.
-        </p>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (warnings().length) {
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="sc__suggest" aria-label="Suggested next step">
+              <div class="sc__suggest-body">
+                <p class="sc__suggest-title">{{ suggestion.title }}</p>
+                <p class="sc__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="sc__suggest-actions">
+                <a class="sc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="sc__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="text">Text for secure clipboard</label>
+          <textarea
+            id="text"
+            class="ctl__textarea"
+            formControlName="text"
+            rows="1"
+            spellcheck="false"
+            placeholder="Paste or type sensitive text here"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output st-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Secure store</span>
+            <div class="ctl__editor-actions">
+              @if (hasStored() && !isExpired()) {
+                <span class="ctl__editor-badge">Active</span>
+              }
+            </div>
+          </header>
+          @if (hasStored() && !isExpired()) {
+            <div class="ctl__editor-body sc-status" aria-live="polite">
+              <p>Encrypted content is held in memory until the timer expires.</p>
+              <p>
+                <strong>{{ remainingSeconds() }}s</strong> remaining — expires at
+                {{ expiresAtLabel() }}.
+              </p>
+            </div>
+          } @else if (hasStored() && isExpired()) {
+            <div class="ctl__empty">
+              <p>Secure clipboard content has expired and was cleared.</p>
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Use Secure copy to encrypt text in memory and copy it to the system clipboard.</p>
+            </div>
+          }
+        </section>
       </div>
 
-      <div class="sc__field sc__field--inline">
-        <div>
-          <label for="ttl" class="sc__label">Time to live (seconds)</label>
-          <input
-            id="ttl"
-            type="number"
-            class="sc__input"
-            formControlName="ttlSeconds"
-            min="5"
-            max="600"
-          />
-          <p class="sc__hint">After this time, the secure clipboard will be cleared automatically.</p>
-        </div>
-      </div>
+      <details class="st-options-flyout">
+        <summary class="st-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button
+          type="button"
+          class="st-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar st-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Security settings">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Settings</header>
+            <div class="ctl__settings">
+              <label class="ctl__field">
+                <span>Password</span>
+                <input
+                  id="password"
+                  type="password"
+                  formControlName="password"
+                  autocomplete="new-password"
+                  placeholder="Encryption password" />
+              </label>
+              <label class="ctl__field">
+                <span>Time to live (seconds)</span>
+                <input id="ttl" type="number" formControlName="ttlSeconds" min="5" max="600" />
+              </label>
+              <p class="sc-hint">Content clears automatically when the timer ends.</p>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body sc__related">
+              <ul class="sc__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="sc__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Encryption runs <strong>locally</strong> — nothing is sent to a server.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Avoid using on <strong>untrusted devices</strong>.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
 
-      <div class="sc__button-row">
-        <button type="button" class="btn btn--primary btn--small" (click)="copyToSecureClipboard()">
-          Copy to secure clipboard
-        </button>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearClipboard()" [disabled]="!hasStored()">
-          Clear secure clipboard
-        </button>
-      </div>
-
-      <div class="sc__disclaimer">
-        <p>
-          This tool uses browser APIs to copy text and encrypt it in memory. It does not transmit data over the network,
-          but you should still avoid using it on untrusted devices.
-        </p>
-      </div>
-    </section>
-  </div>
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste sensitive text and set a password plus TTL in the sidebar.</li>
+        <li>Click <strong>Secure copy</strong> to copy to clipboard and encrypt in memory.</li>
+        <li>Content auto-clears when the timer expires.</li>
+        <li>Use Clear store to wipe the encrypted buffer immediately.</li>
+      </ul>
+    </details>
+  </main>
 </div>

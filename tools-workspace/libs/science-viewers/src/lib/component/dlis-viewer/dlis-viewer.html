@@ -1,0 +1,230 @@
+<div class="ctl dlis">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dlis-eyebrow">Science tools</span>
+        <h1>DLIS Viewer <span class="dlis-live-badge">Local &amp; private</span></h1>
+        <p>Inspect DLIS storage units locally — SUL, visible records, channels, and depth-track preview. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="dlis-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dlis-suggest__body">
+        <p class="dlis-suggest__title">{{ suggestion.title }}</p>
+        <p class="dlis-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dlis-suggest__actions">
+        <button type="button" class="dlis-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="dlis-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="dlis-toolbar">
+      <div class="dlis-toolbar__group">
+        <input #fileInput class="dlis-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn dlis-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dlis-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="dlis-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('channels-csv', $event)">Channels CSV</button>
+            <button type="button" (click)="exportAs('frame-csv', $event)">Frame CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="dlis-files" *ngIf="files.length">
+          <div class="dlis-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dlis-files__chip--active]="i === currentIndex">
+            <button type="button" class="dlis-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="dlis-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="dlis-toolbar__status"><span class="dlis-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="dlis-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="dlis-workspace" [class.dlis-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dlis-panel">
+        <header class="dlis-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.channels?.length || 0 }} channels · {{ parsed?.records?.length || 0 }} records · {{ parsed?.sul?.version }}</span>
+          </div>
+          <div class="dlis-view-controls">
+            <button type="button" *ngIf="viewMode === 'tracks'" (click)="toggleCrossplot()" [class.is-active]="showCrossplot">Crossplot</button>
+            <button type="button" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(0.8)" title="Zoom in (+)">+</button>
+            <button type="button" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(1.25)" title="Zoom out (−)">−</button>
+            <button type="button" *ngIf="viewMode === 'tracks'" (click)="fitDepth()" title="Fit depth (F)">Fit</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="dlis-filters" *ngIf="currentFile && parsed && viewMode === 'tracks' && parsed.depth.length">
+          <label>Depth min <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMin" (ngModelChange)="depthMin = +$event; onDepthChange()" /></label>
+          <span>{{ depthMin | number:'1.1-1' }}</span>
+          <label>Depth max <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMax" (ngModelChange)="depthMax = +$event; onDepthChange()" /></label>
+          <span>{{ depthMax | number:'1.1-1' }}</span>
+          <ng-container *ngIf="showCrossplot">
+            <label>X
+              <select [ngModel]="crossplotX" (ngModelChange)="setCrossplotX($event)">
+                <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
+              </select>
+            </label>
+            <label>Y
+              <select [ngModel]="crossplotY" (ngModelChange)="setCrossplotY($event)">
+                <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
+              </select>
+            </label>
+          </ng-container>
+        </div>
+
+        <div #mapWrap class="dlis-map-wrap" [class.dlis-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="dlis-map" *ngIf="currentFile && viewMode === 'tracks'"></canvas>
+          <div class="dlis-table" *ngIf="currentFile && viewMode === 'records'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Offset</th>
+                  <th>Length</th>
+                  <th>Type</th>
+                  <th>Attr</th>
+                  <th>Kind</th>
+                  <th>Label</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let rec of parsed?.records; trackBy: trackByRecord" [class.is-active]="selectedRecord?.index === rec.index" (click)="selectRecord(rec.index)">
+                  <td>{{ rec.index }}</td>
+                  <td>{{ rec.offset }}</td>
+                  <td>{{ rec.length }}</td>
+                  <td>{{ rec.type }}</td>
+                  <td>{{ hexAttr(rec.attributes) }}</td>
+                  <td>{{ rec.encrypted ? 'encrypted' : rec.eflr ? 'EFLR' : 'IFLR' }}</td>
+                  <td>{{ rec.label }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="dlis-empty-filter" *ngIf="parsed && !parsed.records.length">No visible records found after the storage unit label.</p>
+          </div>
+          <div class="dlis-channels" *ngIf="currentFile && viewMode === 'channels'">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mnemonic</th>
+                  <th>Unit</th>
+                  <th>Representation</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ch of filteredChannels; trackBy: trackByChannel" [class.is-active]="selectedMnemonic === ch.mnemonic" (click)="selectCurve(ch.mnemonic)">
+                  <td><i class="dlis-swatch" [style.background]="curveSwatch(ch.mnemonic)"></i>{{ ch.mnemonic }}</td>
+                  <td>{{ ch.unit || '—' }}</td>
+                  <td>{{ ch.representation }}</td>
+                  <td>{{ ch.longName || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="dlis-hist" *ngIf="selectedCurve">
+              <p>{{ selectedCurve.mnemonic }} histogram</p>
+              <div class="dlis-hist__bars">
+                <div *ngFor="let bar of histogramBars" class="dlis-hist__col">
+                  <div class="dlis-hist__bar" [style.height.%]="bar.heightPct" [style.background]="bar.color" [title]="bar.label + ': ' + bar.count"></div>
+                  <span>{{ bar.label }}</span>
+                </div>
+              </div>
+            </div>
+            <p class="dlis-empty-filter" *ngIf="parsed && !filteredChannels.length">No channels match the current search.</p>
+          </div>
+          <div class="dlis-empty" *ngIf="!currentFile && !loading">
+            <p>Drop DLIS files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="dlis-loading" *ngIf="loading">Parsing DLIS…</div>
+        </div>
+
+        <div class="dlis-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dlis-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dlis-disclaimer">Education and research preview only — not a full RP66 template decoder and not validated for well operations.</p>
+      </section>
+
+      <aside class="dlis-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="dlis-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search channels</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="dlis-search" type="search" placeholder="Search mnemonic / unit (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="allCurves.length">
+          <header class="ctl__panel-head">Curves</header>
+          <div class="ctl__panel-body dlis-curves">
+            <button type="button" *ngFor="let curve of allCurves; let i = index; trackBy: trackByCurve" [class.is-active]="selectedMnemonic === curve.mnemonic" (click)="selectCurve(curve.mnemonic)">
+              <i class="dlis-swatch" [style.background]="curveSwatch(curve.mnemonic, i)"></i>
+              <span>{{ curve.mnemonic }} <small>{{ curve.unit }}</small></span>
+              <span class="dlis-curves__toggles" (click)="$event.stopPropagation()">
+                <label><input type="checkbox" [checked]="enabledMnemonics.has(curve.mnemonic)" (change)="toggleCurve(curve.mnemonic)" /> show</label>
+                <label><input type="checkbox" [checked]="!!curve.logScale" (change)="toggleLogScale(curve)" /> log</label>
+                <label><input type="checkbox" [checked]="!!curve.reversed" (change)="toggleReversed(curve)" /> rev</label>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedCurve">
+          <header class="ctl__panel-head">Selected channel</header>
+          <div class="ctl__panel-body">
+            <dl class="dlis-meta">
+              <div *ngFor="let row of curveMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedRecord">
+          <header class="ctl__panel-head">Selected record</header>
+          <div class="ctl__panel-body">
+            <dl class="dlis-meta">
+              <div><dt>Index</dt><dd>{{ selectedRecord.index }}</dd></div>
+              <div><dt>Offset</dt><dd>{{ selectedRecord.offset }}</dd></div>
+              <div><dt>Length</dt><dd>{{ selectedRecord.length }}</dd></div>
+              <div><dt>Type</dt><dd>{{ selectedRecord.type }}</dd></div>
+              <div><dt>Attributes</dt><dd>{{ hexAttr(selectedRecord.attributes) }}</dd></div>
+              <div><dt>Kind</dt><dd>{{ selectedRecord.encrypted ? 'encrypted' : selectedRecord.eflr ? 'EFLR' : 'IFLR' }}</dd></div>
+              <div><dt>Label</dt><dd>{{ selectedRecord.label }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="extractedNames.length">
+          <header class="ctl__panel-head">Extracted names</header>
+          <div class="ctl__panel-body dlis-strings">
+            <span *ngFor="let name of extractedNames; trackBy: trackByString">{{ name }}</span>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dlis-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="dlis-drop" *ngIf="showDropZone"><p>Drop DLIS files to preview</p></div>
+  </main>
+</div>

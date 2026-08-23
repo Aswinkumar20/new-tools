@@ -1,0 +1,176 @@
+<div class="ctl pkt">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pkt-eyebrow">Network tools</span>
+        <h1>Packet Analyzer <span class="pkt-live-badge">Local &amp; private</span></h1>
+        <p>Deep packet inspection with layer decode and hex. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="pkt-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pkt-suggest__body">
+        <p class="pkt-suggest__title">{{ suggestion.title }}</p>
+        <p class="pkt-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pkt-suggest__actions">
+        <button type="button" class="pkt-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="pkt-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="pkt-toolbar">
+      <div class="pkt-toolbar__group">
+        <input #fileInput class="pkt-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn pkt-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pkt-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="pkt-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('decode-json', $event)">Decode JSON</button>
+            <button type="button" (click)="exportAs('packets-csv', $event)">Packets CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="pkt-files" *ngIf="files.length">
+          <div class="pkt-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pkt-files__chip--active]="i === currentIndex">
+            <button type="button" class="pkt-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="pkt-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="pkt-toolbar__status"><span class="pkt-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="pkt-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="pkt-workspace" [class.pkt-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pkt-panel">
+        <header class="pkt-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.format }} · {{ parsed?.linkTypeName }} · {{ filteredPackets.length }} packets · {{ selectedPacket?.protocol || '—' }}</span>
+          </div>
+          <div class="pkt-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="pkt-map-wrap" [class.pkt-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="pkt-map" *ngIf="currentFile && viewMode === 'layers'"></canvas>
+          <div class="pkt-decode" *ngIf="currentFile && viewMode === 'decode'">
+            <article class="pkt-layer" *ngFor="let layer of layers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" (click)="selectLayer(layer.id)">
+              <header>
+                <i class="pkt-swatch" [style.background]="layerTint(layer.name)"></i>
+                <strong>{{ layer.name }}</strong>
+                <span>{{ layer.summary }}</span>
+              </header>
+              <dl>
+                <div *ngFor="let field of layer.fields"><dt>{{ field.name }}</dt><dd>{{ field.value }}</dd></div>
+              </dl>
+            </article>
+            <p class="pkt-empty-filter" *ngIf="selectedPacket && !layers.length">No layers decoded for this packet.</p>
+          </div>
+          <pre class="pkt-hex" *ngIf="currentFile && viewMode === 'hex'">{{ hexDump || 'Select a packet to view hex.' }}</pre>
+          <div class="pkt-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Time</th>
+                  <th>Proto</th>
+                  <th>Source</th>
+                  <th>Destination</th>
+                  <th>Layers</th>
+                  <th>Info</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let pkt of filteredPackets; trackBy: trackByPacket" [class.is-active]="selectedPacket?.index === pkt.index" (click)="selectPacket(pkt.index)">
+                  <td>{{ pkt.index + 1 }}</td>
+                  <td>{{ pkt.relMs | number:'1.1-3' }}</td>
+                  <td><i class="pkt-swatch" [style.background]="protoColor(pkt.protocol)"></i>{{ pkt.protocol }}</td>
+                  <td>{{ pkt.srcPort != null ? pkt.srcIp + ':' + pkt.srcPort : (pkt.srcIp || '—') }}</td>
+                  <td>{{ pkt.dstPort != null ? pkt.dstIp + ':' + pkt.dstPort : (pkt.dstIp || '—') }}</td>
+                  <td>{{ layerNames(pkt) }}</td>
+                  <td>{{ pkt.info }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="pkt-empty-filter" *ngIf="parsed && !filteredPackets.length">No packets match the current filter.</p>
+          </div>
+          <div class="pkt-empty" *ngIf="!currentFile && !loading">
+            <p>Drop captures or hex dumps here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="pkt-loading" *ngIf="loading">Decoding packets…</div>
+        </div>
+
+        <div class="pkt-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pkt-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pkt-disclaimer">Education and research preview only — not a substitute for Wireshark or production packet forensics.</p>
+      </section>
+
+      <aside class="pkt-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="pkt-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Filter packets</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="pkt-search" type="search" placeholder="tcp http dns host port (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredPackets.length">
+          <header class="ctl__panel-head">Packets</header>
+          <div class="ctl__panel-body pkt-units">
+            <button type="button" *ngFor="let pkt of filteredPackets; trackBy: trackByPacket" [class.is-active]="selectedPacketIndex === pkt.index" (click)="selectPacket(pkt.index)">
+              <i class="pkt-swatch" [style.background]="protoColor(pkt.protocol)"></i>
+              <span>#{{ pkt.index + 1 }} {{ pkt.protocol }} <small>{{ pkt.info }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="layers.length">
+          <header class="ctl__panel-head">Layers</header>
+          <div class="ctl__panel-body pkt-units">
+            <button type="button" *ngFor="let layer of layers; trackBy: trackByLayer" [class.is-active]="selectedLayerId === layer.id" (click)="selectLayer(layer.id)">
+              <i class="pkt-swatch" [style.background]="layerTint(layer.name)"></i>
+              <span>{{ layer.name }} <small>{{ layer.summary }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedLayer">
+          <header class="ctl__panel-head">Selected layer</header>
+          <div class="ctl__panel-body">
+            <dl class="pkt-meta">
+              <div *ngFor="let row of layerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+            <pre class="pkt-hex pkt-hex--side" *ngIf="hexDump && viewMode !== 'hex'">{{ hexDump }}</pre>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pkt-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="pkt-drop" *ngIf="showDropZone"><p>Drop packet files to inspect</p></div>
+  </main>
+</div>

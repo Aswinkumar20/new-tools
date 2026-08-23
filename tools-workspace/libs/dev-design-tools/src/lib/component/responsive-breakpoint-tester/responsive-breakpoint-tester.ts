@@ -1,22 +1,49 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService, StatValueTooltipHostDirective } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-interface Breakpoint {
-  name: string;
-  width: number;
-  height: number;
-  icon: string;
-}
-
-interface ActiveBreakpoint {
-  name: string;
-  min: number;
-  max: number;
-}
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  RESPONSIVE_COMMON_BREAKPOINTS,
+  RESPONSIVE_DEFAULT_HEIGHT,
+  RESPONSIVE_DEFAULT_URL,
+  RESPONSIVE_DEFAULT_WIDTH,
+  RESPONSIVE_HEIGHT_MAX,
+  RESPONSIVE_HEIGHT_MIN,
+  RESPONSIVE_IFRAME_WARNING,
+  RESPONSIVE_PRESET_BREAKPOINTS,
+  RESPONSIVE_RELATED_TOOLS,
+  RESPONSIVE_URL_PATTERN,
+  RESPONSIVE_WIDTH_MAX,
+  RESPONSIVE_WIDTH_MIN
+} from '../../constants/responsive-breakpoint-tester.constants';
+import type {
+  ResponsiveActiveBreakpoint,
+  ResponsiveBreakpointPreset
+} from '../../types/responsive-breakpoint-tester.types';
+import {
+  buildGridMarks,
+  findActiveBreakpoint,
+  formatAspectRatio,
+  formatBreakpointName,
+  formatDimensionsText,
+  getBreakpointColor,
+  isOpenEndedBreakpoint,
+  isValidHttpUrl,
+  resolveResponsiveSuggestion,
+  rotateViewport
+} from '../../utils/responsive-breakpoint-tester.utils';
 
 type ResponsiveTesterFormGroup = FormGroup<{
   url: FormControl<string>;
@@ -26,92 +53,112 @@ type ResponsiveTesterFormGroup = FormGroup<{
   showRulers: FormControl<boolean>;
 }>;
 
-const PRESET_BREAKPOINTS: Breakpoint[] = [
-  { name: 'Mobile (Small)', width: 375, height: 667, icon: '📱' },
-  { name: 'Mobile (Large)', width: 414, height: 896, icon: '📱' },
-  { name: 'Tablet (Portrait)', width: 768, height: 1024, icon: '📱' },
-  { name: 'Tablet (Landscape)', width: 1024, height: 768, icon: '📱' },
-  { name: 'Desktop (Small)', width: 1280, height: 720, icon: '💻' },
-  { name: 'Desktop (Medium)', width: 1440, height: 900, icon: '💻' },
-  { name: 'Desktop (Large)', width: 1920, height: 1080, icon: '💻' },
-  { name: 'Desktop (4K)', width: 3840, height: 2160, icon: '🖥️' }
-];
-
-const COMMON_BREAKPOINTS: ActiveBreakpoint[] = [
-  { name: 'Mobile', min: 0, max: 767 },
-  { name: 'Tablet', min: 768, max: 1023 },
-  { name: 'Desktop', min: 1024, max: 1439 },
-  { name: 'Large Desktop', min: 1440, max: Infinity }
-];
-
 @Component({
   selector: 'lib-responsive-breakpoint-tester',
   standalone: true,
   templateUrl: './responsive-breakpoint-tester.html',
   styleUrls: ['./responsive-breakpoint-tester.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective, StatValueTooltipHostDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ResponsiveBreakpointTesterComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-
-  @ViewChild('iframe', { static: false }) iframeRef?: ElementRef<HTMLIFrameElement>;
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly toast = inject(ToastService);
+  readonly assetService = inject(AssetService);
 
   readonly form: ResponsiveTesterFormGroup = this.fb.group({
-    url: this.fb.control('https://example.com', {
+    url: this.fb.control(RESPONSIVE_DEFAULT_URL, {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^https?:\/\/.+/)]
+      validators: [Validators.required, Validators.pattern(RESPONSIVE_URL_PATTERN)]
     }),
-    width: this.fb.control(1280, {
+    width: this.fb.control(RESPONSIVE_DEFAULT_WIDTH, {
       nonNullable: true,
-      validators: [Validators.required, Validators.min(320), Validators.max(5000)]
+      validators: [
+        Validators.required,
+        Validators.min(RESPONSIVE_WIDTH_MIN),
+        Validators.max(RESPONSIVE_WIDTH_MAX)
+      ]
     }),
-    height: this.fb.control(720, {
+    height: this.fb.control(RESPONSIVE_DEFAULT_HEIGHT, {
       nonNullable: true,
-      validators: [Validators.required, Validators.min(240), Validators.max(5000)]
+      validators: [
+        Validators.required,
+        Validators.min(RESPONSIVE_HEIGHT_MIN),
+        Validators.max(RESPONSIVE_HEIGHT_MAX)
+      ]
     }),
     showGrid: this.fb.control(false, { nonNullable: true }),
     showRulers: this.fb.control(false, { nonNullable: true })
   });
 
-  readonly presetBreakpoints = PRESET_BREAKPOINTS;
-  readonly commonBreakpoints = COMMON_BREAKPOINTS;
+  readonly presetBreakpoints = RESPONSIVE_PRESET_BREAKPOINTS;
+  readonly commonBreakpoints = RESPONSIVE_COMMON_BREAKPOINTS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = RESPONSIVE_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly currentWidth = signal<number>(1280);
-  readonly currentHeight = signal<number>(720);
-  readonly Infinity = Infinity;
+  readonly currentWidth = signal(RESPONSIVE_DEFAULT_WIDTH);
+  readonly currentHeight = signal(RESPONSIVE_DEFAULT_HEIGHT);
+  readonly safeIframeUrl = signal<SafeResourceUrl | null>(null);
+  private readonly formTick = signal(0);
+  private readonly hasCopiedDimensions = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
-  readonly activeBreakpoint = computed(() => {
-    const width = this.currentWidth();
-    return this.commonBreakpoints.find((bp) => width >= bp.min && width <= bp.max) || this.commonBreakpoints[0];
-  });
-
+  readonly activeBreakpoint = computed(() => findActiveBreakpoint(this.currentWidth()));
+  readonly aspectRatioLabel = computed(() =>
+    formatAspectRatio(this.currentWidth(), this.currentHeight())
+  );
   readonly iframeUrl = computed(() => {
-    const url = this.form.controls.url.value;
-    if (!url || !this.form.controls.url.valid) {
+    this.formTick();
+    return this.safeIframeUrl();
+  });
+  readonly primarySuggestion = computed(() => {
+    this.formTick();
+    const suggestion = resolveResponsiveSuggestion({
+      width: this.currentWidth(),
+      height: this.currentHeight(),
+      hasLoadedPreview: this.safeIframeUrl() !== null,
+      hasCopiedDimensions: this.hasCopiedDimensions(),
+      hasUrlError: this.errors().some((message) => message.includes('valid URL'))
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
       return null;
     }
-    return url;
+    return suggestion;
   });
 
   constructor() {
-    // Update current dimensions when form changes
     this.form.valueChanges
       .pipe(debounceTime(100), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
+        this.dismissedSuggestionId.set(null);
+        this.hasCopiedDimensions.set(false);
         const { width, height } = this.form.getRawValue();
         this.currentWidth.set(width);
         this.currentHeight.set(height);
       });
 
-    // Initial update
     this.currentWidth.set(this.form.controls.width.value);
     this.currentHeight.set(this.form.controls.height.value);
+    this.loadUrl();
   }
 
-  applyPreset(preset: Breakpoint): void {
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
+  loadExample(): void {
+    const phone =
+      this.presetBreakpoints.find((preset) => preset.name === 'iPhone 14') ?? this.presetBreakpoints[1];
+    if (phone) {
+      this.applyPreset(phone);
+    }
+    this.loadUrl();
+  }
+
+  applyPreset(preset: ResponsiveBreakpointPreset): void {
     this.form.patchValue({
       width: preset.width,
       height: preset.height
@@ -120,88 +167,72 @@ export class ResponsiveBreakpointTesterComponent {
 
   loadUrl(): void {
     this.errors.set([]);
-    const url = this.form.controls.url.value;
+    this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
+    this.hasCopiedDimensions.set(false);
+    const url = this.form.controls.url.value?.trim() ?? '';
 
-    if (!url || !this.form.controls.url.valid) {
+    if (!url || !isValidHttpUrl(url)) {
       this.errors.set(['Please enter a valid URL starting with http:// or https://']);
+      this.safeIframeUrl.set(null);
+      this.formTick.update((n) => n + 1);
       return;
     }
 
-    // Iframe will load automatically when url changes
-    if (this.iframeRef?.nativeElement) {
-      this.iframeRef.nativeElement.src = url;
-    }
+    this.safeIframeUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(url));
+    this.warnings.set([RESPONSIVE_IFRAME_WARNING]);
+    this.formTick.update((n) => n + 1);
   }
 
   rotate(): void {
-    const { width, height } = this.form.getRawValue();
-    this.form.patchValue({
-      width: height,
-      height: width
-    });
+    const rotated = rotateViewport(this.form.getRawValue());
+    this.form.patchValue(rotated);
   }
 
   reset(): void {
+    this.hasCopiedDimensions.set(false);
+    this.dismissedSuggestionId.set(null);
     this.form.patchValue({
-      url: 'https://example.com',
-      width: 1280,
-      height: 720,
+      url: RESPONSIVE_DEFAULT_URL,
+      width: RESPONSIVE_DEFAULT_WIDTH,
+      height: RESPONSIVE_DEFAULT_HEIGHT,
       showGrid: false,
       showRulers: false
     });
     this.errors.set([]);
-    this.warnings.set([]);
+    this.loadUrl();
   }
 
-  copyDimensions(): void {
-    const { width, height } = this.form.getRawValue();
-    const text = `${width}x${height}`;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set(['Unable to copy dimensions to clipboard.']);
-      });
+  async copyDimensions(): Promise<void> {
+    const text = formatDimensionsText(this.form.getRawValue());
+    const ok = await ddCopyText(this.toast, text, 'Dimensions');
+    if (ok) {
+      this.hasCopiedDimensions.set(true);
+      this.dismissedSuggestionId.set(null);
+      this.errors.set([]);
+      this.formTick.update((n) => n + 1);
+    } else {
+      this.errors.set(['Unable to copy dimensions to clipboard.']);
+    }
   }
 
-  formatBreakpointName(bp: ActiveBreakpoint | undefined): string {
-    if (!bp) {
-      return 'Unknown';
-    }
-    if (bp.max === Infinity) {
-      return `${bp.name} (${bp.min}+px)`;
-    }
-    return `${bp.name} (${bp.min}-${bp.max}px)`;
+  formatBreakpointLabel(bp = this.activeBreakpoint()): string {
+    return formatBreakpointName(bp);
   }
 
-  getBreakpointColor(bp: ActiveBreakpoint | undefined): string {
-    if (!bp) {
-      return '#94a3b8';
-    }
-    const index = this.commonBreakpoints.indexOf(bp);
-    const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545'];
-    return colors[index % colors.length];
+  breakpointColor(bp = this.activeBreakpoint()): string {
+    return getBreakpointColor(bp);
+  }
+
+  isOpenEnded(bp: ResponsiveActiveBreakpoint): boolean {
+    return isOpenEndedBreakpoint(bp);
   }
 
   getGridRows(): number[] {
-    const height = this.currentHeight();
-    const step = 50;
-    const rows: number[] = [];
-    for (let i = step; i < height; i += step) {
-      rows.push(i);
-    }
-    return rows;
+    return buildGridMarks(this.currentHeight());
   }
 
   getGridCols(): number[] {
-    const width = this.currentWidth();
-    const step = 50;
-    const cols: number[] = [];
-    for (let i = step; i < width; i += step) {
-      cols.push(i);
-    }
-    return cols;
+    return buildGridMarks(this.currentWidth());
   }
 }

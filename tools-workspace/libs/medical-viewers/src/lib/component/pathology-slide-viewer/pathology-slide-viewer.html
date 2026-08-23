@@ -1,0 +1,331 @@
+<div class="ctl patho">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="patho-eyebrow">Medical tools</span>
+        <h1>Pathology Slide Viewer <span class="patho-live-badge">Local &amp; private</span></h1>
+        <p>
+          Deep zoom pathology slide review with H&amp;E stain presets and point/rectangle annotations. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="patho-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="patho-suggest__body">
+        <p class="patho-suggest__title">{{ suggestion.title }}</p>
+        <p class="patho-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="patho-suggest__actions">
+        <button type="button" class="patho-suggest__action" (click)="applySuggestion(suggestion)">
+          {{ suggestion.actionLabel }}
+        </button>
+        <button type="button" class="patho-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="patho-toolbar" aria-label="Pathology slide viewer controls">
+      <div class="patho-toolbar__group">
+        <label class="sr-only" for="patho-file-upload">Upload pathology slides</label>
+        <input
+          #fileInput
+          id="patho-file-upload"
+          class="patho-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn patho-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample H&amp;E slide" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="patho-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="patho-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded slide</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('annotations-json', $event)">
+              <strong>Annotations JSON</strong>
+              <span>Point and rectangle marks</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Dimensions, pyramid, annotation count</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current viewport with annotations</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="slides.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="patho-files" *ngIf="slides.length > 0" aria-label="Loaded pathology slides">
+          <div
+            class="patho-files__chip"
+            *ngFor="let slide of slides; let i = index; trackBy: trackBySlideId"
+            [class.patho-files__chip--active]="i === currentSlideIndex">
+            <button type="button" class="patho-files__select" [attr.aria-pressed]="i === currentSlideIndex" (click)="selectSlide(i)">
+              <span class="patho-files__name">{{ slide.name }}</span>
+              <span class="patho-files__size">{{ formatSize(slide.size) }}</span>
+            </button>
+            <button type="button" class="patho-files__remove" [attr.aria-label]="'Remove ' + slide.name" (click)="removeSlide(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="patho-toolbar__status">
+        <span class="patho-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div class="patho-annotation-bar" *ngIf="currentSlide" aria-label="Annotation tools">
+      <span class="patho-annotation-bar__label">Annotate</span>
+      <div class="patho-annotation-bar__modes" role="group" aria-label="Annotation mode">
+        <button
+          type="button"
+          *ngFor="let mode of annotationModes"
+          [class.is-active]="annotationMode === mode.id"
+          (click)="setAnnotationMode(mode.id)"
+          [attr.aria-pressed]="annotationMode === mode.id">
+          {{ mode.label }}
+        </button>
+      </div>
+      <span class="patho-annotation-bar__hint" *ngIf="annotationMode === 'point'">Click to place a point mark</span>
+      <span class="patho-annotation-bar__hint" *ngIf="annotationMode === 'rectangle'">Click and drag to draw a region</span>
+      <span class="patho-annotation-bar__hint" *ngIf="annotationMode === 'none'">Drag to pan when zoomed past fit</span>
+    </div>
+
+    <div
+      class="patho-workspace"
+      [class.patho-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.patho-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="patho-panel" aria-label="Pathology slide viewport">
+        <header class="patho-map-head" *ngIf="currentSlide">
+          <div class="patho-map-head__identity">
+            <span class="patho-map-head__file">{{ currentSlide.name }}</span>
+            <span class="patho-map-head__meta" *ngIf="slideLabel">
+              {{ slideLabel }} · Zoom {{ zoom | number:'1.2-2' }}×
+            </span>
+          </div>
+          <div class="patho-view-controls" aria-label="View controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <span class="patho-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="patho-view-controls__divider"></span>
+            <button
+              type="button"
+              class="patho-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="patho-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="patho-map-wrap" [class.patho-map-wrap--empty]="!currentSlide">
+          <canvas
+            #canvasHost
+            class="patho-map"
+            [class.patho-map--pan]="canPan"
+            [class.patho-map--annotate]="annotationMode !== 'none'"
+            [class.patho-map--panning]="panning"
+            [attr.aria-busy]="loading"
+            aria-label="Pathology slide viewport"
+            (mousedown)="onCanvasMouseDown($event)"
+            (mousemove)="onCanvasMouseMove($event)"
+            (mouseup)="onCanvasMouseUp()"
+            (mouseleave)="onCanvasMouseLeave()"
+            (click)="onCanvasClick($event)"></canvas>
+
+          <div class="patho-pyramid-overlay" *ngIf="currentSlide && pyramidLevelLabel">
+            {{ pyramidLevelLabel }}
+          </div>
+
+          <div class="patho-empty" *ngIf="!currentSlide && !loading">
+            <p class="patho-empty__title">Drop pathology slides here</p>
+            <p class="patho-empty__formats">
+              <span class="patho-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="patho-empty__hint">
+              {{ formatsHint }} <kbd>+</kbd>/<kbd>−</kbd> zoom · <kbd>F</kbd> fit · drag to pan when zoomed.
+            </p>
+            <div class="patho-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="patho-loading" *ngIf="loading">Loading slide…</div>
+        </div>
+
+        <div class="patho-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="patho-error" *ngIf="errorMessage" role="alert">
+          <p class="patho-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+
+        <p class="patho-disclaimer" role="note">
+          Education and research preview only — not validated for clinical diagnosis or treatment decisions.
+        </p>
+      </section>
+
+      <aside
+        id="patho-details-sidebar"
+        class="patho-sidebar"
+        aria-label="Pathology slide details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentSlide">
+          <header class="ctl__panel-head">
+            <span>Slide overview</span>
+            <span class="patho-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="patho-process-name">{{ currentSlide.name }}</p>
+            <div class="patho-stat-grid patho-stat-grid--dense" aria-label="Slide statistics">
+              <div><strong>{{ currentSlide.fullWidth || '—' }}</strong><span>Width</span></div>
+              <div><strong>{{ currentSlide.fullHeight || '—' }}</strong><span>Height</span></div>
+              <div><strong>{{ currentAnnotations.length }}</strong><span>Annotations</span></div>
+            </div>
+            <p class="patho-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentSlide">
+          <header class="ctl__panel-head">Stain presets</header>
+          <div class="ctl__panel-body">
+            <div class="patho-controls">
+              <div class="patho-controls__presets" role="group" aria-label="Stain presets">
+                <button
+                  type="button"
+                  *ngFor="let preset of stainPresets"
+                  [class.is-active]="activeStainId === preset.id"
+                  (click)="applyStainPreset(preset.id)">
+                  {{ preset.label }}
+                </button>
+              </div>
+              <label>
+                <span>Brightness <span class="patho-opacity-value">{{ brightness | number:'1.2-2' }}</span></span>
+                <input type="range" min="0.5" max="1.5" step="0.01" [value]="brightness" (input)="onBrightnessChange($event)" />
+              </label>
+              <label>
+                <span>Contrast <span class="patho-opacity-value">{{ contrast | number:'1.2-2' }}</span></span>
+                <input type="range" min="0.5" max="2" step="0.01" [value]="contrast" (input)="onContrastChange($event)" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentSlide">
+          <header class="ctl__panel-head">Annotations ({{ currentAnnotations.length }})</header>
+          <div class="ctl__panel-body">
+            <p class="patho-controls__hint" *ngIf="currentAnnotations.length === 0">No annotations yet — switch to Point or Rectangle mode above.</p>
+            <ul class="patho-annotations" *ngIf="currentAnnotations.length">
+              <li *ngFor="let ann of currentAnnotations; trackBy: trackByAnnotationId">
+                <div class="patho-annotations__info">
+                  <strong>{{ ann.label }}</strong>
+                  <span>{{ ann.type }} · ({{ ann.x }}, {{ ann.y }})<ng-container *ngIf="ann.width != null"> · {{ ann.width }}×{{ ann.height }}</ng-container></span>
+                </div>
+                <button type="button" class="patho-annotations__delete" (click)="deleteAnnotation(ann.id)" aria-label="Delete annotation">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="patho-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help patho-footer-help">
+      <summary>How to use Pathology Slide Viewer</summary>
+      <ul>
+        <li>Upload PNG/JPEG/WebP pathology slide images. SVS/TIFF may warn but can still decode if the browser supports them.</li>
+        <li>Use stain presets (H&amp;E default, bright, nuclear, eosin) or adjust brightness/contrast manually.</li>
+        <li>Switch annotation mode: Navigate (pan when zoomed), Point (click), or Rectangle (drag). List and delete marks in the sidebar.</li>
+        <li>Export original, annotations JSON, summary JSON, or a PNG snapshot. Education/research only — not for diagnostic use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="patho-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop pathology slides to open</p>
+    <p class="patho-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

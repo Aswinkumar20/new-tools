@@ -1,52 +1,121 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  AfterViewInit,
+  ViewChild,
+  ElementRef,
+  inject,
+  ChangeDetectorRef,
+} from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { Subject } from 'rxjs';
+import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
+import {
+  TEXT_DIFF_DEFAULT_FONT_SIZE,
+  TEXT_DIFF_DEFAULT_LANGUAGE,
+  TEXT_DIFF_DEFAULT_MODIFIED,
+  TEXT_DIFF_DEFAULT_ORIGINAL,
+  TEXT_DIFF_DEFAULT_THEME,
+  TEXT_DIFF_LANGUAGES,
+  TEXT_DIFF_MAX_UPLOAD_BYTES,
+  TEXT_DIFF_RELATED_TOOLS,
+  TEXT_DIFF_THEMES,
+} from '../../constants/text-difference.constants';
+import type {
+  DiffEditorModel,
+  DiffStats,
+  TextDiffLanguage,
+  TextDiffTheme,
+} from '../../types/text-difference.types';
+import {
+  clampDiffFontSize,
+  computeDiffStats,
+  isLikelyDiffTextFile,
+  normalizeDiffLanguage,
+  resolveTextDifferenceSuggestion,
+} from '../../utils/text-difference.utils';
 
 @Component({
   selector: 'lib-text-difference',
   standalone: true,
   templateUrl: './text-difference.html',
   styleUrls: ['./text-difference.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, MonacoEditorModule],
+  imports: [
+    FormsModule,
+    CommonModule,
+    RouterLink,
+    Navigation,
+    ReactiveFormsModule,
+    MonacoEditorModule,
+    TooltipDirective,
+  ],
 })
 export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy {
-  themes = ['vs-dark', 'vs-light', 'hc-black'];
-  languages = [
-    'typescript', 
-    'javascript', 
-    'json', 
-    'html', 
-    'css', 
-    'markdown',
-    'python',
-    'java',
-    'xml',
-    'yaml',
-    'plaintext'
-  ];
+  readonly assetService = inject(AssetService);
+  private readonly toastService = inject(ToastService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  editorOptions = {
-    theme: this.themes[0],
-    language: this.languages[0],
+  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_DIFF_RELATED_TOOLS;
+  private dismissedSuggestionId: string | null = null;
+
+  readonly themes = [...TEXT_DIFF_THEMES];
+  readonly languages = [...TEXT_DIFF_LANGUAGES];
+
+  showSidebar = true;
+  showSideBySide = true;
+  ignoreTrimWhitespace = false;
+
+  editorOptions: {
+    theme: TextDiffTheme;
+    language: TextDiffLanguage;
+    readOnly: boolean;
+    originalEditable: boolean;
+    fontSize: number;
+    minimap: { enabled: boolean };
+    scrollBeyondLastLine: boolean;
+    automaticLayout: boolean;
+    wordWrap: 'on';
+    renderSideBySide: boolean;
+    enableSplitViewResizing: boolean;
+    ignoreTrimWhitespace: boolean;
+    renderIndicators: boolean;
+    diffWordWrap: 'on';
+    padding: { top: number; bottom: number };
+    cursorBlinking: 'blink';
+    cursorSmoothCaretAnimation: 'on';
+    cursorStyle: 'line';
+    cursorWidth: number;
+    scrollbar: {
+      vertical: string;
+      horizontal: string;
+      useShadows: boolean;
+      verticalHasArrows: boolean;
+      horizontalHasArrows: boolean;
+    };
+  } = {
+    theme: TEXT_DIFF_DEFAULT_THEME,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
     readOnly: false,
     originalEditable: true,
-    fontSize: 14,
+    fontSize: TEXT_DIFF_DEFAULT_FONT_SIZE,
     minimap: { enabled: typeof window !== 'undefined' && window.innerWidth > 768 },
     scrollBeyondLastLine: false,
     automaticLayout: true,
-    wordWrap: 'on' as const,
+    wordWrap: 'on',
     renderSideBySide: typeof window !== 'undefined' && window.innerWidth > 768,
     enableSplitViewResizing: true,
     ignoreTrimWhitespace: false,
     renderIndicators: true,
-    diffWordWrap: 'on' as const,
+    diffWordWrap: 'on',
     padding: { top: 12, bottom: 12 },
-    cursorBlinking: 'blink' as const,
-    cursorSmoothCaretAnimation: 'on' as const,
-    cursorStyle: 'line' as const,
+    cursorBlinking: 'blink',
+    cursorSmoothCaretAnimation: 'on',
+    cursorStyle: 'line',
     cursorWidth: 2,
     scrollbar: {
       vertical: 'auto',
@@ -57,434 +126,469 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     },
   };
 
-  originalModel = {
-    code: 'heLLo world!\nThis is the original text.',
-    language: this.languages[0],
+  originalModel: DiffEditorModel = {
+    code: TEXT_DIFF_DEFAULT_ORIGINAL,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
   };
 
-  modifiedModel = {
-    code: 'hello world!\nThis is the modified text.',
-    language: this.languages[0],
+  modifiedModel: DiffEditorModel = {
+    code: TEXT_DIFF_DEFAULT_MODIFIED,
+    language: TEXT_DIFF_DEFAULT_LANGUAGE,
   };
 
-  private editor: any;
+  diffStats: DiffStats = {
+    originalChars: 0,
+    modifiedChars: 0,
+    originalLines: 0,
+    modifiedLines: 0,
+    changes: 0,
+    hasContent: true,
+  };
+
+  private editor: {
+    getOriginalEditor(): {
+      getValue(): string;
+      setValue(value: string): void;
+      layout(dimensions?: { width: number; height: number }): void;
+      getScrollTop(): number;
+      getScrollLeft(): number;
+      setScrollTop(value: number): void;
+      setScrollLeft(value: number): void;
+      onDidChangeModelContent(listener: () => void): { dispose(): void };
+    };
+    getModifiedEditor(): {
+      getValue(): string;
+      setValue(value: string): void;
+      layout(dimensions?: { width: number; height: number }): void;
+      getScrollTop(): number;
+      getScrollLeft(): number;
+      setScrollTop(value: number): void;
+      setScrollLeft(value: number): void;
+      onDidChangeModelContent(listener: () => void): { dispose(): void };
+    };
+    updateOptions(options: Record<string, unknown>): void;
+    getLineChanges?(): unknown[] | null;
+  } | null = null;
+
   private readonly destroy$ = new Subject<void>();
   private resizeObserver?: ResizeObserver;
   private windowResizeListener?: () => void;
   private isMobile = false;
+  private contentSyncTimer?: ReturnType<typeof setTimeout>;
+  private resizeDebounceTimer?: ReturnType<typeof setTimeout>;
+  private originalChangeDisposable?: { dispose(): void };
+  private modifiedChangeDisposable?: { dispose(): void };
+  private fileInput?: HTMLInputElement;
+  private uploadTarget: 'original' | 'modified' = 'original';
+  readonly maxUploadBytes = TEXT_DIFF_MAX_UPLOAD_BYTES;
 
   @ViewChild('editorContainer', { static: false }) editorContainer?: ElementRef<HTMLElement>;
 
-  ngOnInit() {
-    // Initialize with empty content if needed
-    if (!this.originalModel.code.trim()) {
-      this.originalModel.code = '';
-    }
-    if (!this.modifiedModel.code.trim()) {
-      this.modifiedModel.code = '';
-    }
-    
-    // Check initial screen size
-    this.updateEditorLayoutForScreenSize();
-  }
-  
-  private updateEditorLayoutForScreenSize() {
-    if (typeof window === 'undefined') return;
-    
-    const width = window.innerWidth;
-    const shouldBeInline = width <= 768; // Stack vertically on mobile/tablet
-    
-    if (this.isMobile !== shouldBeInline) {
-      this.isMobile = shouldBeInline;
-      this.editorOptions = {
-        ...this.editorOptions,
-        renderSideBySide: !shouldBeInline, // false = inline (stacked), true = side-by-side
-        minimap: { enabled: !shouldBeInline }, // Disable minimap on mobile for better space
-      };
-      
-      // Update editor if it exists
-      if (this.editor) {
-        try {
-          this.editor.updateOptions({
-            renderSideBySide: !shouldBeInline,
-            minimap: { enabled: !shouldBeInline }
-          });
-          // Trigger layout update
-          setTimeout(() => {
-            const modifiedEditor = this.editor?.getModifiedEditor();
-            const originalEditor = this.editor?.getOriginalEditor();
-            if (modifiedEditor && originalEditor) {
-              modifiedEditor.layout();
-              originalEditor.layout();
-            }
-          }, 100);
-        } catch (e) {
-          console.warn('Error updating editor layout:', e);
-        }
-      }
-    }
+  get viewModeLabel(): string {
+    if (this.isMobile) return 'Stacked';
+    return this.showSideBySide ? 'Split' : 'Unified';
   }
 
-  ngAfterViewInit() {
-    // Setup resize observer for automatic layout
+  get isMobileView(): boolean {
+    return this.isMobile;
+  }
+
+  get languageLabel(): string {
+    const lang = this.editorOptions.language;
+    return lang === 'plaintext' ? 'Plain Text' : lang;
+  }
+
+  get primarySuggestion(): TuToolSuggestion | null {
+    const original = this.getOriginalContent();
+    const modified = this.getModifiedContent();
+    const suggestion = resolveTextDifferenceSuggestion({
+      hasOriginal: original.length > 0,
+      hasModified: modified.length > 0,
+      areIdentical: original === modified,
+      changeCount: this.diffStats.changes,
+      ignoreTrimWhitespace: this.ignoreTrimWhitespace,
+      charDelta: this.diffStats.modifiedChars - this.diffStats.originalChars,
+    });
+    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId = suggestionId;
+  }
+
+  ngOnInit(): void {
+    this.updateEditorLayoutForScreenSize();
+    this.refreshDiffStats();
+  }
+
+  ngAfterViewInit(): void {
     if (this.editorContainer && typeof ResizeObserver !== 'undefined') {
-      this.resizeObserver = new ResizeObserver((entries) => {
-        if (this.editor?.getModifiedEditor && this.editor?.getOriginalEditor) {
-          // Use requestAnimationFrame for smoother updates
-          requestAnimationFrame(() => {
-            try {
-              const modifiedEditor = this.editor.getModifiedEditor();
-              const originalEditor = this.editor.getOriginalEditor();
-              
-              if (modifiedEditor && originalEditor) {
-                // Preserve scroll positions before layout
-                const modifiedScrollTop = modifiedEditor.getScrollTop();
-                const modifiedScrollLeft = modifiedEditor.getScrollLeft();
-                const originalScrollTop = originalEditor.getScrollTop();
-                const originalScrollLeft = originalEditor.getScrollLeft();
-                
-                // Get container dimensions using getBoundingClientRect for accuracy
-                const container = entries[0]?.target as HTMLElement;
-                if (container) {
-                  const rect = container.getBoundingClientRect();
-                  const width = rect.width || container.clientWidth;
-                  const height = rect.height || container.clientHeight;
-                  
-                  if (width > 0 && height > 0) {
-                    // Determine layout based on screen size
-                    if (this.isMobile) {
-                      // Inline mode: full width, split height exactly
-                      const editorHeight = Math.floor(height / 2);
-                      modifiedEditor.layout({ width: Math.floor(width), height: editorHeight });
-                      originalEditor.layout({ width: Math.floor(width), height: editorHeight });
-                    } else {
-                      // Side-by-side mode: split width exactly, full height
-                      const editorWidth = Math.floor(width / 2);
-                      modifiedEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                      originalEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                    }
-                  } else {
-                    // Fallback to automatic layout
-                    modifiedEditor.layout();
-                    originalEditor.layout();
-                  }
-                  
-                  // Restore scroll positions after layout
-                  requestAnimationFrame(() => {
-                    modifiedEditor.setScrollTop(modifiedScrollTop);
-                    modifiedEditor.setScrollLeft(modifiedScrollLeft);
-                    originalEditor.setScrollTop(originalScrollTop);
-                    originalEditor.setScrollLeft(originalScrollLeft);
-                  });
-                } else {
-                  // Fallback to automatic layout
-                  modifiedEditor.layout();
-                  originalEditor.layout();
-                }
-              }
-            } catch (e) {
-              console.warn('Error resizing editor:', e);
-            }
-          });
-        }
+      this.resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(() => this.refreshEditorLayout());
       });
       this.resizeObserver.observe(this.editorContainer.nativeElement);
     }
-    
-    // Also listen to window resize as fallback
+
     if (typeof window !== 'undefined') {
       this.windowResizeListener = () => {
-        this.handleWindowResize();
         this.updateEditorLayoutForScreenSize();
+        this.scheduleResizeRefresh();
       };
       window.addEventListener('resize', this.windowResizeListener);
     }
   }
-  
-  private handleWindowResize = () => {
-    if (this.editor?.getModifiedEditor && this.editor?.getOriginalEditor) {
-      // Debounce resize events
-      clearTimeout((this as any).resizeTimeout);
-      (this as any).resizeTimeout = setTimeout(() => {
-        try {
-          const modifiedEditor = this.editor.getModifiedEditor();
-          const originalEditor = this.editor.getOriginalEditor();
-          
-          if (modifiedEditor && originalEditor) {
-            // Preserve scroll positions before layout
-            const modifiedScrollTop = modifiedEditor.getScrollTop();
-            const modifiedScrollLeft = modifiedEditor.getScrollLeft();
-            const originalScrollTop = originalEditor.getScrollTop();
-            const originalScrollLeft = originalEditor.getScrollLeft();
-            
-            // For inline mode (mobile), each editor gets full width and half height
-            // For side-by-side mode, each gets half width and full height
-            if (this.editorContainer) {
-              const container = this.editorContainer.nativeElement;
-              const rect = container.getBoundingClientRect();
-              const width = rect.width || container.clientWidth || container.offsetWidth;
-              const height = rect.height || container.clientHeight || container.offsetHeight;
-              
-              if (width > 0 && height > 0) {
-                if (this.isMobile) {
-                  // Inline mode: full width, split height exactly
-                  const editorHeight = Math.floor(height / 2);
-                  modifiedEditor.layout({ width: Math.floor(width), height: editorHeight });
-                  originalEditor.layout({ width: Math.floor(width), height: editorHeight });
-                } else {
-                  // Side-by-side mode: split width exactly, full height
-                  const editorWidth = Math.floor(width / 2);
-                  modifiedEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                  originalEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                }
-              } else {
-                modifiedEditor.layout();
-                originalEditor.layout();
-              }
-              
-              // Restore scroll positions after layout
-              requestAnimationFrame(() => {
-                modifiedEditor.setScrollTop(modifiedScrollTop);
-                modifiedEditor.setScrollLeft(modifiedScrollLeft);
-                originalEditor.setScrollTop(originalScrollTop);
-                originalEditor.setScrollLeft(originalScrollLeft);
-              });
-            } else {
-              modifiedEditor.layout();
-              originalEditor.layout();
-            }
-          }
-        } catch (e) {
-          console.warn('Error resizing editor on window resize:', e);
-        }
-      }, 150);
-    }
-  }
 
-  ngOnDestroy() {
+  ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-    }
+    this.resizeObserver?.disconnect();
     if (typeof window !== 'undefined' && this.windowResizeListener) {
       window.removeEventListener('resize', this.windowResizeListener);
     }
-    if ((this as any).resizeTimeout) {
-      clearTimeout((this as any).resizeTimeout);
-    }
-    // Clear content change timeouts
-    if ((this as any).modifiedContentTimeout) {
-      clearTimeout((this as any).modifiedContentTimeout);
-    }
-    if ((this as any).originalContentTimeout) {
-      clearTimeout((this as any).originalContentTimeout);
-    }
+    if (this.contentSyncTimer) clearTimeout(this.contentSyncTimer);
+    if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
+    this.originalChangeDisposable?.dispose();
+    this.modifiedChangeDisposable?.dispose();
+    this.fileInput?.remove();
+    this.fileInput = undefined;
   }
 
-  onEditorInit(editor: any) {
+  onEditorInit(editor: typeof this.editor): void {
     this.editor = editor;
-    
-    if (editor) {
-      try {
-        // Ensure editor is properly initialized
-        const modifiedEditor = editor.getModifiedEditor();
-        const originalEditor = editor.getOriginalEditor();
-        
-        if (modifiedEditor && originalEditor) {
-          // Trigger initial layout with proper dimensions - use multiple attempts for reliability
-          const performLayout = () => {
-            try {
-              // Get container dimensions if available
-              if (this.editorContainer) {
-                const container = this.editorContainer.nativeElement;
-                // Use getBoundingClientRect for accurate dimensions
-                const rect = container.getBoundingClientRect();
-                const width = rect.width || container.clientWidth || container.offsetWidth;
-                const height = rect.height || container.clientHeight || container.offsetHeight;
-                
-                if (width > 0 && height > 0) {
-                  if (this.isMobile) {
-                    // Inline mode: full width, split height exactly
-                    const editorHeight = Math.floor(height / 2);
-                    modifiedEditor.layout({ width: Math.floor(width), height: editorHeight });
-                    originalEditor.layout({ width: Math.floor(width), height: editorHeight });
-                  } else {
-                    // Side-by-side mode: split width exactly, full height
-                    const editorWidth = Math.floor(width / 2);
-                    modifiedEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                    originalEditor.layout({ width: editorWidth, height: Math.floor(height) });
-                  }
-                } else {
-                  // Fallback: wait a bit and try again
-                  setTimeout(() => {
-                    const retryRect = container.getBoundingClientRect();
-                    const retryWidth = retryRect.width || container.clientWidth;
-                    const retryHeight = retryRect.height || container.clientHeight;
-                    if (retryWidth > 0 && retryHeight > 0) {
-                      if (this.isMobile) {
-                        const editorHeight = Math.floor(retryHeight / 2);
-                        modifiedEditor.layout({ width: Math.floor(retryWidth), height: editorHeight });
-                        originalEditor.layout({ width: Math.floor(retryWidth), height: editorHeight });
-                      } else {
-                        const editorWidth = Math.floor(retryWidth / 2);
-                        modifiedEditor.layout({ width: editorWidth, height: Math.floor(retryHeight) });
-                        originalEditor.layout({ width: editorWidth, height: Math.floor(retryHeight) });
-                      }
-                    } else {
-                      modifiedEditor.layout();
-                      originalEditor.layout();
-                    }
-                  }, 100);
-                }
-              } else {
-                modifiedEditor.layout();
-                originalEditor.layout();
-              }
-            } catch (e) {
-              console.warn('Error in editor layout:', e);
-            }
-          };
-          
-          // Initial layout with delay to ensure DOM is ready
-          // Only do initial layout, don't repeatedly call it
-          requestAnimationFrame(() => {
-            performLayout();
-          });
+    if (!editor) return;
 
-          // Don't sync content changes during typing to prevent scroll jumps
-          // The editor manages its own content, and we'll only sync when needed
-          // (e.g., when switching languages or clearing content)
-          // This prevents the editor from re-rendering and losing scroll position
-          
-          // Store layout function for manual triggers
-          (this as any).performLayout = performLayout;
-        }
-      } catch (error) {
-        console.error('Error initializing editor:', error);
-      }
+    try {
+      const modifiedEditor = editor.getModifiedEditor();
+      const originalEditor = editor.getOriginalEditor();
+      if (!modifiedEditor || !originalEditor) return;
+
+      this.originalChangeDisposable?.dispose();
+      this.modifiedChangeDisposable?.dispose();
+      this.originalChangeDisposable = originalEditor.onDidChangeModelContent(() =>
+        this.scheduleContentSync()
+      );
+      this.modifiedChangeDisposable = modifiedEditor.onDidChangeModelContent(() =>
+        this.scheduleContentSync()
+      );
+
+      this.syncContentFromEditor();
+      requestAnimationFrame(() => this.refreshEditorLayout());
+    } catch {
+      // Monaco may not be ready yet
     }
   }
 
-  updateOriginalContent(content: string) {
-    // Direct assignment to avoid creating new object reference
-    // This prevents Angular from thinking the model changed and re-rendering
-    if (this.originalModel.code !== content) {
-      this.originalModel.code = content;
-    }
+  toggleSidebar(): void {
+    this.showSidebar = !this.showSidebar;
+    this.toastService.info(this.showSidebar ? 'Properties panel shown' : 'Properties panel hidden');
+    this.scheduleLayoutRefresh();
   }
 
-  updateModifiedContent(content: string) {
-    // Direct assignment to avoid creating new object reference
-    // This prevents Angular from thinking the model changed and re-rendering
-    if (this.modifiedModel.code !== content) {
-      this.modifiedModel.code = content;
-    }
+  toggleViewMode(): void {
+    if (this.isMobile) return;
+    this.setViewMode(!this.showSideBySide);
   }
 
-  onThemeChange(theme: string) {
+  setViewMode(split: boolean): void {
+    if (this.isMobile || this.showSideBySide === split) return;
+    this.showSideBySide = split;
+    this.editorOptions = { ...this.editorOptions, renderSideBySide: split };
+    this.editor?.updateOptions({ renderSideBySide: split });
+    this.toastService.info(split ? 'Split view enabled' : 'Unified view enabled');
+    this.scheduleLayoutRefresh();
+  }
+
+  onThemeChange(theme: TextDiffTheme): void {
     this.editorOptions = { ...this.editorOptions, theme };
-    if (this.editor) {
-      try {
-        this.editor.updateOptions({ theme });
-      } catch (e) {
-        console.warn('Error updating theme:', e);
-      }
-    }
+    this.editor?.updateOptions({ theme });
   }
 
-  onLanguageChange(language: string) {
-    const normalizedLang = language === 'text/plain' ? 'plaintext' : language;
+  onLanguageChange(language: string): void {
+    const normalizedLang = normalizeDiffLanguage(language);
     this.editorOptions = { ...this.editorOptions, language: normalizedLang };
-    
-    // Update models with new language
-    this.originalModel = { 
-      ...this.originalModel, 
-      language: normalizedLang 
+    this.originalModel = { ...this.originalModel, language: normalizedLang };
+    this.modifiedModel = { ...this.modifiedModel, language: normalizedLang };
+    this.scheduleLayoutRefresh();
+  }
+
+  onFontSizeChange(fontSize: number): void {
+    const clamped = clampDiffFontSize(fontSize);
+    if (clamped === null) return;
+    this.editorOptions = { ...this.editorOptions, fontSize: clamped };
+    this.editor?.updateOptions({ fontSize: clamped });
+  }
+
+  onIgnoreWhitespaceChange(): void {
+    this.dismissedSuggestionId = null;
+    this.editorOptions = { ...this.editorOptions, ignoreTrimWhitespace: this.ignoreTrimWhitespace };
+    this.editor?.updateOptions({ ignoreTrimWhitespace: this.ignoreTrimWhitespace });
+    this.scheduleContentSync();
+  }
+
+  copyOriginal(): void {
+    this.copyText(this.getOriginalContent(), 'Original');
+  }
+
+  copyModified(): void {
+    this.copyText(this.getModifiedContent(), 'Modified');
+  }
+
+  uploadOriginal(): void {
+    this.uploadTarget = 'original';
+    this.openFilePicker();
+  }
+
+  uploadModified(): void {
+    this.uploadTarget = 'modified';
+    this.openFilePicker();
+  }
+
+  swapSides(): void {
+    const original = this.getOriginalContent();
+    const modified = this.getModifiedContent();
+    this.dismissedSuggestionId = null;
+    this.setOriginalContent(modified);
+    this.setModifiedContent(original);
+    this.toastService.info('Original and modified swapped');
+  }
+
+  downloadOriginal(): void {
+    this.downloadText(this.getOriginalContent(), 'original.txt');
+  }
+
+  downloadModified(): void {
+    this.downloadText(this.getModifiedContent(), 'modified.txt');
+  }
+
+  clearOriginal(): void {
+    this.dismissedSuggestionId = null;
+    this.setOriginalContent('');
+    this.toastService.info('Original cleared');
+  }
+
+  clearModified(): void {
+    this.dismissedSuggestionId = null;
+    this.setModifiedContent('');
+    this.toastService.info('Modified cleared');
+  }
+
+  clearAll(): void {
+    this.dismissedSuggestionId = null;
+    this.setOriginalContent('');
+    this.setModifiedContent('');
+    this.toastService.info('Both sides cleared');
+  }
+
+  private getOriginalContent(): string {
+    try {
+      return this.editor?.getOriginalEditor()?.getValue() ?? this.originalModel.code ?? '';
+    } catch {
+      return this.originalModel.code ?? '';
+    }
+  }
+
+  private getModifiedContent(): string {
+    try {
+      return this.editor?.getModifiedEditor()?.getValue() ?? this.modifiedModel.code ?? '';
+    } catch {
+      return this.modifiedModel.code ?? '';
+    }
+  }
+
+  private setOriginalContent(content: string): void {
+    this.originalModel = { ...this.originalModel, code: content };
+    try {
+      this.editor?.getOriginalEditor()?.setValue(content);
+    } catch {
+      // editor not ready
+    }
+    this.syncContentFromEditor();
+  }
+
+  private setModifiedContent(content: string): void {
+    this.modifiedModel = { ...this.modifiedModel, code: content };
+    try {
+      this.editor?.getModifiedEditor()?.setValue(content);
+    } catch {
+      // editor not ready
+    }
+    this.syncContentFromEditor();
+  }
+
+  private scheduleContentSync(): void {
+    if (this.contentSyncTimer) clearTimeout(this.contentSyncTimer);
+    this.contentSyncTimer = setTimeout(() => {
+      this.dismissedSuggestionId = null;
+      this.syncContentFromEditor();
+    }, 200);
+  }
+
+  private syncContentFromEditor(): void {
+    const original = this.getOriginalContent();
+    const modified = this.getModifiedContent();
+    if (this.originalModel.code !== original) this.originalModel.code = original;
+    if (this.modifiedModel.code !== modified) this.modifiedModel.code = modified;
+    this.refreshDiffStats();
+    this.cdr.markForCheck();
+  }
+
+  private refreshDiffStats(): void {
+    const original = this.getOriginalContent();
+    const modified = this.getModifiedContent();
+    let changes = 0;
+    try {
+      changes = this.editor?.getLineChanges?.()?.length ?? 0;
+    } catch {
+      changes = 0;
+    }
+
+    this.diffStats = computeDiffStats(original, modified, changes);
+  }
+
+  private openFilePicker(): void {
+    if (!this.fileInput) {
+      this.fileInput = document.createElement('input');
+      this.fileInput.type = 'file';
+      this.fileInput.style.display = 'none';
+      this.fileInput.addEventListener('change', () => {
+        const file = this.fileInput?.files?.[0];
+        if (file) this.handleUploadedFile(file);
+        if (this.fileInput) this.fileInput.value = '';
+      });
+      document.body.appendChild(this.fileInput);
+    }
+
+    this.fileInput.accept =
+      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.ts,.js,.css,.py,.java,text/*,application/json,application/xml';
+    this.fileInput.click();
+  }
+
+  private handleUploadedFile(file: File): void {
+    if (file.size > this.maxUploadBytes) {
+      this.toastService.error(
+        `File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`
+      );
+      return;
+    }
+
+    if (!isLikelyDiffTextFile(file)) {
+      this.toastService.error('Please upload a text-based file.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      this.dismissedSuggestionId = null;
+      if (this.uploadTarget === 'original') {
+        this.setOriginalContent(text);
+      } else {
+        this.setModifiedContent(text);
+      }
+      this.toastService.info(`Loaded "${file.name}" into ${this.uploadTarget}`);
     };
-    this.modifiedModel = { 
-      ...this.modifiedModel, 
-      language: normalizedLang 
+    reader.onerror = () => {
+      this.toastService.error('Could not read the file.');
+    };
+    reader.readAsText(file);
+  }
+
+  private downloadText(text: string, filename: string): void {
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    this.toastService.info(`Downloaded ${filename}`);
+  }
+
+  private copyText(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        this.toastService.info(`${label} copied to clipboard`);
+      })
+      .catch(() => {
+        this.toastService.error('Failed to copy to clipboard');
+      });
+  }
+
+  private updateEditorLayoutForScreenSize(): void {
+    if (typeof window === 'undefined') return;
+
+    const shouldBeInline = window.innerWidth <= 768;
+    if (this.isMobile === shouldBeInline && this.editorOptions.renderSideBySide === !shouldBeInline) {
+      return;
+    }
+
+    this.isMobile = shouldBeInline;
+    this.showSideBySide = !shouldBeInline;
+    this.editorOptions = {
+      ...this.editorOptions,
+      renderSideBySide: !shouldBeInline,
+      minimap: { enabled: !shouldBeInline },
     };
 
-    // Update editor models if available
-    if (this.editor) {
-      try {
-        const modifiedEditor = this.editor.getModifiedEditor();
-        const originalEditor = this.editor.getOriginalEditor();
-        
-        if (modifiedEditor && originalEditor) {
-          // Monaco editor will handle model updates automatically via binding
-          // But we can trigger a refresh
-          setTimeout(() => {
-            modifiedEditor.layout();
-            originalEditor.layout();
-          }, 50);
-        }
-      } catch (e) {
-        console.warn('Error updating language:', e);
+    this.editor?.updateOptions({
+      renderSideBySide: !shouldBeInline,
+      minimap: { enabled: !shouldBeInline },
+    });
+    this.scheduleLayoutRefresh();
+  }
+
+  private scheduleLayoutRefresh(): void {
+    setTimeout(() => this.refreshEditorLayout(), 50);
+    setTimeout(() => this.refreshEditorLayout(), 300);
+  }
+
+  private scheduleResizeRefresh(): void {
+    if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
+    this.resizeDebounceTimer = setTimeout(() => this.refreshEditorLayout(), 150);
+  }
+
+  private refreshEditorLayout(): void {
+    if (!this.editor?.getModifiedEditor || !this.editor?.getOriginalEditor) return;
+
+    try {
+      const modifiedEditor = this.editor.getModifiedEditor();
+      const originalEditor = this.editor.getOriginalEditor();
+      if (!modifiedEditor || !originalEditor || !this.editorContainer) return;
+
+      const container = this.editorContainer.nativeElement;
+      const rect = container.getBoundingClientRect();
+      const width = Math.floor(rect.width || container.clientWidth);
+      const height = Math.floor(rect.height || container.clientHeight);
+      if (width <= 0 || height <= 0) return;
+
+      const modifiedScrollTop = modifiedEditor.getScrollTop();
+      const modifiedScrollLeft = modifiedEditor.getScrollLeft();
+      const originalScrollTop = originalEditor.getScrollTop();
+      const originalScrollLeft = originalEditor.getScrollLeft();
+
+      if (this.isMobile || !this.showSideBySide) {
+        const editorHeight = Math.floor(height / 2);
+        modifiedEditor.layout({ width, height: editorHeight });
+        originalEditor.layout({ width, height: editorHeight });
+      } else {
+        const editorWidth = Math.floor(width / 2);
+        modifiedEditor.layout({ width: editorWidth, height });
+        originalEditor.layout({ width: editorWidth, height });
       }
+
+      requestAnimationFrame(() => {
+        modifiedEditor.setScrollTop(modifiedScrollTop);
+        modifiedEditor.setScrollLeft(modifiedScrollLeft);
+        originalEditor.setScrollTop(originalScrollTop);
+        originalEditor.setScrollLeft(originalScrollLeft);
+      });
+    } catch {
+      // Layout can fail briefly while Monaco remounts
     }
-  }
-
-  onFontSizeChange(fontSize: number) {
-    if (fontSize >= 8 && fontSize <= 32) {
-      this.editorOptions = { ...this.editorOptions, fontSize };
-      if (this.editor) {
-        try {
-          this.editor.updateOptions({ fontSize });
-        } catch (e) {
-          console.warn('Error updating font size:', e);
-        }
-      }
-    }
-  }
-
-  clearOriginal() {
-    this.originalModel = { ...this.originalModel, code: '' };
-    // Sync with editor if available
-    if (this.editor?.getOriginalEditor) {
-      try {
-        const originalEditor = this.editor.getOriginalEditor();
-        if (originalEditor) {
-          originalEditor.setValue('');
-        }
-      } catch (e) {
-        console.warn('Error clearing original editor:', e);
-      }
-    }
-  }
-
-  clearModified() {
-    this.modifiedModel = { ...this.modifiedModel, code: '' };
-    // Sync with editor if available
-    if (this.editor?.getModifiedEditor) {
-      try {
-        const modifiedEditor = this.editor.getModifiedEditor();
-        if (modifiedEditor) {
-          modifiedEditor.setValue('');
-        }
-      } catch (e) {
-        console.warn('Error clearing modified editor:', e);
-      }
-    }
-  }
-
-  clearAll() {
-    this.clearOriginal();
-    this.clearModified();
-  }
-
-  getDiffStats() {
-    const original = this.originalModel.code || '';
-    const modified = this.modifiedModel.code || '';
-    
-    return {
-      originalLines: original.split('\n').length,
-      modifiedLines: modified.split('\n').length,
-      originalChars: original.length,
-      modifiedChars: modified.length,
-      hasContent: original.length > 0 || modified.length > 0
-    };
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Generate sitemap.xml from app.routes.ts
+ * Generate sitemap.xml from app.routes.ts + src/app/routes/*.routes.ts
  * Run: node apps/tools-site/scripts/generate-sitemap.js
  */
 
@@ -45,7 +45,12 @@ function getRouteMeta(routePath) {
     return { priority: 1.0, changefreq: 'daily' };
   }
 
-  const slug = routePath.split('/').pop() || '';
+  const parts = routePath.split('/').filter(Boolean);
+  if (parts.length === 1) {
+    return { priority: 0.85, changefreq: 'weekly' };
+  }
+
+  const slug = parts[parts.length - 1] || '';
   if (HIGH_PRIORITY_SLUGS.has(slug)) {
     return { priority: 0.9, changefreq: 'weekly' };
   }

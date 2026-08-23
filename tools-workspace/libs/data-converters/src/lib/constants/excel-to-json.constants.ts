@@ -7,9 +7,6 @@ import type {
   ExcelSheetPreviewRow
 } from '../types/excel-to-json.types';
 
-export const EXCEL_TO_JSON_SHEETJS_URL =
-  'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js';
-
 export const EXCEL_TO_JSON_HISTORY_LIMIT = 6;
 
 export const EXCEL_TO_JSON_VALID_EXTENSIONS = [

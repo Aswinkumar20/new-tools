@@ -2,7 +2,6 @@ import type { FvToolSuggestion } from '../shared/fv-tool-suggestion.model';
 import {
   PPT_DEFAULT_SLIDE_HEIGHT_EMU,
   PPT_DEFAULT_SLIDE_WIDTH_EMU,
-  PPT_JSZIP_CDN,
   PPT_LARGE_FILE_SUGGEST_BYTES,
   PPT_MANY_SLIDES_SUGGEST_THRESHOLD,
   PPT_MAX_FILE_SIZE_BYTES,
@@ -23,38 +22,17 @@ import type {
 } from '../types/powerpoint-viewer.types';
 import { PresentationType } from '../types/powerpoint-viewer.types';
 
-declare global {
-  interface Window {
-    JSZip?: JsZipConstructor;
-  }
-}
-
-export async function loadJsZipLibrary(
-  cdnUrl: string = PPT_JSZIP_CDN
-): Promise<JsZipConstructor> {
+export async function loadJsZipLibrary(): Promise<JsZipConstructor> {
   if (globalThis.window === undefined) {
     throw new TypeError('JSZip can only be loaded in browser environment');
   }
 
-  if (globalThis.window.JSZip) {
-    return globalThis.window.JSZip;
+  const jszipMod = await import('jszip');
+  const JSZipLib = (jszipMod.default ?? jszipMod) as unknown as JsZipConstructor;
+  if (!JSZipLib?.loadAsync) {
+    throw new Error('Failed to load JSZip library');
   }
-
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const JSZip = globalThis.window.JSZip;
-      if (!JSZip) {
-        reject(new Error('Failed to load JSZip library'));
-        return;
-      }
-      resolve(JSZip);
-    };
-    script.onerror = () => reject(new Error('Failed to load JSZip library'));
-  });
+  return JSZipLib;
 }
 
 export function detectPresentationType(file: File): PresentationType {
@@ -275,11 +253,7 @@ export function resolvePowerpointSuggestion(options: {
 
 
 export async function parsePptxManually(file: File): Promise<PptxData> {
-    const JSZip = (globalThis as any).JSZip;
-    if (!JSZip) {
-      throw new Error('JSZip library not available');
-    }
-
+    const JSZip = await loadJsZipLibrary();
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
     const parser = new DOMParser();
@@ -340,8 +314,10 @@ export async function parsePptxManually(file: File): Promise<PptxData> {
 
     for (let i = 0; i < slideFiles.length; i++) {
       const slideFile = slideFiles[i];
+      const slideEntry = zip.files[slideFile];
+      if (!slideEntry) continue;
       try {
-        const xmlContent = await zip.files[slideFile].async('string');
+        const xmlContent = await slideEntry.async('string');
         const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
 
         const parserError = xmlDoc.getElementsByTagName('parsererror')[0];

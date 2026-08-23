@@ -31,8 +31,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Small',
-    description: 'Subtle shadow',
+    label: 'Resting card',
+    description: 'Subtle surface elevation',
     offsetX: 0,
     offsetY: 1,
     blur: 3,
@@ -41,8 +41,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Medium',
-    description: 'Standard shadow',
+    label: 'Raised card',
+    description: 'Standard card elevation',
     offsetX: 0,
     offsetY: 2,
     blur: 8,
@@ -51,8 +51,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Large',
-    description: 'Prominent shadow',
+    label: 'Modal',
+    description: 'Dialog elevation',
     offsetX: 0,
     offsetY: 4,
     blur: 16,
@@ -61,8 +61,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Extra Large',
-    description: 'Dramatic shadow',
+    label: 'Popover',
+    description: 'Menu / popover elevation',
     offsetX: 0,
     offsetY: 8,
     blur: 24,
@@ -71,8 +71,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Blue shadow',
-    description: 'Blue themed shadow',
+    label: 'Brand glow',
+    description: 'Accent-tinted elevation',
     offsetX: 0,
     offsetY: 4,
     blur: 12,
@@ -82,7 +82,7 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
   },
   {
     label: 'Inset',
-    description: 'Inset shadow',
+    description: 'Pressed input / well',
     offsetX: 0,
     offsetY: 2,
     blur: 4,
@@ -91,8 +91,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: true
   },
   {
-    label: 'Soft elevation',
-    description: 'Soft elevated card shadow',
+    label: 'Floating card',
+    description: 'Soft elevated product card',
     offsetX: 0,
     offsetY: 10,
     blur: 30,
@@ -101,8 +101,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Top shadow',
-    description: 'Shadow above',
+    label: 'Top bar',
+    description: 'Sticky header shadow',
     offsetX: 0,
     offsetY: -4,
     blur: 8,
@@ -111,8 +111,8 @@ export const BOX_SHADOW_PRESETS: ReadonlyArray<BoxShadowPreset> = [
     inset: false
   },
   {
-    label: 'Right shadow',
-    description: 'Shadow to the right',
+    label: 'Drawer',
+    description: 'Side drawer edge',
     offsetX: 4,
     offsetY: 0,
     blur: 8,

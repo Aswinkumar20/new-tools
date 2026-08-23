@@ -1,0 +1,188 @@
+<div class="ctl ban">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ban-eyebrow">Process tools</span>
+        <h1>BPMN Analytics Viewer <span class="ban-live-badge">Local &amp; private</span></h1>
+        <p>Review BPMN activity frequency, wait time, and bottleneck overlays locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="ban-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ban-suggest__body">
+        <p class="ban-suggest__title">{{ suggestion.title }}</p>
+        <p class="ban-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ban-suggest__actions">
+        <button type="button" class="ban-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="ban-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="ban-toolbar">
+      <div class="ban-toolbar__group">
+        <input #fileInput class="ban-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn ban-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ban-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="ban-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('activities-csv', $event)">Activities CSV</button>
+            <button type="button" (click)="exportAs('bottlenecks-csv', $event)">Bottlenecks CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="ban-files" *ngIf="files.length">
+          <div class="ban-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ban-files__chip--active]="i === currentIndex">
+            <button type="button" class="ban-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="ban-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="ban-toolbar__status"><span class="ban-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="ban-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="ban-workspace" [class.ban-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ban-panel">
+        <header class="ban-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.processName }} · {{ parsed?.cases || 0 }} cases · {{ filteredActivities.length }} activities · {{ parsed?.sourceKind }}</span>
+          </div>
+          <div class="ban-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="ban-map-wrap" [class.ban-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="ban-map" [class.ban-map--tall]="viewMode === 'overlays'" *ngIf="currentFile && (viewMode === 'bottlenecks' || viewMode === 'overlays')"></canvas>
+          <div class="ban-cards" *ngIf="currentFile && viewMode === 'bottlenecks'">
+            <article *ngFor="let activity of bottleneckActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
+              <header>
+                <i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>
+                <strong>{{ activity.severity }}</strong>
+                <span>score {{ activity.bottleneckScore }}</span>
+              </header>
+              <p>{{ activity.name }}</p>
+              <p>wait {{ formatWait(activity.waitMs) }} · {{ activity.frequency }} cases</p>
+            </article>
+            <p class="ban-empty-filter" *ngIf="parsed && !bottleneckActivities.length">No medium+ bottlenecks match the current filter.</p>
+          </div>
+          <div class="ban-cards" *ngIf="currentFile && viewMode === 'overlays'">
+            <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
+              <header>
+                <i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>
+                <strong>{{ activity.kind }}</strong>
+                <span>{{ activity.frequency }}</span>
+              </header>
+              <p>{{ activity.name }}</p>
+              <p>wait {{ formatWait(activity.waitMs) }} · avg {{ formatWait(activity.avgDurationMs) }}</p>
+            </article>
+          </div>
+          <div class="ban-cards" *ngIf="currentFile && viewMode === 'activities'">
+            <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
+              <header>
+                <i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>
+                <strong>{{ activity.name }}</strong>
+                <span>{{ activity.kind }}</span>
+              </header>
+              <p>{{ activity.frequency }} cases · {{ activity.failures }} failures</p>
+              <p>wait {{ formatWait(activity.waitMs) }}</p>
+            </article>
+          </div>
+          <div class="ban-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Sev</th>
+                  <th>Activity</th>
+                  <th>Kind</th>
+                  <th>Freq</th>
+                  <th>Wait</th>
+                  <th>Avg</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
+                  <td>{{ activity.index + 1 }}</td>
+                  <td><i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>{{ activity.severity }}</td>
+                  <td>{{ activity.name }}</td>
+                  <td>{{ activity.kind }}</td>
+                  <td>{{ activity.frequency }}</td>
+                  <td>{{ formatWait(activity.waitMs) }}</td>
+                  <td>{{ formatWait(activity.avgDurationMs) }}</td>
+                  <td>{{ activity.bottleneckScore }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="ban-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
+          </div>
+          <div class="ban-empty" *ngIf="!currentFile && !loading">
+            <p>Drop BPMN analytics here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="ban-loading" *ngIf="loading">Parsing BPMN analytics…</div>
+        </div>
+
+        <div class="ban-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ban-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ban-disclaimer">Education and research preview only — not a substitute for Camunda Optimize, Celonis, or production process mining platforms.</p>
+      </section>
+
+      <aside class="ban-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="ban-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search activities</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="ban-search" type="search" placeholder="bottleneck task critical (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredActivities.length">
+          <header class="ctl__panel-head">Activities</header>
+          <div class="ctl__panel-body ban-units">
+            <button type="button" *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedId === activity.id" (click)="selectActivity(activity.id)">
+              <i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>
+              <span>{{ activity.name }} <small>{{ activity.severity }} · wait {{ formatWait(activity.waitMs) }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedActivity">
+          <header class="ctl__panel-head">Selected activity</header>
+          <div class="ctl__panel-body">
+            <dl class="ban-meta">
+              <div *ngFor="let row of activityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ban-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="ban-drop" *ngIf="showDropZone"><p>Drop BPMN analytics to inspect</p></div>
+  </main>
+</div>

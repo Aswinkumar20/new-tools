@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/screen-resolution-info/screen-resolution-info';
 export * from './lib/component/battery-status-viewer/battery-status-viewer';
 export * from './lib/component/device-orientation-logger/device-orientation-logger';

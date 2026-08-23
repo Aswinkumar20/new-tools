@@ -131,17 +131,14 @@ export class PdfJspdfService {
   }
 
   async createTablePdf(headers: string[], rows: string[][], title?: string): Promise<Uint8Array> {
-    await loadAutoTable();
+    const applyAutoTable = await loadAutoTable();
     const jsPDF = await loadJsPDF();
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' }) as JsPdfDocument;
     if (title) {
       pdf.setFontSize(16);
       pdf.text(title, 14, 18);
     }
-    if (!pdf.autoTable) {
-      throw new Error('jspdf-autotable failed to load');
-    }
-    pdf.autoTable({
+    applyAutoTable(pdf, {
       head: [headers],
       body: rows,
       startY: title ? 26 : 14,
@@ -205,9 +202,9 @@ export class PdfJspdfService {
   }
 
   async createInvoicePdf(data: InvoiceData): Promise<Uint8Array> {
-    await loadAutoTable();
+    const applyAutoTable = await loadAutoTable();
     const jsPDF = await loadJsPDF();
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' }) as JsPdfDocument;
 
     pdf.setFontSize(18);
     pdf.setFont('helvetica', 'bold');
@@ -237,11 +234,7 @@ export class PdfJspdfService {
     const tax = subtotal * (data.taxRate / 100);
     const total = subtotal + tax;
 
-    const autoTable = pdf.autoTable;
-    if (!autoTable) {
-      throw new Error('jspdf-autotable failed to load');
-    }
-    autoTable({
+    applyAutoTable(pdf, {
       head: [['Description', 'Qty', 'Unit Price', 'Amount']],
       body,
       startY: 88,

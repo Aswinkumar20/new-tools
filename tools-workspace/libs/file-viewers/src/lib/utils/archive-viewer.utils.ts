@@ -3,7 +3,6 @@ import {
   ARCHIVE_FILE_ICON_MAP,
   ARCHIVE_FULLY_SUPPORTED_EXTENSION,
   ARCHIVE_IMAGE_EXTENSIONS,
-  ARCHIVE_JSZIP_CDN,
   ARCHIVE_SUPPORTED_EXTENSIONS,
   ARCHIVE_TEXT_EXTENSIONS
 } from '../constants/archive-viewer.constants';
@@ -224,27 +223,12 @@ export async function loadJSZipLibrary(): Promise<JSZipConstructor> {
     throw new TypeError('JSZip can only be loaded in browser environment');
   }
 
-  const existing = (globalThis as unknown as { JSZip?: JSZipConstructor }).JSZip;
-  if (existing) {
-    return existing;
+  const jszipMod = await import('jszip');
+  const JSZipLib = (jszipMod.default ?? jszipMod) as unknown as JSZipConstructor;
+  if (!JSZipLib) {
+    throw new Error('Failed to load JSZip library');
   }
-
-  const script = document.createElement('script');
-  script.src = ARCHIVE_JSZIP_CDN;
-  document.head.appendChild(script);
-
-  return new Promise((resolve, reject) => {
-    script.onload = () => {
-      const JSZipLib = (globalThis as unknown as { JSZip?: JSZipConstructor }).JSZip;
-      if (!JSZipLib) {
-        reject(new Error('Failed to load JSZip library'));
-        return;
-      }
-      // Preserve prior runtime: first load resolved `new JSZip()` then called `.loadAsync` on it.
-      resolve(new JSZipLib() as unknown as JSZipConstructor);
-    };
-    script.onerror = () => reject(new Error('Failed to load JSZip library'));
-  });
+  return JSZipLib;
 }
 
 export function resolveArchiveSuggestion(options: {

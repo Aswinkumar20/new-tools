@@ -1,187 +1,137 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { RouterLink } from '@angular/router';
+import { Navigation, TooltipDirective, AssetService, ToastService, StatValueTooltipHostDirective } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-interface BorderRadiusPreset {
-  label: string;
-  description: string;
-  topLeft: number;
-  topRight: number;
-  bottomRight: number;
-  bottomLeft: number;
-}
-
-interface HistoryEntry {
-  timestamp: number;
-  css: string;
-  values: {
-    topLeft: number;
-    topRight: number;
-    bottomRight: number;
-    bottomLeft: number;
-  };
-}
+import { ddCopyText } from '../../shared/dd-clipboard.util';
+import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
+import {
+  BORDER_RADIUS_DEFAULT,
+  BORDER_RADIUS_MAX,
+  BORDER_RADIUS_MIN,
+  BORDER_RADIUS_PRESETS,
+  BORDER_RADIUS_RELATED_TOOLS
+} from '../../constants/border-radius-preview.constants';
+import type {
+  BorderRadiusHistoryEntry,
+  BorderRadiusMode,
+  BorderRadiusPreset,
+  BorderRadiusUnit
+} from '../../types/border-radius-preview.types';
+import {
+  buildBorderRadiusCss,
+  buildBorderRadiusStyle,
+  buildHistoryPreview,
+  buildPresetPreview,
+  formatRelativeTimestamp,
+  prependBorderRadiusHistory,
+  resolveBorderRadiusSuggestion,
+  resolvePresetUnit
+} from '../../utils/border-radius-preview.utils';
 
 type BorderRadiusFormGroup = FormGroup<{
-  mode: FormControl<'uniform' | 'individual'>;
+  mode: FormControl<BorderRadiusMode>;
   uniform: FormControl<number>;
   topLeft: FormControl<number>;
   topRight: FormControl<number>;
   bottomRight: FormControl<number>;
   bottomLeft: FormControl<number>;
-  unit: FormControl<'px' | 'rem' | 'em' | '%'>;
+  unit: FormControl<BorderRadiusUnit>;
   rememberHistory: FormControl<boolean>;
 }>;
-
-const PRESETS: BorderRadiusPreset[] = [
-  {
-    label: 'None',
-    description: '0px all corners',
-    topLeft: 0,
-    topRight: 0,
-    bottomRight: 0,
-    bottomLeft: 0
-  },
-  {
-    label: 'Small',
-    description: '4px all corners',
-    topLeft: 4,
-    topRight: 4,
-    bottomRight: 4,
-    bottomLeft: 4
-  },
-  {
-    label: 'Medium',
-    description: '8px all corners',
-    topLeft: 8,
-    topRight: 8,
-    bottomRight: 8,
-    bottomLeft: 8
-  },
-  {
-    label: 'Large',
-    description: '16px all corners',
-    topLeft: 16,
-    topRight: 16,
-    bottomRight: 16,
-    bottomLeft: 16
-  },
-  {
-    label: 'Extra Large',
-    description: '24px all corners',
-    topLeft: 24,
-    topRight: 24,
-    bottomRight: 24,
-    bottomLeft: 24
-  },
-  {
-    label: 'Pill',
-    description: '50px all corners',
-    topLeft: 50,
-    topRight: 50,
-    bottomRight: 50,
-    bottomLeft: 50
-  },
-  {
-    label: 'Circle',
-    description: '50% all corners',
-    topLeft: 50,
-    topRight: 50,
-    bottomRight: 50,
-    bottomLeft: 50
-  },
-  {
-    label: 'Top rounded',
-    description: 'Top corners only',
-    topLeft: 16,
-    topRight: 16,
-    bottomRight: 0,
-    bottomLeft: 0
-  },
-  {
-    label: 'Bottom rounded',
-    description: 'Bottom corners only',
-    topLeft: 0,
-    topRight: 0,
-    bottomRight: 16,
-    bottomLeft: 16
-  },
-  {
-    label: 'Left rounded',
-    description: 'Left corners only',
-    topLeft: 16,
-    topRight: 0,
-    bottomRight: 0,
-    bottomLeft: 16
-  },
-  {
-    label: 'Right rounded',
-    description: 'Right corners only',
-    topLeft: 0,
-    topRight: 16,
-    bottomRight: 16,
-    bottomLeft: 0
-  }
-];
 
 @Component({
   selector: 'lib-border-radius-preview',
   standalone: true,
   templateUrl: './border-radius-preview.html',
   styleUrls: ['./border-radius-preview.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective, StatValueTooltipHostDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BorderRadiusPreviewComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly toast = inject(ToastService);
+  readonly assetService = inject(AssetService);
 
   readonly form: BorderRadiusFormGroup = this.fb.group({
-    mode: this.fb.control<'uniform' | 'individual'>('uniform', { nonNullable: true }),
-    uniform: this.fb.control(8, {
+    mode: this.fb.control<BorderRadiusMode>('uniform', { nonNullable: true }),
+    uniform: this.fb.control(BORDER_RADIUS_DEFAULT, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(500)]
+      validators: [Validators.min(BORDER_RADIUS_MIN), Validators.max(BORDER_RADIUS_MAX)]
     }),
-    topLeft: this.fb.control(8, {
+    topLeft: this.fb.control(BORDER_RADIUS_DEFAULT, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(500)]
+      validators: [Validators.min(BORDER_RADIUS_MIN), Validators.max(BORDER_RADIUS_MAX)]
     }),
-    topRight: this.fb.control(8, {
+    topRight: this.fb.control(BORDER_RADIUS_DEFAULT, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(500)]
+      validators: [Validators.min(BORDER_RADIUS_MIN), Validators.max(BORDER_RADIUS_MAX)]
     }),
-    bottomRight: this.fb.control(8, {
+    bottomRight: this.fb.control(BORDER_RADIUS_DEFAULT, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(500)]
+      validators: [Validators.min(BORDER_RADIUS_MIN), Validators.max(BORDER_RADIUS_MAX)]
     }),
-    bottomLeft: this.fb.control(8, {
+    bottomLeft: this.fb.control(BORDER_RADIUS_DEFAULT, {
       nonNullable: true,
-      validators: [Validators.min(0), Validators.max(500)]
+      validators: [Validators.min(BORDER_RADIUS_MIN), Validators.max(BORDER_RADIUS_MAX)]
     }),
-    unit: this.fb.control<'px' | 'rem' | 'em' | '%'>('px', { nonNullable: true }),
+    unit: this.fb.control<BorderRadiusUnit>('px', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly presets = PRESETS;
+  readonly presets = BORDER_RADIUS_PRESETS;
+  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = BORDER_RADIUS_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
-  readonly history = signal<HistoryEntry[]>([]);
+  readonly history = signal<BorderRadiusHistoryEntry[]>([]);
+  private readonly formTick = signal(0);
+  private readonly hasCopiedCss = signal(false);
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
-  readonly borderRadiusCss = computed(() => this.getBorderRadiusCss());
-  readonly borderRadiusStyle = computed(() => this.getBorderRadiusStyle());
+  readonly borderRadiusCss = computed(() => {
+    this.formTick();
+    return buildBorderRadiusCss(this.form.getRawValue());
+  });
+  readonly borderRadiusStyle = computed(() => {
+    this.formTick();
+    return buildBorderRadiusStyle(this.form.getRawValue());
+  });
+  readonly primarySuggestion = computed(() => {
+    this.formTick();
+    const suggestion = resolveBorderRadiusSuggestion({
+      values: this.form.getRawValue(),
+      hasCopiedCss: this.hasCopiedCss()
+    });
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
     this.form.valueChanges
-      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .pipe(debounceTime(50), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.formTick.update((n) => n + 1);
+        this.dismissedSuggestionId.set(null);
         this.updateHistory();
       });
 
-    // Initial update
+    this.formTick.update((n) => n + 1);
     this.updateHistory();
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   onUniformChange(): void {
@@ -192,6 +142,7 @@ export class BorderRadiusPreviewComponent {
       bottomRight: uniformValue,
       bottomLeft: uniformValue
     });
+    this.refreshDerivedState();
   }
 
   onModeChange(): void {
@@ -203,14 +154,18 @@ export class BorderRadiusPreviewComponent {
         bottomRight: uniformValue,
         bottomLeft: uniformValue
       });
+      this.refreshDerivedState();
+    }
+  }
+
+  loadExample(): void {
+    const card = this.presets.find((preset) => preset.label === 'Product card');
+    if (card) {
+      this.applyPreset(card);
     }
   }
 
   applyPreset(preset: BorderRadiusPreset): void {
-    const unit = this.form.controls.unit.value;
-    const isPercentage = preset.label === 'Circle';
-    const actualUnit = isPercentage ? '%' : unit;
-
     this.form.patchValue({
       mode: 'individual',
       topLeft: preset.topLeft,
@@ -218,82 +173,47 @@ export class BorderRadiusPreviewComponent {
       bottomRight: preset.bottomRight,
       bottomLeft: preset.bottomLeft,
       uniform: preset.topLeft,
-      unit: actualUnit
+      unit: resolvePresetUnit(preset, this.form.controls.unit.value)
     });
+    this.refreshDerivedState();
   }
 
-  getBorderRadiusCss(): string {
-    const { mode, uniform, topLeft, topRight, bottomRight, bottomLeft, unit } = this.form.getRawValue();
-
-    if (mode === 'uniform') {
-      return `border-radius: ${uniform}${unit};`;
+  async copyToClipboard(text: string, label: string): Promise<void> {
+    const ok = await ddCopyText(this.toast, text, label);
+    if (ok) {
+      this.hasCopiedCss.set(true);
+      this.errors.set([]);
+    } else {
+      this.errors.set([`Unable to copy ${label} to clipboard.`]);
     }
-
-    const values = [topLeft, topRight, bottomRight, bottomLeft];
-    const allSame = values.every((v) => v === values[0]);
-
-    if (allSame) {
-      return `border-radius: ${topLeft}${unit};`;
-    }
-
-    const topSame = topLeft === topRight;
-    const bottomSame = bottomRight === bottomLeft;
-    const leftSame = topLeft === bottomLeft;
-    const rightSame = topRight === bottomRight;
-
-    if (topSame && bottomSame) {
-      return `border-radius: ${topLeft}${unit} ${bottomRight}${unit};`;
-    }
-
-    if (leftSame && rightSame) {
-      return `border-radius: ${topLeft}${unit} ${topRight}${unit};`;
-    }
-
-    return `border-radius: ${topLeft}${unit} ${topRight}${unit} ${bottomRight}${unit} ${bottomLeft}${unit};`;
-  }
-
-  getBorderRadiusStyle(): string {
-    const { mode, uniform, topLeft, topRight, bottomRight, bottomLeft, unit } = this.form.getRawValue();
-
-    if (mode === 'uniform') {
-      return `${uniform}${unit}`;
-    }
-
-    return `${topLeft}${unit} ${topRight}${unit} ${bottomRight}${unit} ${bottomLeft}${unit}`;
-  }
-
-  copyToClipboard(text: string, label: string): void {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        // Success
-      })
-      .catch(() => {
-        this.errors.set([`Unable to copy ${label} to clipboard.`]);
-      });
   }
 
   clear(): void {
+    this.hasCopiedCss.set(false);
+    this.dismissedSuggestionId.set(null);
     this.form.patchValue({
       mode: 'uniform',
-      uniform: 8,
-      topLeft: 8,
-      topRight: 8,
-      bottomRight: 8,
-      bottomLeft: 8,
+      uniform: BORDER_RADIUS_DEFAULT,
+      topLeft: BORDER_RADIUS_DEFAULT,
+      topRight: BORDER_RADIUS_DEFAULT,
+      bottomRight: BORDER_RADIUS_DEFAULT,
+      bottomLeft: BORDER_RADIUS_DEFAULT,
       unit: 'px'
     });
+    this.refreshDerivedState();
   }
 
-  applyHistory(entry: HistoryEntry): void {
+  applyHistory(entry: BorderRadiusHistoryEntry): void {
     this.form.patchValue({
-      mode: 'individual',
+      mode: entry.values.mode ?? 'individual',
       topLeft: entry.values.topLeft,
       topRight: entry.values.topRight,
       bottomRight: entry.values.bottomRight,
       bottomLeft: entry.values.bottomLeft,
-      uniform: entry.values.topLeft
+      uniform: entry.values.topLeft,
+      unit: entry.values.unit ?? 'px'
     });
+    this.refreshDerivedState();
   }
 
   clearHistory(): void {
@@ -304,60 +224,43 @@ export class BorderRadiusPreviewComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
+  getPresetPreview(preset: BorderRadiusPreset): string {
+    return buildPresetPreview(preset);
+  }
+
+  getHistoryPreview(entry: BorderRadiusHistoryEntry): string {
+    return buildHistoryPreview(entry);
+  }
+
+  formatTimestamp(timestamp: number): string {
+    return formatRelativeTimestamp(timestamp);
+  }
+
+  private refreshDerivedState(): void {
+    this.formTick.update((n) => n + 1);
+    this.updateHistory();
+  }
+
   private updateHistory(): void {
     if (!this.form.controls.rememberHistory.value) {
       return;
     }
 
-    const { topLeft, topRight, bottomRight, bottomLeft } = this.form.getRawValue();
-    const css = this.getBorderRadiusCss();
-
-    const entry: HistoryEntry = {
+    const values = this.form.getRawValue();
+    const css = buildBorderRadiusCss(values);
+    const entry: BorderRadiusHistoryEntry = {
       timestamp: Date.now(),
       css,
-      values: { topLeft, topRight, bottomRight, bottomLeft }
+      values: {
+        topLeft: values.topLeft,
+        topRight: values.topRight,
+        bottomRight: values.bottomRight,
+        bottomLeft: values.bottomLeft,
+        unit: values.unit,
+        mode: values.mode
+      }
     };
 
-    this.history.update((entries) => {
-      const exists = entries.some((e) => e.css === entry.css);
-      if (exists) {
-        return entries;
-      }
-      return [entry, ...entries].slice(0, 10);
-    });
-  }
-
-  getPresetPreview(preset: BorderRadiusPreset): string {
-    const unit = preset.label === 'Circle' ? '%' : 'px';
-    return `${preset.topLeft}${unit} ${preset.topRight}${unit} ${preset.bottomRight}${unit} ${preset.bottomLeft}${unit}`;
-  }
-
-  getHistoryPreview(entry: HistoryEntry): string {
-    const { topLeft, topRight, bottomRight, bottomLeft } = entry.values;
-    // Extract unit from CSS (simplified - assumes px)
-    const unit = 'px';
-    return `${topLeft}${unit} ${topRight}${unit} ${bottomRight}${unit} ${bottomLeft}${unit}`;
-  }
-
-  formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (seconds < 60) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else if (hours < 24) {
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    } else if (days < 7) {
-      return `${days} day${days > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
+    this.history.update((entries) => prependBorderRadiusHistory(entries, entry));
   }
 }

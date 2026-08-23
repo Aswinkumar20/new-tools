@@ -1,15 +1,21 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-compress-pdf',
   standalone: true,
-  templateUrl: './compress-pdf.html',
-  styleUrls: ['./compress-pdf.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  template: `
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
+  `,
+  imports: [PdfWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CompressPdfComponent {
-  constructor() {}
+  readonly mode: PdfToolMode = 'compress-pdf';
+  readonly title = 'Compress PDF';
+  readonly description = 'Optimize PDF structure with object streams (basic in-browser compression).';
 }

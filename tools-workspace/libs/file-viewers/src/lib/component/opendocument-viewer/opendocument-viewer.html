@@ -1,0 +1,209 @@
+<div class="ctl od">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="od-eyebrow">File viewers</span>
+        <h1>OpenDocument Viewer <span class="od-live-badge">Local &amp; private</span></h1>
+        <p>Inspect OpenDocument pages, sheets, and preview locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="od-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="od-suggest__body">
+        <p class="od-suggest__title">{{ suggestion.title }}</p>
+        <p class="od-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="od-suggest__actions">
+        <button type="button" class="od-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="od-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="od-toolbar">
+      <div class="od-toolbar__group">
+        <input #fileInput class="od-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn od-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="od-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="od-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="od-files" *ngIf="files.length">
+          <div class="od-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.od-files__chip--active]="i === currentIndex">
+            <button type="button" class="od-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="od-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="od-toolbar__status"><span class="od-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="od-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="od-workspace" [class.od-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="od-panel">
+        <header class="od-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.author || '—' }} · {{ parsed?.kind || 'odt' }} · {{ filteredPages.length }} pages · {{ filteredSheets.length }} sheets</span>
+          </div>
+          <div class="od-view-controls">
+            <button type="button" *ngIf="viewMode === 'preview' || viewMode === 'pages'" (click)="prevPage()">‹ Page</button>
+            <span *ngIf="viewMode === 'preview' || viewMode === 'pages'">{{ pageLabel }}</span>
+            <button type="button" *ngIf="viewMode === 'preview' || viewMode === 'pages'" (click)="nextPage()">Page ›</button>
+            <button type="button" *ngIf="viewMode === 'preview' || viewMode === 'sheets'" (click)="prevSheet()">‹ Sheet</button>
+            <span *ngIf="viewMode === 'preview' || viewMode === 'sheets'">{{ sheetLabel }}</span>
+            <button type="button" *ngIf="viewMode === 'preview' || viewMode === 'sheets'" (click)="nextSheet()">Sheet ›</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="od-map-wrap" [class.od-map-wrap--empty]="!currentFile">
+          <article class="od-preview" *ngIf="currentFile && viewMode === 'preview'">
+            <h1>{{ parsed?.title || parsed?.name }}</h1>
+            <p class="od-preview__author">{{ parsed?.author || '—' }} · {{ parsed?.kind || 'odt' }} · {{ pageLabel }}</p>
+            <ng-container *ngFor="let block of pageBlocks; trackBy: trackByBlock">
+              <h2 *ngIf="block.kind === 'heading'" [class.is-active]="selectedBlockId === block.id">{{ block.text }}</h2>
+              <p *ngIf="block.kind !== 'heading'" [class.is-active]="selectedBlockId === block.id">{{ block.text }}</p>
+            </ng-container>
+            <div class="od-sheet" *ngIf="sheetCells.length">
+              <span class="od-sheet__label">{{ sheetLabel }}</span>
+              <table>
+                <tr *ngFor="let cell of sheetCells; trackBy: trackByCell">
+                  <th>{{ cell.ref }}</th>
+                  <td>{{ cell.value }}</td>
+                </tr>
+              </table>
+            </div>
+            <p class="od-empty-filter" *ngIf="parsed && !pageBlocks.length && !sheetCells.length">No pages or sheets match the current filter.</p>
+          </article>
+          <div class="od-cards" *ngIf="currentFile && viewMode === 'pages'">
+            <article *ngFor="let page of filteredPages; trackBy: trackByPage" [class.is-active]="selectedPage?.id === page.id" (click)="selectPage(page.id)">
+              <header>
+                <strong>{{ page.name }}</strong>
+                <span>page</span>
+                <span>{{ page.kind }}</span>
+              </header>
+              <p>{{ page.kind }} page</p>
+            </article>
+            <article *ngFor="let block of filteredBlocks; trackBy: trackByBlock" [class.is-active]="selectedBlock?.id === block.id" (click)="selectBlock(block.id)">
+              <header>
+                <strong>{{ block.name }}</strong>
+                <span>block</span>
+                <span>{{ block.page }}</span>
+              </header>
+              <p>{{ block.text }}</p>
+            </article>
+            <p class="od-empty-filter" *ngIf="parsed && !filteredPages.length && !filteredBlocks.length">No pages match the current filter.</p>
+          </div>
+          <div class="od-cards" *ngIf="currentFile && viewMode === 'sheets'">
+            <article *ngFor="let sheet of filteredSheets; trackBy: trackBySheet" [class.is-active]="selectedSheet?.id === sheet.id" (click)="selectSheet(sheet.id)">
+              <header>
+                <strong>{{ sheet.name }}</strong>
+                <span>sheet</span>
+                <span>{{ sheet.kind }}</span>
+              </header>
+              <p>{{ sheet.kind }} sheet</p>
+            </article>
+            <article *ngFor="let cell of sheetCells; trackBy: trackByCell">
+              <header>
+                <strong>{{ cell.ref }}</strong>
+                <span>cell</span>
+                <span>{{ cell.sheet }}</span>
+              </header>
+              <p>{{ cell.value }}</p>
+            </article>
+            <p class="od-empty-filter" *ngIf="parsed && !filteredSheets.length && !sheetCells.length">No sheets match the current filter.</p>
+          </div>
+          <div class="od-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="od-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="od-empty" *ngIf="!currentFile && !loading">
+            <p>Drop an ODF dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="od-loading" *ngIf="loading">Parsing ODF dump…</div>
+        </div>
+
+        <div class="od-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="od-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="od-disclaimer">Education and research preview only — not a substitute for LibreOffice, OnlyOffice, or a full ODF kernel. ASCII dumps are supported; binary ODT/ODS/ODP (ZIP) is not expanded.</p>
+      </section>
+
+      <aside class="od-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="od-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search ODF</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="od-search" type="search" placeholder="page:cover sheet:inventory block:heading (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'pages') && filteredPages.length">
+          <header class="ctl__panel-head">Pages</header>
+          <div class="ctl__panel-body od-units">
+            <button type="button" *ngFor="let page of filteredPages; trackBy: trackByPage" [class.is-active]="selectedPageId === page.id" (click)="selectPage(page.id)">
+              <span>{{ page.name }} <small>{{ page.kind }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'sheets') && filteredSheets.length">
+          <header class="ctl__panel-head">Sheets</header>
+          <div class="ctl__panel-body od-units">
+            <button type="button" *ngFor="let sheet of filteredSheets; trackBy: trackBySheet" [class.is-active]="selectedSheetId === sheet.id" (click)="selectSheet(sheet.id)">
+              <span>{{ sheet.name }} <small>{{ sheet.kind }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'pages') && selectedPage">
+          <header class="ctl__panel-head">Selected page</header>
+          <div class="ctl__panel-body">
+            <dl class="od-meta">
+              <div *ngFor="let row of pageMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="od-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="od-drop" *ngIf="showDropZone"><p>Drop ODF dump to preview</p></div>
+  </main>
+</div>

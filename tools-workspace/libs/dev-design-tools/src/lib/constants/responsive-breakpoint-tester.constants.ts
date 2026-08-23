@@ -26,14 +26,14 @@ export const RESPONSIVE_BREAKPOINT_COLORS: ReadonlyArray<string> = [
 ];
 
 export const RESPONSIVE_PRESET_BREAKPOINTS: ReadonlyArray<ResponsiveBreakpointPreset> = [
-  { name: 'Mobile (Small)', width: 375, height: 667, icon: '📱' },
-  { name: 'Mobile (Large)', width: 414, height: 896, icon: '📱' },
-  { name: 'Tablet (Portrait)', width: 768, height: 1024, icon: '📱' },
-  { name: 'Tablet (Landscape)', width: 1024, height: 768, icon: '📱' },
-  { name: 'Desktop (Small)', width: 1280, height: 720, icon: '💻' },
-  { name: 'Desktop (Medium)', width: 1440, height: 900, icon: '💻' },
-  { name: 'Desktop (Large)', width: 1920, height: 1080, icon: '💻' },
-  { name: 'Desktop (4K)', width: 3840, height: 2160, icon: '🖥️' }
+  { name: 'iPhone SE', width: 375, height: 667, icon: '📱' },
+  { name: 'iPhone 14', width: 414, height: 896, icon: '📱' },
+  { name: 'iPad portrait', width: 768, height: 1024, icon: '📱' },
+  { name: 'iPad landscape', width: 1024, height: 768, icon: '📱' },
+  { name: 'Laptop HD', width: 1280, height: 720, icon: '💻' },
+  { name: 'MacBook Pro', width: 1440, height: 900, icon: '💻' },
+  { name: 'Full HD desktop', width: 1920, height: 1080, icon: '💻' },
+  { name: '4K desktop', width: 3840, height: 2160, icon: '🖥️' }
 ];
 
 export const RESPONSIVE_COMMON_BREAKPOINTS: ReadonlyArray<ResponsiveActiveBreakpoint> = [

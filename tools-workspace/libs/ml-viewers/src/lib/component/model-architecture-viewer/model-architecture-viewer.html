@@ -1,0 +1,201 @@
+<div class="ctl ma">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ma-eyebrow">ML viewers</span>
+        <h1>Model Architecture Viewer <span class="ma-live-badge">Local &amp; private</span></h1>
+        <p>Explore architecture blocks and parameter tensors locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="ma-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ma-suggest__body">
+        <p class="ma-suggest__title">{{ suggestion.title }}</p>
+        <p class="ma-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ma-suggest__actions">
+        <button type="button" class="ma-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="ma-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="ma-toolbar">
+      <div class="ma-toolbar__group">
+        <input #fileInput class="ma-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn ma-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ma-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="ma-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="ma-files" *ngIf="files.length">
+          <div class="ma-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ma-files__chip--active]="i === currentIndex">
+            <button type="button" class="ma-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="ma-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="ma-toolbar__status"><span class="ma-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="ma-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="ma-workspace" [class.ma-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ma-panel">
+        <header class="ma-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.family || '—' }} · {{ filteredBlocks.length }} blocks · {{ filteredParams.length }} params</span>
+          </div>
+          <div class="ma-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="ma-map-wrap" [class.ma-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="ma-map" [class.ma-map--tall]="viewMode === 'blocks'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="ma-cards" *ngIf="currentFile && viewMode === 'blocks'">
+            <article *ngFor="let block of filteredBlocks; trackBy: trackByBlock" [class.is-active]="selectedBlock?.id === block.id" (click)="selectBlock(block.id)">
+              <header>
+                <i class="ma-swatch" [style.background]="tint(block.type, block.index)"></i>
+                <strong>{{ block.name }}</strong>
+                <span>{{ block.type }}</span>
+              </header>
+              <p>{{ block.role }} · {{ block.inFeatures || '—' }} → {{ block.outFeatures || '—' }}{{ block.paramCount ? ' · ' + block.paramCount + ' params' : '' }}</p>
+            </article>
+            <p class="ma-empty-filter" *ngIf="parsed && !filteredBlocks.length">No blocks match the current filter.</p>
+          </div>
+          <div class="ma-cards" *ngIf="currentFile && viewMode === 'params'">
+            <article *ngFor="let entry of filteredParams; trackBy: trackByParam" [class.is-active]="selectedParam?.id === entry.id" (click)="selectParam(entry.id)">
+              <header>
+                <i class="ma-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+                <strong>{{ entry.name }}</strong>
+                <span>{{ entry.kind }}</span>
+              </header>
+              <p>{{ entry.dtype }} · {{ entry.shapeLabel }} · {{ entry.block || '—' }}</p>
+            </article>
+            <p class="ma-empty-filter" *ngIf="parsed && !filteredParams.length">No params match the current filter.</p>
+          </div>
+          <div class="ma-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <header>
+                <i class="ma-swatch" [style.background]="tint('number', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'type') || 'block' }}</p>
+            </article>
+            <p class="ma-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ma-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="ma-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ma-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a model architecture dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="ma-loading" *ngIf="loading">Parsing architecture dump…</div>
+        </div>
+
+        <div class="ma-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ma-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ma-disclaimer">Education and research preview only — not a compiler or runtime. Weights are not loaded; dump support is a subset.</p>
+      </section>
+
+      <aside class="ma-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="ma-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search architecture</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="ma-search" type="search" placeholder="block:encoder role:head param:weight dtype:float32 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'blocks' && filteredBlocks.length">
+          <header class="ctl__panel-head">Blocks</header>
+          <div class="ctl__panel-body ma-units">
+            <button type="button" *ngFor="let block of filteredBlocks; trackBy: trackByBlock" [class.is-active]="selectedBlockId === block.id" (click)="selectBlock(block.id)">
+              <i class="ma-swatch" [style.background]="tint(block.type, block.index)"></i>
+              <span>{{ block.name }} <small>{{ block.role }} · {{ block.inFeatures || '—' }}→{{ block.outFeatures || '—' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'params' && filteredParams.length">
+          <header class="ctl__panel-head">Params</header>
+          <div class="ctl__panel-body ma-units">
+            <button type="button" *ngFor="let entry of filteredParams; trackBy: trackByParam" [class.is-active]="selectedParamId === entry.id" (click)="selectParam(entry.id)">
+              <i class="ma-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+              <span>{{ entry.name }} <small>{{ entry.kind }} · {{ entry.dtype }} {{ entry.shapeLabel }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length">
+          <header class="ctl__panel-head">Rows</header>
+          <div class="ctl__panel-body ma-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="ma-swatch" [style.background]="tint('number', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'type') }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'blocks' && selectedBlock">
+          <header class="ctl__panel-head">Selected block</header>
+          <div class="ctl__panel-body">
+            <dl class="ma-meta">
+              <div *ngFor="let row of blockMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'params' && selectedParam">
+          <header class="ctl__panel-head">Selected param</header>
+          <div class="ctl__panel-body">
+            <dl class="ma-meta">
+              <div *ngFor="let row of paramMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ma-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="ma-drop" *ngIf="showDropZone"><p>Drop architecture dump to preview</p></div>
+  </main>
+</div>

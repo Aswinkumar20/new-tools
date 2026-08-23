@@ -1,0 +1,251 @@
+<div class="ctl tv data-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="tv-eyebrow">Data explorers</span>
+        <h1>TSV Viewer <span class="tv-live-badge">Local &amp; private</span></h1>
+        <p>Explore TSV columns, dialect, and preview rows locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="TSV Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="tv-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="tv-suggest__body">
+        <p class="tv-suggest__title">{{ suggestion.title }}</p>
+        <p class="tv-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="tv-suggest__actions">
+        <button type="button" class="tv-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="tv-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="tv-toolbar" role="toolbar" aria-label="TSV Viewer actions">
+      <div class="tv-toolbar__group">
+        <input #fileInput class="tv-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn tv-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="tv-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="tv-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('rows-tsv', $event)">Rows TSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="tv-files" *ngIf="files.length">
+          <div class="tv-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.tv-files__chip--active]="i === currentIndex">
+            <button type="button" class="tv-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="tv-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tv-tab-bar" *ngIf="currentFile" role="tablist" aria-label="TSV views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="tv-toolbar__status"><span class="tv-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="tv-workspace" [class.tv-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="tv-panel">
+        <header class="tv-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.columns?.length || 0 }} columns · {{ filteredRows.length }} rows · {{ parsed?.hasHeader ? 'header' : 'no header' }}</span>
+          </div>
+          <div class="tv-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="tv-map-wrap">
+          <canvas #canvasHost class="tv-map" [class.tv-map--tall]="viewMode === 'columns'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="tv-cards" *ngIf="currentFile && (viewMode === 'columns' || viewMode === 'schema')">
+            <article *ngFor="let column of filteredColumns; trackBy: trackByColumn" [class.is-active]="selectedColumn?.id === column.id" (click)="selectColumn(column.id)" (keydown.enter)="selectColumn(column.id)" (keydown.space)="$event.preventDefault(); selectColumn(column.id)" tabindex="0" role="button">
+              <header>
+                <i class="tv-swatch" [style.background]="tint(column.type, column.index)"></i>
+                <strong>{{ column.name }}</strong>
+                <span>{{ column.type }}</span>
+              </header>
+              <p>{{ column.nullCount }} null · {{ column.uniqueCount }} distinct{{ column.min ? ' · ' + column.min + '–' + column.max : '' }}</p>
+            </article>
+            <p class="tv-empty-filter" *ngIf="parsed && !filteredColumns.length">No columns match the current filter.</p>
+          </div>
+          <div class="tv-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0" role="button">
+              <header>
+                <i class="tv-swatch" [style.background]="tint('INTEGER', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowPreview(row) }}</p>
+            </article>
+            <p class="tv-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="tv-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="tv-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="tv-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a TSV file here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn tv-primary-action" (click)="openFilePicker()">Upload file</button>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="tv-loading" *ngIf="loading" role="status" aria-live="polite">Parsing TSV…</div>
+        </div>
+
+        <div class="tv-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="tv-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="tv-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Excel, pandas, or spreadsheet software. Tab dialect only; commas inside fields are data.</p>
+      </section>
+
+      <aside class="tv-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="tv-empty-panel">Upload TSV or load the sample to see overview, schema, and preview rows here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="tv-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search table</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="tv-search" type="search" aria-label="Search TSV contents" placeholder="Search columns, types, or values (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="tv-search-hint">Try <code>col:name</code>, <code>type:int</code>, or a cell value. Press <kbd>/</kbd> to focus.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length" open>
+          <summary class="ctl__panel-head">Rows</summary>
+          <div class="ctl__panel-body tv-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="tv-swatch" [style.background]="tint('INTEGER', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowPreview(row) }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'preview' && viewMode !== 'table' && filteredColumns.length" open>
+          <summary class="ctl__panel-head">Columns</summary>
+          <div class="ctl__panel-body tv-units">
+            <button type="button" *ngFor="let column of filteredColumns; trackBy: trackByColumn" [class.is-active]="selectedColumnId === column.id" (click)="selectColumn(column.id)">
+              <i class="tv-swatch" [style.background]="tint(column.type, column.index)"></i>
+              <span>{{ column.name }} <small>{{ column.type }} · {{ column.uniqueCount }} distinct</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'preview' && viewMode !== 'table' && selectedColumn" open>
+          <summary class="ctl__panel-head">Selected column</summary>
+          <div class="ctl__panel-body">
+            <dl class="tv-meta">
+              <div *ngFor="let row of columnMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && selectedRow" open>
+          <summary class="ctl__panel-head">Selected row</summary>
+          <div class="ctl__panel-body">
+            <dl class="tv-meta">
+              <div *ngFor="let row of selectedRowEntries"><dt>{{ row.key }}</dt><dd>{{ row.value || '—' }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="tv-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help de-footer-help">
+      <summary>How to use TSV Viewer</summary>
+      <ol class="de-help-steps">
+        <li class="de-help-step">
+          <span class="de-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">2</span>
+          <h3>Browse</h3>
+          <p>Switch schema, preview, and table views. Use the side panel to inspect columns, rows, and metadata.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">3</span>
+          <h3>Search</h3>
+          <p>Filter with tokens like <code>col:name</code> or <code>type:int</code>. Press <kbd>/</kbd> to focus search.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native engine.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="tv-drop" *ngIf="showDropZone"><p>Drop TSV to preview</p></div>
+</div>

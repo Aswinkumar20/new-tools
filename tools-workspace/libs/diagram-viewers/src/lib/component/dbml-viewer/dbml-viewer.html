@@ -1,0 +1,254 @@
+<div class="ctl dbml dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dbml-eyebrow">Diagram viewers</span>
+        <h1>DBML Viewer <span class="dbml-live-badge">Local &amp; private</span></h1>
+        <p>Preview DBML tables and refs locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="DBML Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="dbml-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dbml-suggest__body">
+        <p class="dbml-suggest__title">{{ suggestion.title }}</p>
+        <p class="dbml-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dbml-suggest__actions">
+        <button type="button" class="dbml-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="dbml-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="dbml-toolbar" role="toolbar" aria-label="DBML Viewer actions">
+      <div class="dbml-toolbar__group">
+        <input #fileInput class="dbml-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn dbml-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dbml-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dbml-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('tables-csv', $event)">Tables CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('refs-csv', $event)">Refs CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="dbml-files" *ngIf="files.length">
+          <div class="dbml-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dbml-files__chip--active]="i === currentIndex">
+            <button type="button" class="dbml-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="dbml-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dbml-tab-bar" *ngIf="currentFile" role="tablist" aria-label="DBML Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="dbml-toolbar__status"><span class="dbml-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="dbml-workspace" [class.dbml-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dbml-panel">
+        <header class="dbml-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.tables?.length || 0 }} tables · {{ parsed?.refs?.length || 0 }} refs</span>
+          </div>
+          <div class="dbml-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="dbml-map-wrap">
+          <canvas #canvasHost class="dbml-map" [class.dbml-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="dbml-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'tables')">
+            <article *ngFor="let table of filteredTables; trackBy: trackByTable" [class.is-active]="selectedTable?.id === table.id" (click)="selectTable(table.id)">
+              <header>
+                <i class="dbml-swatch" [style.background]="tint(table.alias, table.index)"></i>
+                <strong>{{ table.name }}</strong>
+                <span>{{ table.columns.length }} cols</span>
+              </header>
+              <p>
+                <span *ngFor="let col of table.columns" class="dbml-col">
+                  <b *ngIf="columnBadge(col)">{{ columnBadge(col) }}</b>
+                  {{ col.name }}{{ col.type ? ': ' + col.type : '' }}
+                </span>
+              </p>
+            </article>
+            <p class="dbml-empty-filter" *ngIf="parsed && !filteredTables.length">No tables match the current filter.</p>
+          </div>
+          <div class="dbml-cards" *ngIf="currentFile && viewMode === 'refs'">
+            <article *ngFor="let ref of filteredRefs; trackBy: trackByRef" [class.is-active]="selectedRef?.id === ref.id" (click)="selectRef(ref.id)">
+              <header>
+                <i class="dbml-swatch" [style.background]="tint(ref.rel, ref.index)"></i>
+                <strong>{{ ref.sourceName }}.{{ ref.sourceColumn }} {{ ref.rel }} {{ ref.targetName }}.{{ ref.targetColumn }}</strong>
+                <span>{{ ref.name || 'ref' }}</span>
+              </header>
+              <p>{{ ref.rel }}</p>
+            </article>
+            <p class="dbml-empty-filter" *ngIf="parsed && !filteredRefs.length">No refs match the current filter.</p>
+          </div>
+          <div class="dbml-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>From</th>
+                  <th>Rel</th>
+                  <th>To</th>
+                  <th>Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ref of filteredRefs; trackBy: trackByRef" [class.is-active]="selectedRef?.id === ref.id" (click)="selectRef(ref.id)">
+                  <td>{{ ref.index + 1 }}</td>
+                  <td>{{ ref.sourceName }}.{{ ref.sourceColumn }}</td>
+                  <td>{{ ref.rel }}</td>
+                  <td>{{ ref.targetName }}.{{ ref.targetColumn }}</td>
+                  <td>{{ ref.name || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="dbml-empty-filter" *ngIf="parsed && !filteredRefs.length">No refs match the current filter.</p>
+          </div>
+          <div class="dbml-empty" *ngIf="!currentFile && !loading">
+            <p>Drop DBML source here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="dbml-loading" *ngIf="loading">Parsing DBML…</div>
+        </div>
+
+        <div class="dbml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dbml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dbml-disclaimer">Education and research preview only — not a substitute for dbdiagram.io or database design tools.</p>
+      </section>
+
+      <aside class="dbml-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="dbml-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search diagram</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="dbml-search" type="search" placeholder="table:Customer col:email ref:&gt; from:Order (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'refs' || viewMode === 'table') && filteredRefs.length" open>
+          <summary class="ctl__panel-head">Refs</summary>
+          <div class="ctl__panel-body dbml-units">
+            <button type="button" *ngFor="let ref of filteredRefs; trackBy: trackByRef" [class.is-active]="selectedRefId === ref.id" (click)="selectRef(ref.id)">
+              <i class="dbml-swatch" [style.background]="tint(ref.rel, ref.index)"></i>
+              <span>{{ ref.sourceName }} {{ ref.rel }} {{ ref.targetName }} <small>{{ ref.sourceColumn }} → {{ ref.targetColumn }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'refs' && filteredTables.length" open>
+          <summary class="ctl__panel-head">Tables</summary>
+          <div class="ctl__panel-body dbml-units">
+            <button type="button" *ngFor="let table of filteredTables; trackBy: trackByTable" [class.is-active]="selectedTableId === table.id" (click)="selectTable(table.id)">
+              <i class="dbml-swatch" [style.background]="tint(table.alias, table.index)"></i>
+              <span>{{ table.name }} <small>{{ table.columns.length }} columns</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'refs' || viewMode === 'table') && selectedRef" open>
+          <summary class="ctl__panel-head">Selected ref</summary>
+          <div class="ctl__panel-body">
+            <dl class="dbml-meta">
+              <div *ngFor="let row of refMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'refs' && selectedTable" open>
+          <summary class="ctl__panel-head">Selected table</summary>
+          <div class="ctl__panel-body">
+            <dl class="dbml-meta">
+              <div *ngFor="let row of tableMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dbml-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use DBML Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="dbml-drop" *ngIf="showDropZone"><p>Drop DBML source to preview</p></div>
+  </main>
+</div>

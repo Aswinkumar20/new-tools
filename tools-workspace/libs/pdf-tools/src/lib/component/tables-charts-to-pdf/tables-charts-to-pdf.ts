@@ -1,15 +1,21 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-tables-charts-to-pdf',
   standalone: true,
-  templateUrl: './tables-charts-to-pdf.html',
-  styleUrls: ['./tables-charts-to-pdf.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  template: `
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
+  `,
+  imports: [PdfWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TablesChartsToPdfComponent {
-  constructor() {}
+  readonly mode: PdfToolMode = 'tables-charts-to-pdf';
+  readonly title = 'Tables & Charts to PDF';
+  readonly description = 'Export tabular data into a printable PDF.';
 }

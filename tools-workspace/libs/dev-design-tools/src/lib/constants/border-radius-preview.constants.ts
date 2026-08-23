@@ -9,39 +9,47 @@ export const BORDER_RADIUS_DEFAULT = 8;
 export const BORDER_RADIUS_PRESETS: ReadonlyArray<BorderRadiusPreset> = [
   {
     label: 'None',
-    description: '0px all corners',
+    description: 'Sharp corners',
     topLeft: 0,
     topRight: 0,
     bottomRight: 0,
     bottomLeft: 0
   },
   {
-    label: 'Small',
-    description: '4px all corners',
+    label: 'Chip',
+    description: '4px filter chip',
     topLeft: 4,
     topRight: 4,
     bottomRight: 4,
     bottomLeft: 4
   },
   {
-    label: 'Medium',
-    description: '8px all corners',
+    label: 'Button',
+    description: '8px primary button',
     topLeft: 8,
     topRight: 8,
     bottomRight: 8,
     bottomLeft: 8
   },
   {
-    label: 'Large',
-    description: '16px all corners',
+    label: 'Product card',
+    description: '12px storefront card',
+    topLeft: 12,
+    topRight: 12,
+    bottomRight: 12,
+    bottomLeft: 12
+  },
+  {
+    label: 'Modal',
+    description: '16px dialog',
     topLeft: 16,
     topRight: 16,
     bottomRight: 16,
     bottomLeft: 16
   },
   {
-    label: 'Extra Large',
-    description: '24px all corners',
+    label: 'Hero tile',
+    description: '24px feature tile',
     topLeft: 24,
     topRight: 24,
     bottomRight: 24,
@@ -49,7 +57,7 @@ export const BORDER_RADIUS_PRESETS: ReadonlyArray<BorderRadiusPreset> = [
   },
   {
     label: 'Pill',
-    description: '9999px all corners (pill shape)',
+    description: '9999px pill / badge',
     topLeft: 9999,
     topRight: 9999,
     bottomRight: 9999,
@@ -57,39 +65,39 @@ export const BORDER_RADIUS_PRESETS: ReadonlyArray<BorderRadiusPreset> = [
   },
   {
     label: 'Circle',
-    description: '50% all corners',
+    description: '50% avatar',
     topLeft: 50,
     topRight: 50,
     bottomRight: 50,
     bottomLeft: 50
   },
   {
-    label: 'Top rounded',
-    description: 'Top corners only',
+    label: 'Top sheet',
+    description: 'Rounded top only',
     topLeft: 16,
     topRight: 16,
     bottomRight: 0,
     bottomLeft: 0
   },
   {
-    label: 'Bottom rounded',
-    description: 'Bottom corners only',
+    label: 'Bottom sheet',
+    description: 'Rounded bottom only',
     topLeft: 0,
     topRight: 0,
     bottomRight: 16,
     bottomLeft: 16
   },
   {
-    label: 'Left rounded',
-    description: 'Left corners only',
+    label: 'Left tab',
+    description: 'Rounded left edge',
     topLeft: 16,
     topRight: 0,
     bottomRight: 0,
     bottomLeft: 16
   },
   {
-    label: 'Right rounded',
-    description: 'Right corners only',
+    label: 'Right tab',
+    description: 'Rounded right edge',
     topLeft: 0,
     topRight: 16,
     bottomRight: 16,

@@ -1,42 +1,17 @@
 import type { FtToolSuggestion } from '../shared/ft-tool-suggestion.model';
 import {
   BARCODE_DIGIT_LENGTH_HINTS,
-  BARCODE_JSBARCODE_CDN,
   BARCODE_QR_TEXT_LENGTH_THRESHOLD
 } from '../constants/barcode-generator.constants';
-import type { BarcodeFormat, BarcodeOptions, JsBarcodeApi } from '../types/barcode-generator.types';
+import type { BarcodeFormat, BarcodeOptions } from '../types/barcode-generator.types';
+import JsBarcode from 'jsbarcode';
 
-function getJsBarcode(): JsBarcodeApi | undefined {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-  return window.JsBarcode;
-}
-
-/** Load JsBarcode from CDN once; resolves when the global is available. */
+/** Import JsBarcode from the installed npm package. */
 export async function loadJsBarcodeLibrary(): Promise<void> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('Barcode generation requires a browser environment.');
   }
-
-  if (getJsBarcode()) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = BARCODE_JSBARCODE_CDN;
-    script.async = true;
-    script.onload = () => {
-      if (getJsBarcode()) {
-        resolve();
-        return;
-      }
-      reject(new Error('Failed to load barcode library.'));
-    };
-    script.onerror = () => reject(new Error('Failed to load barcode library.'));
-    document.head.appendChild(script);
-  });
+  await import('jsbarcode');
 }
 
 export function looksLikeUrl(text: string): boolean {
@@ -81,15 +56,10 @@ export function mapBarcodeGenerationError(
   return raw;
 }
 
-/** Render barcode to a PNG data URL using the loaded JsBarcode global. */
+/** Render barcode to a PNG data URL using the npm jsbarcode package. */
 export function renderBarcodeToDataUrl(options: BarcodeOptions): string {
-  const jsBarcode = getJsBarcode();
-  if (!jsBarcode) {
-    throw new Error('Barcode library is not loaded.');
-  }
-
   const canvas = document.createElement('canvas');
-  jsBarcode(canvas, options.text.trim(), {
+  JsBarcode(canvas, options.text.trim(), {
     format: options.format,
     width: options.width,
     height: options.height,

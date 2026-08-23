@@ -1,0 +1,210 @@
+<div class="ctl hl7">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="hl7-eyebrow">Medical tools</span>
+        <h1>HL7 Message Viewer <span class="hl7-live-badge">Local &amp; private</span></h1>
+        <p>
+          Decode HL7 v2 pipe-delimited messages with segment and field breakdown. Education/research only — not for diagnosis.
+        </p>
+      </header>
+    </div>
+
+    <aside class="hl7-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="hl7-suggest__body">
+        <p class="hl7-suggest__title">{{ suggestion.title }}</p>
+        <p class="hl7-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="hl7-suggest__actions">
+        <button type="button" class="hl7-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="hl7-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="hl7-toolbar" aria-label="HL7 viewer controls">
+      <div class="hl7-toolbar__group">
+        <input #fileInput class="hl7-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn hl7-primary-action" (click)="openFilePicker()" [appTooltip]="'Upload · ' + formatsLabel" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample ORU^R01 message" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="hl7-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="toggleExportMenu($event)" [attr.aria-expanded]="showExportMenu" aria-haspopup="menu" aria-label="Export options">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="hl7-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)"><strong>Original file</strong><span>Download uploaded message</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)"><strong>Summary JSON</strong><span>Message type, MSH metadata</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('segments-json', $event)"><strong>Segments JSON</strong><span>All segments and fields</span></button>
+            <button type="button" role="menuitem" (click)="exportAs('formatted-txt', $event)"><strong>Formatted HL7</strong><span>Normalized segment lines</span></button>
+          </div>
+        </div>
+
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="messages.length === 0" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="hl7-files" *ngIf="messages.length > 0">
+          <div class="hl7-files__chip" *ngFor="let msg of messages; let i = index; trackBy: trackByMessageId" [class.hl7-files__chip--active]="i === currentIndex">
+            <button type="button" class="hl7-files__select" (click)="selectMessage(i)">
+              <span class="hl7-files__name">{{ msg.name }}</span>
+              <span class="hl7-files__size">{{ formatSize(msg.size) }}</span>
+            </button>
+            <button type="button" class="hl7-files__remove" (click)="removeMessage(i, $event)" aria-label="Remove file">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="hl7-toolbar__status"><span class="hl7-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="hl7-workspace" [class.hl7-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="hl7-panel" aria-label="HL7 message decode">
+        <header class="hl7-map-head" *ngIf="currentMessage">
+          <div class="hl7-map-head__identity">
+            <span class="hl7-map-head__file">{{ currentMessage.name }}</span>
+            <span class="hl7-map-head__meta">{{ messageTypeLabel }} · HL7 {{ currentMessage.parsed.version || '—' }} · {{ currentMessage.parsed.segments.length }} segments</span>
+          </div>
+          <div class="hl7-view-controls">
+            <button type="button" (click)="toggleRawMessage()" [class.is-active]="showRawMessage">Raw</button>
+            <button type="button" class="hl7-sidebar-toggle" (click)="toggleSidebar()" [attr.aria-expanded]="!sidebarCollapsed" aria-controls="hl7-details-sidebar">Panel</button>
+          </div>
+        </header>
+
+        <div class="hl7-search-row" *ngIf="currentMessage">
+          <label class="hl7-search">
+            <span class="sr-only">Filter segments</span>
+            <input #segmentSearchInput type="search" [(ngModel)]="segmentQuery" placeholder="Filter segments or fields… (/)" />
+          </label>
+          <div class="hl7-segment-chips" role="group" aria-label="Quick segment filters">
+            <button type="button" *ngFor="let type of commonSegments" (click)="filterBySegmentType(type)">{{ type }}</button>
+            <button type="button" class="hl7-clear-filter" *ngIf="segmentQuery" (click)="clearSegmentFilter()">Clear</button>
+          </div>
+        </div>
+
+        <div class="hl7-map-wrap" [class.hl7-map-wrap--empty]="!currentMessage">
+          <div class="hl7-decode" *ngIf="currentMessage && !showRawMessage">
+            <div class="hl7-segment-list" aria-label="HL7 segments">
+              <button
+                type="button"
+                class="hl7-segment-item"
+                *ngFor="let seg of filteredSegments; trackBy: trackBySegmentId"
+                [class.is-active]="selectedSegmentId === seg.id"
+                (click)="selectSegment(seg)">
+                <span class="hl7-segment-item__name">{{ seg.name }}</span>
+                <span class="hl7-segment-item__line">L{{ seg.lineIndex + 1 }}</span>
+                <span class="hl7-segment-item__preview">{{ seg.raw | slice:0:72 }}<ng-container *ngIf="seg.raw.length > 72">…</ng-container></span>
+              </button>
+              <p class="hl7-empty-filter" *ngIf="filteredSegments.length === 0">No segments match the current filter.</p>
+            </div>
+
+            <div class="hl7-field-panel" *ngIf="selectedSegment as seg">
+              <header class="hl7-field-panel__head">
+                <strong>{{ seg.name }}</strong>
+                <span>Line {{ seg.lineIndex + 1 }} · {{ seg.fields.length }} fields</span>
+              </header>
+              <div class="hl7-field-panel__raw"><code>{{ seg.raw }}</code></div>
+              <table class="hl7-field-table">
+                <thead><tr><th>#</th><th>Label</th><th>Value</th><th>Components</th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let field of seg.fields; trackBy: trackByFieldIndex">
+                    <td>{{ field.index }}</td>
+                    <td>{{ field.label || '—' }}</td>
+                    <td><code>{{ field.value || '—' }}</code></td>
+                    <td><span class="hl7-component" *ngFor="let comp of field.components; let ci = index">{{ ci + 1 }}: {{ comp || '∅' }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="hl7-field-panel hl7-field-panel--placeholder" *ngIf="!selectedSegment">
+              <p>Select a segment to inspect fields and components.</p>
+              <p class="hl7-hint"><kbd>↑</kbd>/<kbd>↓</kbd> navigate · <kbd>/</kbd> search · <kbd>Esc</kbd> clear selection</p>
+            </div>
+          </div>
+
+          <pre class="hl7-raw" *ngIf="currentMessage && showRawMessage">{{ currentMessage.text }}</pre>
+
+          <div class="hl7-empty" *ngIf="!currentMessage && !loading">
+            <p class="hl7-empty__title">Drop HL7 messages here</p>
+            <p class="hl7-empty__formats"><span class="hl7-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span></p>
+            <p class="hl7-empty__hint">{{ formatsHint }} Paste an <code>MSH|</code> message with <kbd>Ctrl</kbd>/<kbd>⌘</kbd><kbd>V</kbd>.</p>
+            <div class="hl7-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="hl7-loading" *ngIf="loading">Decoding HL7…</div>
+        </div>
+
+        <div class="hl7-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+        <div class="hl7-error" *ngIf="errorMessage" role="alert">
+          <p>{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+        <p class="hl7-disclaimer" role="note">Education and research preview only — not validated for clinical diagnosis or treatment decisions.</p>
+      </section>
+
+      <aside id="hl7-details-sidebar" class="hl7-sidebar" [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="currentMessage">
+          <header class="ctl__panel-head"><span>Message overview</span><span class="hl7-overview__status">Ready</span></header>
+          <div class="ctl__panel-body">
+            <p class="hl7-process-name">{{ currentMessage.name }}</p>
+            <div class="hl7-stat-grid">
+              <div><strong>{{ messageTypeLabel }}</strong><span>Type</span></div>
+              <div><strong>{{ currentMessage.parsed.messageControlId || '—' }}</strong><span>Control ID</span></div>
+              <div><strong>{{ currentMessage.parsed.segments.length }}</strong><span>Segments</span></div>
+            </div>
+            <p class="hl7-meta-line"><span>Sending</span> {{ currentMessage.parsed.sendingApplication || '—' }} / {{ currentMessage.parsed.sendingFacility || '—' }}</p>
+            <p class="hl7-privacy-note">Files never leave your browser. Not for diagnostic use.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentMessage">
+          <header class="ctl__panel-head">Segment counts</header>
+          <div class="ctl__panel-body">
+            <ul class="hl7-counts">
+              <li *ngFor="let item of segmentCounts"><strong>{{ item.type }}</strong><span>{{ item.count }}</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="hl7-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help hl7-footer-help">
+      <summary>How to use HL7 Message Viewer</summary>
+      <ul>
+        <li>Upload pipe-delimited HL7 v2 messages (.hl7 or .txt). MSH, PID, OBR, and OBX fields include label presets.</li>
+        <li>Filter segments, select a row to inspect fields/components, or toggle Raw view.</li>
+        <li>Export summary JSON, full segments JSON, or formatted HL7 text.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="hl7-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop HL7 messages to open</p>
+    <p class="hl7-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

@@ -1,218 +1,342 @@
-<div class="ccv">
-  <div class="ccv__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl tt">
+  <lib-navigation></lib-navigation>
 
-  <section class="ccv__hero">
-    <div class="ccv__badge">Testing toolkit</div>
-    <h1>Credit Card Validator</h1>
-    <p>
-      Validate credit card numbers using the Luhn algorithm, detect card brand, and verify expiry and CVV. Use this tool
-      to quickly test and debug payment forms.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Credit Card Validator</h1>
+        <p>Validate card numbers with Luhn, detect brand, and verify expiry and CVV.</p>
+      </header>
 
-    <div class="ccv__hero-meta" [class.ccv__hero-meta--valid]="isValid()" [class.ccv__hero-meta--invalid]="!isValid()">
-      <div>
-        <span class="ccv__meta-label">Card brand</span>
-        <strong>{{ brandLabel() }}</strong>
-      </div>
-      <div>
-        <span class="ccv__meta-label">Luhn check</span>
-        <strong [class.ccv__meta-value--ok]="validationResult().luhnValid" [class.ccv__meta-value--error]="!validationResult().luhnValid">
-          {{ validationResult().luhnValid ? 'Pass' : 'Fail' }}
-        </strong>
-      </div>
-      <div>
-        <span class="ccv__meta-label">Expiry</span>
-        <strong
-          [class.ccv__meta-value--ok]="validationResult().expiryValid"
-          [class.ccv__meta-value--error]="!validationResult().expiryValid"
-        >
-          {{ validationResult().expiryValid ? 'Valid' : 'Invalid' }}
-        </strong>
-      </div>
-      <div>
-        <span class="ccv__meta-label">CVV</span>
-        <strong [class.ccv__meta-value--ok]="validationResult().cvvValid" [class.ccv__meta-value--error]="!validationResult().cvvValid">
-          {{ validationResult().cvvValid ? 'Valid' : 'Invalid' }}
-        </strong>
+      <div class="ctl__stats" aria-label="Card statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ brandLabel() }}</span>
+          <span class="ctl__stat-label">Brand</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ cardNumberDigits().length }}</span>
+          <span class="ctl__stat-label">Digits</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ validationResult().luhnValid ? 'Pass' : 'Fail' }}</span>
+          <span class="ctl__stat-label">Luhn</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ isValid() ? 'Valid' : 'Invalid' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
       </div>
     </div>
-  </section>
 
-  <div class="ccv__board" [formGroup]="form">
-    <section class="ccv__panel ccv__panel--card">
-      <header class="ccv__card-header">
-        <div>
-          <h2>Card details</h2>
-          <p>Enter card information to validate.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="toggleMask()">
-          {{ showNumberMasked() ? 'Show number' : 'Mask number' }}
+    <div class="tt-workflow" aria-label="Validator actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleMask()"
+          [disabled]="!cardNumberDigits().length"
+          aria-label="Toggle number mask"
+          appTooltip="Toggle number mask"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">{{ showNumberMasked() ? 'Show' : 'Mask' }}</span>
         </button>
-      </header>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+    </div>
 
-      <div class="ccv__card-preview">
-        <div class="ccv__card-surface ccv__card-surface--front">
-          <div class="ccv__card-brand">{{ brandLabel() }}</div>
-          <div class="ccv__card-number">
-            <span>{{ maskedNumber() || '•••• •••• •••• ••••' }}</span>
-          </div>
-          <div class="ccv__card-footer">
-            <div class="ccv__card-holder">
-              <span class="ccv__card-label">Card holder</span>
-              <strong>{{ form.controls.name.value || 'FULL NAME' }}</strong>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Card details</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput()"
+                aria-label="Copy card number"
+                appTooltip="Copy card number"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-            <div class="ccv__card-expiry">
-              <span class="ccv__card-label">Expires</span>
-              <strong>{{ form.controls.expiry.value || 'MM/YY' }}</strong>
+          </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ccv__suggest" aria-label="Suggested next step">
+              <div class="ccv__suggest-body">
+                <p class="ccv__suggest-title">{{ suggestion.title }}</p>
+                <p class="ccv__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ccv__suggest-actions">
+                <a class="ccv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="ccv__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <div class="ctl__editor-body ccv-form">
+            <div class="ccv-card-preview">
+              <div class="ccv-card-surface">
+                <div class="ccv-card-brand">{{ brandLabel() }}</div>
+                <div class="ccv-card-number">
+                  <span>{{ maskedNumber() || '•••• •••• •••• ••••' }}</span>
+                </div>
+                <div class="ccv-card-footer">
+                  <div class="ccv-card-holder">
+                    <span class="ccv-card-label">Card holder</span>
+                    <strong>{{ formSnapshot().name || 'FULL NAME' }}</strong>
+                  </div>
+                  <div class="ccv-card-expiry">
+                    <span class="ccv-card-label">Expires</span>
+                    <strong>{{ formSnapshot().expiry || 'MM/YY' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ccv-fields">
+              <label class="ctl__field" for="cc-number">
+                <span>Card number</span>
+                <input
+                  id="cc-number"
+                  type="text"
+                  formControlName="number"
+                  inputmode="numeric"
+                  autocomplete="cc-number"
+                  (input)="onNumberInput()"
+                  placeholder="1234 5678 9012 3456" />
+              </label>
+              <label class="ctl__field" for="cc-name">
+                <span>Card holder name</span>
+                <input
+                  id="cc-name"
+                  type="text"
+                  formControlName="name"
+                  autocomplete="cc-name"
+                  placeholder="Full name as displayed on card" />
+              </label>
+              <div class="ccv-fields-row">
+                <label class="ctl__field" for="cc-expiry">
+                  <span>Expiry (MM/YY)</span>
+                  <input
+                    id="cc-expiry"
+                    type="text"
+                    formControlName="expiry"
+                    inputmode="numeric"
+                    autocomplete="cc-exp"
+                    placeholder="08/27" />
+                </label>
+                <label class="ctl__field" for="cc-cvv">
+                  <span>CVV</span>
+                  <input
+                    id="cc-cvv"
+                    type="password"
+                    formControlName="cvv"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="123" />
+                </label>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Validation</span>
+            <div class="ctl__editor-actions">
+              @if (isValid()) {
+                <span class="ctl__editor-badge">Valid</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasInput()"
+                aria-label="Copy validation summary"
+                appTooltip="Copy validation summary"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasInput()) {
+            <div class="ctl__editor-body ccv-checks">
+              <div class="ccv-check" [class.ccv-check--ok]="validationResult().luhnValid">
+                <span class="ccv-check-icon">{{ validationResult().luhnValid ? '✓' : '!' }}</span>
+                <div>
+                  <strong>Luhn algorithm</strong>
+                  <p>
+                    {{
+                      validationResult().luhnValid
+                        ? 'Checksum is valid.'
+                        : 'Card number fails the Luhn checksum.'
+                    }}
+                  </p>
+                </div>
+              </div>
+              <div class="ccv-check" [class.ccv-check--ok]="validationResult().lengthValid">
+                <span class="ccv-check-icon">{{ validationResult().lengthValid ? '✓' : '!' }}</span>
+                <div>
+                  <strong>Length</strong>
+                  <p>
+                    {{
+                      validationResult().lengthValid
+                        ? 'Length matches typical lengths for this brand.'
+                        : 'Length is unusual for this brand.'
+                    }}
+                  </p>
+                </div>
+              </div>
+              <div class="ccv-check" [class.ccv-check--ok]="validationResult().expiryValid">
+                <span class="ccv-check-icon">{{ validationResult().expiryValid ? '✓' : '!' }}</span>
+                <div>
+                  <strong>Expiry date</strong>
+                  <p>
+                    {{
+                      validationResult().expiryValid
+                        ? 'Expiry is formatted correctly and not in the past.'
+                        : 'Expiry is invalid or in the past.'
+                    }}
+                  </p>
+                </div>
+              </div>
+              <div class="ccv-check" [class.ccv-check--ok]="validationResult().cvvValid">
+                <span class="ccv-check-icon">{{ validationResult().cvvValid ? '✓' : '!' }}</span>
+                <div>
+                  <strong>CVV</strong>
+                  <p>
+                    {{
+                      validationResult().cvvValid
+                        ? 'CVV length matches expectations for this brand.'
+                        : 'CVV length is not valid for this brand.'
+                    }}
+                  </p>
+                </div>
+              </div>
+              @if (validationResult().messages.length) {
+                <div class="ccv-messages">
+                  <h3>Details</h3>
+                  <ul>
+                    @for (msg of validationResult().messages; track msg) {
+                      <li>{{ msg }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter card details to see live validation results.</p>
+            </div>
+          }
+        </section>
       </div>
 
-      <div class="ccv__form-grid">
-        <div class="ccv__field">
-          <label for="cc-number" class="ccv__label">Card number</label>
-          <input
-            id="cc-number"
-            type="text"
-            class="ccv__input"
-            formControlName="number"
-            inputmode="numeric"
-            autocomplete="cc-number"
-            (input)="onNumberInput()"
-            placeholder="1234 5678 9012 3456"
-          />
-          <small class="ccv__hint">Numbers only, spaces are added automatically.</small>
-        </div>
-
-        <div class="ccv__field">
-          <label for="cc-name" class="ccv__label">Card holder name</label>
-          <input
-            id="cc-name"
-            type="text"
-            class="ccv__input"
-            formControlName="name"
-            autocomplete="cc-name"
-            placeholder="Full name as displayed on card"
-          />
-        </div>
-
-        <div class="ccv__field ccv__field--compact">
-          <div>
-            <label for="cc-expiry" class="ccv__label">Expiry (MM/YY)</label>
-            <input
-              id="cc-expiry"
-              type="text"
-              class="ccv__input"
-              formControlName="expiry"
-              inputmode="numeric"
-              autocomplete="cc-exp"
-              placeholder="08/27"
-            />
+      <details class="tt-options-flyout">
+        <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button
+          type="button"
+          class="tt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Validator info">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Summary</header>
+            <div class="ctl__panel-body ccv-summary">
+              <div class="ccv-summary-row">
+                <span>Overall</span>
+                <strong [class.ccv-summary--ok]="isValid()" [class.ccv-summary--error]="!isValid()">
+                  {{ isValid() ? 'Valid' : 'Invalid' }}
+                </strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Brand</span>
+                <strong>{{ brandLabel() }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Digits</span>
+                <strong>{{ cardNumberDigits().length }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>Expiry</span>
+                <strong>{{ validationResult().expiryValid ? 'Valid' : 'Invalid' }}</strong>
+              </div>
+              <div class="ccv-summary-row">
+                <span>CVV</span>
+                <strong>{{ validationResult().cvvValid ? 'Valid' : 'Invalid' }}</strong>
+              </div>
+            </div>
           </div>
-          <div>
-            <label for="cc-cvv" class="ccv__label">CVV</label>
-            <input
-              id="cc-cvv"
-              type="password"
-              class="ccv__input"
-              formControlName="cvv"
-              inputmode="numeric"
-              autocomplete="off"
-              placeholder="123"
-            />
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body ccv__related">
+              <ul class="ccv__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="ccv__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="ccv__panel ccv__panel--validation">
-      <header class="ccv__card-header">
-        <div>
-          <h2>Validation result</h2>
-          <p>Detailed breakdown of the card validation.</p>
-        </div>
-      </header>
-
-      <div class="ccv__validation-summary">
-        <div class="ccv__summary-item">
-          <span class="ccv__summary-label">Overall status</span>
-          <strong [class.ccv__summary-value--ok]="isValid()" [class.ccv__summary-value--error]="!isValid()">
-            {{ isValid() ? 'Valid card details' : 'Invalid card details' }}
-          </strong>
-        </div>
-        <div class="ccv__summary-item">
-          <span class="ccv__summary-label">Brand</span>
-          <strong>{{ brandLabel() }}</strong>
-        </div>
-        <div class="ccv__summary-item">
-          <span class="ccv__summary-label">Digits</span>
-          <strong>{{ cardNumberDigits().length }} digits</strong>
-        </div>
-      </div>
-
-      <div class="ccv__checks">
-        <div class="ccv__check" [class.ccv__check--ok]="validationResult().luhnValid">
-          <span class="ccv__check-icon">{{ validationResult().luhnValid ? '✓' : '!' }}</span>
-          <div class="ccv__check-body">
-            <strong>Luhn algorithm</strong>
-            <p>{{ validationResult().luhnValid ? 'Checksum is valid.' : 'Card number fails the Luhn checksum.' }}</p>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Validation runs <strong>locally</strong> — card data never leaves your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>This tool checks <strong>structure only</strong>, not real issuer authorization.</p>
+            </div>
           </div>
-        </div>
+        </aside>
+      </details>
+    </div>
 
-        <div class="ccv__check" [class.ccv__check--ok]="validationResult().lengthValid">
-          <span class="ccv__check-icon">{{ validationResult().lengthValid ? '✓' : '!' }}</span>
-          <div class="ccv__check-body">
-            <strong>Length</strong>
-            <p>
-              {{ validationResult().lengthValid
-                ? 'Card number length matches typical lengths for this brand.'
-                : 'Card number length is unusual for this brand.' }}
-            </p>
-          </div>
-        </div>
-
-        <div class="ccv__check" [class.ccv__check--ok]="validationResult().expiryValid">
-          <span class="ccv__check-icon">{{ validationResult().expiryValid ? '✓' : '!' }}</span>
-          <div class="ccv__check-body">
-            <strong>Expiry date</strong>
-            <p>
-              {{ validationResult().expiryValid
-                ? 'Expiry date is formatted correctly and not in the past.'
-                : 'Expiry date is invalid or in the past.' }}
-            </p>
-          </div>
-        </div>
-
-        <div class="ccv__check" [class.ccv__check--ok]="validationResult().cvvValid">
-          <span class="ccv__check-icon">{{ validationResult().cvvValid ? '✓' : '!' }}</span>
-          <div class="ccv__check-body">
-            <strong>CVV</strong>
-            <p>
-              {{ validationResult().cvvValid
-                ? 'CVV length matches expectations for this brand.'
-                : 'CVV length is not valid for this brand.' }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      @if (validationResult().messages.length) {
-        <div class="ccv__messages">
-          <h3>Details</h3>
-          <ul>
-            @for (msg of validationResult().messages; track msg) {
-              <li>{{ msg }}</li>
-            }
-          </ul>
-        </div>
-      } @else {
-        <div class="ccv__messages ccv__messages--empty">
-          All checks look good. This card appears valid based on structural checks.
-        </div>
-      }
-    </section>
-  </div>
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Enter a card number — spaces are added automatically and brand is detected live.</li>
+        <li>Fill in expiry and CVV to complete structural validation.</li>
+        <li>Use the mask toggle to hide or reveal digits on the card preview.</li>
+        <li>Copy icons grab the card number or a full validation summary.</li>
+      </ul>
+    </details>
+  </main>
 </div>

@@ -1,33 +1,67 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Navigation } from '@tools-workspace/features-home';
-
-interface Recording {
-  id: string;
-  audioUrl: string;
-  blob: Blob;
-  duration: number;
-  timestamp: number;
-  size: number;
-}
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { MtRelatedToolLink } from '../../shared/mt-tool-suggestion.model';
+import {
+  VOICE_RECORDER_FFT_SIZE,
+  VOICE_RECORDER_HISTORY_LIMIT,
+  VOICE_RECORDER_RELATED_TOOLS,
+  VOICE_RECORDER_TIMER_MS,
+  VOICE_RECORDER_VISUALIZER_HEIGHTS
+} from '../../constants/voice-recorder.constants';
+import type { VoiceRecording } from '../../types/voice-recorder.types';
+import {
+  averageFrequencyLevel,
+  buildVoiceRecording,
+  buildVoiceRecordingDownloadName,
+  computeVoiceRecorderStats,
+  formatVoiceRecorderFileSize,
+  formatVoiceRecorderTime,
+  formatVoiceRecorderTimestamp,
+  mapMicrophoneAccessError,
+  prependVoiceRecordings,
+  resolveVoiceRecorderStatus,
+  resolveVoiceRecorderSuggestion
+} from '../../utils/voice-recorder.utils';
 
 @Component({
   selector: 'lib-voice-recorder',
   standalone: true,
   templateUrl: './voice-recorder.html',
   styleUrls: ['./voice-recorder.scss'],
-  imports: [CommonModule, Navigation],
+  imports: [CommonModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VoiceRecorderComponent implements OnDestroy {
+  readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+
   readonly isRecording = signal(false);
   readonly isPaused = signal(false);
   readonly isPlaying = signal(false);
-  readonly currentRecording = signal<Recording | null>(null);
-  readonly recordings = signal<Recording[]>([]);
+  readonly currentRecording = signal<VoiceRecording | null>(null);
+  readonly recordings = signal<VoiceRecording[]>([]);
   readonly errors = signal<string[]>([]);
   readonly elapsedTime = signal<number>(0);
   readonly audioLevel = signal<number>(0);
+
+  readonly relatedTools: ReadonlyArray<MtRelatedToolLink> = VOICE_RECORDER_RELATED_TOOLS;
+  readonly visualizerHeights = VOICE_RECORDER_VISUALIZER_HEIGHTS;
+
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
@@ -35,44 +69,52 @@ export class VoiceRecorderComponent implements OnDestroy {
   private analyser: AnalyserNode | null = null;
   private microphone: MediaStreamAudioSourceNode | null = null;
   private stream: MediaStream | null = null;
-  private startTime: number = 0;
+  private startTime = 0;
   private timerInterval: number | null = null;
   private animationFrame: number | null = null;
   private audioElement: HTMLAudioElement | null = null;
 
   readonly hasRecordings = computed(() => this.recordings().length > 0);
   readonly hasCurrentRecording = computed(() => this.currentRecording() !== null);
-  readonly formattedTime = computed(() => this.formatTime(this.elapsedTime()));
+  readonly formattedTime = computed(() => formatVoiceRecorderTime(this.elapsedTime()));
 
-  readonly stats = computed(() => {
-    const recordings = this.recordings();
-    if (recordings.length === 0) {
-      return { count: 0, totalDuration: 0, totalSize: 0 };
+  readonly statusLabel = computed(() =>
+    resolveVoiceRecorderStatus({
+      isRecording: this.isRecording(),
+      isPaused: this.isPaused(),
+      isPlaying: this.isPlaying()
+    })
+  );
+
+  readonly stats = computed(() => computeVoiceRecorderStats(this.recordings()));
+
+  readonly primarySuggestion = computed(() => {
+    const suggestion = resolveVoiceRecorderSuggestion({
+      hasRecordings: this.hasRecordings(),
+      hasError: this.errors().length > 0,
+      isRecording: this.isRecording(),
+      errorMessage: this.errors()[0] ?? null
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
     }
-
-    const totalDuration = recordings.reduce((sum, r) => sum + r.duration, 0);
-    const totalSize = recordings.reduce((sum, r) => sum + r.size, 0);
-
-    return {
-      count: recordings.length,
-      totalDuration,
-      totalSize,
-      averageDuration: totalDuration / recordings.length
-    };
+    return suggestion;
   });
 
   async startRecording(): Promise<void> {
     this.errors.set([]);
+    this.dismissedSuggestionId.set(null);
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.mediaRecorder = new MediaRecorder(this.stream);
       this.audioChunks = [];
 
-      // Setup audio visualization
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.audioContext = new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 256;
+      this.analyser.fftSize = VOICE_RECORDER_FFT_SIZE;
       this.microphone = this.audioContext.createMediaStreamSource(this.stream);
       this.microphone.connect(this.analyser);
 
@@ -94,8 +136,9 @@ export class VoiceRecorderComponent implements OnDestroy {
 
       this.startTimer();
       this.startAudioVisualization();
+      this.toast.info('Recording started');
     } catch (error) {
-      this.errors.set([error instanceof Error ? error.message : 'Failed to access microphone.']);
+      this.errors.set([mapMicrophoneAccessError(error)]);
     }
   }
 
@@ -127,23 +170,19 @@ export class VoiceRecorderComponent implements OnDestroy {
   }
 
   private finishRecording(): void {
-    const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
-    const audioUrl = URL.createObjectURL(blob);
-    const duration = this.elapsedTime();
-
-    const recording: Recording = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      audioUrl,
-      blob,
-      duration,
-      timestamp: Date.now(),
-      size: blob.size
-    };
+    const recording = buildVoiceRecording({
+      chunks: this.audioChunks,
+      duration: this.elapsedTime()
+    });
 
     this.currentRecording.set(recording);
-    this.recordings.update((recordings) => [recording, ...recordings].slice(0, 20));
+    this.recordings.update((recordings) =>
+      prependVoiceRecordings(recordings, recording, VOICE_RECORDER_HISTORY_LIMIT)
+    );
     this.isRecording.set(false);
     this.isPaused.set(false);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('Recording saved');
   }
 
   private cleanupStream(): void {
@@ -156,7 +195,7 @@ export class VoiceRecorderComponent implements OnDestroy {
       this.microphone = null;
     }
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close();
+      void this.audioContext.close();
       this.audioContext = null;
     }
     this.analyser = null;
@@ -169,7 +208,7 @@ export class VoiceRecorderComponent implements OnDestroy {
       } else {
         this.startTime = Date.now() - this.elapsedTime() * 1000;
       }
-    }, 100);
+    }, VOICE_RECORDER_TIMER_MS);
   }
 
   private stopTimer(): void {
@@ -186,16 +225,14 @@ export class VoiceRecorderComponent implements OnDestroy {
 
     const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
-    const updateLevel = () => {
+    const updateLevel = (): void => {
       if (!this.analyser || !this.isRecording() || this.isPaused()) {
         this.audioLevel.set(0);
         return;
       }
 
       this.analyser.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
-      this.audioLevel.set(average / 255);
-
+      this.audioLevel.set(averageFrequencyLevel(dataArray));
       this.animationFrame = requestAnimationFrame(updateLevel);
     };
 
@@ -210,7 +247,7 @@ export class VoiceRecorderComponent implements OnDestroy {
     this.audioLevel.set(0);
   }
 
-  playRecording(recording: Recording): void {
+  playRecording(recording: VoiceRecording): void {
     if (this.audioElement) {
       this.audioElement.pause();
       this.audioElement = null;
@@ -225,7 +262,7 @@ export class VoiceRecorderComponent implements OnDestroy {
     };
 
     this.currentRecording.set(recording);
-    this.audioElement.play();
+    void this.audioElement.play();
   }
 
   stopPlayback(): void {
@@ -237,19 +274,24 @@ export class VoiceRecorderComponent implements OnDestroy {
     }
   }
 
-  downloadRecording(recording: Recording): void {
+  downloadRecording(recording: VoiceRecording): void {
     const link = document.createElement('a');
     link.href = recording.audioUrl;
-    link.download = `recording-${recording.timestamp}.webm`;
+    link.download = buildVoiceRecordingDownloadName(recording.timestamp);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    this.toast.info(`Downloaded ${buildVoiceRecordingDownloadName(recording.timestamp)}`);
   }
 
   deleteRecording(id: string): void {
     const recording = this.recordings().find((r) => r.id === id);
     if (recording) {
-      URL.revokeObjectURL(recording.audioUrl);
+      try {
+        URL.revokeObjectURL(recording.audioUrl);
+      } catch {
+        // Ignore invalid object URLs during teardown
+      }
     }
 
     this.recordings.update((recordings) => recordings.filter((r) => r.id !== id));
@@ -258,36 +300,38 @@ export class VoiceRecorderComponent implements OnDestroy {
       this.stopPlayback();
       this.currentRecording.set(null);
     }
+    this.toast.info('Recording deleted');
   }
 
   clearAllRecordings(): void {
     this.recordings().forEach((recording) => {
-      URL.revokeObjectURL(recording.audioUrl);
+      try {
+        URL.revokeObjectURL(recording.audioUrl);
+      } catch {
+        // Ignore invalid object URLs during teardown
+      }
     });
     this.recordings.set([]);
     this.stopPlayback();
     this.currentRecording.set(null);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('All recordings cleared');
+  }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
   formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return formatVoiceRecorderTime(seconds);
   }
 
   formatFileSize(bytes: number): string {
-    if (bytes < 1024) {
-      return `${bytes} B`;
-    } else if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(1)} KB`;
-    } else {
-      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    }
+    return formatVoiceRecorderFileSize(bytes);
   }
 
   formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
+    return formatVoiceRecorderTimestamp(timestamp);
   }
 
   ngOnDestroy(): void {
@@ -297,7 +341,11 @@ export class VoiceRecorderComponent implements OnDestroy {
     this.stopTimer();
     this.stopAudioVisualization();
     this.recordings().forEach((recording) => {
-      URL.revokeObjectURL(recording.audioUrl);
+      try {
+        URL.revokeObjectURL(recording.audioUrl);
+      } catch {
+        // Ignore invalid object URLs during teardown
+      }
     });
   }
 }

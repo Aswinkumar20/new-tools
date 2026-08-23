@@ -1,207 +1,292 @@
-<div class="bmi">
-  <div class="bmi__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl md">
+  <lib-navigation></lib-navigation>
 
-  <section class="bmi__hero">
-    <div class="bmi__badge">Health metrics</div>
-    <h1>BMI & Body Health Analyzer</h1>
-    <p>
-      Explore your body mass index, understand weight targets, and review personalised guidance. Switch measurement
-      systems instantly and keep a history of your checks.
-    </p>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>BMI Calculator</h1>
+        <p>Calculate body mass index, review health insights, and track your checks.</p>
+      </header>
 
-    <div class="bmi__actions">
-      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
-      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+      <div class="ctl__stats" aria-label="BMI statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ summary()?.bmi ? (summary()!.bmi | number:'1.1-1') : '—' }}</span>
+          <span class="ctl__stat-label">BMI</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ summary()?.classification?.label ?? '—' }}</span>
+          <span class="ctl__stat-label">Class</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ activeUnit().label }}</span>
+          <span class="ctl__stat-label">Units</span>
+        </div>
+      </div>
     </div>
 
-    @if (statusMessage()) {
-      <div class="bmi__status">{{ statusMessage() }}</div>
-    }
-  </section>
-
-  <div class="bmi__layout">
-    <section class="bmi__card bmi__card--form">
-      <header class="bmi__card-header">
-        <div>
-          <h2>Input details</h2>
-          <p>Choose a unit system and enter the basics. Optional fields refine your recommendations.</p>
-        </div>
-      </header>
-
-      <div class="bmi__unit-group">
-        @for (option of units; track trackUnit($index, option)) {
-          <button
-            type="button"
-            class="bmi__unit-chip"
-            [class.is-active]="form.get('unit')?.value === option.id"
-            (click)="setUnit(option.id)"
-          >
-            {{ option.label }}
-          </button>
-        }
+    <div class="md-workflow" aria-label="BMI actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="submit()"
+          aria-label="Recalculate"
+          appTooltip="Recalculate"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Calculate</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="copyResult()"
+          [disabled]="!summary()"
+          aria-label="Copy result"
+          appTooltip="Copy result"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearHistory()"
+          [disabled]="!history().length"
+          aria-label="Clear history"
+          appTooltip="Clear history"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
+    </div>
 
-      <form class="bmi__form" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="bmi__grid">
-          <div class="bmi__input">
-            <label for="weight">Weight ({{ activeUnit().weightLabel }})</label>
-            <input id="weight" type="number" step="0.1" formControlName="weight" />
-          </div>
-          <div class="bmi__input">
-            <label for="height">Height ({{ activeUnit().heightLabel }})</label>
-            <input id="height" type="number" step="0.1" formControlName="height" />
-          </div>
-        </div>
-
-        <div class="bmi__grid bmi__grid--compact">
-          <div class="bmi__input">
-            <label for="age">Age</label>
-            <input id="age" type="number" formControlName="age" />
-          </div>
-          <div class="bmi__input">
-            <label for="gender">Gender</label>
-            <select id="gender" formControlName="gender">
-              <option value="unspecified">Unspecified</option>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-            </select>
-          </div>
-          <div class="bmi__input">
-            <label for="waist">Waist (cm)</label>
-            <input id="waist" type="number" step="0.1" formControlName="waist" placeholder="Optional" />
-          </div>
-        </div>
-
-        <label class="bmi__toggle">
-          <input type="checkbox" formControlName="includeHistory" />
-          <span>Store calculation in history</span>
-        </label>
-
-        @if (errorMessage()) {
-          <div class="bmi__error">{{ errorMessage() }}</div>
-        }
-
-        <div class="bmi__form-actions">
-          <button type="submit" class="btn btn--primary">Calculate</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="bmi__card bmi__card--summary">
-      <header class="bmi__card-header">
-        <div>
-          <h2>Summary</h2>
-          <p>Headline results based on your current data.</p>
-        </div>
-      </header>
-
-      @if (summary() && breakdown()) {
-        <div class="bmi__summary">
-          <div class="bmi__summary-pill">
-            <strong>{{ summary()!.bmi | number:'1.1-1' }}</strong>
-            <span>{{ summary()!.classification.label }}</span>
-            <small>{{ summary()!.interpretation }}</small>
-          </div>
-
-          <div class="bmi__metric-grid">
-            <div class="bmi__metric">
-              <span>Ideal weight range</span>
-              <strong>{{ summary()!.idealRange }}</strong>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
+          <header class="ctl__editor-head"><span>Input</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <div class="bmi__chips" role="group" aria-label="Unit system">
+              @for (option of units; track trackUnit($index, option)) {
+                <button
+                  type="button"
+                  class="bmi__chip"
+                  [class.bmi__chip--active]="formSnapshot().unit === option.id"
+                  [attr.aria-pressed]="formSnapshot().unit === option.id"
+                  (click)="setUnit(option.id)">
+                  {{ option.label }}
+                </button>
+              }
             </div>
-            <div class="bmi__metric">
-              <span>Your weight</span>
-              <strong>{{ formatWeight(breakdown()!.weightKg) }}</strong>
-            </div>
-            <div class="bmi__metric">
-              <span>Your height</span>
-              <strong>{{ formatHeight(breakdown()!.heightM * 100) }}</strong>
-            </div>
-            <div class="bmi__metric">
-              <span>Weight difference to healthy range</span>
-              <strong>{{ formatWeight(math.abs(summary()!.weightDifference)) }}</strong>
-            </div>
-          </div>
-        </div>
-      } @else {
-        <div class="bmi__empty">Enter your information to view BMI insights.</div>
-      }
-    </section>
 
-    <section class="bmi__card bmi__card--risks">
-      <header class="bmi__card-header">
-        <h2>Risk indicators</h2>
-      </header>
-      @if (riskIndicators().length > 0) {
-        <ul class="bmi__risk-list">
-          @for (risk of riskIndicators(); track trackRisk($index, risk)) {
-            <li [class]="'bmi__risk bmi__risk--' + risk.level">
-              <strong>{{ risk.label }}</strong>
-              <span>{{ risk.description }}</span>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="bmi__empty">No additional risk indicators detected.</div>
-      }
-    </section>
-
-    <section class="bmi__card bmi__card--recommendations">
-      <header class="bmi__card-header">
-        <h2>Recommendations</h2>
-      </header>
-      @if (recommendations().length > 0) {
-        <ul class="bmi__tips">
-          @for (tip of recommendations(); track trackRecommendation($index, tip)) {
-            <li>{{ tip }}</li>
-          }
-        </ul>
-      } @else {
-        <div class="bmi__empty">Complete the form to receive suggestions.</div>
-      }
-    </section>
-
-    <section class="bmi__card bmi__card--presets">
-      <header class="bmi__card-header">
-        <h2>Quick presets</h2>
-      </header>
-      <div class="bmi__preset-grid">
-        @for (preset of presets; track trackPreset($index, preset)) {
-          <button type="button" class="bmi__preset" (click)="applyPreset(preset)">
-            <strong>{{ preset.label }}</strong>
-            <small>{{ preset.unit === 'metric' ? preset.weight + ' kg · ' + preset.height + ' cm' : preset.weight + ' lb · ' + preset.height + ' in' }}</small>
-          </button>
-        }
-      </div>
-    </section>
-
-    <section class="bmi__card bmi__card--history">
-      <header class="bmi__card-header">
-        <h2>History</h2>
-        <span class="bmi__history-count">{{ history().length }}</span>
-      </header>
-      <div class="bmi__history-list">
-        @for (entry of history(); track trackHistory($index, entry)) {
-          <article>
-            <div class="bmi__history-head">
+            <label class="ctl__field" for="weight">
+              <span>Weight ({{ activeUnit().weightLabel }})</span>
+              <input id="weight" type="number" step="0.1" formControlName="weight" />
+            </label>
+            <label class="ctl__field" for="height">
+              <span>Height ({{ activeUnit().heightLabel }})</span>
+              <input id="height" type="number" step="0.1" formControlName="height" />
+            </label>
+            <label class="ctl__field" for="age">
+              <span>Age</span>
+              <input id="age" type="number" formControlName="age" />
+            </label>
+            <label class="ctl__field" for="gender">
+              <span>Gender</span>
+              <select id="gender" formControlName="gender">
+                <option value="unspecified">Unspecified</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </select>
+            </label>
+            <label class="ctl__field" for="waist">
+              <span>Waist (cm, optional)</span>
+              <input id="waist" type="number" step="0.1" formControlName="waist" placeholder="Optional" />
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeHistory" />
               <div>
-                <strong>{{ entry.summary.bmi | number:'1.1-1' }} BMI</strong>
-                <span>{{ entry.summary.classification.label }}</span>
+                <strong>Store in history</strong>
+                <span>Keep calculations for quick restore.</span>
               </div>
-              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
-                Restore
+            </label>
+            @if (errorMessage()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            }
+          </div>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Results</span>
+            <div class="ctl__editor-actions">
+              @if (summary()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyResult()"
+                [disabled]="!summary()"
+                aria-label="Copy results"
+                appTooltip="Copy results"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
             </div>
-            <p class="bmi__history-meta">
-              {{ formatWeight(entry.weight) }} · {{ formatHeight(entry.height) }} · {{ entry.gender | titlecase }}
-            </p>
-          </article>
-        }
-        @if (history().length === 0) {
-          <div class="bmi__empty">Your BMI calculations will appear here.</div>
-        }
+          </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="bmi__suggest" aria-label="Suggested next step">
+              <div class="bmi__suggest-body">
+                <p class="bmi__suggest-title">{{ suggestion.title }}</p>
+                <p class="bmi__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="bmi__suggest-actions">
+                <a class="bmi__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="bmi__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          @if (summary() && breakdown()) {
+            <div class="ctl__editor-body bmi__results" aria-live="polite">
+              <div class="bmi__pill">
+                <strong>{{ summary()!.bmi | number:'1.1-1' }}</strong>
+                <span>{{ summary()!.classification.label }}</span>
+                <small>{{ summary()!.interpretation }}</small>
+              </div>
+              <div class="bmi__grid">
+                <div class="bmi__metric"><span>Ideal range</span><strong>{{ summary()!.idealRange }}</strong></div>
+                <div class="bmi__metric"><span>Your weight</span><strong>{{ formatWeight(breakdown()!.weightKg) }}</strong></div>
+                <div class="bmi__metric"><span>Your height</span><strong>{{ formatHeight(breakdown()!.heightM * 100) }}</strong></div>
+                <div class="bmi__metric"><span>Weight diff</span><strong>{{ formatWeight(absoluteWeightDifference(summary()!.weightDifference)) }}</strong></div>
+              </div>
+              @if (riskIndicators().length > 0) {
+                <div class="bmi__section">
+                  <h3>Risk indicators</h3>
+                  <ul class="bmi__risks">
+                    @for (risk of riskIndicators(); track trackRisk($index, risk)) {
+                      <li [class]="'bmi__risk--' + risk.level">
+                        <strong>{{ risk.label }}</strong>
+                        <span>{{ risk.description }}</span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+              @if (recommendations().length > 0) {
+                <div class="bmi__section">
+                  <h3>Recommendations</h3>
+                  <ul class="bmi__tips">
+                    @for (tip of recommendations(); track trackRecommendation($index, tip)) {
+                      <li>{{ tip }}</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter your information to view BMI insights.</p>
+            </div>
+          }
+        </section>
       </div>
-    </section>
-  </div>
+
+      <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Quick presets</header>
+            <div class="ctl__panel-body">
+              <div class="bmi__presets">
+                @for (preset of presets; track trackPreset($index, preset)) {
+                  <button type="button" class="bmi__preset" (click)="applyPreset(preset)">
+                    <strong>{{ preset.label }}</strong>
+                    <small>{{ preset.unit === 'metric' ? preset.weight + ' kg · ' + preset.height + ' cm' : preset.weight + ' lb · ' + preset.height + ' in' }}</small>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="clearHistory()"
+                [disabled]="!history().length"
+                aria-label="Clear history"
+                appTooltip="Clear history"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length > 0) {
+                <ul class="bmi__history">
+                  @for (entry of history(); track trackHistory($index, entry)) {
+                    <li>
+                      <button type="button" class="bmi__history-item" (click)="restoreHistory(entry)">
+                        <strong>{{ entry.summary.bmi | number:'1.1-1' }} BMI</strong>
+                        <span>{{ entry.summary.classification.label }}</span>
+                        <small>{{ formatWeight(entry.weight) }} · {{ formatHeight(entry.height) }}</small>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Your BMI calculations will appear here.</p></div>
+              }
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body bmi__related">
+              <ul class="bmi__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="bmi__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Choose <strong>metric</strong> or <strong>imperial</strong> units and enter weight and height.</li>
+        <li>Results update automatically — optional age, gender, and waist refine insights.</li>
+        <li>Use <strong>Copy</strong> to grab your BMI summary from the toolbar or results panel.</li>
+        <li>Apply presets or restore past calculations from the sidebar history.</li>
+      </ul>
+    </details>
+  </main>
 </div>

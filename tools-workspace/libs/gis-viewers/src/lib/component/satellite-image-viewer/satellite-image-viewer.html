@@ -1,0 +1,376 @@
+<div class="ctl satellite">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="satellite-eyebrow">GIS tools</span>
+        <h1>Satellite Image Viewer <span class="satellite-live-badge">Local &amp; private</span></h1>
+        <p>
+          EO-focused GeoTIFF exploration — true color, false color IR, stretch, and NDVI when bands allow.
+        </p>
+      </header>
+    </div>
+
+    <aside class="satellite-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="satellite-suggest__body">
+        <p class="satellite-suggest__title">{{ suggestion.title }}</p>
+        <p class="satellite-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="satellite-suggest__actions">
+        <a class="satellite-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="satellite-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="satellite-toolbar" aria-label="Satellite viewer controls">
+      <div class="satellite-toolbar__group">
+        <label class="sr-only" for="satellite-file-upload">Upload Satellite files</label>
+        <input
+          #fileInput
+          id="satellite-file-upload"
+          class="satellite-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn satellite-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload Satellite · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample EO GeoTIFF"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="satellite-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="satellite-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the original GeoTIFF</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Dimensions, CRS, and tags</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Stats and warnings</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG preview</strong>
+              <span>Current band stretch as PNG</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="satelliteFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="satellite-files" *ngIf="satelliteFiles.length > 0" aria-label="Loaded Satellite files">
+          <div
+            class="satellite-files__chip"
+            *ngFor="let file of satelliteFiles; let i = index; trackBy: trackByFileId"
+            [class.satellite-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="satellite-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="satellite-files__name">{{ file.name }}</span>
+              <span class="satellite-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="satellite-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="satellite-toolbar__status">
+        <span class="satellite-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="satellite-workspace"
+      [class.satellite-workspace--fullscreen]="isFullscreen"
+      [class.satellite-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="satellite-panel" aria-label="Satellite map">
+        <header class="satellite-map-head" *ngIf="currentFile">
+          <div class="satellite-map-head__identity">
+            <span class="satellite-map-head__file">{{ currentFile.name }}</span>
+            <span class="satellite-map-head__meta">
+              {{ stats?.width }}×{{ stats?.height }} · {{ stats?.samplesPerPixel }} band(s) ·
+              {{ stats?.photometricLabel || 'raster' }}
+            </span>
+          </div>
+          <div class="satellite-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="satellite-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="satellite-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="satellite-view-controls__divider"></span>
+            <button
+              type="button"
+              class="satellite-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="satellite-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="satellite-map-wrap" [class.satellite-map-wrap--empty]="!currentFile">
+          <div #mapHost class="satellite-map" [attr.aria-busy]="loading" aria-label="Interactive Satellite map"></div>
+          <div class="satellite-empty" *ngIf="!currentFile && !loading">
+            <p class="satellite-empty__title">Drop a Satellite file here</p>
+            <p class="satellite-empty__formats">
+              <span class="satellite-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="satellite-empty__hint">
+              {{ formatsHint }}. Or load the sample city tile. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="satellite-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="satellite-loading" *ngIf="loading">Loading raster…</div>
+        </div>
+
+        <div class="satellite-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="satellite-error" *ngIf="errorMessage" role="alert">
+          <p class="satellite-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample map
+          </button>
+        </div>
+      </section>
+
+      <aside
+        id="satellite-details-sidebar"
+        class="satellite-sidebar"
+        aria-label="Raster details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Raster overview</span>
+            <span class="satellite-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="satellite-process-name">{{ stats.title }}</p>
+            <div class="satellite-stat-grid" aria-label="Raster statistics">
+              <div><strong>{{ stats.width }}×{{ stats.height }}</strong><span>Size</span></div>
+              <div><strong>{{ stats.samplesPerPixel }}</strong><span>Bands</span></div>
+              <div><strong>{{ stats.bitsPerSampleLabel }}</strong><span>Bits</span></div>
+              <div><strong>{{ stats.tiled ? 'Tiled' : 'Strip' }}</strong><span>Layout</span></div>
+            </div>
+            <dl class="satellite-meta satellite-meta--compact">
+              <div><dt>Compression</dt><dd>{{ stats.compressionLabel }}</dd></div>
+              <div><dt>Photometric</dt><dd>{{ stats.photometricLabel }}</dd></div>
+              <div><dt>Bounds</dt><dd class="satellite-meta__bounds">{{ boundsLabel }}</dd></div>
+              <div *ngIf="stats.crsNote"><dt>CRS</dt><dd>{{ stats.crsNote }}</dd></div>
+              <div><dt>Preset</dt><dd>{{ preset }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Display</header>
+          <div class="ctl__panel-body">
+            <div class="satellite-controls">
+              <label>
+                <span>Composite preset</span>
+                <select [value]="preset" (change)="onPresetChange($event)">
+                  <option *ngFor="let p of presets" [value]="p.id" [disabled]="(p.id === 'ndvi' && !ndviEnabled) || (p.id === 'false-color-ir' && !falseColorEnabled)">{{ p.label }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Stretch</span>
+                <select [value]="stretchMode" (change)="onStretchChange($event)">
+                  <option *ngFor="let mode of stretchModes" [value]="mode">{{ mode }}</option>
+                </select>
+              </label>
+              <label *ngIf="preset === 'ndvi'">
+                <span>NDVI colormap</span>
+                <select [value]="colormap" (change)="onColormapChange($event)">
+                  <option *ngFor="let c of colormaps" [value]="c">{{ c }}</option>
+                </select>
+              </label>
+              <div class="satellite-controls__row" *ngIf="preset === 'custom'">
+                <label>
+                  <span>R</span>
+                  <select [value]="bandSelection.red" (change)="onBandChange('red', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>G</span>
+                  <select [value]="bandSelection.green" (change)="onBandChange('green', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>B</span>
+                  <select [value]="bandSelection.blue" (change)="onBandChange('blue', $event)">
+                    <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                  </select>
+                </label>
+              </div>
+              <label *ngIf="preset === 'grayscale'">
+                <span>Band</span>
+                <select [value]="bandSelection.red" (change)="onBandChange('red', $event)">
+                  <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Opacity <span class="satellite-opacity-value">{{ (opacity * 100) | number:'1.0-0' }}%</span></span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="1"
+                  [value]="opacity * 100"
+                  (input)="onOpacityChange($event)" />
+              </label>
+              <p class="satellite-controls__hint">
+                False color IR / NDVI need ≥4 bands. Sample EO tile is RGB — IR/NDVI soft-disable.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel satellite-meta-panel">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body">
+            <table class="satellite-meta-table" *ngIf="metaRows.length > 0; else noMeta">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of metaRows; trackBy: trackByMetaKey">
+                  <th scope="row">{{ row.key }}</th>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <ng-template #noMeta>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No metadata rows found.' : 'Upload a Satellite to inspect metadata.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="satellite-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help satellite-footer-help">
+      <summary>How to use Satellite Image Viewer</summary>
+      <ul>
+        <li>
+          Supported uploads: <code>.tif</code>, <code>.tiff</code>, <code>.satellite</code> (max 40&nbsp;MB).
+        </li>
+        <li>Choose RGB bands or grayscale, stretch mode, and opacity — the map overlay updates in place.</li>
+        <li>Scroll to zoom, drag to pan, or use Fit / Zoom controls (<kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd>).</li>
+        <li>Export the original Satellite, metadata JSON, summary, or PNG preview — all in your browser.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="satellite-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop Satellite files to open</p>
+    <p class="satellite-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { SplitPdfsComponent } from './split-pdfs';
 
 describe('SplitPdfsComponent', () => {
@@ -7,7 +8,8 @@ describe('SplitPdfsComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SplitPdfsComponent]
+      imports: [SplitPdfsComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(SplitPdfsComponent);

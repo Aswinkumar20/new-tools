@@ -1,7 +1,6 @@
 export const PDF_MAX_BYTES = 100 * 1024 * 1024;
-export const PDF_JS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-export const PDF_JS_WORKER_CDN =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+/** Copied from node_modules/pdfjs-dist at build time — not a CDN URL. */
+export const PDFJS_WORKER_SRC = 'assets/pdfjs/pdf.worker.min.js';
 
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';

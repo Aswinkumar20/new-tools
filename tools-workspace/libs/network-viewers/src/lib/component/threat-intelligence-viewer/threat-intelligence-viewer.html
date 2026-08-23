@@ -1,0 +1,215 @@
+<div class="ctl threat">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="threat-eyebrow">Network tools</span>
+        <h1>Threat Intelligence Viewer <span class="threat-live-badge">Local &amp; private</span></h1>
+        <p>Review STIX indicators, relationships, and intel objects locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="threat-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="threat-suggest__body">
+        <p class="threat-suggest__title">{{ suggestion.title }}</p>
+        <p class="threat-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="threat-suggest__actions">
+        <button type="button" class="threat-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="threat-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="threat-toolbar">
+      <div class="threat-toolbar__group">
+        <input #fileInput class="threat-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn threat-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="threat-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="threat-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('indicators-csv', $event)">Indicators CSV</button>
+            <button type="button" (click)="exportAs('relationships-csv', $event)">Relationships CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="threat-files" *ngIf="files.length">
+          <div class="threat-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.threat-files__chip--active]="i === currentIndex">
+            <button type="button" class="threat-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="threat-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="threat-toolbar__status"><span class="threat-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="threat-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="threat-workspace" [class.threat-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="threat-panel">
+        <header class="threat-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ filteredIndicators.length }} indicators · {{ parsed?.relationships?.length || 0 }} rels · {{ parsed?.sourceKind }}</span>
+          </div>
+          <div class="threat-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="threat-map-wrap" [class.threat-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="threat-map" [class.threat-map--tall]="viewMode === 'relationships'" *ngIf="currentFile && (viewMode === 'indicators' || viewMode === 'relationships')"></canvas>
+          <div class="threat-cards" *ngIf="currentFile && viewMode === 'indicators'">
+            <article *ngFor="let ioc of filteredIndicators; trackBy: trackByIoc" [class.is-active]="selectedIndicator?.id === ioc.id" (click)="selectIoc(ioc.id)">
+              <header>
+                <i class="threat-swatch" [style.background]="typeTint(ioc.type)"></i>
+                <strong>{{ ioc.type }}</strong>
+                <span>{{ ioc.labels || 'indicator' }}</span>
+              </header>
+              <p>{{ ioc.name }}</p>
+              <p>{{ ioc.value }}</p>
+            </article>
+          </div>
+          <div class="threat-cards" *ngIf="currentFile && viewMode === 'relationships'">
+            <article *ngFor="let rel of filteredRelationships; trackBy: trackByRel" [class.is-active]="selectedRelationship?.id === rel.id" (click)="selectRel(rel.id)">
+              <header>
+                <i class="threat-swatch" [style.background]="relTint(rel.type)"></i>
+                <strong>{{ rel.type }}</strong>
+              </header>
+              <p>{{ rel.sourceName }} → {{ rel.targetName }}</p>
+            </article>
+          </div>
+          <div class="threat-cards" *ngIf="currentFile && viewMode === 'objects'">
+            <article *ngFor="let obj of filteredObjects; trackBy: trackByObject" [class.is-active]="selectedObject?.id === obj.id" (click)="selectObject(obj.id)">
+              <header>
+                <i class="threat-swatch" [style.background]="kindTint(obj.kind)"></i>
+                <strong>{{ obj.kind }}</strong>
+                <span>{{ obj.aliases || '—' }}</span>
+              </header>
+              <p>{{ obj.name }}</p>
+              <p>{{ obj.description || 'No description' }}</p>
+            </article>
+          </div>
+          <div class="threat-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Type</th>
+                  <th>Value</th>
+                  <th>Name</th>
+                  <th>Labels</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let ioc of filteredIndicators; trackBy: trackByIoc" [class.is-active]="selectedIndicator?.id === ioc.id" (click)="selectIoc(ioc.id)">
+                  <td>{{ ioc.index + 1 }}</td>
+                  <td><i class="threat-swatch" [style.background]="typeTint(ioc.type)"></i>{{ ioc.type }}</td>
+                  <td>{{ ioc.value }}</td>
+                  <td>{{ ioc.name }}</td>
+                  <td>{{ ioc.labels || '—' }}</td>
+                  <td>{{ ioc.confidence == null ? '—' : ioc.confidence }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="threat-empty-filter" *ngIf="parsed && !filteredIndicators.length">No indicators match the current filter.</p>
+          </div>
+          <div class="threat-empty" *ngIf="!currentFile && !loading">
+            <p>Drop threat intel feeds here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="threat-loading" *ngIf="loading">Parsing threat intel…</div>
+        </div>
+
+        <div class="threat-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="threat-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="threat-disclaimer">Education and research preview only — not a substitute for MISP, OpenCTI, ThreatConnect, or production threat intelligence platforms.</p>
+      </section>
+
+      <aside class="threat-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="threat-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search intel</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="threat-search" type="search" placeholder="domain rel:uses malware (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'relationships' && filteredRelationships.length">
+          <header class="ctl__panel-head">Relationships</header>
+          <div class="ctl__panel-body threat-units">
+            <button type="button" *ngFor="let rel of filteredRelationships; trackBy: trackByRel" [class.is-active]="selectedRelId === rel.id" (click)="selectRel(rel.id)">
+              <i class="threat-swatch" [style.background]="relTint(rel.type)"></i>
+              <span>{{ rel.type }} <small>{{ rel.sourceName }} → {{ rel.targetName }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'objects' && filteredObjects.length">
+          <header class="ctl__panel-head">Objects</header>
+          <div class="ctl__panel-body threat-units">
+            <button type="button" *ngFor="let obj of filteredObjects; trackBy: trackByObject" [class.is-active]="selectedObjectId === obj.id" (click)="selectObject(obj.id)">
+              <i class="threat-swatch" [style.background]="kindTint(obj.kind)"></i>
+              <span>{{ obj.name }} <small>{{ obj.kind }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'relationships' && viewMode !== 'objects' && filteredIndicators.length">
+          <header class="ctl__panel-head">Indicators</header>
+          <div class="ctl__panel-body threat-units">
+            <button type="button" *ngFor="let ioc of filteredIndicators; trackBy: trackByIoc" [class.is-active]="selectedIocId === ioc.id" (click)="selectIoc(ioc.id)">
+              <i class="threat-swatch" [style.background]="typeTint(ioc.type)"></i>
+              <span>{{ ioc.type }} <small>{{ ioc.value }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'relationships' && selectedRelationship">
+          <header class="ctl__panel-head">Selected relationship</header>
+          <div class="ctl__panel-body">
+            <dl class="threat-meta">
+              <div *ngFor="let row of relationshipMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'objects' && selectedObject">
+          <header class="ctl__panel-head">Selected object</header>
+          <div class="ctl__panel-body">
+            <dl class="threat-meta">
+              <div *ngFor="let row of objectMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'relationships' && viewMode !== 'objects' && selectedIndicator">
+          <header class="ctl__panel-head">Selected indicator</header>
+          <div class="ctl__panel-body">
+            <dl class="threat-meta">
+              <div *ngFor="let row of indicatorMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="threat-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="threat-drop" *ngIf="showDropZone"><p>Drop threat intel feeds to inspect</p></div>
+  </main>
+</div>

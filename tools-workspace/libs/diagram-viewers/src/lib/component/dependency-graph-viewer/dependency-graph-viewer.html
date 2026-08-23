@@ -1,0 +1,284 @@
+<div class="ctl dep dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dep-eyebrow">Diagram viewers</span>
+        <h1>Dependency Graph Viewer <span class="dep-live-badge">Local &amp; private</span></h1>
+        <p>Preview package trees and dependency cycles locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Dependency Graph Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="dep-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dep-suggest__body">
+        <p class="dep-suggest__title">{{ suggestion.title }}</p>
+        <p class="dep-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dep-suggest__actions">
+        <button type="button" class="dep-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="dep-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="dep-toolbar" role="toolbar" aria-label="Dependency Graph Viewer actions">
+      <div class="dep-toolbar__group">
+        <input #fileInput class="dep-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn dep-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dep-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dep-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('packages-csv', $event)">Packages CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('edges-csv', $event)">Edges CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="dep-files" *ngIf="files.length">
+          <div class="dep-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dep-files__chip--active]="i === currentIndex">
+            <button type="button" class="dep-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="dep-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dep-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Dependency Graph Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="dep-toolbar__status"><span class="dep-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="dep-workspace" [class.dep-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dep-panel">
+        <header class="dep-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.packages?.length || 0 }} packages · {{ parsed?.edges?.length || 0 }} edges · {{ parsed?.cycles?.length || 0 }} cycles</span>
+          </div>
+          <div class="dep-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="dep-map-wrap">
+          <canvas #canvasHost class="dep-map" [class.dep-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="dep-cards" *ngIf="currentFile && viewMode === 'diagram'">
+            <article *ngFor="let pkg of filteredPackages; trackBy: trackByPackage" [class.is-active]="selectedPackage?.id === pkg.id" [class.is-cyclic]="isCyclicPackage(pkg.id)" (click)="selectPackage(pkg.id)">
+              <header>
+                <i class="dep-swatch" [style.background]="tint(pkg.kind, pkg.index)"></i>
+                <strong>{{ pkg.name }}</strong>
+                <span>{{ pkg.kind }}</span>
+              </header>
+              <p>{{ pkg.version || '—' }}{{ isCyclicPackage(pkg.id) ? ' · cycle' : '' }}</p>
+            </article>
+            <p class="dep-empty-filter" *ngIf="parsed && !filteredPackages.length">No packages match the current filter.</p>
+          </div>
+          <div class="dep-cards" *ngIf="currentFile && viewMode === 'tree'">
+            <article *ngFor="let row of filteredTree; trackBy: trackByTree" [class.is-active]="selectedPackageId === row.id" [class.is-cyclic]="row.cyclic" (click)="selectPackage(row.id)" [style.margin-left]="treeIndent(row.depth)">
+              <header>
+                <i class="dep-swatch" [style.background]="tint(row.cyclic ? 'cycle' : 'direct', row.depth)"></i>
+                <strong>{{ row.name }}</strong>
+                <span>{{ row.cyclic ? 'cycle' : 'tree' }}</span>
+              </header>
+              <p>{{ row.version || '—' }} · depth {{ row.depth }}</p>
+            </article>
+            <p class="dep-empty-filter" *ngIf="parsed && !filteredTree.length">No tree rows match the current filter.</p>
+          </div>
+          <div class="dep-cards" *ngIf="currentFile && viewMode === 'cycles'">
+            <article *ngFor="let cycle of filteredCycles; trackBy: trackByCycle" [class.is-active]="selectedCycle?.id === cycle.id" class="is-cyclic" (click)="selectCycle(cycle.id)">
+              <header>
+                <i class="dep-swatch" [style.background]="'#f87171'"></i>
+                <strong>Cycle {{ cycle.index + 1 }}</strong>
+                <span>{{ cycle.nodes.length }} nodes</span>
+              </header>
+              <p>{{ cycle.path }}</p>
+            </article>
+            <p class="dep-empty-filter" *ngIf="parsed && !filteredCycles.length">No cycles match the current filter.</p>
+          </div>
+          <div class="dep-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Spec</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdge?.id === edge.id" (click)="selectEdge(edge.id)">
+                  <td>{{ edge.index + 1 }}</td>
+                  <td>{{ edge.sourceName }}</td>
+                  <td>{{ edge.targetName }}</td>
+                  <td>{{ edge.spec || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="dep-empty-filter" *ngIf="parsed && !filteredEdges.length">No edges match the current filter.</p>
+          </div>
+          <div class="dep-empty" *ngIf="!currentFile && !loading">
+            <p>Drop lockfile or dependency graph here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="dep-loading" *ngIf="loading">Parsing dependency graph…</div>
+        </div>
+
+        <div class="dep-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dep-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dep-disclaimer">Education and research preview only — not a substitute for npm, yarn, or lockfile audit tools.</p>
+      </section>
+
+      <aside class="dep-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="dep-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search graph</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="dep-search" type="search" placeholder="pkg:express kind:direct from:shop cycle:lib (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredEdges.length" open>
+          <summary class="ctl__panel-head">Edges</summary>
+          <div class="ctl__panel-body dep-units">
+            <button type="button" *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdgeId === edge.id" (click)="selectEdge(edge.id)">
+              <i class="dep-swatch" [style.background]="tint('direct', edge.index)"></i>
+              <span>{{ edge.sourceName }} → {{ edge.targetName }} <small>{{ edge.spec || 'depends' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'cycles' && filteredCycles.length" open>
+          <summary class="ctl__panel-head">Cycles</summary>
+          <div class="ctl__panel-body dep-units">
+            <button type="button" *ngFor="let cycle of filteredCycles; trackBy: trackByCycle" [class.is-active]="selectedCycleId === cycle.id" (click)="selectCycle(cycle.id)">
+              <i class="dep-swatch" [style.background]="'#f87171'"></i>
+              <span>Cycle {{ cycle.index + 1 }} <small>{{ cycle.path }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'tree' && filteredTree.length" open>
+          <summary class="ctl__panel-head">Tree</summary>
+          <div class="ctl__panel-body dep-units">
+            <button type="button" *ngFor="let row of filteredTree; trackBy: trackByTree" [class.is-active]="selectedPackageId === row.id" (click)="selectPackage(row.id)">
+              <i class="dep-swatch" [style.background]="tint(row.cyclic ? 'cycle' : 'direct', row.depth)"></i>
+              <span>{{ row.name }} <small>depth {{ row.depth }}{{ row.cyclic ? ' · cycle' : '' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'diagram' && filteredPackages.length" open>
+          <summary class="ctl__panel-head">Packages</summary>
+          <div class="ctl__panel-body dep-units">
+            <button type="button" *ngFor="let pkg of filteredPackages; trackBy: trackByPackage" [class.is-active]="selectedPackageId === pkg.id" (click)="selectPackage(pkg.id)">
+              <i class="dep-swatch" [style.background]="tint(pkg.kind, pkg.index)"></i>
+              <span>{{ pkg.name }} <small>{{ pkg.kind }}{{ isCyclicPackage(pkg.id) ? ' · cycle' : '' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'table' && selectedEdge" open>
+          <summary class="ctl__panel-head">Selected edge</summary>
+          <div class="ctl__panel-body">
+            <dl class="dep-meta">
+              <div *ngFor="let row of edgeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'cycles' && selectedCycle" open>
+          <summary class="ctl__panel-head">Selected cycle</summary>
+          <div class="ctl__panel-body">
+            <dl class="dep-meta">
+              <div *ngFor="let row of cycleMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'diagram' || viewMode === 'tree') && selectedPackage" open>
+          <summary class="ctl__panel-head">Selected package</summary>
+          <div class="ctl__panel-body">
+            <dl class="dep-meta">
+              <div *ngFor="let row of packageMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dep-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use Dependency Graph Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="dep-drop" *ngIf="showDropZone"><p>Drop lockfile or graph to preview</p></div>
+  </main>
+</div>

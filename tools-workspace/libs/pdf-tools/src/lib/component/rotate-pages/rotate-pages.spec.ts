@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { RotatePagesComponent } from './rotate-pages';
 
 describe('RotatePagesComponent', () => {
@@ -7,7 +8,8 @@ describe('RotatePagesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [RotatePagesComponent]
+      imports: [RotatePagesComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(RotatePagesComponent);

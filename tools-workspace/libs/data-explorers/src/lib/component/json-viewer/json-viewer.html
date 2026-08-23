@@ -1,0 +1,279 @@
+<div class="ctl jn data-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="jn-eyebrow">Data explorers</span>
+        <h1>JSON Viewer <span class="jn-live-badge">Local &amp; private</span></h1>
+        <p>Explore JSON trees, search paths, schema, and table rows locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="JSON Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="jn-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="jn-suggest__body">
+        <p class="jn-suggest__title">{{ suggestion.title }}</p>
+        <p class="jn-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="jn-suggest__actions">
+        <button type="button" class="jn-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="jn-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="jn-toolbar" role="toolbar" aria-label="JSON Viewer actions">
+      <div class="jn-toolbar__group">
+        <input #fileInput class="jn-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn jn-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="jn-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="jn-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="jn-files" *ngIf="files.length">
+          <div class="jn-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.jn-files__chip--active]="i === currentIndex">
+            <button type="button" class="jn-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="jn-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="jn-tab-bar" *ngIf="currentFile" role="tablist" aria-label="JSON views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="jn-toolbar__status"><span class="jn-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="jn-workspace" [class.jn-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="jn-panel">
+        <header class="jn-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.rootType }} · {{ filteredNodes.length }} nodes · {{ filteredRows.length }} rows</span>
+          </div>
+          <div class="jn-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="jn-map-wrap">
+          <canvas #canvasHost class="jn-map" [class.jn-map--tall]="viewMode === 'tree'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="jn-cards" *ngIf="currentFile && viewMode === 'tree'">
+            <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" [style.paddingLeft.px]="indentPx(node.depth)" (click)="selectNode(node.id)" (keydown.enter)="selectNode(node.id)" (keydown.space)="$event.preventDefault(); selectNode(node.id)" tabindex="0" role="button">
+              <header>
+                <i class="jn-swatch" [style.background]="tint(node.type, node.index)"></i>
+                <strong>{{ node.name }}</strong>
+                <span>{{ node.type }}</span>
+              </header>
+              <p>{{ node.path }} · {{ node.value }}</p>
+            </article>
+            <p class="jn-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
+          </div>
+          <div class="jn-cards" *ngIf="currentFile && viewMode === 'schema'">
+            <article *ngFor="let entry of filteredSchema; trackBy: trackBySchema" [class.is-active]="selectedSchema?.id === entry.id" (click)="selectSchema(entry.id)" (keydown.enter)="selectSchema(entry.id)" (keydown.space)="$event.preventDefault(); selectSchema(entry.id)" tabindex="0" role="button">
+              <header>
+                <i class="jn-swatch" [style.background]="tint(entry.type, entry.index)"></i>
+                <strong>{{ entry.name }}</strong>
+                <span>{{ entry.type }}</span>
+              </header>
+              <p>{{ entry.path }}{{ entry.nullable ? ' · nullable' : '' }}</p>
+            </article>
+            <p class="jn-empty-filter" *ngIf="parsed && !filteredSchema.length">No schema paths match the current filter.</p>
+          </div>
+          <div class="jn-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0" role="button">
+              <header>
+                <i class="jn-swatch" [style.background]="tint('number', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowPreview(row) }}</p>
+            </article>
+            <p class="jn-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="jn-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="jn-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="jn-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a JSON file here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn jn-primary-action" (click)="openFilePicker()">Upload file</button>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="jn-loading" *ngIf="loading" role="status" aria-live="polite">Parsing JSON…</div>
+        </div>
+
+        <div class="jn-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="jn-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="jn-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for jq, JSON Schema validators, or IDE formatters. JSONL is supported; comments and trailing commas are not.</p>
+      </section>
+
+      <aside class="jn-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="jn-empty-panel">Upload JSON or load the sample to see overview, schema, and preview rows here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="jn-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search tree</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="jn-search" type="search" aria-label="Search JSON contents" placeholder="Search columns, types, or values (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="jn-search-hint">Try <code>col:name</code>, <code>type:int</code>, or a cell value. Press <kbd>/</kbd> to focus.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'tree' && filteredNodes.length" open>
+          <summary class="ctl__panel-head">Nodes</summary>
+          <div class="ctl__panel-body jn-units">
+            <button type="button" *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
+              <i class="jn-swatch" [style.background]="tint(node.type, node.index)"></i>
+              <span>{{ node.name }} <small>{{ node.type }} · {{ node.path }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'schema' && filteredSchema.length" open>
+          <summary class="ctl__panel-head">Schema</summary>
+          <div class="ctl__panel-body jn-units">
+            <button type="button" *ngFor="let entry of filteredSchema; trackBy: trackBySchema" [class.is-active]="selectedSchemaId === entry.id" (click)="selectSchema(entry.id)">
+              <i class="jn-swatch" [style.background]="tint(entry.type, entry.index)"></i>
+              <span>{{ entry.name }} <small>{{ entry.type }} · {{ entry.path }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length" open>
+          <summary class="ctl__panel-head">Rows</summary>
+          <div class="ctl__panel-body jn-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="jn-swatch" [style.background]="tint('number', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowPreview(row) }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'tree' && selectedNode" open>
+          <summary class="ctl__panel-head">Selected node</summary>
+          <div class="ctl__panel-body">
+            <dl class="jn-meta">
+              <div *ngFor="let row of nodeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'schema' && selectedSchema" open>
+          <summary class="ctl__panel-head">Selected path</summary>
+          <div class="ctl__panel-body">
+            <dl class="jn-meta">
+              <div *ngFor="let row of schemaMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && selectedRow" open>
+          <summary class="ctl__panel-head">Selected row</summary>
+          <div class="ctl__panel-body">
+            <dl class="jn-meta">
+              <div *ngFor="let row of selectedRowEntries"><dt>{{ row.key }}</dt><dd>{{ row.value || '—' }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="jn-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help de-footer-help">
+      <summary>How to use JSON Viewer</summary>
+      <ol class="de-help-steps">
+        <li class="de-help-step">
+          <span class="de-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">2</span>
+          <h3>Browse</h3>
+          <p>Switch schema, preview, and table views. Use the side panel to inspect columns, rows, and metadata.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">3</span>
+          <h3>Search</h3>
+          <p>Filter with tokens like <code>col:name</code> or <code>type:int</code>. Press <kbd>/</kbd> to focus search.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native engine.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="jn-drop" *ngIf="showDropZone"><p>Drop JSON to preview</p></div>
+</div>

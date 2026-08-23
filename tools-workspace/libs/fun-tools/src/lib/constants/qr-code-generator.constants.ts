@@ -1,9 +1,6 @@
 import type { FtRelatedToolLink } from '../shared/ft-tool-suggestion.model';
 import type { QrCodeOptions } from '../types/qr-code-generator.types';
 
-export const QR_CODE_CDN =
-  'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-
 export const QR_CODE_DEFAULT_OPTIONS: QrCodeOptions = {
   text: 'https://example.com',
   size: 256,

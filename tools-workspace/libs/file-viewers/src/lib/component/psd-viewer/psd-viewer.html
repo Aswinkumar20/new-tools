@@ -1,0 +1,188 @@
+<div class="ctl pd">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pd-eyebrow">File viewers</span>
+        <h1>PSD Viewer <span class="pd-live-badge">Local &amp; private</span></h1>
+        <p>Inspect Photoshop layers and preview locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="pd-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pd-suggest__body">
+        <p class="pd-suggest__title">{{ suggestion.title }}</p>
+        <p class="pd-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pd-suggest__actions">
+        <button type="button" class="pd-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="pd-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="pd-toolbar">
+      <div class="pd-toolbar__group">
+        <input #fileInput class="pd-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn pd-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pd-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="pd-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="pd-files" *ngIf="files.length">
+          <div class="pd-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pd-files__chip--active]="i === currentIndex">
+            <button type="button" class="pd-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="pd-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="pd-toolbar__status"><span class="pd-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="pd-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="pd-workspace" [class.pd-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pd-panel">
+        <header class="pd-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.psdVer || '—' }} · {{ filteredLayers.length }} layers · {{ filteredEffects.length }} effects · {{ parsed?.channelCount || 0 }} channels</span>
+          </div>
+          <div class="pd-view-controls">
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1 / 1.2)">−</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="fitView()">Fit {{ zoomPercent }}%</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1.2)">+</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="pd-map-wrap" [class.pd-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="pd-map"
+            [class.pd-map--panning]="panning"
+            *ngIf="currentFile && viewMode === 'preview'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp()"
+            (pointerleave)="onCanvasPointerUp()"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="pd-cards" *ngIf="currentFile && viewMode === 'layers'">
+            <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" (click)="selectLayer(layer.id)">
+              <header>
+                <i class="pd-swatch" [style.background]="layer.colorHex"></i>
+                <strong>{{ layer.name }}</strong>
+                <span>{{ layer.kind }}</span>
+                <span>{{ layer.visible ? 'visible' : 'hidden' }}</span>
+              </header>
+              <p>{{ layer.kind === 'circle' ? 'r ' + layer.r : layer.kind === 'text' ? layer.text : layer.x + ', ' + layer.y }}</p>
+              <button type="button" class="pd-eye" (click)="toggleLayerVisible(layer.id, $event)">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
+            </article>
+            <p class="pd-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current filter.</p>
+          </div>
+          <div class="pd-cards" *ngIf="currentFile && viewMode === 'effects'">
+            <article *ngFor="let effect of filteredEffects; trackBy: trackByEffect" [class.is-active]="selectedEffect?.id === effect.id" (click)="selectEffect(effect.id)">
+              <header>
+                <strong>{{ effect.name }}</strong>
+                <span>{{ effect.kind }}</span>
+                <span>{{ effect.layer }}</span>
+              </header>
+              <p>{{ effect.kind }} on {{ effect.layer }}</p>
+            </article>
+            <p class="pd-empty-filter" *ngIf="parsed && !filteredEffects.length">No effects match the current filter.</p>
+          </div>
+          <div class="pd-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="pd-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="pd-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a PSD dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="pd-loading" *ngIf="loading">Parsing PSD dump…</div>
+        </div>
+
+        <div class="pd-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pd-disclaimer">Education and research preview only — not a substitute for Photoshop, GIMP, or a full PSD kernel. ASCII dumps are supported; binary 8BPS files are not expanded. Hide layers in the sidebar, then Fit the preview.</p>
+      </section>
+
+      <aside class="pd-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="pd-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search PSD</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="pd-search" type="search" placeholder="layer:column fx:stroke ch:RGB (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'layers' || viewMode === 'table') && filteredLayers.length">
+          <header class="ctl__panel-head">Layers</header>
+          <div class="ctl__panel-body pd-units">
+            <button type="button" *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayerId === layer.id" (click)="selectLayer(layer.id)">
+              <i class="pd-swatch" [style.background]="layer.colorHex"></i>
+              <span>{{ layer.name }} <small>{{ layer.kind }} · {{ layer.visible ? 'on' : 'off' }}</small></span>
+              <em class="pd-eye" (click)="toggleLayerVisible(layer.id, $event)">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</em>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'effects' || viewMode === 'preview') && filteredEffects.length">
+          <header class="ctl__panel-head">Effects</header>
+          <div class="ctl__panel-body pd-units">
+            <button type="button" *ngFor="let effect of filteredEffects; trackBy: trackByEffect" [class.is-active]="selectedEffectId === effect.id" (click)="selectEffect(effect.id)">
+              <span>{{ effect.name }} <small>{{ effect.kind }} · {{ effect.layer }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'layers') && selectedLayer">
+          <header class="ctl__panel-head">Selected layer</header>
+          <div class="ctl__panel-body">
+            <dl class="pd-meta">
+              <div *ngFor="let row of layerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pd-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="pd-drop" *ngIf="showDropZone"><p>Drop PSD dump to preview</p></div>
+  </main>
+</div>

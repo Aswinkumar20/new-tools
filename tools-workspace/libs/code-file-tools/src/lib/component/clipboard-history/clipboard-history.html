@@ -1,233 +1,284 @@
-<div class="ch">
-  <div class="ch__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl cf">
+  <lib-navigation></lib-navigation>
 
-  <section class="ch__hero">
-    <div class="ch__badge">Utility toolkit</div>
-    <h1>Clipboard History</h1>
-    <p>
-      Automatically track and manage your clipboard history. Access previously copied text, search through entries, and
-      quickly copy items back to your clipboard. Perfect for developers and power users.
-    </p>
-
-    @if (hasHistory()) {
-      <div class="ch__hero-meta">
-        <div>
-          <span class="ch__meta-label">Total entries</span>
-          <strong>{{ totalEntries() }}</strong>
-        </div>
-        <div>
-          <span class="ch__meta-label">Status</span>
-          <strong>{{ form.controls.autoMonitor.value ? 'Monitoring' : 'Paused' }}</strong>
-        </div>
-        <div>
-          <span class="ch__meta-label">Filtered</span>
-          <strong>{{ filteredHistory().length }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="ch__hero-meta ch__hero-meta--placeholder">
-        @if (clipboardSupported()) {
-          Enable auto-monitoring to start tracking your clipboard history automatically.
-        } @else {
-          Clipboard API is not supported in this browser. Please use a modern browser.
-        }
-      </div>
-    }
-  </section>
-
-  <div class="ch__board" [formGroup]="form">
-    <section class="ch__panel ch__panel--settings">
-      <header class="ch__card-header">
-        <div>
-          <h2>Settings</h2>
-          <p>Configure clipboard monitoring and storage options.</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Clipboard History</h1>
+        <p>Track, search, and restore previously copied text — stored locally in your browser.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="ch__alert ch__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="History statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ totalEntries() }}</span>
+          <span class="ctl__stat-label">Entries</span>
         </div>
-      }
-
-      @if (!clipboardSupported()) {
-        <div class="ch__alert ch__alert--warning">
-          <p>Clipboard API is not available in this browser. Some features may be limited.</p>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ filteredHistory().length }}</span>
+          <span class="ctl__stat-label">Filtered</span>
         </div>
-      }
-
-      <div class="ch__settings-grid">
-        <label class="ch__toggle">
-          <input type="checkbox" formControlName="autoMonitor" />
-          <div>
-            <strong>Auto-monitor clipboard</strong>
-            <span>Automatically track clipboard changes</span>
-          </div>
-        </label>
-
-        <label class="ch__input">
-          <span>Maximum entries</span>
-          <input type="number" min="10" max="500" formControlName="maxEntries" />
-          <small>Maximum number of entries to store (10-500)</small>
-        </label>
-
-        <label class="ch__toggle">
-          <input type="checkbox" formControlName="excludeDuplicates" />
-          <div>
-            <strong>Exclude duplicates</strong>
-            <span>Don't store duplicate clipboard entries</span>
-          </div>
-        </label>
-
-        <label class="ch__input">
-          <span>Minimum length</span>
-          <input type="number" min="1" max="1000" formControlName="minLength" />
-          <small>Minimum characters to store (default: 1)</small>
-        </label>
-
-        <label class="ch__input">
-          <span>Maximum length</span>
-          <input type="number" min="100" max="1000000" formControlName="maxLength" />
-          <small>Maximum characters to store (default: 100,000)</small>
-        </label>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ monitorLabel() }}</span>
+          <span class="ctl__stat-label">Monitor</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ selectedEntry() ? 'Yes' : '—' }}</span>
+          <span class="ctl__stat-label">Selected</span>
+        </div>
       </div>
+    </div>
 
-      <div class="ch__actions">
-        <button type="button" class="btn btn--primary" (click)="manualAdd()" [disabled]="!clipboardSupported()">
-          Add current clipboard
+    <div class="cf-workflow" aria-label="History actions">
+      <div class="cf-workflow__group cf-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="manualAdd()"
+          [disabled]="!clipboardSupported()"
+          aria-label="Add current clipboard"
+          appTooltip="Add clipboard"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Add clip</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clearHistory()"
+          [disabled]="!hasHistory()"
+          aria-label="Clear history"
+          appTooltip="Clear history"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="downloadJson()"
+          [disabled]="!hasHistory()"
+          aria-label="Download history as JSON"
+          appTooltip="Download JSON"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Download</span>
         </button>
       </div>
-    </section>
+    </div>
 
-    <section class="ch__panel ch__panel--search">
-      <header class="ch__card-header">
-        <div>
-          <h2>Search history</h2>
-          <p>Search through your clipboard history.</p>
-        </div>
-        @if (hasHistory()) {
-          <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()">Clear all</button>
-        }
-      </header>
-
-      <div class="ch__search-container">
-        <input
-          type="text"
-          class="ch__search-input"
-          placeholder="Search clipboard history..."
-          [value]="searchQuery()"
-          (input)="onSearchChange($any($event.target).value)"
-        />
-        @if (searchQuery()) {
-          <button type="button" class="ch__search-clear" (click)="onSearchChange('')">×</button>
-        }
-      </div>
-
-      @if (hasHistory() && filteredHistory().length === 0) {
-        <div class="ch__empty">No entries match your search query.</div>
-      }
-    </section>
-
-    <section class="ch__panel ch__panel--history">
-      <header class="ch__card-header">
-        <div>
-          <h2>Clipboard history</h2>
-          <p>Click any entry to view details or copy to clipboard.</p>
-        </div>
-      </header>
-
-      @if (hasHistory() && filteredHistory().length > 0) {
-        <ul class="ch__history-list">
-          @for (entry of filteredHistory(); track entry.id) {
-            <li class="ch__history-item" [class.ch__history-item--selected]="selectedEntry()?.id === entry.id">
-              <button type="button" (click)="selectEntry(entry)" class="ch__history-button">
-                <div class="ch__history-badge" [class.ch__history-badge--url]="entry.type === 'url'" [class.ch__history-badge--code]="entry.type === 'code'">
-                  {{ entry.type }}
-                </div>
-                <div class="ch__history-content">
-                  <div class="ch__history-preview">{{ entry.preview }}</div>
-                  <div class="ch__history-meta">
-                    <span>{{ formatBytes(entry.length) }}</span>
-                    <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                  </div>
-                </div>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Selected entry</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copySelected()"
+                [disabled]="!selectedEntry()"
+                aria-label="Copy selected"
+                appTooltip="Copy selected"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
               </button>
-              <div class="ch__history-actions">
+            </div>
+          </header>
+
+          @if (!clipboardSupported()) {
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <p>Clipboard API is not available in this browser.</p>
+            </div>
+          }
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="ch__suggest" aria-label="Suggested next step">
+              <div class="ch__suggest-body">
+                <p class="ch__suggest-title">{{ suggestion.title }}</p>
+                <p class="ch__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="ch__suggest-actions">
+                <a class="ch__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
                 <button
                   type="button"
-                  class="btn btn--primary btn--small"
-                  (click)="copyToClipboard(entry)"
-                  [class.btn--success]="copySuccess() === entry.id"
-                >
-                  @if (copySuccess() === entry.id) {
-                    ✓ Copied
-                  } @else {
-                    Copy
-                  }
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--ghost btn--small"
-                  (click)="removeEntry(entry.id)"
-                >
-                  Remove
+                  class="ch__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
                 </button>
               </div>
-            </li>
+            </aside>
           }
-        </ul>
-      } @else if (!hasHistory()) {
-        <div class="ch__empty">No clipboard history yet. Enable auto-monitoring or manually add entries.</div>
-      }
-    </section>
 
-    @if (selectedEntry()) {
-      @let entry = selectedEntry()!;
-      <section class="ch__panel ch__panel--details">
-        <header class="ch__card-header">
-          <div>
-            <h2>Entry details</h2>
-            <p>Full content of the selected clipboard entry.</p>
-          </div>
-          <button type="button" class="btn btn--ghost btn--small" (click)="selectedEntry.set(null)">Close</button>
-        </header>
+          @if (selectedEntry(); as entry) {
+            <textarea
+              class="ctl__textarea"
+              readonly
+              rows="1"
+              [value]="entry.text"
+              aria-label="Selected clipboard entry"></textarea>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Select an entry from history to view its full content.</p>
+            </div>
+          }
+        </section>
 
-        <div class="ch__details-info">
-          <div class="ch__detail-item">
-            <span class="ch__detail-label">Type</span>
-            <strong>{{ entry.type }}</strong>
-          </div>
-          <div class="ch__detail-item">
-            <span class="ch__detail-label">Size</span>
-            <strong>{{ formatBytes(entry.length) }}</strong>
-          </div>
-          <div class="ch__detail-item">
-            <span class="ch__detail-label">Copied</span>
-            <strong>{{ formatTimestamp(entry.timestamp) }}</strong>
-          </div>
-          <div class="ch__detail-item">
-            <span class="ch__detail-label">Characters</span>
-            <strong>{{ entry.length }}</strong>
-          </div>
-        </div>
+        <section class="ctl__editor ctl__editor--output cf-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Preview</span>
+            @if (selectedEntry(); as entry) {
+              <span class="ctl__editor-badge">{{ entry.type }}</span>
+            }
+          </header>
+          @if (selectedEntry(); as entry) {
+            <div class="ctl__editor-body ch-preview">
+              <p>{{ entry.preview }}</p>
+              <small>{{ formatBytes(entry.length) }} · {{ formatTimestamp(entry.timestamp) }}</small>
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Entry preview appears here when you select from history.</p>
+            </div>
+          }
+        </section>
+      </div>
 
-        <div class="ch__details-content">
-          <textarea class="ch__details-textarea" [value]="entry.text" readonly spellcheck="false"></textarea>
-        </div>
+      <details class="cf-options-flyout">
+        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button
+          type="button"
+          class="cf-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Settings and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Search</header>
+            <div class="ctl__settings">
+              <label class="ctl__field">
+                <span>Filter entries</span>
+                <input
+                  type="search"
+                  placeholder="Search history…"
+                  [value]="searchQuery()"
+                  (input)="onSearchChange($any($event.target).value)" />
+              </label>
+            </div>
+          </div>
 
-        <div class="ch__details-actions">
-          <button type="button" class="btn btn--primary" (click)="copyToClipboard(entry)">
-            Copy to clipboard
-          </button>
-          <button type="button" class="btn btn--ghost" (click)="removeEntry(entry.id)">Delete entry</button>
-        </div>
-      </section>
-    }
-  </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Settings</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="autoMonitor" />
+                <div><strong>Auto-monitor</strong><span>Track clipboard changes automatically.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Max entries</span>
+                <input type="number" min="10" max="500" formControlName="maxEntries" />
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="excludeDuplicates" />
+                <div><strong>Exclude duplicates</strong><span>Skip identical consecutive clips.</span></div>
+              </label>
+              <label class="ctl__field">
+                <span>Min length</span>
+                <input type="number" min="1" max="1000" formControlName="minLength" />
+              </label>
+              <label class="ctl__field">
+                <span>Max length</span>
+                <input type="number" min="100" max="1000000" formControlName="maxLength" />
+              </label>
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">History</header>
+            <div class="ctl__panel-body">
+              @if (filteredHistory().length) {
+                <ul class="cft-history">
+                  @for (entry of filteredHistory(); track entry.id) {
+                    <li
+                      class="cft-history__item"
+                      [class.cft-history__item--active]="selectedEntry()?.id === entry.id">
+                      <button type="button" class="cft-history__btn" (click)="selectEntry(entry)">
+                        <span class="cft-history__badge">{{ entry.type }}</span>
+                        <strong>{{ entry.preview }}</strong>
+                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="cft-history__remove"
+                        (click)="removeEntry(entry.id)"
+                        aria-label="Remove entry">
+                        ×
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="cft-history__empty">
+                  {{ hasHistory() ? 'No entries match your search.' : 'No history yet — enable monitoring or add a clip.' }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>Related tools</span>
+            </header>
+            <div class="ctl__panel-body ch__related">
+              <ul class="ch__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="ch__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>History is stored in <strong>localStorage</strong> on this device only.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>Clipboard read may require focus and permission in some browsers.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Enable <strong>Auto-monitor</strong> to track clipboard changes.</li>
+        <li>Click <strong>Add clip</strong> to manually capture the current clipboard.</li>
+        <li>Select entries in the sidebar history to view full content.</li>
+        <li>Use the copy icon to restore an entry to your clipboard.</li>
+      </ul>
+    </details>
+  </main>
 </div>

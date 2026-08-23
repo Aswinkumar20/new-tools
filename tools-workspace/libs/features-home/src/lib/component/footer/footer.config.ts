@@ -153,14 +153,59 @@ export const FOOTER_CONFIG: FooterConfig = {
           description: 'Swap between upper, lower, title, and sentence cases.',
         },
         {
-          label: 'Remove Duplicate Lines',
-          path: '/text-utilities/remove-duplicate-lines',
-          description: 'Clean and deduplicate blocks of content instantly.',
+          label: 'Find & Replace',
+          path: '/text-utilities/find-and-replace',
+          description: 'Search and replace with plain text or regex.',
+        },
+        {
+          label: 'Sort Lines',
+          path: '/text-utilities/sort-lines',
+          description: 'Sort lines A–Z, by length, or numerically.',
+        },
+        {
+          label: 'Trim Whitespace',
+          path: '/text-utilities/trim-normalize-whitespace',
+          description: 'Trim, collapse spaces, and remove empty lines.',
         },
       ],
     },
     {
-      title: 'Compare & inspect',
+      title: 'Encode & convert',
+      links: [
+        {
+          label: 'URL Encode & Decode',
+          path: '/text-utilities/url-encode-and-decode',
+          description: 'Percent-encode or decode URL strings and query values.',
+        },
+        {
+          label: 'Base64 Encode & Decode',
+          path: '/text-utilities/base64-encode-and-decode',
+          description: 'Convert between plain text and Base64 safely.',
+        },
+        {
+          label: 'Unicode Escape',
+          path: '/text-utilities/unicode-escape-unescape',
+          description: 'Convert text to \\uXXXX escape sequences.',
+        },
+        {
+          label: 'JSON String Escape',
+          path: '/text-utilities/json-string-escape-unescape',
+          description: 'Escape strings for safe JSON embedding.',
+        },
+        {
+          label: 'Hex Encode & Decode',
+          path: '/text-utilities/hex-encode-decode',
+          description: 'Convert text to hexadecimal and back.',
+        },
+        {
+          label: 'Pako Compress & Decompress',
+          path: '/text-utilities/pako-encode-and-decode',
+          description: 'zlib/gzip compress and decompress with Pako.',
+        },
+      ],
+    },
+    {
+      title: 'Compare & analyze',
       links: [
         {
           label: 'Text Difference Viewer',
@@ -168,34 +213,29 @@ export const FOOTER_CONFIG: FooterConfig = {
           description: 'Highlight changes between versions of any content.',
         },
         {
-          label: 'Code Merge',
-          path: '/text-utilities/code-merge',
-          description: 'Reconcile snippets with a clear diff-aware editor.',
+          label: 'Text Similarity',
+          path: '/text-utilities/text-similarity',
+          description: 'Levenshtein distance and similarity percentage.',
         },
         {
-          label: 'Text Reversal & Palindrome',
-          path: '/text-utilities/text-reversal-and-palindrome-checker',
-          description: 'Flip strings and confirm palindromes effortlessly.',
-        },
-      ],
-    },
-    {
-      title: 'Related tools',
-      links: [
-        {
-          label: 'Base64 Encode & Decode',
-          path: '/text-utilities/base64-encode-and-decode',
-          description: 'Convert between plain text and Base64 safely.',
+          label: 'Readability Analyzer',
+          path: '/text-utilities/readability-analyzer',
+          description: 'Flesch Reading Ease and grade-level scores.',
         },
         {
-          label: 'Slug Generator',
-          path: '/text-utilities/slug-generator',
-          description: 'Build SEO-friendly URLs from any phrase.',
+          label: 'Keyword Density',
+          path: '/text-utilities/keyword-density',
+          description: 'Word frequency and SEO keyword analysis.',
         },
         {
-          label: 'Markdown Previewer',
-          path: '/file-viewers/markdown-previewer',
-          description: 'Check formatting before you publish documentation.',
+          label: 'Regex Tester',
+          path: '/text-utilities/regex-tester',
+          description: 'Test patterns and view matches live.',
+        },
+        {
+          label: 'Invisible Character Detector',
+          path: '/text-utilities/invisible-character-detector',
+          description: 'Find zero-width and hidden Unicode characters.',
         },
       ],
     },
@@ -288,6 +328,11 @@ export const FOOTER_CONFIG: FooterConfig = {
     {
       title: 'Format specific tools',
       links: [
+        {
+          label: 'XES Viewer',
+          path: '/file-viewers/xes-viewer',
+          description: 'Explore process-mining event logs with cases and variants.',
+        },
         {
           label: 'Excel Viewer',
           path: '/file-viewers/excel-viewer',
@@ -687,6 +732,41 @@ export const FOOTER_CONFIG: FooterConfig = {
       title: 'Create & customise',
       links: [
         {
+          label: 'HTML to PDF',
+          path: '/pdf-tools/html-to-pdf',
+          description: 'Render HTML with styles and export a print-ready PDF.',
+        },
+        {
+          label: 'Tables to PDF',
+          path: '/pdf-tools/tables-to-pdf',
+          description: 'Export editable tables into formatted PDF documents.',
+        },
+        {
+          label: 'Charts to PDF',
+          path: '/pdf-tools/charts-to-pdf',
+          description: 'Preview charts and export them to PDF.',
+        },
+        {
+          label: 'Resume Generator',
+          path: '/pdf-tools/resume-generator',
+          description: 'Build a professional resume PDF from structured fields.',
+        },
+        {
+          label: 'Invoice Generator',
+          path: '/pdf-tools/invoice-generator',
+          description: 'Create invoices with line items, tax, and totals.',
+        },
+        {
+          label: 'Text to PDF',
+          path: '/pdf-tools/text-to-pdf',
+          description: 'Convert plain text into a formatted PDF document.',
+        },
+        {
+          label: 'Image to PDF',
+          path: '/pdf-tools/image-to-pdf',
+          description: 'Combine multiple images into a single PDF.',
+        },
+        {
           label: 'Create PDF from HTML',
           path: '/pdf-tools/create-pdf-from-html',
           description: 'Export responsive pages into accessible PDFs.',
@@ -700,6 +780,21 @@ export const FOOTER_CONFIG: FooterConfig = {
           label: 'Fill PDF Forms',
           path: '/pdf-tools/fill-pdf-forms',
           description: 'Complete form fields and save persistently.',
+        },
+        {
+          label: 'Add Page Numbers',
+          path: '/pdf-tools/add-page-numbers',
+          description: 'Stamp page numbers with custom position and format.',
+        },
+        {
+          label: 'Barcode to PDF',
+          path: '/pdf-tools/barcode-to-pdf',
+          description: 'Generate a barcode inside a PDF document.',
+        },
+        {
+          label: 'QR Code to PDF',
+          path: '/pdf-tools/qr-code-to-pdf',
+          description: 'Generate a QR code inside a PDF document.',
         },
       ],
     },

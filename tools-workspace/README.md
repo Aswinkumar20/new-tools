@@ -1,105 +1,139 @@
-# ToolsWorkspace
+# EasyToolHub (ToolsWorkspace)
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Free, browser-based toolkit at [easytoolhub.com](https://easytoolhub.com). Nx monorepo: one Angular app + 23 libraries (1 shared shell + 22 feature libs). Processing is client-side.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+**Documentation lives in [`docs/`](./docs/README.md)** — architecture, features, components, APIs, quality/debt, SEO, analytics, and deployment. Do not add new `.md` files outside `docs/` (except this README).
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+---
 
-## Run tasks
+## Tech stack
 
-To run the dev server for your app, use:
+| Layer | Technology |
+| ----- | ---------- |
+| Monorepo | Nx 21.6 |
+| Framework | Angular 20 (standalone) |
+| Language | TypeScript 5.9 |
+| Styling | SCSS |
+| SSR | `@angular/ssr` + Express |
+| Unit tests | Jest |
+| E2E | Playwright |
+
+---
+
+## Prerequisites
+
+- Node.js 18.x or 20.x (LTS)
+- npm 9+
 
 ```sh
+node -v && npm -v
+```
+
+---
+
+## Getting started
+
+```sh
+git clone <repository-url>
+cd tools-workspace
+npm install
+npm start
+# or: npx nx serve tools-site
+```
+
+Open [http://localhost:4200](http://localhost:4200).
+
+---
+
+## Project structure
+
+```
+tools-workspace/
+├── apps/tools-site/         # App shell, routes, SEO, GA, SSR
+├── apps/tools-site-e2e/     # Playwright
+├── libs/                    # Feature libraries (@tools-workspace/*)
+├── docs/                    # Canonical documentation
+├── scripts/                 # Maintenance scripts
+├── nx.json
+├── tsconfig.base.json
+└── README.md
+```
+
+Shared: `features-home` (tagged `type:shared` — nav, toast, assets, i18n, coming-soon).
+
+Feature libs: `text-utilities`, `file-viewers`, `data-converters`, `math-date-utils`, `pdf-tools`, `image-color-tools`, `code-file-tools`, `dev-design-tools`, `testing-tools`, `security-tools`, `media-tools`, `browser-utils`, `fun-tools`, `cad-viewers`, `gis-viewers`, `medical-viewers`, `science-viewers`, `network-viewers`, `process-viewers`, `diagram-viewers`, `data-explorers`, `ml-viewers`.
+
+Import example:
+
+```typescript
+import { Navigation, ToastService } from '@tools-workspace/features-home';
+```
+
+---
+
+## Common commands
+
+```sh
+# Dev (CSR, ~4GB heap via .npmrc / apps/tools-site/.env)
 npx nx serve tools-site
+# or: npm start
+npx nx serve-ssr tools-site
+
+# Production prerender (use a 16GB machine; runs sitemap first via build-prod)
+npx nx run tools-site:generate-sitemap
+npx nx run tools-site:build-prod
+npx nx run tools-site:serve-prerender
+
+# Quality
+npx nx lint tools-site
+npx nx test text-utilities
+npx nx e2e tools-site-e2e
+npx nx graph
+
+# SEO / sitemap (also runs before production build)
+npx nx run tools-site:generate-sitemap
 ```
 
-To create a production bundle:
+Deploy output: `dist/apps/tools-site/browser/`. Details: [docs/guides/deployment.md](./docs/guides/deployment.md).
 
-```sh
-npx nx build tools-site
-```
+---
 
-To see all available targets to run for a project, run:
+## Adding a new tool
 
-```sh
-npx nx show project tools-site
-```
+1. Create component under `libs/<category>/src/lib/component/<tool>/` (plus `utils` / `types` / `constants` / specs as needed).
+2. Export from `libs/<category>/src/index.ts`.
+3. Add a deep `loadComponent` in `apps/tools-site/src/app/routes/<category>.routes.ts` (not the lib barrel).
+4. Run `npx nx run tools-site:generate-sitemap` (updates SEO catalog + sitemap).
+5. Add AutoGA route mapping if you need tool-specific analytics ([docs/guides/analytics.md](./docs/guides/analytics.md)).
+6. Reuse `Navigation`, `ToastService`, `AssetService`, `TooltipDirective` from `@tools-workspace/features-home`.
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+Patterns: [docs/components.md](./docs/components.md), [docs/features.md](./docs/features.md).
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-## Add new projects
+## Status snapshot
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+| Metric | Value |
+| ------ | ----- |
+| Prerender URLs | 387 (home + 22 category indexes + tools) |
+| Coming-soon UIs | media ×4 + file-viewers extras (see [docs/features.md](./docs/features.md)) |
+| Unit specs | ~520 |
 
-Use the plugin's generator to create new projects.
+---
 
-To generate a new application, use:
+## Documentation index
 
-```sh
-npx nx g @nx/angular:app demo
-```
+| Doc | Topic |
+| --- | ----- |
+| [docs/README.md](./docs/README.md) | Full index |
+| [docs/architecture.md](./docs/architecture.md) | Architecture & state |
+| [docs/features.md](./docs/features.md) | Features & flows |
+| [docs/components.md](./docs/components.md) | Component catalog |
+| [docs/api.md](./docs/api.md) | External HTTP / CDN |
+| [docs/quality.md](./docs/quality.md) | Quality, debt, testing |
+| [docs/guides/seo.md](./docs/guides/seo.md) | SEO |
+| [docs/guides/analytics.md](./docs/guides/analytics.md) | Google Analytics |
+| [docs/guides/deployment.md](./docs/guides/deployment.md) | Deploy |
+| [docs/guides/compilation.md](./docs/guides/compilation.md) | Build performance |
 
-To generate a new library, use:
-
-```sh
-npx nx g @nx/angular:lib mylib
-```
-
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-
-
-scp -r * root@72.60.220.37:/var/www/easytoolhub.com/html/
+License: MIT.

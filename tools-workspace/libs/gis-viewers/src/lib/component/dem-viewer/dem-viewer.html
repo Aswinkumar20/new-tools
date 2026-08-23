@@ -1,0 +1,367 @@
+<div class="ctl dem">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="dem-eyebrow">GIS tools</span>
+        <h1>DEM Viewer <span class="dem-live-badge">Local &amp; private</span></h1>
+        <p>
+          Visualize digital elevation GeoTIFF grids — height colormaps, hillshade, stats, and click-to-sample.
+        </p>
+      </header>
+    </div>
+
+    <aside class="dem-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="dem-suggest__body">
+        <p class="dem-suggest__title">{{ suggestion.title }}</p>
+        <p class="dem-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="dem-suggest__actions">
+        <a class="dem-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="dem-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="dem-toolbar" aria-label="DEM viewer controls">
+      <div class="dem-toolbar__group">
+        <label class="sr-only" for="dem-file-upload">Upload DEM GeoTIFF files</label>
+        <input
+          #fileInput
+          id="dem-file-upload"
+          class="dem-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn dem-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload DEM · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample hill DEM"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="dem-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dem-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('geotiff', $event)">
+              <strong>GeoTIFF</strong>
+              <span>Download the original raster</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('metadata-json', $event)">
+              <strong>Metadata JSON</strong>
+              <span>Dimensions, CRS, and tags</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Elevation stats and warnings</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG preview</strong>
+              <span>Current relief render as PNG</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="demFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="dem-files" *ngIf="demFiles.length > 0" aria-label="Loaded DEM files">
+          <div
+            class="dem-files__chip"
+            *ngFor="let file of demFiles; let i = index; trackBy: trackByFileId"
+            [class.dem-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="dem-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="dem-files__name">{{ file.name }}</span>
+              <span class="dem-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="dem-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dem-toolbar__status">
+        <span class="dem-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="dem-workspace"
+      [class.dem-workspace--fullscreen]="isFullscreen"
+      [class.dem-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="dem-panel" aria-label="DEM map">
+        <header class="dem-map-head" *ngIf="currentFile">
+          <div class="dem-map-head__identity">
+            <span class="dem-map-head__file">{{ currentFile.name }}</span>
+            <span class="dem-map-head__meta">
+              {{ stats?.width }}×{{ stats?.height }} · elev
+              {{ formatElev(stats?.elevation?.min) }}–{{ formatElev(stats?.elevation?.max) }}
+            </span>
+          </div>
+          <div class="dem-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="dem-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="dem-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="dem-view-controls__divider"></span>
+            <button
+              type="button"
+              class="dem-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="dem-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="dem-map-wrap" [class.dem-map-wrap--empty]="!currentFile">
+          <div #mapHost class="dem-map" [attr.aria-busy]="loading" aria-label="Interactive DEM map"></div>
+          <div class="dem-empty" *ngIf="!currentFile && !loading">
+            <p class="dem-empty__title">Drop a DEM GeoTIFF here</p>
+            <p class="dem-empty__formats">
+              <span class="dem-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="dem-empty__hint">
+              {{ formatsHint }}. Or load the sample hill. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="dem-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="dem-loading" *ngIf="loading">Loading elevation…</div>
+        </div>
+
+        <div class="dem-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="dem-error" *ngIf="errorMessage" role="alert">
+          <p class="dem-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample DEM
+          </button>
+        </div>
+      </section>
+
+      <aside
+        id="dem-details-sidebar"
+        class="dem-sidebar"
+        aria-label="Elevation details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Elevation overview</span>
+            <span class="dem-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="dem-process-name">{{ stats.title }}</p>
+            <div class="dem-stat-grid" aria-label="Elevation statistics">
+              <div><strong>{{ formatElev(stats.elevation.min) }}</strong><span>Min</span></div>
+              <div><strong>{{ formatElev(stats.elevation.max) }}</strong><span>Max</span></div>
+              <div><strong>{{ formatElev(stats.elevation.mean) }}</strong><span>Mean</span></div>
+              <div><strong>{{ formatElev(stats.elevation.range) }}</strong><span>Range</span></div>
+            </div>
+            <dl class="dem-meta dem-meta--compact">
+              <div><dt>Size</dt><dd>{{ stats.width }}×{{ stats.height }}</dd></div>
+              <div><dt>Bands</dt><dd>{{ stats.samplesPerPixel }}</dd></div>
+              <div><dt>Bounds</dt><dd class="dem-meta__bounds">{{ boundsLabel }}</dd></div>
+              <div *ngIf="stats.crsNote"><dt>CRS</dt><dd>{{ stats.crsNote }}</dd></div>
+            </dl>
+            <p class="dem-sample-elev" *ngIf="sampledElevation">
+              Click sample:
+              <strong>{{ formatElev(sampledElevation.elevation) }}</strong>
+              at {{ sampledElevation.lat | number:'1.4-4' }}, {{ sampledElevation.lng | number:'1.4-4' }}
+            </p>
+            <p class="dem-controls__hint" *ngIf="!sampledElevation">Click the map to sample elevation.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Display</header>
+          <div class="ctl__panel-body">
+            <div class="dem-controls">
+              <label>
+                <span>Colormap</span>
+                <select [value]="colormap" (change)="onColormapChange($event)">
+                  <option *ngFor="let cm of colormaps" [value]="cm">{{ cm }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Display mode</span>
+                <select [value]="displayMode" (change)="onDisplayModeChange($event)">
+                  <option *ngFor="let mode of displayModes" [value]="mode">{{ mode }}</option>
+                </select>
+              </label>
+              <label *ngIf="bandChoices.length > 1">
+                <span>Elevation band</span>
+                <select [value]="bandIndex" (change)="onBandChange($event)">
+                  <option *ngFor="let b of bandChoices" [value]="b">{{ b + 1 }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Hillshade azimuth <span class="dem-opacity-value">{{ hillshadeAzimuth }}°</span></span>
+                <input type="range" min="0" max="360" step="1" [value]="hillshadeAzimuth" (change)="onAzimuthChange($event)" />
+              </label>
+              <label>
+                <span>Hillshade altitude <span class="dem-opacity-value">{{ hillshadeAltitude }}°</span></span>
+                <input type="range" min="0" max="90" step="1" [value]="hillshadeAltitude" (change)="onAltitudeChange($event)" />
+              </label>
+              <label>
+                <span>Opacity <span class="dem-opacity-value">{{ (opacity * 100) | number:'1.0-0' }}%</span></span>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="1"
+                  [value]="opacity * 100"
+                  (input)="onOpacityChange($event)" />
+              </label>
+              <div class="dem-legend" aria-label="Color legend">
+                <div class="dem-legend__bar" [style.background]="legendCss"></div>
+                <div class="dem-legend__labels">
+                  <span>{{ formatElev(stats?.elevation?.min) }}</span>
+                  <span>{{ formatElev(stats?.elevation?.max) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel dem-meta-panel">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body">
+            <table class="dem-meta-table" *ngIf="metaRows.length > 0; else noMeta">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of metaRows; trackBy: trackByMetaKey">
+                  <th scope="row">{{ row.key }}</th>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <ng-template #noMeta>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No metadata rows found.' : 'Upload a DEM GeoTIFF to inspect metadata.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="dem-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help dem-footer-help">
+      <summary>How to use DEM Viewer</summary>
+      <ul>
+        <li>
+          Supported uploads: <code>.tif</code>, <code>.tiff</code>, <code>.geotiff</code> elevation grids (max 40&nbsp;MB).
+        </li>
+        <li>Choose colormap, display mode (elevation / hillshade / shaded relief), and hillshade lighting.</li>
+        <li>Click the map to sample height. Shortcuts: <kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd> <kbd>Esc</kbd>.</li>
+        <li>Export original GeoTIFF, metadata, elevation summary, or PNG preview — all in your browser.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="dem-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop DEM GeoTIFF files to open</p>
+    <p class="dem-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

@@ -50,12 +50,3 @@ export interface BarcodeFormatOption {
   description: string;
 }
 
-export interface JsBarcodeApi {
-  (element: HTMLCanvasElement | string, text: string, options?: Record<string, unknown>): void;
-}
-
-declare global {
-  interface Window {
-    JsBarcode?: JsBarcodeApi;
-  }
-}

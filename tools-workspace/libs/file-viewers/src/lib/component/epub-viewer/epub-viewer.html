@@ -1,0 +1,186 @@
+<div class="ctl ep">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ep-eyebrow">File viewers</span>
+        <h1>EPUB Viewer <span class="ep-live-badge">Local &amp; private</span></h1>
+        <p>Read EPUB chapters, TOC, and typography locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="ep-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ep-suggest__body">
+        <p class="ep-suggest__title">{{ suggestion.title }}</p>
+        <p class="ep-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ep-suggest__actions">
+        <button type="button" class="ep-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="ep-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="ep-toolbar">
+      <div class="ep-toolbar__group">
+        <input #fileInput class="ep-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn ep-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ep-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="ep-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('chapter-txt', $event)">Chapter text</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="ep-files" *ngIf="files.length">
+          <div class="ep-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ep-files__chip--active]="i === currentIndex">
+            <button type="button" class="ep-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="ep-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="ep-toolbar__status"><span class="ep-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="ep-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="ep-workspace" [class.ep-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ep-panel">
+        <header class="ep-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.creator || '—' }} · {{ parsed?.epubVer || '—' }} · {{ filteredChapters.length }} chapters · {{ filteredToc.length }} TOC</span>
+          </div>
+          <div class="ep-view-controls">
+            <ng-container *ngIf="viewMode === 'read'">
+              <button type="button" *ngFor="let family of fontFamilies" [class.is-active]="fontFamily === family.id" (click)="setFontFamily(family.id)">{{ family.label }}</button>
+              <button type="button" *ngFor="let scale of fontScales" [class.is-active]="fontScale === scale.id" (click)="setFontScale(scale.id)">{{ scale.label }}</button>
+            </ng-container>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="ep-map-wrap" [class.ep-map-wrap--empty]="!currentFile">
+          <article class="ep-read" *ngIf="currentFile && viewMode === 'read' && selectedChapter" [style.font-family]="readFontFamilyCss" [style.font-size.px]="readFontPx">
+            <h2>{{ selectedChapter.title }}</h2>
+            <p>{{ selectedChapter.text }}</p>
+          </article>
+          <p class="ep-empty-filter" *ngIf="currentFile && viewMode === 'read' && !selectedChapter">No chapter matches the current filter.</p>
+          <div class="ep-cards" *ngIf="currentFile && viewMode === 'chapters'">
+            <article *ngFor="let chapter of filteredChapters; trackBy: trackByChapter" [class.is-active]="selectedChapter?.id === chapter.id" (click)="selectChapter(chapter.id)">
+              <header>
+                <strong>{{ chapter.title }}</strong>
+                <span>{{ chapter.name }}</span>
+                <span>{{ chapter.wordCount }} words</span>
+              </header>
+              <p>{{ chapter.text }}</p>
+            </article>
+            <p class="ep-empty-filter" *ngIf="parsed && !filteredChapters.length">No chapters match the current filter.</p>
+          </div>
+          <div class="ep-cards" *ngIf="currentFile && viewMode === 'toc'">
+            <article *ngFor="let entry of filteredToc; trackBy: trackByToc" [class.is-active]="selectedToc?.id === entry.id" (click)="selectToc(entry.id)">
+              <header>
+                <strong>{{ entry.label }}</strong>
+                <span>{{ entry.chapter }}</span>
+              </header>
+              <p>{{ entry.href || '—' }}</p>
+            </article>
+            <p class="ep-empty-filter" *ngIf="parsed && !filteredToc.length">No TOC entries match the current filter.</p>
+          </div>
+          <div class="ep-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="ep-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ep-empty" *ngIf="!currentFile && !loading">
+            <p>Drop an EPUB dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="ep-loading" *ngIf="loading">Parsing EPUB dump…</div>
+        </div>
+
+        <div class="ep-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ep-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ep-disclaimer">Education and research preview only — not a substitute for Apple Books, Calibre, or a full EPUB3 kernel. Store-only ZIP OPF/NCX/XHTML and ASCII dumps are supported. Deflate packages are not expanded.</p>
+      </section>
+
+      <aside class="ep-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="ep-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search EPUB</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="ep-search" type="search" placeholder="ch:ch1 toc:Introduction title:ShopRanker (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'read' || viewMode === 'chapters') && filteredChapters.length">
+          <header class="ctl__panel-head">Chapters</header>
+          <div class="ctl__panel-body ep-units">
+            <button type="button" *ngFor="let chapter of filteredChapters; trackBy: trackByChapter" [class.is-active]="selectedChapterId === chapter.id" (click)="selectChapter(chapter.id)">
+              <span>{{ chapter.title }} <small>{{ chapter.name }} · {{ chapter.wordCount }} words</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'toc' || viewMode === 'table') && filteredToc.length">
+          <header class="ctl__panel-head">TOC</header>
+          <div class="ctl__panel-body ep-units">
+            <button type="button" *ngFor="let entry of filteredToc; trackBy: trackByToc" [class.is-active]="selectedTocId === entry.id" (click)="selectToc(entry.id)">
+              <span>{{ entry.label }} <small>{{ entry.chapter }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'read' || viewMode === 'chapters') && selectedChapter">
+          <header class="ctl__panel-head">Selected chapter</header>
+          <div class="ctl__panel-body">
+            <dl class="ep-meta">
+              <div *ngFor="let row of chapterMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'toc' && selectedToc">
+          <header class="ctl__panel-head">Selected TOC</header>
+          <div class="ctl__panel-body">
+            <dl class="ep-meta">
+              <div *ngFor="let row of tocMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ep-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="ep-drop" *ngIf="showDropZone"><p>Drop EPUB dump to preview</p></div>
+  </main>
+</div>

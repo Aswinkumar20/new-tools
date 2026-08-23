@@ -20,11 +20,11 @@ All project documentation lives in this folder. The root [`README.md`](../README
 
 | Metric | Value |
 | ------ | ----- |
-| Feature libraries | 14 |
-| Lazy routes (`loadComponent`) | 162 |
-| Unit specs | ~289 |
+| Libraries | 23 (1 shared + 22 feature) |
+| Lazy routes (`loadComponent`) | 365 |
+| Unit specs | ~520 |
 | Playwright e2e specs | 2 |
-| Confirmed coming-soon UIs | 6 (media ×4, file-viewers video + 3D) |
+| Coming-soon UIs | media ×4 + 19 file-viewers extras |
 
 ## Maintenance rule
 

@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/unit-converter/unit-converter';
 export * from './lib/component/number-to-words/number-to-words';
 export * from './lib/component/percentage-calculator/percentage-calculator';

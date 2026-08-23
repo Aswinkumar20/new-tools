@@ -1,0 +1,200 @@
+<div class="ctl nessus">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="nessus-eyebrow">Network tools</span>
+        <h1>Nessus Report Viewer <span class="nessus-live-badge">Local &amp; private</span></h1>
+        <p>Review Nessus findings locally by host, severity, plugin, and CVE. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="nessus-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="nessus-suggest__body">
+        <p class="nessus-suggest__title">{{ suggestion.title }}</p>
+        <p class="nessus-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="nessus-suggest__actions">
+        <button type="button" class="nessus-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="nessus-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="nessus-toolbar">
+      <div class="nessus-toolbar__group">
+        <input #fileInput class="nessus-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn nessus-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="nessus-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="nessus-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('findings-csv', $event)">Findings CSV</button>
+            <button type="button" (click)="exportAs('hosts-csv', $event)">Hosts CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="nessus-files" *ngIf="files.length">
+          <div class="nessus-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.nessus-files__chip--active]="i === currentIndex">
+            <button type="button" class="nessus-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="nessus-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="nessus-toolbar__status"><span class="nessus-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="nessus-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="nessus-workspace" [class.nessus-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="nessus-panel">
+        <header class="nessus-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ filteredFindings.length }} findings · {{ parsed?.hosts?.length || 0 }} hosts · {{ parsed?.sourceKind }}</span>
+          </div>
+          <div class="nessus-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="nessus-map-wrap" [class.nessus-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="nessus-map" [class.nessus-map--tall]="viewMode === 'hosts'" *ngIf="currentFile && (viewMode === 'hosts' || viewMode === 'severity')"></canvas>
+          <div class="nessus-cards" *ngIf="currentFile && viewMode === 'findings'">
+            <article *ngFor="let finding of filteredFindings; trackBy: trackByFinding" [class.is-active]="selectedFinding?.id === finding.id" (click)="selectFinding(finding.id)">
+              <header>
+                <i class="nessus-swatch" [style.background]="severityTint(finding.severity)"></i>
+                <strong>{{ finding.severity }}</strong>
+                <span>{{ finding.pluginName }}</span>
+              </header>
+              <p>{{ finding.host || finding.ip }} · {{ finding.port }}/{{ finding.protocol }}</p>
+              <p>{{ finding.cve || 'No CVE' }} · CVSS {{ finding.cvss == null ? '—' : finding.cvss }}</p>
+            </article>
+          </div>
+          <div class="nessus-cards" *ngIf="currentFile && viewMode === 'hosts'">
+            <article *ngFor="let host of parsed?.hosts; trackBy: trackByHost" [class.is-active]="selectedHost?.name === host.name" (click)="selectHost(host.name)">
+              <header>
+                <i class="nessus-swatch" [style.background]="host.critical ? severityTint('critical') : host.high ? severityTint('high') : severityTint('info')"></i>
+                <strong>{{ host.name }}</strong>
+                <span>{{ host.count }} findings</span>
+              </header>
+              <p>{{ host.ip || '—' }}</p>
+              <p>crit {{ host.critical }} · high {{ host.high }} · med {{ host.medium }}</p>
+            </article>
+          </div>
+          <div class="nessus-cards" *ngIf="currentFile && viewMode === 'severity'">
+            <article *ngFor="let sev of parsed?.severities" [class.is-active]="query.toLowerCase() === sev.name" (click)="query = sev.name; onFilterChange()">
+              <header>
+                <i class="nessus-swatch" [style.background]="severityTint(sev.name)"></i>
+                <strong>{{ sev.name }}</strong>
+                <span>{{ sev.count }} findings</span>
+              </header>
+            </article>
+          </div>
+          <div class="nessus-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Sev</th>
+                  <th>Host</th>
+                  <th>Port</th>
+                  <th>Plugin</th>
+                  <th>CVSS</th>
+                  <th>CVE</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let finding of filteredFindings; trackBy: trackByFinding" [class.is-active]="selectedFinding?.id === finding.id" (click)="selectFinding(finding.id)">
+                  <td>{{ finding.index + 1 }}</td>
+                  <td><i class="nessus-swatch" [style.background]="severityTint(finding.severity)"></i>{{ finding.severity }}</td>
+                  <td>{{ finding.host || finding.ip }}</td>
+                  <td>{{ finding.port }}/{{ finding.protocol }}</td>
+                  <td>{{ finding.pluginName }}</td>
+                  <td>{{ finding.cvss == null ? '—' : finding.cvss }}</td>
+                  <td>{{ finding.cve || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="nessus-empty-filter" *ngIf="parsed && !filteredFindings.length">No findings match the current filter.</p>
+          </div>
+          <div class="nessus-empty" *ngIf="!currentFile && !loading">
+            <p>Drop Nessus reports here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="nessus-loading" *ngIf="loading">Parsing Nessus report…</div>
+        </div>
+
+        <div class="nessus-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="nessus-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="nessus-disclaimer">Education and research preview only — not a substitute for Tenable Nessus, Security Center, or production vulnerability management.</p>
+      </section>
+
+      <aside class="nessus-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="nessus-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search findings</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="nessus-search" type="search" placeholder="critical host:gw plugin:70658 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'hosts' && parsed?.hosts?.length">
+          <header class="ctl__panel-head">Hosts</header>
+          <div class="ctl__panel-body nessus-units">
+            <button type="button" *ngFor="let host of parsed?.hosts; trackBy: trackByHost" [class.is-active]="selectedHostName === host.name" (click)="selectHost(host.name)">
+              <i class="nessus-swatch" [style.background]="host.critical ? severityTint('critical') : severityTint('high')"></i>
+              <span>{{ host.name }} <small>{{ host.count }} · crit {{ host.critical }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'hosts' && filteredFindings.length">
+          <header class="ctl__panel-head">Findings</header>
+          <div class="ctl__panel-body nessus-units">
+            <button type="button" *ngFor="let finding of filteredFindings; trackBy: trackByFinding" [class.is-active]="selectedId === finding.id" (click)="selectFinding(finding.id)">
+              <i class="nessus-swatch" [style.background]="severityTint(finding.severity)"></i>
+              <span>{{ finding.pluginName }} <small>{{ finding.severity }} · {{ finding.host || finding.ip }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'hosts' && selectedHost">
+          <header class="ctl__panel-head">Selected host</header>
+          <div class="ctl__panel-body">
+            <dl class="nessus-meta">
+              <div *ngFor="let row of hostMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode !== 'hosts' && selectedFinding">
+          <header class="ctl__panel-head">Selected finding</header>
+          <div class="ctl__panel-body">
+            <dl class="nessus-meta">
+              <div *ngFor="let row of findingMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="nessus-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="nessus-drop" *ngIf="showDropZone"><p>Drop Nessus reports to inspect</p></div>
+  </main>
+</div>

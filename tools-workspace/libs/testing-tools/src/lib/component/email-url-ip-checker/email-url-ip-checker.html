@@ -1,179 +1,294 @@
-<div class="eui">
-  <div class="eui__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl tt">
+  <lib-navigation></lib-navigation>
 
-  <section class="eui__hero">
-    <div class="eui__badge">Testing toolkit</div>
-    <h1>Email, URL &amp; IP Checker</h1>
-    <p>
-      Validate email addresses, URLs, and IP addresses. Detect type automatically, see detailed breakdowns, and quickly
-      spot formatting issues.
-    </p>
-
-    @if (hasResults()) {
-      <div class="eui__hero-meta">
-        <div>
-          <span class="eui__meta-label">Total</span>
-          <strong>{{ totalCount() }}</strong>
-        </div>
-        <div>
-          <span class="eui__meta-label">Valid</span>
-          <strong class="eui__meta-value--ok">{{ validCount() }}</strong>
-        </div>
-        <div>
-          <span class="eui__meta-label">Invalid</span>
-          <strong class="eui__meta-value--error">{{ invalidCount() }}</strong>
-        </div>
-        <div>
-          <span class="eui__meta-label">Types</span>
-          <strong>
-            {{ typeCounts().email }} email · {{ typeCounts().url }} URL · {{ typeCounts().ip }} IP ·
-            {{ typeCounts().unknown }} unknown
-          </strong>
-        </div>
-      </div>
-    } @else {
-      <div class="eui__hero-meta eui__hero-meta--placeholder">
-        Paste one or more values below (emails, URLs, IPs) and click "Analyze" to see validation details.
-      </div>
-    }
-  </section>
-
-  <div class="eui__board" [formGroup]="form">
-    <section class="eui__panel eui__panel--input">
-      <header class="eui__card-header">
-        <div>
-          <h2>Input</h2>
-          <p>Enter values to validate.</p>
-        </div>
-        <button type="button" class="btn btn--primary btn--small" (click)="analyze()">Analyze</button>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Email, URL &amp; IP Checker</h1>
+        <p>Validate emails, URLs, and IP addresses — auto-detect type and spot formatting issues.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="eui__alert eui__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Analysis statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ totalCount() }}</span>
+          <span class="ctl__stat-label">Total</span>
         </div>
-      }
-
-      @if (warnings().length) {
-        <div class="eui__alert eui__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ validCount() }}</span>
+          <span class="ctl__stat-label">Valid</span>
         </div>
-      }
-
-      <div class="eui__settings">
-        <div class="eui__setting-group">
-          <label for="mode" class="eui__label">Detection mode</label>
-          <select id="mode" class="eui__select" formControlName="mode">
-            <option value="auto">Auto-detect</option>
-            <option value="email">Email only</option>
-            <option value="url">URL only</option>
-            <option value="ip">IP only</option>
-          </select>
-          <small class="eui__hint">Choose a specific type or let the tool detect it automatically.</small>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ invalidCount() }}</span>
+          <span class="ctl__stat-label">Invalid</span>
         </div>
-
-        <div class="eui__options">
-          <label class="eui__toggle">
-            <input type="checkbox" formControlName="allowMultiple" />
-            <div>
-              <strong>Multiple lines</strong>
-              <span>Each line is treated as a separate value.</span>
-            </div>
-          </label>
-          <label class="eui__toggle">
-            <input type="checkbox" formControlName="ignoreEmpty" />
-            <div>
-              <strong>Ignore empty lines</strong>
-              <span>Skip blank lines during analysis.</span>
-            </div>
-          </label>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ modeLabel() }}</span>
+          <span class="ctl__stat-label">Mode</span>
         </div>
       </div>
+    </div>
 
-      <div class="eui__input-area">
-        <label for="values" class="eui__label">Values</label>
-        <textarea
-          id="values"
-          class="eui__textarea"
-          formControlName="input"
-          rows="8"
-          placeholder="Example:
-john.doe@example.com
-https://example.com/path?query=1
-192.168.0.10"
-        ></textarea>
+    <div class="tt-workflow" aria-label="Checker actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="analyze()"
+          [disabled]="!hasInput()"
+          aria-label="Analyze values"
+          appTooltip="Analyze values"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Analyze</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasInput() && !hasResults()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
-    </section>
+    </div>
 
-    <section class="eui__panel eui__panel--results">
-      <header class="eui__card-header">
-        <div>
-          <h2>Results</h2>
-          <p>Validation status and details for each value.</p>
-        </div>
-      </header>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Input</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyInput()"
+                [disabled]="!hasInput()"
+                aria-label="Copy input"
+                appTooltip="Copy input"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
 
-      @if (hasResults()) {
-        <div class="eui__results-list">
-          @for (result of results(); track result.value + i; let i = $index) {
-            <article class="eui__result-item" [class.eui__result-item--valid]="result.valid" [class.eui__result-item--invalid]="!result.valid">
-              <header class="eui__result-header">
-                <span class="eui__result-index">#{{ i + 1 }}</span>
-                <span class="eui__result-type eui__result-type--{{ result.type }}">
-                  {{ result.type === 'email' ? 'Email' : result.type === 'url' ? 'URL' : result.type === 'ip' ? 'IP' : 'Unknown' }}
-                </span>
-                <span class="eui__result-status">
-                  {{ result.valid ? 'Valid' : 'Invalid' }}
-                </span>
-              </header>
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
 
-              <div class="eui__result-value">
-                <code>{{ result.value }}</code>
+          @if (warnings().length) {
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="eui__suggest" aria-label="Suggested next step">
+              <div class="eui__suggest-body">
+                <p class="eui__suggest-title">{{ suggestion.title }}</p>
+                <p class="eui__suggest-reason">{{ suggestion.reason }}</p>
               </div>
-
-              <div class="eui__result-meta">
-                <span>Mode: {{ result.modeUsed }}</span>
-                <span>Trimmed length: {{ result.trimmed.length }}</span>
+              <div class="eui__suggest-actions">
+                <a class="eui__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="eui__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
               </div>
+            </aside>
+          }
 
-              @if (Object.keys(result.info).length) {
-                <div class="eui__result-info">
-                  @for (entryKey of Object.keys(result.info); track entryKey) {
-                    <div class="eui__info-row">
-                      <span class="eui__info-key">{{ entryKey }}</span>
-                      <span class="eui__info-value">{{ formatInfoValue(result.info[entryKey]) }}</span>
+          <label class="sr-only" for="values">Values to validate</label>
+          <textarea
+            id="values"
+            class="ctl__textarea ctl__textarea--mono"
+            formControlName="input"
+            (input)="onInputChange()"
+            rows="1"
+            spellcheck="false"
+            placeholder="john.doe@example.com&#10;https://example.com/path&#10;192.168.0.10"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Results</span>
+            <div class="ctl__editor-actions">
+              @if (hasResults()) {
+                <span class="ctl__editor-badge">{{ validCount() }}/{{ totalCount() }}</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyOutput()"
+                [disabled]="!hasResults()"
+                aria-label="Copy results"
+                appTooltip="Copy results"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasResults()) {
+            <div class="ctl__editor-body eui-results">
+              @for (result of results(); track result.value + i; let i = $index) {
+                <article
+                  class="eui-result"
+                  [class.eui-result--valid]="result.valid"
+                  [class.eui-result--invalid]="!result.valid">
+                  <header class="eui-result-head">
+                    <span class="eui-result-index">#{{ i + 1 }}</span>
+                    <span class="eui-result-type eui-result-type--{{ result.type }}">
+                      {{
+                        result.type === 'email'
+                          ? 'Email'
+                          : result.type === 'url'
+                            ? 'URL'
+                            : result.type === 'ip'
+                              ? 'IP'
+                              : 'Unknown'
+                      }}
+                    </span>
+                    <span class="eui-result-status">{{ result.valid ? 'Valid' : 'Invalid' }}</span>
+                  </header>
+                  <code class="eui-result-value">{{ result.value }}</code>
+                  <div class="eui-result-meta">
+                    <span>Mode: {{ result.modeUsed }}</span>
+                    <span>Length: {{ result.trimmed.length }}</span>
+                  </div>
+                  @if (infoKeys(result.info).length) {
+                    <div class="eui-info">
+                      @for (entryKey of infoKeys(result.info); track entryKey) {
+                        <div class="eui-info-row">
+                          <span>{{ entryKey }}</span>
+                          <span>{{ formatInfoValue(result.info[entryKey]) }}</span>
+                        </div>
+                      }
                     </div>
                   }
-                </div>
-              }
-
-              @if (result.issues.length) {
-                <ul class="eui__issues-list">
-                  @for (issue of result.issues; track issue) {
-                    <li>{{ issue }}</li>
+                  @if (result.issues.length) {
+                    <ul class="eui-issues">
+                      @for (issue of result.issues; track issue) {
+                        <li>{{ issue }}</li>
+                      }
+                    </ul>
                   }
-                </ul>
-              } @else {
-                <div class="eui__issues-list eui__issues-list--empty">
-                  No issues detected for this value.
-                </div>
+                </article>
               }
-            </article>
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Paste values to analyze — results update as you type.</p>
+            </div>
           }
-        </div>
-      } @else {
-        <div class="eui__empty">Results will appear here after analysis.</div>
-      }
-    </section>
-  </div>
+        </section>
+      </div>
+
+      <details class="tt-options-flyout">
+        <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" />
+            <line x1="4" y1="10" x2="4" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" y2="3" />
+            <line x1="20" y1="21" x2="20" y2="16" />
+            <line x1="20" y1="12" x2="20" y2="3" />
+            <line x1="1" y1="14" x2="7" y2="14" />
+            <line x1="9" y1="8" x2="15" y2="8" />
+            <line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button
+          type="button"
+          class="tt-options-flyout__backdrop"
+          aria-label="Close options panel"
+          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Checker options">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="mode">
+                <span>Detection mode</span>
+                <select id="mode" formControlName="mode" (change)="onOptionChange()">
+                  <option value="auto">Auto-detect</option>
+                  <option value="email">Email only</option>
+                  <option value="url">URL only</option>
+                  <option value="ip">IP only</option>
+                </select>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="allowMultiple" (change)="onOptionChange()" />
+                <div>
+                  <strong>Multiple lines</strong>
+                  <span>Each line is treated as a separate value.</span>
+                </div>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="ignoreEmpty" (change)="onOptionChange()" />
+                <div>
+                  <strong>Ignore empty lines</strong>
+                  <span>Skip blank lines during analysis.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body eui__related">
+              <ul class="eui__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="eui__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Analysis runs <strong>locally</strong> — no values are sent to a server.</p>
+            </div>
+            @if (hasResults()) {
+              <div class="ctl__info-item">
+                <span class="ctl__info-dot"></span>
+                <p>
+                  Types: {{ typeCounts().email }} email · {{ typeCounts().url }} URL ·
+                  {{ typeCounts().ip }} IP · {{ typeCounts().unknown }} unknown
+                </p>
+              </div>
+            }
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste one or more emails, URLs, or IPs — analysis runs automatically as you type.</li>
+        <li>Choose a detection mode or let the tool auto-detect each value.</li>
+        <li>Enable multiple lines to validate a list at once.</li>
+        <li>Use copy icons to grab the input or formatted results summary.</li>
+      </ul>
+    </details>
+  </main>
 </div>

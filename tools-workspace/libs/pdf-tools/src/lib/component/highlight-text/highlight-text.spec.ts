@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { HighlightTextComponent } from './highlight-text';
 
 describe('HighlightTextComponent', () => {
@@ -7,7 +8,8 @@ describe('HighlightTextComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [HighlightTextComponent]
+      imports: [HighlightTextComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(HighlightTextComponent);

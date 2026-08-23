@@ -1,8 +1,5 @@
 import type { FvRelatedToolLink } from '../shared/fv-tool-suggestion.model';
 
-export const EXCEL_SHEETJS_CDN =
-  'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js';
-
 export const EXCEL_SUPPORTED_EXTENSIONS: ReadonlyArray<string> = [
   '.xlsx',
   '.xls',

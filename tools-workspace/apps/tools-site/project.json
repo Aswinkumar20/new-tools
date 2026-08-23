@@ -4,16 +4,39 @@
   "projectType": "application",
   "prefix": "app",
   "sourceRoot": "apps/tools-site/src",
-  "tags": [],
+  "tags": [
+    "type:app",
+    "scope:site"
+  ],
   "targets": {
+    "generate-tool-seo-catalog": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node apps/tools-site/scripts/generate-tool-seo-catalog.js",
+        "description": "Generate per-tool SEO metadata catalog from routes and descriptions"
+      }
+    },
+    "generate-sitemap": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "generate-tool-seo-catalog"
+      ],
+      "options": {
+        "command": "node apps/tools-site/scripts/generate-sitemap.js",
+        "description": "Generate sitemap.xml from application routes"
+      }
+    },
     "build": {
-      "executor": "@angular-devkit/build-angular:browser",
-      "outputs": ["{options.outputPath}"],
+      "executor": "@angular/build:application",
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/apps/tools-site",
-        "index": "apps/tools-site/src/index.html",
-        "main": "apps/tools-site/src/main.ts",
-        "polyfills": ["zone.js"],
+        "browser": "apps/tools-site/src/main.ts",
+        "polyfills": [
+          "zone.js"
+        ],
         "tsConfig": "apps/tools-site/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
         "assets": [
@@ -24,54 +47,147 @@
           },
           {
             "glob": "**/*",
-            "input": "node_modules/monaco-editor",
-            "output": "assets/monaco-editor"
+            "input": "node_modules/monaco-editor/min/vs",
+            "output": "assets/monaco-editor/min/vs"
+          },
+          {
+            "glob": "pdf.worker.min.js",
+            "input": "node_modules/pdfjs-dist/build",
+            "output": "assets/pdfjs"
+          },
+          {
+            "glob": "sitemap.xml",
+            "input": "apps/tools-site/public",
+            "output": "."
+          },
+          {
+            "glob": "robots.txt",
+            "input": "apps/tools-site/public",
+            "output": "."
+          },
+          {
+            "glob": "vercel.json",
+            "input": "apps/tools-site/public",
+            "output": "."
+          },
+          {
+            "glob": ".htaccess",
+            "input": "apps/tools-site/public",
+            "output": "."
+          },
+          {
+            "glob": "404.html",
+            "input": "apps/tools-site/public",
+            "output": "."
           }
         ],
-        "styles": ["apps/tools-site/src/styles.scss"]
+        "styles": [
+          "apps/tools-site/src/styles.scss"
+        ],
+        "allowedCommonJsDependencies": [
+          "leaflet",
+          "shpjs",
+          "@tmcw/togeojson",
+          "jszip",
+          "topojson-client",
+          "sql.js",
+          "geotiff",
+          "bpmn-js",
+          "diagram-js",
+          "diagram-js-direct-editing",
+          "bpmn-moddle",
+          "moddle",
+          "moddle-xml",
+          "min-dash",
+          "min-dom",
+          "tiny-svg",
+          "ids",
+          "inherits-browser",
+          "object-refs",
+          "path-intersection",
+          "didi",
+          "domify",
+          "saxen",
+          "clsx",
+          "htm",
+          "preact",
+          "@bpmn-io/diagram-js-ui",
+          "pako",
+          "mammoth",
+          "xlsx",
+          "pdfjs-dist",
+          "marked",
+          "dompurify",
+          "chart.js",
+          "jspdf",
+          "jspdf-autotable",
+          "html2canvas",
+          "jsbarcode",
+          "qrcode",
+          "jsfive",
+          "pm4js",
+          "tesseract.js",
+          "regenerator-runtime"
+        ],
+        "server": "apps/tools-site/src/main.server.ts",
+        "ssr": {
+          "entry": "apps/tools-site/src/server.ts"
+        }
       },
       "configurations": {
         "production": {
           "budgets": [
             {
               "type": "initial",
-              "maximumWarning": "100mb",
-              "maximumError": "100mb"
+              "maximumWarning": "2mb",
+              "maximumError": "5mb"
             },
             {
               "type": "anyComponentStyle",
-              "maximumWarning": "80mb",
-              "maximumError": "80mb"
+              "maximumWarning": "80kb",
+              "maximumError": "160kb"
             }
           ],
-          "outputHashing": "all"
+          "outputHashing": "all",
+          "prerender": {
+            "discoverRoutes": true,
+            "routesFile": "apps/tools-site/prerender-routes.txt"
+          }
         },
         "development": {
-          "buildOptimizer": false,
           "optimization": false,
-          "vendorChunk": true,
           "extractLicenses": false,
-          "sourceMap": true,
-          "namedChunks": true
+          "sourceMap": false,
+          "ssr": false,
+          "prerender": false
+        },
+        "ssr-dev": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": false,
+          "prerender": false
         }
       },
-      "defaultConfiguration": "production"
+      "defaultConfiguration": "development"
     },
     "serve": {
       "continuous": true,
-      "executor": "@angular-devkit/build-angular:dev-server",
+      "executor": "@angular/build:dev-server",
       "configurations": {
         "production": {
           "buildTarget": "tools-site:build:production"
         },
         "development": {
           "buildTarget": "tools-site:build:development"
+        },
+        "ssr-dev": {
+          "buildTarget": "tools-site:build:ssr-dev"
         }
       },
       "defaultConfiguration": "development"
     },
     "extract-i18n": {
-      "executor": "@angular-devkit/build-angular:extract-i18n",
+      "executor": "@angular/build:extract-i18n",
       "options": {
         "buildTarget": "tools-site:build"
       }
@@ -81,7 +197,9 @@
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
       "options": {
         "jestConfig": "apps/tools-site/jest.config.ts",
         "tsConfig": "apps/tools-site/tsconfig.spec.json"
@@ -96,60 +214,38 @@
         "spa": true
       }
     },
-    "server": {
-      "dependsOn": ["build"],
-      "executor": "@angular-devkit/build-angular:server",
-      "options": {
-        "outputPath": "dist/apps/tools-site/server",
-        "main": "apps/tools-site/src/server.ts",
-        "tsConfig": "apps/tools-site/tsconfig.server.json",
-        "inlineStyleLanguage": "scss"
-      },
-      "configurations": {
-        "production": {
-          "outputHashing": "media"
-        },
-        "development": {
-          "buildOptimizer": false,
-          "optimization": false,
-          "sourceMap": true,
-          "extractLicenses": false,
-          "vendorChunk": true
-        }
-      },
-      "defaultConfiguration": "production"
-    },
     "serve-ssr": {
       "continuous": true,
-      "executor": "@angular-devkit/build-angular:ssr-dev-server",
+      "executor": "@angular/build:dev-server",
       "configurations": {
         "development": {
-          "browserTarget": "tools-site:build:development",
-          "serverTarget": "tools-site:server:development"
+          "buildTarget": "tools-site:build:ssr-dev"
         },
         "production": {
-          "browserTarget": "tools-site:build:production",
-          "serverTarget": "tools-site:server:production"
+          "buildTarget": "tools-site:build:production"
         }
       },
       "defaultConfiguration": "development"
     },
-    "prerender": {
-      "executor": "@angular-devkit/build-angular:prerender",
+    "build-prod": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "generate-sitemap"
+      ],
       "options": {
-        "routes": ["/"]
-      },
-      "configurations": {
-        "development": {
-          "browserTarget": "tools-site:build:development",
-          "serverTarget": "tools-site:server:development"
-        },
-        "production": {
-          "browserTarget": "tools-site:build:production",
-          "serverTarget": "tools-site:server:production"
-        }
-      },
-      "defaultConfiguration": "production"
+        "command": "npx nx build tools-site --configuration=production",
+        "description": "Production prerendered static build (deploy dist/apps/tools-site/browser)"
+      }
+    },
+    "serve-prerender": {
+      "continuous": true,
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "tools-site:build:production",
+        "staticFilePath": "dist/apps/tools-site/browser",
+        "spa": false,
+        "port": 4200
+      }
     }
   }
 }

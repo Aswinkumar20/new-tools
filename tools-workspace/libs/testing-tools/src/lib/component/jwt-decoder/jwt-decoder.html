@@ -1,177 +1,259 @@
-<div class="jwt">
-  <div class="jwt__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl tt">
+  <lib-navigation></lib-navigation>
 
-  <section class="jwt__hero">
-    <div class="jwt__badge">Testing toolkit</div>
-    <h1>JWT Decoder</h1>
-    <p>
-      Decode JSON Web Tokens (JWT) safely in the browser. Inspect header and payload, see base64url decoding, and spot
-      common issues quickly.
-    </p>
-
-    @if (hasToken()) {
-      <div class="jwt__hero-meta">
-        <div>
-          <span class="jwt__meta-label">Token length</span>
-          <strong>{{ form.controls.token.value.length }} chars</strong>
-        </div>
-        <div>
-          <span class="jwt__meta-label">Parts</span>
-          <strong>{{ form.controls.token.value.split('.').length }}</strong>
-        </div>
-        <div>
-          <span class="jwt__meta-label">Pretty print</span>
-          <strong>{{ form.controls.prettyPrint.value ? 'On' : 'Off' }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="jwt__hero-meta jwt__hero-meta--placeholder">
-        Paste a JWT token below and click \"Decode\" to view its header and payload.
-      </div>
-    }
-  </section>
-
-  <div class="jwt__board" [formGroup]="form">
-    <section class="jwt__panel jwt__panel--input">
-      <header class="jwt__card-header">
-        <div>
-          <h2>Token</h2>
-          <p>Paste your JWT here.</p>
-        </div>
-        <button type="button" class="btn btn--primary btn--small" (click)="decode()">Decode</button>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>JWT Decoder</h1>
+        <p>Decode JSON Web Tokens safely — inspect header, payload, and signature.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="jwt__alert jwt__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Token statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ formSnapshot().token.length }}</span>
+          <span class="ctl__stat-label">Length</span>
         </div>
-      }
-
-      @if (warnings().length) {
-        <div class="jwt__alert jwt__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ tokenParts() }}</span>
+          <span class="ctl__stat-label">Parts</span>
         </div>
-      }
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ hasDecoded() ? 'Decoded' : '—' }}</span>
+          <span class="ctl__stat-label">Status</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ prettyPrintOn() ? 'On' : 'Off' }}</span>
+          <span class="ctl__stat-label">Pretty</span>
+        </div>
+      </div>
+    </div>
 
-      <div class="jwt__options">
-        <label class="jwt__toggle">
-          <input type="checkbox" formControlName="prettyPrint" />
-          <div>
-            <strong>Pretty print JSON</strong>
-            <span>Format decoded JSON with indentation.</span>
-          </div>
-        </label>
-        <label class="jwt__toggle">
-          <input type="checkbox" formControlName="showDecoded" />
-          <div>
-            <strong>Show decoded sections</strong>
-            <span>Hide decoded content when unneeded.</span>
-          </div>
-        </label>
+    <div class="tt-workflow" aria-label="Decoder actions">
+      <div class="tt-workflow__group tt-workflow__group--actions">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="decode()"
+          [disabled]="!hasToken()"
+          aria-label="Decode token"
+          appTooltip="Decode token"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span class="ctl__tool-btn-label">Decode</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="clear()"
+          [disabled]="!hasToken() && !hasDecoded()"
+          aria-label="Clear all"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>JWT token</span>
+            <div class="ctl__editor-actions">
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyToken()"
+                [disabled]="!hasToken()"
+                aria-label="Copy token"
+                appTooltip="Copy token"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+
+          @if (errors().length) {
+            <div class="ctl__alert ctl__alert--error" role="alert">
+              <ul>
+                @for (message of errors(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (warnings().length) {
+            <div class="ctl__alert ctl__alert--warning" role="status">
+              <ul>
+                @for (message of warnings(); track message) {
+                  <li>{{ message }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="jwt__suggest" aria-label="Suggested next step">
+              <div class="jwt__suggest-body">
+                <p class="jwt__suggest-title">{{ suggestion.title }}</p>
+                <p class="jwt__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="jwt__suggest-actions">
+                <a class="jwt__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="jwt__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          <label class="sr-only" for="token">JWT token</label>
+          <textarea
+            id="token"
+            class="ctl__textarea ctl__textarea--mono"
+            formControlName="token"
+            (input)="onTokenInput()"
+            rows="1"
+            spellcheck="false"
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"></textarea>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output tt-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Decoded</span>
+            <div class="ctl__editor-actions">
+              @if (hasDecoded()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button
+                type="button"
+                class="ctl__icon-btn"
+                (click)="copyDecoded()"
+                [disabled]="!hasDecoded()"
+                aria-label="Copy decoded JSON"
+                appTooltip="Copy decoded JSON"
+                tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (hasDecoded() && decoded(); as d) {
+            @if (showDecoded()) {
+              <div class="ctl__editor-body jwt-sections">
+                <section class="jwt-section">
+                  <h3>Header</h3>
+                  @if (d.header.error) {
+                    <div class="ctl__alert ctl__alert--error">{{ d.header.error }}</div>
+                  } @else if (d.header.json) {
+                    <pre class="ctl__code">{{ d.header.json }}</pre>
+                  } @else {
+                    <pre class="ctl__code">{{ d.header.raw || '—' }}</pre>
+                  }
+                </section>
+                <section class="jwt-section">
+                  <h3>Payload</h3>
+                  @if (d.payload.error) {
+                    <div class="ctl__alert ctl__alert--error">{{ d.payload.error }}</div>
+                  } @else if (d.payload.json) {
+                    <pre class="ctl__code">{{ d.payload.json }}</pre>
+                  } @else {
+                    <pre class="ctl__code">{{ d.payload.raw || '—' }}</pre>
+                  }
+                </section>
+                <section class="jwt-section">
+                  <h3>Signature</h3>
+                  @if (d.signature.present) {
+                    <pre class="ctl__code">{{ d.signature.raw }}</pre>
+                    <p class="jwt-hint">Shown in base64url form. Signatures are not verified here.</p>
+                  } @else {
+                    <div class="ctl__empty"><p>No signature — may be an unsigned JWT.</p></div>
+                  }
+                </section>
+              </div>
+            } @else {
+              <div class="ctl__empty"><p>Enable "Show decoded" in the sidebar to view sections.</p></div>
+            }
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Paste a token and decode to view header, payload, and signature.</p>
+            </div>
+          }
+        </section>
       </div>
 
-      <div class="jwt__input-area">
-        <label for="token" class="jwt__label">JWT token</label>
-        <textarea
-          id="token"
-          class="jwt__textarea"
-          formControlName="token"
-          rows="6"
-          spellcheck="false"
-          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        ></textarea>
-      </div>
-    </section>
-
-    <section class="jwt__panel jwt__panel--decoded">
-      <header class="jwt__card-header">
-        <div>
-          <h2>Decoded</h2>
-          <p>Header, payload, and signature details.</p>
-        </div>
-      </header>
-
-      @if (hasDecoded() && decoded(); as d) {
-        @if (form.controls.showDecoded.value) {
-          <div class="jwt__sections">
-            <section class="jwt__section">
-              <header class="jwt__section-header">
-                <h3>Header</h3>
-                <span class="jwt__badge--part">Part 1</span>
-              </header>
-
-              @if (d.header.error) {
-                <div class="jwt__section-error">
-                  <strong>Error:</strong>
-                  <span>{{ d.header.error }}</span>
+      <details class="tt-options-flyout">
+        <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Decoder options">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="prettyPrint" (change)="onOptionChange()" />
+                <div>
+                  <strong>Pretty print JSON</strong>
+                  <span>Format decoded JSON with indentation.</span>
                 </div>
-              }
-
-              @if (d.header.json) {
-                <pre class="jwt__code">{{ d.header.json }}</pre>
-              } @else if (!d.header.error && d.header.raw) {
-                <pre class="jwt__code jwt__code--raw">{{ d.header.raw }}</pre>
-              } @else {
-                <div class="jwt__section-empty">No header content decoded.</div>
-              }
-            </section>
-
-            <section class="jwt__section">
-              <header class="jwt__section-header">
-                <h3>Payload</h3>
-                <span class="jwt__badge--part">Part 2</span>
-              </header>
-
-              @if (d.payload.error) {
-                <div class="jwt__section-error">
-                  <strong>Error:</strong>
-                  <span>{{ d.payload.error }}</span>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="showDecoded" />
+                <div>
+                  <strong>Show decoded sections</strong>
+                  <span>Toggle visibility of header, payload, and signature.</span>
                 </div>
-              }
-
-              @if (d.payload.json) {
-                <pre class="jwt__code">{{ d.payload.json }}</pre>
-              } @else if (!d.payload.error && d.payload.raw) {
-                <pre class="jwt__code jwt__code--raw">{{ d.payload.raw }}</pre>
-              } @else {
-                <div class="jwt__section-empty">No payload content decoded.</div>
-              }
-            </section>
-
-            <section class="jwt__section">
-              <header class="jwt__section-header">
-                <h3>Signature</h3>
-                <span class="jwt__badge--part">Part 3</span>
-              </header>
-
-              @if (d.signature.present) {
-                <pre class="jwt__code jwt__code--raw">{{ d.signature.raw }}</pre>
-                <p class="jwt__signature-hint">
-                  Signature is shown in base64url form. This tool does not verify signatures or keys.
-                </p>
-              } @else {
-                <div class="jwt__section-empty">
-                  No signature part found. This may indicate an unsigned JWT (for example, with <code>alg: "none"</code>).
-                </div>
-              }
-            </section>
+              </label>
+            </div>
           </div>
-        } @else {
-          <div class="jwt__section-empty">Decoded sections are hidden. Enable them using the toggle above.</div>
-        }
-      } @else {
-        <div class="jwt__section-empty">Decoded header and payload will appear here after decoding a token.</div>
-      }
-    </section>
-  </div>
+
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body jwt__related">
+              <ul class="jwt__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="jwt__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Decoding runs <strong>locally</strong> — tokens never leave your browser.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>This tool does <strong>not verify</strong> signatures or validate expiry.</p>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Paste a JWT in the token editor — decoding runs automatically as you type.</li>
+        <li>Review <strong>Header</strong>, <strong>Payload</strong>, and <strong>Signature</strong> in the output panel.</li>
+        <li>Use copy icons to grab the raw token or decoded JSON.</li>
+        <li>Toggle pretty print to switch between compact and indented JSON.</li>
+      </ul>
+    </details>
+  </main>
 </div>

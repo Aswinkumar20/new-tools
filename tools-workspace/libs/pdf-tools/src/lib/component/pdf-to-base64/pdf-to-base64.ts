@@ -1,15 +1,21 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-pdf-to-base64',
   standalone: true,
-  templateUrl: './pdf-to-base64.html',
-  styleUrls: ['./pdf-to-base64.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  template: `
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
+  `,
+  imports: [PdfWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PdfToBase64Component {
-  constructor() {}
+  readonly mode: PdfToolMode = 'pdf-to-base64';
+  readonly title = 'PDF to Base64';
+  readonly description = 'Encode PDFs into Base64 strings for APIs or embedding.';
 }

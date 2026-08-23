@@ -1,15 +1,21 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-flatten-pdf-forms',
   standalone: true,
-  templateUrl: './flatten-pdf-forms.html',
-  styleUrls: ['./flatten-pdf-forms.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  template: `
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
+  `,
+  imports: [PdfWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FlattenPdfFormsComponent {
-  constructor() {}
+  readonly mode: PdfToolMode = 'flatten-pdf-forms';
+  readonly title = 'Flatten PDF Forms';
+  readonly description = 'Convert fillable forms into static, non-editable PDFs.';
 }

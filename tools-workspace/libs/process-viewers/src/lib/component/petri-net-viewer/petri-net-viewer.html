@@ -1,0 +1,199 @@
+<div class="ctl pnet">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="pnet-eyebrow">Process tools</span>
+        <h1>Petri Net Viewer <span class="pnet-live-badge">Local &amp; private</span></h1>
+        <p>Simulate Petri net token flow locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="pnet-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="pnet-suggest__body">
+        <p class="pnet-suggest__title">{{ suggestion.title }}</p>
+        <p class="pnet-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="pnet-suggest__actions">
+        <button type="button" class="pnet-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="pnet-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="pnet-toolbar">
+      <div class="pnet-toolbar__group">
+        <input #fileInput class="pnet-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn pnet-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pnet-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="pnet-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('marking-csv', $event)">Marking CSV</button>
+            <button type="button" (click)="exportAs('trace-csv', $event)">Trace CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="pnet-files" *ngIf="files.length">
+          <div class="pnet-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pnet-files__chip--active]="i === currentIndex">
+            <button type="button" class="pnet-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="pnet-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="pnet-toolbar__status"><span class="pnet-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="pnet-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="pnet-workspace" [class.pnet-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="pnet-panel">
+        <header class="pnet-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ currentTokenTotal }} tokens · {{ enabledIds.length }} enabled · {{ trace.length }} steps</span>
+          </div>
+          <div class="pnet-view-controls">
+            <button type="button" (click)="fireStep()" [disabled]="!enabledIds.length">Step</button>
+            <button type="button" (click)="resetSimulation()">Reset</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="pnet-map-wrap" [class.pnet-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="pnet-map" [class.pnet-map--tall]="viewMode === 'graph'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="pnet-cards" *ngIf="currentFile && viewMode === 'graph'">
+            <article *ngFor="let trans of filteredTransitions; trackBy: trackByTransition" [class.is-active]="selectedTransition?.id === trans.id" (click)="selectTransition(trans.id)">
+              <header>
+                <i class="pnet-swatch" [style.background]="transitionTint(isEnabled(trans.id))"></i>
+                <strong>{{ isEnabled(trans.id) ? 'enabled' : 'disabled' }}</strong>
+              </header>
+              <p>{{ trans.name }}</p>
+            </article>
+          </div>
+          <div class="pnet-cards" *ngIf="currentFile && viewMode === 'flow'">
+            <article *ngIf="!trace.length" class="is-active">
+              <header><strong>Initial marking</strong></header>
+              <p>Fire an enabled transition to start the trace.</p>
+            </article>
+            <article *ngFor="let step of trace; trackBy: trackByStep" [class.is-active]="selectedStep === step.step" (click)="selectStep(step.step)">
+              <header><strong>Step {{ step.step }}</strong></header>
+              <p>{{ step.transitionName }}</p>
+              <p>{{ step.marking }}</p>
+            </article>
+          </div>
+          <div class="pnet-cards" *ngIf="currentFile && viewMode === 'tokens'">
+            <article *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlace?.id === place.id" (click)="selectPlace(place.id)">
+              <header>
+                <i class="pnet-swatch" [style.background]="placeTint(tokensFor(place))"></i>
+                <strong>{{ tokensFor(place) }} now</strong>
+                <span>init {{ place.initialTokens }}</span>
+              </header>
+              <p>{{ place.name }}</p>
+            </article>
+          </div>
+          <div class="pnet-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Place</th>
+                  <th>Now</th>
+                  <th>Initial</th>
+                  <th>In</th>
+                  <th>Out</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlace?.id === place.id" (click)="selectPlace(place.id)">
+                  <td>{{ place.index + 1 }}</td>
+                  <td>{{ place.name }}</td>
+                  <td><i class="pnet-swatch" [style.background]="placeTint(tokensFor(place))"></i>{{ tokensFor(place) }}</td>
+                  <td>{{ place.initialTokens }}</td>
+                  <td>{{ place.inCount }}</td>
+                  <td>{{ place.outCount }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="pnet-empty-filter" *ngIf="parsed && !filteredPlaces.length">No places match the current filter.</p>
+          </div>
+          <div class="pnet-empty" *ngIf="!currentFile && !loading">
+            <p>Drop Petri nets here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="pnet-loading" *ngIf="loading">Parsing Petri net…</div>
+        </div>
+
+        <div class="pnet-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pnet-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pnet-disclaimer">Education and research preview only — not a substitute for PIPE, WoPeD, or production Petri-net simulators.</p>
+      </section>
+
+      <aside class="pnet-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="pnet-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search net</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="pnet-search" type="search" placeholder="enabled marked place:Idle (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'graph' || viewMode === 'flow') && filteredTransitions.length">
+          <header class="ctl__panel-head">Transitions</header>
+          <div class="ctl__panel-body pnet-units">
+            <button type="button" *ngFor="let trans of filteredTransitions; trackBy: trackByTransition" [class.is-active]="selectedTransitionId === trans.id" (click)="selectTransition(trans.id)">
+              <i class="pnet-swatch" [style.background]="transitionTint(isEnabled(trans.id))"></i>
+              <span>{{ trans.name }} <small>{{ isEnabled(trans.id) ? 'enabled' : 'disabled' }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && filteredPlaces.length">
+          <header class="ctl__panel-head">Places</header>
+          <div class="ctl__panel-body pnet-units">
+            <button type="button" *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlaceId === place.id" (click)="selectPlace(place.id)">
+              <i class="pnet-swatch" [style.background]="placeTint(tokensFor(place))"></i>
+              <span>{{ place.name }} <small>{{ tokensFor(place) }} tokens</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'graph' || viewMode === 'flow') && selectedTransition">
+          <header class="ctl__panel-head">Selected transition</header>
+          <div class="ctl__panel-body">
+            <dl class="pnet-meta">
+              <div *ngFor="let row of transitionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && selectedPlace">
+          <header class="ctl__panel-head">Selected place</header>
+          <div class="ctl__panel-body">
+            <dl class="pnet-meta">
+              <div *ngFor="let row of placeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pnet-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="pnet-drop" *ngIf="showDropZone"><p>Drop Petri nets to simulate</p></div>
+  </main>
+</div>

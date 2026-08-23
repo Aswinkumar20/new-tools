@@ -1,8 +1,5 @@
 import type { CftToolSuggestion } from '../shared/cft-tool-suggestion.model';
-import {
-  MARKDOWN_TO_PDF_CDN,
-  MARKDOWN_TO_PDF_FILENAME
-} from '../constants/markdown-to-pdf.constants';
+import { MARKDOWN_TO_PDF_FILENAME } from '../constants/markdown-to-pdf.constants';
 import type { MarkdownPdfOptions } from '../types/markdown-to-pdf.types';
 import { looksLikeHtmlSource } from './minifier-common.utils';
 
@@ -94,17 +91,7 @@ export function htmlToPlainText(html: string): string {
 }
 
 export async function loadMarkdownToPdfJsPdf(): Promise<void> {
-  if ((window as Window & { jspdf?: unknown }).jspdf) {
-    return;
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = MARKDOWN_TO_PDF_CDN;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load jsPDF library'));
-    document.head.appendChild(script);
-  });
+  await import('jspdf');
 }
 
 interface JsPdfLike {
@@ -128,16 +115,13 @@ export async function generateMarkdownPdf(
   html: string,
   options: MarkdownPdfOptions
 ): Promise<void> {
-  await loadMarkdownToPdfJsPdf();
-
-  const jspdfLib = (window as Window & { jspdf?: { jsPDF: new (opts: Record<string, unknown>) => JsPdfLike } })
-    .jspdf;
-  if (!jspdfLib?.jsPDF) {
+  const jspdfMod = await import('jspdf');
+  const JsPdfCtor = jspdfMod.jsPDF;
+  if (!JsPdfCtor) {
     throw new Error('jsPDF library not loaded');
   }
 
-  const { jsPDF } = jspdfLib;
-  const doc = new jsPDF({
+  const doc = new JsPdfCtor({
     orientation: options.orientation,
     unit: 'mm',
     format: options.pageSize

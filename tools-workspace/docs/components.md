@@ -24,7 +24,9 @@ Standalone Angular components (`prefix: lib`). Most tools have **no `@Input`/`@O
 | `ToastContainer` / `Toast` | `lib-toast-container` / `lib-toast` | Toast not in public index |
 | `ToastService` | root | BehaviorSubject bus |
 | `AssetService` | root | Base-href-safe `/assets` |
-| `LanguageService` / `TranslationService` | root | Not re-exported from `index.ts` |
+| `LanguageService` / `TranslationService` | root | Re-exported from `index.ts` |
+| `TranslatePipe` / `TranslateDirective` | `translate` / `[appTranslate]` | Re-exported from `index.ts` |
+| `ComingSoonPageComponent` | `lib-coming-soon-page` | Shared placeholder; configs in `constants/coming-soon-tools.ts` |
 | `TooltipDirective` | `appTooltip` | Widely used |
 
 ## Shared bases
@@ -50,10 +52,10 @@ Thin route components only set those inputs.
 
 `base64EncodeAndDecode`, `binaryTextConverter`, `codeMerge`, `extractEmailsUrls`, `findAndReplace`, `hexEncodeDecode`, `htmlTagStripper`, `invisibleCharacterDetector`, `jsonStringEscapeUnescape`, `keywordDensity`, `lineNumberTool`, `morseCodeConverter`, `pakoEncodeAndDecode`, `readabilityAnalyzer`, `regexTester`, `removeDuplicateLines`, `rot13Cipher`, `slugGenerator`, `sortLines`, `splitJoinText`, `textCaseConvertor`, `textDifferrence` (folder typo), `textReverserAndPalindromeChecker`, `textSimilarity`, `textToASCII`, `trimNormalizeWhitespace`, `unicodeEscapeUnescape`, `urlEncodeAndDecode` (no separate utils/types folders), `wordsAndCharacterCounter`, `wordWrapUnwrap`.
 
-### file-viewers (13)
+### file-viewers (25 live)
 
-OK: image, pdf, word, excel, powerpoint, text, markdown, archive, font, log, audio.  
-**Soon:** `video-player`, `3d-model-viewer`.
+OK: image, pdf, word, excel, powerpoint, text, markdown, archive, font, log, audio/video, 3D, ebooks, SVG/PSD/AI/HEIC/RAW/TIFF, OpenDocument, RTF, XES.  
+**Soon (shared page):** subtitle, MIDI, MusicXML, APK/IPA, ELF/PE, spectra, game/Unity/Minecraft, NFT/contract, invoice/audit, Figma/Sketch/InDesign.
 
 ### data-converters (8) — all OK
 
@@ -88,6 +90,20 @@ All OK — see `libs/<name>/src/lib/component/`.
 ### media-tools (5)
 
 `voice-recorder` OK; others **Soon**.
+
+### Newer viewer libs
+
+| Library | Live tools |
+| ------- | ---------- |
+| `cad-viewers` | 29 |
+| `gis-viewers` | 20 |
+| `medical-viewers` | 18 |
+| `science-viewers` | 20 |
+| `network-viewers` | 17 |
+| `process-viewers` | 15 |
+| `diagram-viewers` | 29 |
+| `data-explorers` | 15 |
+| `ml-viewers` | 9 |
 
 ---
 

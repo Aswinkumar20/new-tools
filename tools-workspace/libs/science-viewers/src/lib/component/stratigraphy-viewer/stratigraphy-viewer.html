@@ -1,0 +1,167 @@
+<div class="ctl strat">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="strat-eyebrow">Science tools</span>
+        <h1>Stratigraphy Viewer <span class="strat-live-badge">Local &amp; private</span></h1>
+        <p>Inspect stratigraphic columns locally with thickness, chronostratigraphy, and correlation. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="strat-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="strat-suggest__body">
+        <p class="strat-suggest__title">{{ suggestion.title }}</p>
+        <p class="strat-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="strat-suggest__actions">
+        <button type="button" class="strat-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="strat-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="strat-toolbar">
+      <div class="strat-toolbar__group">
+        <input #fileInput class="strat-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn strat-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="strat-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="strat-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('units-csv', $event)">Units CSV</button>
+            <button type="button" (click)="exportAs('chrono-csv', $event)">Chrono CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="strat-files" *ngIf="files.length">
+          <div class="strat-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.strat-files__chip--active]="i === currentIndex">
+            <button type="button" class="strat-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="strat-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="strat-toolbar__status"><span class="strat-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="strat-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="strat-workspace" [class.strat-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="strat-panel">
+        <header class="strat-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.name }} · {{ columns.length }} columns · {{ filteredUnits.length }} units · {{ parsed?.ageMin }}–{{ parsed?.ageMax }} {{ parsed?.timeUnit }}</span>
+          </div>
+          <div class="strat-view-controls">
+            <button type="button" *ngIf="columns.length > 1 && viewMode !== 'correlation'" (click)="prevColumn()">Prev col</button>
+            <button type="button" *ngIf="columns.length > 1 && viewMode !== 'correlation'" (click)="nextColumn()">Next col</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="strat-filters" *ngIf="currentFile && columns.length > 1 && viewMode !== 'correlation'">
+          <button type="button" *ngFor="let col of columns; let i = index; trackBy: trackByColumn" [class.is-active]="selectedColumnIndex === i" (click)="selectColumn(i)">{{ col.name }}</button>
+        </div>
+
+        <div #mapWrap class="strat-map-wrap" [class.strat-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="strat-map" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="strat-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>Unit</th>
+                  <th>Lithology</th>
+                  <th>Period</th>
+                  <th>Age top</th>
+                  <th>Age base</th>
+                  <th>Thick</th>
+                  <th>Hiatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let unit of filteredUnits; trackBy: trackByUnit" [class.is-active]="selectedUnit?.id === unit.id" (click)="selectUnit(unit.id)">
+                  <td><i class="strat-swatch" [style.background]="unit.color"></i>{{ unit.name }}</td>
+                  <td>{{ unit.lithology || '—' }}</td>
+                  <td>{{ unit.period || '—' }}</td>
+                  <td>{{ unit.ageTop }}</td>
+                  <td>{{ unit.ageBase }}</td>
+                  <td>{{ unit.thickness }}</td>
+                  <td>{{ unit.unconformity ? 'yes' : 'no' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="strat-empty-filter" *ngIf="parsed && !filteredUnits.length">No units match the current search.</p>
+          </div>
+          <div class="strat-empty" *ngIf="!currentFile && !loading">
+            <p>Drop stratigraphic columns here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="strat-loading" *ngIf="loading">Parsing stratigraphy…</div>
+        </div>
+
+        <div class="strat-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="strat-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="strat-disclaimer">Education and research preview only — not a substitute for published chronostratigraphic charts.</p>
+      </section>
+
+      <aside class="strat-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="strat-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search units</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="strat-search" type="search" placeholder="Search name / period (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredUnits.length">
+          <header class="ctl__panel-head">Units</header>
+          <div class="ctl__panel-body strat-units">
+            <button type="button" *ngFor="let unit of filteredUnits; trackBy: trackByUnit" [class.is-active]="selectedUnitId === unit.id" (click)="selectUnit(unit.id)">
+              <i class="strat-swatch" [style.background]="unit.color"></i>
+              <span>{{ unit.name }} <small>{{ unit.period }}</small></span>
+              <label (click)="$event.stopPropagation()"><input type="checkbox" [checked]="visibleIds.has(unit.id)" (change)="toggleUnit(unit.id)" /> show</label>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedUnit">
+          <header class="ctl__panel-head">Selected unit</header>
+          <div class="ctl__panel-body">
+            <dl class="strat-meta">
+              <div *ngFor="let row of unitMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="markers.length">
+          <header class="ctl__panel-head">Markers</header>
+          <div class="ctl__panel-body">
+            <dl class="strat-meta">
+              <div *ngFor="let marker of markers"><dt>{{ marker.name }}</dt><dd>{{ marker.age }} {{ parsed?.timeUnit }} · {{ marker.kind }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="strat-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="strat-drop" *ngIf="showDropZone"><p>Drop stratigraphic columns to preview</p></div>
+  </main>
+</div>

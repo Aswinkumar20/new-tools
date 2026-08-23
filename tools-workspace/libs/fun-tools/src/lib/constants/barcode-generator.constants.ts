@@ -1,9 +1,6 @@
 import type { FtRelatedToolLink } from '../shared/ft-tool-suggestion.model';
 import type { BarcodeFormatOption, BarcodeOptions } from '../types/barcode-generator.types';
 
-export const BARCODE_JSBARCODE_CDN =
-  'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js';
-
 export const BARCODE_DEFAULT_OPTIONS: BarcodeOptions = {
   text: '123456789012',
   format: 'CODE128',

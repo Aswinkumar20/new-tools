@@ -1,0 +1,279 @@
+<div class="ctl in data-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="in-eyebrow">Data explorers</span>
+        <h1>INI Viewer <span class="in-live-badge">Local &amp; private</span></h1>
+        <p>Browse INI sections, flattened keys, and preview rows locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="INI Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="in-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="in-suggest__body">
+        <p class="in-suggest__title">{{ suggestion.title }}</p>
+        <p class="in-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="in-suggest__actions">
+        <button type="button" class="in-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="in-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="in-toolbar" role="toolbar" aria-label="INI Viewer actions">
+      <div class="in-toolbar__group">
+        <input #fileInput class="in-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn in-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="in-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="in-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="in-files" *ngIf="files.length">
+          <div class="in-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.in-files__chip--active]="i === currentIndex">
+            <button type="button" class="in-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="in-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="in-tab-bar" *ngIf="currentFile" role="tablist" aria-label="INI views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="in-toolbar__status"><span class="in-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="in-workspace" [class.in-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="in-panel">
+        <header class="in-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.sections?.length || 0 }} sections · {{ selectedSection?.name || '—' }} · {{ filteredKeys.length }} keys · {{ filteredRows.length }} rows</span>
+          </div>
+          <div class="in-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="in-map-wrap">
+          <canvas #canvasHost class="in-map" [class.in-map--tall]="viewMode === 'sections'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="in-cards" *ngIf="currentFile && viewMode === 'keys'">
+            <article *ngFor="let column of filteredKeys; trackBy: trackByKey" [class.is-active]="selectedKey?.id === column.id" (click)="selectKey(column.id)" (keydown.enter)="selectKey(column.id)" (keydown.space)="$event.preventDefault(); selectKey(column.id)" tabindex="0" role="button">
+              <header>
+                <i class="in-swatch" [style.background]="tint(column.type, column.index)"></i>
+                <strong>{{ column.name }}</strong>
+                <span>{{ column.type }}</span>
+              </header>
+              <p>{{ column.section || '(root)' }} · {{ column.path }} · {{ column.value }}</p>
+            </article>
+            <p class="in-empty-filter" *ngIf="parsed && !filteredKeys.length">No keys match the current filter.</p>
+          </div>
+          <div class="in-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0" role="button">
+              <header>
+                <i class="in-swatch" [style.background]="tint('number', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowPreview(row) }}</p>
+            </article>
+            <p class="in-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="in-cards" *ngIf="currentFile && viewMode === 'sections'">
+            <article *ngFor="let dbTable of filteredSections; let i = index; trackBy: trackBySection" [class.is-active]="selectedSectionIndex === i" (click)="selectSection(i)" (keydown.enter)="selectSection(i)" (keydown.space)="$event.preventDefault(); selectSection(i)" tabindex="0" role="button">
+              <header>
+                <i class="in-swatch" [style.background]="tint(dbTable.kind, i)"></i>
+                <strong>{{ dbTable.name }}</strong>
+                <span>{{ dbTable.kind }}</span>
+              </header>
+              <p>{{ dbTable.keyCount }} keys · {{ dbTable.numRows || dbTable.rows.length }} rows</p>
+            </article>
+            <p class="in-empty-filter" *ngIf="parsed && !filteredSections.length">No sections match the current filter.</p>
+          </div>
+          <div class="in-grid" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredTableKeys; trackBy: trackByKey">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)" (keydown.enter)="selectRow(i)" (keydown.space)="$event.preventDefault(); selectRow(i)" tabindex="0">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredTableKeys; trackBy: trackByKey">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="in-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="in-empty" *ngIf="!currentFile && !loading">
+            <p>Drop an INI file here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn in-primary-action" (click)="openFilePicker()">Upload file</button>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="in-loading" *ngIf="loading" role="status" aria-live="polite">Parsing INI…</div>
+        </div>
+
+        <div class="in-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="in-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="in-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Python configparser or inih. Interpolation is not expanded.</p>
+      </section>
+
+      <aside class="in-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="in-empty-panel">Upload INI or load the sample to see overview, schema, and preview rows here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="in-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search INI</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="in-search" type="search" aria-label="Search INI contents" placeholder="Search columns, types, or values (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="in-search-hint">Try <code>col:name</code>, <code>type:int</code>, or a cell value. Press <kbd>/</kbd> to focus.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="filteredSections.length" open>
+          <summary class="ctl__panel-head">Sections</summary>
+          <div class="ctl__panel-body in-units">
+            <button type="button" *ngFor="let dbTable of filteredSections; let i = index; trackBy: trackBySection" [class.is-active]="selectedSectionIndex === i" (click)="selectSection(i)">
+              <i class="in-swatch" [style.background]="tint(dbTable.kind, i)"></i>
+              <span>{{ dbTable.name }} <small>{{ dbTable.kind }} · {{ dbTable.keyCount }} keys · {{ dbTable.numRows || dbTable.rows.length }} rows</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length" open>
+          <summary class="ctl__panel-head">Rows</summary>
+          <div class="ctl__panel-body in-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="in-swatch" [style.background]="tint('number', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowPreview(row) }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'keys' && filteredKeys.length" open>
+          <summary class="ctl__panel-head">Keys</summary>
+          <div class="ctl__panel-body in-units">
+            <button type="button" *ngFor="let column of filteredKeys; trackBy: trackByKey" [class.is-active]="selectedKeyId === column.id" (click)="selectKey(column.id)">
+              <i class="in-swatch" [style.background]="tint(column.type, column.index)"></i>
+              <span>{{ column.name }} <small>{{ column.type }} · {{ column.section || '(root)' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'keys' && selectedKey" open>
+          <summary class="ctl__panel-head">Selected key</summary>
+          <div class="ctl__panel-body">
+            <dl class="in-meta">
+              <div *ngFor="let row of keyMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedSection" open>
+          <summary class="ctl__panel-head">Section details</summary>
+          <div class="ctl__panel-body">
+            <dl class="in-meta">
+              <div *ngFor="let row of sectionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && selectedRow" open>
+          <summary class="ctl__panel-head">Selected row</summary>
+          <div class="ctl__panel-body">
+            <dl class="in-meta">
+              <div *ngFor="let row of selectedRowEntries"><dt>{{ row.key }}</dt><dd>{{ row.value || '—' }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="in-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help de-footer-help">
+      <summary>How to use INI Viewer</summary>
+      <ol class="de-help-steps">
+        <li class="de-help-step">
+          <span class="de-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">2</span>
+          <h3>Browse</h3>
+          <p>Switch schema, preview, and table views. Use the side panel to inspect columns, rows, and metadata.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">3</span>
+          <h3>Search</h3>
+          <p>Filter with tokens like <code>col:name</code> or <code>type:int</code>. Press <kbd>/</kbd> to focus search.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="de-help-step">
+          <span class="de-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native engine.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="in-drop" *ngIf="showDropZone"><p>Drop INI to preview</p></div>
+</div>

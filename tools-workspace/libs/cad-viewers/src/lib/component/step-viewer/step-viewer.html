@@ -1,0 +1,302 @@
+<div class="ctl st cad-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="st-eyebrow">CAD viewers</span>
+        <h1>STEP Viewer <span class="st-live-badge">Local &amp; private</span></h1>
+        <p>Inspect ISO 10303 STEP solids, products, and measurements locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="STEP Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="st-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="st-suggest__body">
+        <p class="st-suggest__title">{{ suggestion.title }}</p>
+        <p class="st-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="st-suggest__actions">
+        <button type="button" class="st-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="st-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="st-toolbar">
+      <div class="st-toolbar__group">
+        <input #fileInput class="st-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn st-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="st-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="st-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="st-files" *ngIf="files.length">
+          <div class="st-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.st-files__chip--active]="i === currentIndex">
+            <button type="button" class="st-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="st-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="st-tab-bar" *ngIf="currentFile" role="tablist">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="st-toolbar__status"><span class="st-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="st-workspace" [class.st-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="st-panel" #viewerPanel>
+        <header class="st-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.schema || '—' }} · {{ parsed?.units || 'm' }} · {{ filteredSolids.length }} solids · {{ filteredMeasurements.length }} meas</span>
+            <p class="st-view-hint" *ngIf="viewMode !== 'table'">Drag to rotate · click to select · wheel zoom · <kbd>0</kbd> fit</p>
+          </div>
+          <div class="st-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1 / 1.2)" [disabled]="!parsed" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="st-map-wrap">
+          <canvas
+            #canvasHost
+            class="st-map"
+            [class.st-map--rotating]="rotating"
+            *ngIf="currentFile && viewMode !== 'table'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp($event)"
+            (pointerleave)="onCanvasPointerUp($event)"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="st-cards" *ngIf="currentFile && viewMode === 'solids'">
+            <article *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
+              <header>
+                <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
+                <strong>{{ solid.name }}</strong>
+                <span>{{ solid.kind }}</span>
+                <button type="button" class="st-eye" (click)="toggleSolidVisible(solid.id, $event)" [attr.aria-label]="isSolidHidden(solid.id) ? 'Show' : 'Hide'" [appTooltip]="isSolidHidden(solid.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isSolidHidden(solid.id) ? 'Show' : 'Hide' }}</button>
+              </header>
+              <p>vol {{ solid.volume }} · {{ solid.kind === 'cylinder' ? 'r ' + solid.r + ' · h ' + solid.h : solid.sx + ' × ' + solid.sy + ' × ' + solid.sz }}</p>
+            </article>
+            <p class="st-empty-filter" *ngIf="parsed && !filteredSolids.length">No solids match the current filter.</p>
+          </div>
+          <div class="st-cards" *ngIf="currentFile && viewMode === 'measurements'">
+            <article *ngFor="let meas of filteredMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeas?.id === meas.id" tabindex="0" role="button" (click)="selectMeas(meas.id)" (keydown.enter)="selectMeas(meas.id)" (keydown.space)="selectMeas(meas.id); $event.preventDefault()">
+              <header>
+                <i class="st-swatch" [style.background]="tint(meas.type, meas.index)"></i>
+                <strong>{{ meas.name }}</strong>
+                <span>{{ meas.type }}</span>
+              </header>
+              <p>{{ meas.label || meas.value }} {{ meas.unit }}</p>
+            </article>
+            <p class="st-empty-filter" *ngIf="parsed && !filteredMeasurements.length">No measurements match the current filter.</p>
+          </div>
+          <div class="st-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let product of filteredProducts; trackBy: trackByProduct" [class.is-active]="false">
+              <header>
+                <i class="st-swatch" [style.background]="tint('product', product.index)"></i>
+                <strong>{{ product.name }}</strong>
+                <span>product</span>
+              </header>
+              <p>{{ product.description || '—' }}</p>
+            </article>
+            <article *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
+              <header>
+                <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
+                <strong>{{ solid.name }}</strong>
+                <span>{{ solid.kind }}</span>
+              </header>
+              <p>vol {{ solid.volume }}</p>
+            </article>
+            <p class="st-empty-filter" *ngIf="parsed && !filteredProducts.length && !filteredSolids.length">No products or solids match the current filter.</p>
+          </div>
+          <div class="st-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="st-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="st-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a STEP dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="st-loading" *ngIf="loading">Parsing STEP dump…</div>
+        </div>
+
+        <div class="st-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="st-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="st-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for OCCT, FreeCAD, or a full STEP AP214/AP242 translator. Binary STEP is not expanded; use ASCII STEP or a JSON dump.</p>
+      </section>
+
+      <aside class="st-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="st-empty-panel">Upload a file or load the sample to inspect the model here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="st-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search model</summary>
+          <div class="ctl__panel-body">
+            <div class="st-search-row">
+              <input #searchInput class="st-search" type="search" placeholder="solid:column kind:cylinder meas:shop-width (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+              <button type="button" class="ctl__icon-btn" *ngIf="query" (click)="clearSearch()" aria-label="Clear search" appTooltip="Clear search" tooltipPosition="top"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" /></button>
+            </div>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'solids' && filteredSolids.length" open>
+          <summary class="ctl__panel-head">Solids</summary>
+          <div class="ctl__panel-body st-units">
+            <button type="button" *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
+              <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
+              <span>{{ solid.name }} <small>{{ solid.kind }} · vol {{ solid.volume }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'measurements' && filteredMeasurements.length" open>
+          <summary class="ctl__panel-head">Measurements</summary>
+          <div class="ctl__panel-body st-units">
+            <button type="button" *ngFor="let meas of filteredMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeasId === meas.id" (click)="selectMeas(meas.id)">
+              <i class="st-swatch" [style.background]="tint(meas.type, meas.index)"></i>
+              <span>{{ meas.name }} <small>{{ meas.label || meas.value }} {{ meas.unit }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredSolids.length" open>
+          <summary class="ctl__panel-head">Solids</summary>
+          <div class="ctl__panel-body st-units">
+            <button type="button" *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
+              <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
+              <span>{{ solid.name }} <small>{{ solid.kind }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'solids' || viewMode === 'preview') && selectedSolid" open>
+          <summary class="ctl__panel-head">Selected solid</summary>
+          <div class="ctl__panel-body">
+            <dl class="st-meta">
+              <div *ngFor="let row of solidMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'measurements' && selectedMeas" open>
+          <summary class="ctl__panel-head">Selected measurement</summary>
+          <div class="ctl__panel-body">
+            <dl class="st-meta">
+              <div *ngFor="let row of measMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed && !hasSelection" open>
+          <summary class="ctl__panel-head">Selection</summary>
+          <div class="ctl__panel-body">
+            <p class="st-empty-panel">Click the model or a tree item to inspect properties.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="st-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help cad-footer-help">
+      <summary>How to use STEP Viewer</summary>
+      <ol class="cad-help-steps">
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Drag to rotate, click to select, wheel zoom, or use Fit / Reset. Shortcuts: <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> <kbd>/</kbd>.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Search and select items to inspect properties in the side panel.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native CAD kernel.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="st-drop" *ngIf="showDropZone"><p>Drop STEP dump to preview</p></div>
+</div>

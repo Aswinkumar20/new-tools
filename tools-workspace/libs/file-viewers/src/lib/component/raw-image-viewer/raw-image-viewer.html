@@ -1,0 +1,186 @@
+<div class="ctl rw">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="rw-eyebrow">File viewers</span>
+        <h1>RAW Image Viewer <span class="rw-live-badge">Local &amp; private</span></h1>
+        <p>Inspect camera RAW EXIF, Bayer channels, and demosaic preview locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="rw-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="rw-suggest__body">
+        <p class="rw-suggest__title">{{ suggestion.title }}</p>
+        <p class="rw-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="rw-suggest__actions">
+        <button type="button" class="rw-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="rw-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="rw-toolbar">
+      <div class="rw-toolbar__group">
+        <input #fileInput class="rw-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn rw-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="rw-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="rw-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="rw-files" *ngIf="files.length">
+          <div class="rw-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.rw-files__chip--active]="i === currentIndex">
+            <button type="button" class="rw-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="rw-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="rw-toolbar__status"><span class="rw-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="rw-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="rw-workspace" [class.rw-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="rw-panel">
+        <header class="rw-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.rawVer || '—' }} · {{ filteredChannels.length }} channels · {{ filteredExifs.length }} EXIF · ISO {{ parsed?.iso || '—' }}</span>
+          </div>
+          <div class="rw-view-controls">
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1 / 1.2)">−</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="fitView()">Fit {{ zoomPercent }}%</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1.2)">+</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="rw-map-wrap" [class.rw-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="rw-map"
+            [class.rw-map--panning]="panning"
+            *ngIf="currentFile && viewMode === 'preview'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp()"
+            (pointerleave)="onCanvasPointerUp()"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="rw-cards" *ngIf="currentFile && viewMode === 'exif'">
+            <article *ngFor="let exif of filteredExifs; trackBy: trackByExif" [class.is-active]="selectedExif?.id === exif.id" (click)="selectExif(exif.id)">
+              <header>
+                <i class="rw-swatch" style="background:#f59e0b"></i>
+                <strong>{{ exif.name }}</strong>
+                <span>exif</span>
+                <span>{{ exif.value }}</span>
+              </header>
+              <p>{{ exif.value }}</p>
+            </article>
+            <p class="rw-empty-filter" *ngIf="parsed && !filteredExifs.length">No EXIF tags match the current filter.</p>
+          </div>
+          <div class="rw-cards" *ngIf="currentFile && viewMode === 'channels'">
+            <article *ngFor="let channel of filteredChannels; trackBy: trackByChannel" [class.is-active]="selectedChannel?.id === channel.id" (click)="selectChannel(channel.id)">
+              <header>
+                <strong>{{ channel.name }}</strong>
+                <span>{{ channel.kind }}</span>
+                <span>{{ channel.pattern }}</span>
+              </header>
+              <p>{{ channel.kind }} · {{ channel.pattern }}</p>
+            </article>
+            <p class="rw-empty-filter" *ngIf="parsed && !filteredChannels.length">No channels match the current filter.</p>
+          </div>
+          <div class="rw-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="rw-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="rw-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a RAW dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="rw-loading" *ngIf="loading">Parsing RAW dump…</div>
+        </div>
+
+        <div class="rw-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="rw-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="rw-disclaimer">Education and research preview only — not a substitute for Lightroom, Camera Raw, or dcraw. ASCII dumps are supported; binary CR2/NEF/ARW is not demosaiced. Export a PNG snapshot from Preview.</p>
+      </section>
+
+      <aside class="rw-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="rw-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search RAW</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="rw-search" type="search" placeholder="channel:red exif:iso iso:200 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'exif' || viewMode === 'table') && filteredExifs.length">
+          <header class="ctl__panel-head">EXIF</header>
+          <div class="ctl__panel-body rw-units">
+            <button type="button" *ngFor="let exif of filteredExifs; trackBy: trackByExif" [class.is-active]="selectedExifId === exif.id" (click)="selectExif(exif.id)">
+              <i class="rw-swatch" style="background:#f59e0b"></i>
+              <span>{{ exif.name }} <small>exif · {{ exif.value }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'channels' || viewMode === 'preview') && filteredChannels.length">
+          <header class="ctl__panel-head">Channels</header>
+          <div class="ctl__panel-body rw-units">
+            <button type="button" *ngFor="let channel of filteredChannels; trackBy: trackByChannel" [class.is-active]="selectedChannelId === channel.id" (click)="selectChannel(channel.id)">
+              <span>{{ channel.name }} <small>{{ channel.kind }} · {{ channel.pattern }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'channels') && selectedChannel">
+          <header class="ctl__panel-head">Selected channel</header>
+          <div class="ctl__panel-body">
+            <dl class="rw-meta">
+              <div *ngFor="let row of channelMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="rw-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="rw-drop" *ngIf="showDropZone"><p>Drop RAW dump to preview</p></div>
+  </main>
+</div>

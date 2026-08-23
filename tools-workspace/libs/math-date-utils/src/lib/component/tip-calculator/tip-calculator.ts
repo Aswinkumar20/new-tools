@@ -1,130 +1,133 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, EffectRef, inject, OnDestroy, signal, WritableSignal, effect } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-import { debounceTime, distinctUntilChanged, Subscription } from 'rxjs';
-
-type SplitMode = 'equal' | 'custom';
-
-type TipPreset = {
-  label: string;
-  amount: string;
-  tipPercent: string;
-  taxPercent?: string;
-  splitCount?: string;
-};
-
-type TipInput = {
-  amount: number;
-  tipPercent: number;
-  taxPercent: number;
-  splitMode: SplitMode;
-  splitCount: number;
-  round: boolean;
-  customShares: number[];
-  currency: string;
-};
-
-type TipSummary = {
-  totalBill: number;
-  totalTip: number;
-  totalTax: number;
-  grandTotal: number;
-  perPerson: number[];
-  perPersonLabels: string[];
-  roundingAdjustment: number;
-};
-
-type TipResult = {
-  summary: TipSummary;
-  tips: string[];
-};
-
-type TipHistoryEntry = TipResult & {
-  amount: number;
-  tipPercent: number;
-  taxPercent: number;
-  splitCount: number;
-  timestamp: number;
-};
-
-const PRESETS: TipPreset[] = [
-  { label: 'Coffee break', amount: '18.50', tipPercent: '15', splitCount: '1' },
-  { label: 'Casual dinner', amount: '86.40', tipPercent: '18', taxPercent: '8.5', splitCount: '2' },
-  { label: 'Gourmet night', amount: '245.00', tipPercent: '20', taxPercent: '10', splitCount: '4' },
-  { label: 'Large party', amount: '620.00', tipPercent: '18', taxPercent: '9', splitCount: '8' },
-  { label: 'Takeout', amount: '42.00', tipPercent: '12', taxPercent: '0', splitCount: '1' }
-];
-
-const DEFAULT_CUSTOM_SHARES = Array.from({ length: 4 }, () => 1);
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
+import { debounceTime } from 'rxjs';
+import {
+  TIP_CURRENCIES,
+  TIP_DEFAULT_CUSTOM_SHARES,
+  TIP_DEFAULT_FORM,
+  TIP_HISTORY_LIMIT,
+  TIP_PRESETS,
+  TIP_RELATED_TOOLS
+} from '../../constants/tip-calculator.constants';
+import { mdCopyText } from '../../shared/md-clipboard.util';
+import type { MdRelatedToolLink } from '../../shared/md-tool-suggestion.model';
+import type {
+  SplitMode,
+  TipCalculatorFormGroup,
+  TipCalculatorFormValues,
+  TipHistoryEntry,
+  TipInput,
+  TipPreset,
+  TipResult
+} from '../../types/tip-calculator.types';
+import {
+  calculateTip,
+  formatTipCurrency,
+  formatTipPercent,
+  formatTipSummaryText,
+  mapTipCalculationError,
+  numberValidator,
+  resolveTipSuggestion,
+  toNumber
+} from '../../utils/tip-calculator.utils';
 
 @Component({
   selector: 'lib-tip-calculator',
   standalone: true,
   templateUrl: './tip-calculator.html',
   styleUrls: ['./tip-calculator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation]
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class TipCalculatorComponent implements OnDestroy {
+export class TipCalculatorComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly calculationSub: Subscription;
-  private readonly effectRefs: EffectRef[] = [];
+  private readonly toast = inject(ToastService);
+  readonly assetService = inject(AssetService);
 
-  readonly presets = PRESETS;
+  readonly presets = TIP_PRESETS;
+  readonly currencies = TIP_CURRENCIES;
+  readonly relatedTools: ReadonlyArray<MdRelatedToolLink> = TIP_RELATED_TOOLS;
 
-  readonly form: FormGroup = this.fb.group({
-    amount: this.fb.control('86.40', [Validators.required, numberValidator, Validators.min(0)]),
-    tipPercent: this.fb.control('18', [Validators.required, numberValidator, Validators.min(0)]),
-    taxPercent: this.fb.control('8.5', [numberValidator, Validators.min(0)]),
-    splitMode: this.fb.control<SplitMode>('equal', { nonNullable: true }),
-    splitCount: this.fb.control('2', [numberValidator, Validators.min(1)]),
-    customShares: this.fb.control(DEFAULT_CUSTOM_SHARES.map((share) => share.toString())),
-    round: this.fb.control(true, { nonNullable: true }),
-    currency: this.fb.control('USD', [Validators.required]),
-    includeHistory: this.fb.control(true, { nonNullable: true })
+  readonly form: TipCalculatorFormGroup = this.fb.group({
+    amount: this.fb.control(TIP_DEFAULT_FORM.amount, [
+      Validators.required,
+      numberValidator,
+      Validators.min(0)
+    ]),
+    tipPercent: this.fb.control(TIP_DEFAULT_FORM.tipPercent, [
+      Validators.required,
+      numberValidator,
+      Validators.min(0)
+    ]),
+    taxPercent: this.fb.control(TIP_DEFAULT_FORM.taxPercent, [
+      numberValidator,
+      Validators.min(0)
+    ]),
+    splitMode: this.fb.control<SplitMode>(TIP_DEFAULT_FORM.splitMode, { nonNullable: true }),
+    splitCount: this.fb.control(TIP_DEFAULT_FORM.splitCount, [
+      numberValidator,
+      Validators.min(1)
+    ]),
+    customShares: this.fb.control<string[]>([...TIP_DEFAULT_FORM.customShares]),
+    round: this.fb.control(TIP_DEFAULT_FORM.round, { nonNullable: true }),
+    currency: this.fb.control(TIP_DEFAULT_FORM.currency, [Validators.required]),
+    includeHistory: this.fb.control(TIP_DEFAULT_FORM.includeHistory, { nonNullable: true })
   });
 
-  readonly result: WritableSignal<TipResult | null> = signal(null);
-  readonly statusMessage = signal<string | null>(null);
+  readonly result = signal<TipResult | null>(null);
   readonly errorMessage = signal<string | null>(null);
-  readonly history: WritableSignal<TipHistoryEntry[]> = signal([]);
+  readonly history = signal<TipHistoryEntry[]>([]);
+  readonly formSnapshot = signal<TipCalculatorFormValues>(this.readFormValues());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly summary = computed(() => this.result()?.summary ?? null);
   readonly tips = computed(() => this.result()?.tips ?? []);
-  readonly splitMode = computed(() => this.form.get('splitMode')?.value ?? 'equal');
+  readonly splitMode = computed(() => this.formSnapshot().splitMode);
 
-  readonly math = Math;
+  readonly primarySuggestion = computed(() => {
+    const snapshot = this.formSnapshot();
+    const suggestion = resolveTipSuggestion({
+      hasResult: this.result() !== null,
+      hasError: this.errorMessage() !== null,
+      tipPercent: toNumber(snapshot.tipPercent),
+      taxPercent: toNumber(snapshot.taxPercent),
+      splitCount: Math.max(1, Math.floor(toNumber(snapshot.splitCount))),
+      splitMode: snapshot.splitMode,
+      amount: toNumber(snapshot.amount),
+      currency: snapshot.currency
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
 
   constructor() {
-    this.calculationSub = this.form.valueChanges
-      .pipe(debounceTime(80), distinctUntilChanged())
-      .subscribe(() => this.calculate());
-
-    this.effectRefs.push(
-      effect(() => {
-        const mode = this.form.get('splitMode')?.value ?? 'equal';
-        if (mode === 'custom' && (this.form.get('customShares')?.value as string[]).some((share) => toNumber(share) <= 0)) {
-          this.form.patchValue({ customShares: DEFAULT_CUSTOM_SHARES.map((share) => share.toString()) }, { emitEvent: false });
-        }
-      })
-    );
+    this.form.valueChanges.pipe(debounceTime(80), takeUntilDestroyed()).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+      this.calculate();
+    });
 
     this.calculate();
   }
 
-  ngOnDestroy(): void {
-    this.calculationSub.unsubscribe();
-    for (const ref of this.effectRefs) {
-      ref.destroy();
-    }
-  }
-
   setSplitMode(mode: SplitMode): void {
-    if (mode === this.form.get('splitMode')?.value) {
+    if (mode === this.form.controls.splitMode.value) {
       return;
     }
     this.form.patchValue({ splitMode: mode }, { emitEvent: true });
-    this.notify(`${mode === 'equal' ? 'Equal split' : 'Custom shares'} enabled.`);
+    this.toast.info(`${mode === 'equal' ? 'Equal split' : 'Custom shares'} enabled.`);
   }
 
   applyPreset(preset: TipPreset): void {
@@ -132,23 +135,35 @@ export class TipCalculatorComponent implements OnDestroy {
       {
         amount: preset.amount,
         tipPercent: preset.tipPercent,
-        taxPercent: preset.taxPercent ?? this.form.get('taxPercent')?.value ?? '0',
-        splitCount: preset.splitCount ?? this.form.get('splitCount')?.value ?? '1',
+        taxPercent: preset.taxPercent ?? this.form.controls.taxPercent.value ?? '0',
+        splitCount: preset.splitCount ?? this.form.controls.splitCount.value ?? '1',
         splitMode: 'equal'
       },
       { emitEvent: true }
     );
-    this.notify(`${preset.label} preset applied.`);
+    this.toast.info(`${preset.label} preset applied.`);
   }
 
   submit(): void {
     this.calculate();
-    this.notify('Tip recalculated.');
+    this.toast.info('Tip recalculated.');
   }
 
   clearHistory(): void {
     this.history.set([]);
-    this.notify('History cleared.');
+    this.toast.info('History cleared.');
+  }
+
+  async copyResult(): Promise<void> {
+    const current = this.summary();
+    if (!current) {
+      return;
+    }
+    await mdCopyText(
+      this.toast,
+      formatTipSummaryText(current, this.formSnapshot().currency),
+      'Result'
+    );
   }
 
   restoreHistory(entry: TipHistoryEntry): void {
@@ -163,39 +178,62 @@ export class TipCalculatorComponent implements OnDestroy {
       { emitEvent: true }
     );
     this.result.set(entry);
-    this.notify('History entry restored.');
+    this.toast.info('History entry restored.');
   }
+
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
+  }
+
+  formatCurrency(value: number): string {
+    return formatTipCurrency(value, this.formSnapshot().currency);
+  }
+
+  formatPercent(value: number): string {
+    return formatTipPercent(value);
+  }
+
+  onCustomShareInput(event: Event, index: number): void {
+    const target = event.target as HTMLInputElement;
+    const value = toNumber(target.value);
+    const shares = [...(this.form.controls.customShares.value ?? [])];
+    shares[index] = value > 0 ? value.toString() : '1';
+    this.form.patchValue({ customShares: shares }, { emitEvent: true });
+  }
+
+  readonly trackPreset = (_: number, preset: TipPreset): string => preset.label;
+  readonly trackTip = (_: number, tip: string): string => tip;
+  readonly trackHistory = (_: number, entry: TipHistoryEntry): string =>
+    `${entry.amount}-${entry.tipPercent}-${entry.taxPercent}-${entry.splitCount}`;
 
   private calculate(): void {
     this.errorMessage.set(null);
 
     try {
       const input = this.buildInput();
-      const calculator = new TipCalculator();
-      const result = calculator.calculate(input);
-      this.result.set(result);
+      const tipResult = calculateTip(input);
+      this.result.set(tipResult);
 
-      if (this.form.get('includeHistory')?.value) {
-        this.pushHistory(result, input);
+      if (this.form.controls.includeHistory.value) {
+        this.pushHistory(tipResult, input);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to calculate tip.';
-      this.errorMessage.set(message);
+      this.errorMessage.set(mapTipCalculationError(error));
       this.result.set(null);
     }
   }
 
   private buildInput(): TipInput {
-    const amount = toNumber(this.form.get('amount')?.value);
-    const tipPercent = toNumber(this.form.get('tipPercent')?.value);
-    const taxPercent = toNumber(this.form.get('taxPercent')?.value);
-    const splitMode = this.form.get('splitMode')?.value ?? 'equal';
-    const splitCount = Math.max(1, Math.floor(toNumber(this.form.get('splitCount')?.value)));
-    const round = this.form.get('round')?.value ?? false;
-    const currency = (this.form.get('currency')?.value ?? 'USD').toString();
+    const amount = toNumber(this.form.controls.amount.value);
+    const tipPercent = toNumber(this.form.controls.tipPercent.value);
+    const taxPercent = toNumber(this.form.controls.taxPercent.value);
+    const splitMode = this.form.controls.splitMode.value;
+    const splitCount = Math.max(1, Math.floor(toNumber(this.form.controls.splitCount.value)));
+    const round = this.form.controls.round.value;
+    const currency = (this.form.controls.currency.value ?? 'USD').toString();
 
-    const customSharesRaw = this.form.get('customShares')?.value as string[];
-    const customShares = (customSharesRaw ?? []).map((value) => toNumber(value)).filter((share) => share > 0);
+    const customSharesRaw = this.form.controls.customShares.value ?? [];
+    const customShares = customSharesRaw.map((value) => toNumber(value)).filter((share) => share > 0);
 
     if (amount < 0) {
       throw new Error('Bill amount cannot be negative.');
@@ -229,122 +267,29 @@ export class TipCalculatorComponent implements OnDestroy {
 
     this.history.update((current) => {
       const filtered = current.filter(
-        (item) => !(item.amount === entry.amount && item.tipPercent === entry.tipPercent && item.taxPercent === entry.taxPercent && item.splitCount === entry.splitCount)
+        (item) =>
+          !(
+            item.amount === entry.amount &&
+            item.tipPercent === entry.tipPercent &&
+            item.taxPercent === entry.taxPercent &&
+            item.splitCount === entry.splitCount
+          )
       );
-      return [entry, ...filtered].slice(0, 8);
+      return [entry, ...filtered].slice(0, TIP_HISTORY_LIMIT);
     });
   }
 
-  private notify(message: string): void {
-    this.statusMessage.set(message);
-    setTimeout(() => this.statusMessage.set(null), 3000);
-  }
-
-  readonly trackPreset = (_: number, preset: TipPreset) => preset.label;
-  readonly trackTip = (_: number, tip: string) => tip;
-  readonly trackHistory = (_: number, entry: TipHistoryEntry) => `${entry.amount}-${entry.tipPercent}-${entry.taxPercent}-${entry.splitCount}`;
-
-  formatCurrency(value: number): string {
-    return value.toLocaleString(undefined, { style: 'currency', currency: this.form.get('currency')?.value ?? 'USD', minimumFractionDigits: 2 });
-  }
-
-  formatPercent(value: number): string {
-    return `${value.toFixed(1)}%`;
-  }
-
-  onCustomShareInput(event: Event, index: number): void {
-    const target = event.target as HTMLInputElement;
-    const value = toNumber(target.value);
-    const shares = [...((this.form.get('customShares')?.value as string[]) ?? [])];
-    shares[index] = value > 0 ? value.toString() : '1';
-    this.form.patchValue({ customShares: shares }, { emitEvent: true });
-  }
-}
-
-class TipCalculator {
-  calculate(input: TipInput): TipResult {
-    const tipAmount = input.amount * (input.tipPercent / 100);
-    const taxAmount = input.amount * (input.taxPercent / 100);
-    let grandTotal = input.amount + tipAmount + taxAmount;
-    let roundingAdjustment = 0;
-
-    if (input.round) {
-      const rounded = Math.round(grandTotal * 100) / 100;
-      roundingAdjustment = rounded - grandTotal;
-      grandTotal = rounded;
-    }
-
-    const distribution = distributeTotals(grandTotal, input, roundingAdjustment);
-
-    const summary: TipSummary = {
-      totalBill: input.amount,
-      totalTip: tipAmount,
-      totalTax: taxAmount,
-      grandTotal,
-      perPerson: distribution.amounts,
-      perPersonLabels: distribution.labels,
-      roundingAdjustment
+  private readFormValues(): TipCalculatorFormValues {
+    return {
+      amount: this.form.controls.amount.value ?? '',
+      tipPercent: this.form.controls.tipPercent.value ?? '',
+      taxPercent: this.form.controls.taxPercent.value ?? '',
+      splitMode: this.form.controls.splitMode.value,
+      splitCount: this.form.controls.splitCount.value ?? '',
+      customShares: [...(this.form.controls.customShares.value ?? TIP_DEFAULT_CUSTOM_SHARES.map(String))],
+      round: this.form.controls.round.value,
+      currency: this.form.controls.currency.value ?? 'USD',
+      includeHistory: this.form.controls.includeHistory.value
     };
-
-    const tips = buildTips(summary, input);
-
-    return { summary, tips };
   }
-}
-
-function distributeTotals(grandTotal: number, input: TipInput, roundingAdjustment: number): { amounts: number[]; labels: string[] } {
-  if (input.splitMode === 'custom' && input.customShares.length > 0) {
-    const totalShares = input.customShares.reduce((sum, share) => sum + share, 0);
-    const amounts = input.customShares.map((share) => grandTotal * (share / totalShares));
-    const labels = input.customShares.map((_, index) => `Guest ${index + 1}`);
-    return { amounts, labels };
-  }
-
-  const perPerson = grandTotal / input.splitCount;
-  const amounts = Array.from({ length: input.splitCount }, (_, index) => perPerson + (index === 0 ? roundingAdjustment : 0));
-  const labels = amounts.map((_, index) => `Person ${index + 1}`);
-  return { amounts, labels };
-}
-
-function buildTips(summary: TipSummary, input: TipInput): string[] {
-  const baseTips = [
-    `Tip amount: ${summary.totalTip.toLocaleString(undefined, { style: 'currency', currency: input.currency })}.`,
-    `Grand total: ${summary.grandTotal.toLocaleString(undefined, { style: 'currency', currency: input.currency })}.`,
-    input.splitMode === 'equal'
-      ? `Each person pays ${summary.perPerson[0].toLocaleString(undefined, { style: 'currency', currency: input.currency })}.`
-      : 'Custom share mode applied; amounts vary per guest.'
-  ];
-
-  if (summary.roundingAdjustment !== 0) {
-    baseTips.push(`Rounded total adjusted by ${summary.roundingAdjustment.toLocaleString(undefined, { style: 'currency', currency: input.currency })}.`);
-  }
-
-  if (input.taxPercent > 0) {
-    baseTips.push(`Tax contributed ${summary.totalTax.toLocaleString(undefined, { style: 'currency', currency: input.currency })} to the total.`);
-  }
-
-  return baseTips;
-}
-
-function numberValidator(control: import('@angular/forms').AbstractControl) {
-  const raw = control.value;
-  if (raw === null || raw === undefined || raw === '') {
-    return null;
-  }
-  const value = toNumber(raw);
-  if (!Number.isFinite(value)) {
-    return { number: true };
-  }
-  return null;
-}
-
-function toNumber(value: string | number | null | undefined): number {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  const normalised = value.split(',').join('').trim();
-  return normalised ? Number.parseFloat(normalised) : 0;
 }

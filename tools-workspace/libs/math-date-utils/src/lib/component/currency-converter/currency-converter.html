@@ -1,265 +1,231 @@
-<div class="cc">
-  <div class="cc__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl md">
+  <lib-navigation></lib-navigation>
 
-  <section class="cc__hero">
-    <div class="cc__badge">Real-time FX</div>
-    <h1>Global Currency Converter</h1>
-    <p>
-      Convert any currency using live interbank rates, monitor market movers, and curate a personalized FX watchlist. Rates
-      auto-refresh every {{ refreshIntervalMinutes }} minutes or on demand.
-    </p>
-
-    <div class="cc__hero-meta">
-      <span>Provider: <strong>{{ providerName() }}</strong></span>
-      <span>Last update: <strong>{{ lastUpdated() ? (lastUpdated() | date:'mediumTime') : '—' }}</strong></span>
-      <span>Auto refresh: every {{ refreshIntervalMinutes }} min</span>
-    </div>
-
-    <div class="cc__actions">
-      <button type="button" class="btn btn--primary" (click)="refreshRates(true)">Refresh now</button>
-      <button type="button" class="btn btn--ghost" (click)="swapCurrencies()">Swap currencies</button>
-    </div>
-
-    <div class="cc__hero-meta">
-      @if (loadingRates()) {
-        <span class="cc__status cc__status--loading">Updating live rates…</span>
-      } @else {
-        <span class="cc__status cc__status--ready">Rates synced</span>
-      }
-      <span class="cc__muted">Live rates sourced from multi-provider feed</span>
-    </div>
-
-    @if (rateError()) {
-      <div class="cc__alert">{{ rateError() }}</div>
-    }
-  </section>
-
-  <div class="cc__layout">
-    <section class="cc__card cc__card--convert">
-      <header class="cc__card-header">
-        <div>
-          <h2>Convert currencies</h2>
-          <p>Select the base and quote currency, add optional fees, and convert instantly.</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Currency Converter</h1>
+        <p>Convert currencies using live rates with fees and watchlist tracking.</p>
       </header>
-
-      <form class="cc__form" [formGroup]="form" (ngSubmit)="convertNow()">
-        <div class="cc__form-grid">
-          <label class="cc__input cc__input--full" for="cc-amount">
-            <span>Amount</span>
-            <input id="cc-amount" type="number" step="0.01" formControlName="amount" />
-          </label>
-
-          <label class="cc__input" for="cc-from">
-            <span>From</span>
-            <select id="cc-from" formControlName="fromCurrency">
-              @for (currency of currencyCatalog(); track currency.code) {
-                <option [value]="currency.code">{{ currency.code }} · {{ currency.name }}</option>
-              }
-            </select>
-          </label>
-
-          <label class="cc__input" for="cc-to">
-            <span>To</span>
-            <select id="cc-to" formControlName="toCurrency">
-              @for (currency of currencyCatalog(); track currency.code) {
-                <option [value]="currency.code">{{ currency.code }} · {{ currency.name }}</option>
-              }
-            </select>
-          </label>
+      <div class="ctl__stats" aria-label="FX statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ formSnapshot().fromCurrency }}/{{ formSnapshot().toCurrency }}</span>
+          <span class="ctl__stat-label">Pair</span>
         </div>
-
-        <div class="cc__options">
-          <label class="cc__toggle">
-            <input type="checkbox" formControlName="includeFees" />
-            <span>Include service fee</span>
-          </label>
-
-          @if (form.get('includeFees')?.value) {
-            <label class="cc__input cc__input--compact" for="cc-fee">
-              <span>Fee %</span>
-              <input id="cc-fee" type="number" step="0.01" formControlName="feePercent" />
-            </label>
-          }
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ conversionResult() ? (conversionResult()!.convertedAmount | number:'1.2-2') : '—' }}</span>
+          <span class="ctl__stat-label">Converted</span>
         </div>
-
-        <div class="cc__form-actions">
-          <button type="submit" class="btn btn--primary">Convert amount</button>
-          <button type="button" class="btn btn--ghost" (click)="refreshRates(true)">Refresh base rates</button>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ watchlist().length }}</span>
+          <span class="ctl__stat-label">Watch</span>
         </div>
-      </form>
-
-      @if (conversionResult()) {
-        @let result = conversionResult()!;
-        <div class="cc__conversion">
-          <div class="cc__conversion-head">
-            <h3>{{ result.baseCurrency }} → {{ result.quoteCurrency }}</h3>
-            <span>Updated: {{ result.timestamp ? (result.timestamp | date:'mediumTime') : '—' }} · Provider {{ result.provider }}</span>
-          </div>
-
-          <div class="cc__conversion-grid">
-            <article>
-              <span>Exchange rate</span>
-              <strong>1 {{ result.baseCurrency }} ≈ {{ result.rate | number:'1.6-6' }} {{ result.quoteCurrency }}</strong>
-            </article>
-            <article>
-              <span>Inverse rate</span>
-              <strong>1 {{ result.quoteCurrency }} ≈ {{ result.inverseRate | number:'1.6-6' }} {{ result.baseCurrency }}</strong>
-            </article>
-            <article>
-              <span>Converted amount</span>
-              <strong>{{ result.convertedAmount | number:'1.2-2' }} {{ result.quoteCurrency }}</strong>
-            </article>
-            <article>
-              <span>Fees deducted</span>
-              <strong>{{ result.feeAmount | number:'1.2-2' }} {{ result.baseCurrency }}</strong>
-            </article>
-          </div>
-
-          @if (insights().length) {
-            <ul class="cc__insights">
-              @for (item of insights(); track item) {
-                <li>{{ item }}</li>
-              }
-            </ul>
-          }
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ loadingRates() ? '…' : 'Live' }}</span>
+          <span class="ctl__stat-label">Rates</span>
         </div>
-      } @else {
-        <div class="cc__empty">Live conversion details will appear once rates are loaded.</div>
-      }
-    </section>
-
-    <section class="cc__card">
-      <header class="cc__card-header">
-        <div>
-          <h2>Market movers</h2>
-          <p>Biggest relative changes since the last refresh.</p>
-        </div>
-      </header>
-
-      @if (topMovers().length) {
-        <ul class="cc__movers">
-          @for (entry of topMovers(); track entry.code) {
-            <li>
-              <div>
-                <strong>{{ entry.code }}</strong>
-                <span>{{ entry.name }}</span>
-              </div>
-              <div class="cc__mover-stats">
-                <span>{{ entry.rate | number:'1.6-6' }}</span>
-                <span [class.positive]="entry.changePercent >= 0" [class.negative]="entry.changePercent < 0">
-                  {{ entry.changePercent >= 0 ? '+' : '' }}{{ entry.changePercent | number:'1.2-2' }}%
-                </span>
-              </div>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="cc__empty">Movers will appear after rates are refreshed.</div>
-      }
-    </section>
-
-    <section class="cc__card">
-      <header class="cc__card-header">
-        <div>
-          <h2>Watchlist</h2>
-          <p>Track favourite currency pairs relative to {{ form.get('fromCurrency')?.value }}</p>
-        </div>
-      </header>
-
-      @if (watchlist().length) {
-        <div class="cc__table-wrapper">
-          <table class="cc__table">
-            <thead>
-              <tr>
-                <th>Currency</th>
-                <th>Rate</th>
-                <th>Δ %</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (entry of watchlist(); track entry.code) {
-                <tr>
-                  <td>
-                    <strong>{{ entry.code }}</strong>
-                    <div class="cc__muted">{{ entry.name }}</div>
-                  </td>
-                  <td>{{ entry.rate !== undefined ? (entry.rate | number:'1.6-6') : '—' }}</td>
-                  <td>
-                    @if (entry.changePercent !== undefined) {
-                      <span [class.positive]="entry.changePercent >= 0" [class.negative]="entry.changePercent < 0">
-                        {{ entry.changePercent >= 0 ? '+' : '' }}{{ entry.changePercent | number:'1.2-2' }}%
-                      </span>
-                    } @else {
-                      <span class="cc__muted">—</span>
-                    }
-                  </td>
-                  <td>{{ entry.lastUpdated ? (entry.lastUpdated | date:'shortTime') : '—' }}</td>
-                  <td>
-                    <div class="cc__currency-actions">
-                      <button type="button" class="btn btn--ghost btn--small" (click)="setFromCurrency(entry.code)">Set base</button>
-                      <button type="button" class="btn btn--ghost btn--small" (click)="setToCurrency(entry.code)">Set quote</button>
-                      <button type="button" class="btn btn--small" (click)="removeFromWatchlist(entry.code)">Remove</button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <div class="cc__empty">Add currencies from the directory to build your watchlist.</div>
-      }
-    </section>
-
-    <section class="cc__card">
-      <header class="cc__card-header">
-        <div>
-          <h2>Currency directory</h2>
-          <p>Search global currencies and update your pairs instantly.</p>
-        </div>
-      </header>
-
-      <div [formGroup]="form" class="cc__input cc__input--full">
-        <span id="currency-search-label">Search currencies</span>
-        <input
-          type="search"
-          aria-labelledby="currency-search-label"
-          placeholder="Search by code or name"
-          formControlName="currencySearch"
-        />
       </div>
+    </div>
 
-      <div class="cc__currency-list">
-        @if (filteredCurrencies().length) {
-          @for (currency of filteredCurrencies(); track currency.code) {
-            <div class="cc__currency-item">
-              <div class="cc__currency-info">
-                <strong>{{ currency.code }}</strong>
-                <span>{{ currency.name }}</span>
+    <div class="md-workflow" aria-label="FX actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="convertNow()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Convert</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="refreshRates(true)" appTooltip="Refresh rates" tooltipPosition="bottom" aria-label="Refresh rates">
+          <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Refresh</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="swapCurrencies()" appTooltip="Swap currencies" tooltipPosition="bottom" aria-label="Swap currencies">
+          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Swap</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
+          <header class="ctl__editor-head"><span>Convert</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <label class="ctl__field" for="cc-amount">
+              <span>Amount</span>
+              <input id="cc-amount" type="number" step="0.01" formControlName="amount" />
+            </label>
+            <label class="ctl__field" for="cc-from">
+              <span>From</span>
+              <select id="cc-from" formControlName="fromCurrency">
+                @for (currency of currencyCatalog(); track currency.code) {
+                  <option [value]="currency.code">{{ currency.code }} · {{ currency.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="ctl__field" for="cc-to">
+              <span>To</span>
+              <select id="cc-to" formControlName="toCurrency">
+                @for (currency of currencyCatalog(); track currency.code) {
+                  <option [value]="currency.code">{{ currency.code }} · {{ currency.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeFees" />
+              <div><strong>Include fee</strong><span>Service fee percentage.</span></div>
+            </label>
+            @if (formSnapshot().includeFees) {
+              <label class="ctl__field" for="cc-fee">
+                <span>Fee %</span>
+                <input id="cc-fee" type="number" step="0.01" formControlName="feePercent" />
+              </label>
+            }
+            @if (rateError()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ rateError() }}</div>
+            }
+          </div>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Result</span>
+            <div class="ctl__editor-actions">
+              @if (conversionResult()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!conversionResult()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="cc__suggest" aria-label="Suggested next step">
+              <div class="cc__suggest-body">
+                <p class="cc__suggest-title">{{ suggestion.title }}</p>
+                <p class="cc__suggest-reason">{{ suggestion.reason }}</p>
               </div>
-              <div class="cc__currency-actions">
-                <button type="button" class="btn btn--ghost btn--small" (click)="setFromCurrency(currency.code)">Set base</button>
-                <button type="button" class="btn btn--ghost btn--small" (click)="setToCurrency(currency.code)">Set quote</button>
+              <div class="cc__suggest-actions">
+                <a class="cc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
                 <button
                   type="button"
-                  class="btn btn--primary btn--small"
-                  (click)="addToWatchlist(currency.code)"
-                  [disabled]="isWatchlisted(currency.code)"
-                >
-                  {{ isWatchlisted(currency.code) ? 'In watchlist' : 'Watch' }}
+                  class="cc__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
                 </button>
               </div>
+            </aside>
+          }
+
+          @if (conversionResult(); as result) {
+            <div class="ctl__editor-body cc__results" aria-live="polite">
+              <div class="cc__pill">
+                <strong>{{ result.convertedAmount | number:'1.2-2' }} {{ result.quoteCurrency }}</strong>
+                <span>1 {{ result.baseCurrency }} ≈ {{ result.rate | number:'1.6-6' }} {{ result.quoteCurrency }}</span>
+              </div>
+              <div class="cc__grid">
+                <div>
+                  <span>Inverse</span>
+                  <strong>1 {{ result.quoteCurrency }} ≈ {{ result.inverseRate | number:'1.6-6' }} {{ result.baseCurrency }}</strong>
+                </div>
+                <div>
+                  <span>Fees</span>
+                  <strong>{{ result.feeAmount | number:'1.2-2' }} {{ result.baseCurrency }}</strong>
+                </div>
+              </div>
+              @if (insights().length) {
+                <ul class="cc__insights">
+                  @for (item of insights(); track item) {
+                    <li>{{ item }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter amount and currencies to convert.</p>
             </div>
           }
-        } @else {
-          <div class="cc__empty">No currencies match your search query.</div>
-        }
+        </section>
       </div>
-    </section>
-  </div>
+
+      <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Watchlist and movers">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Market movers</header>
+            <div class="ctl__panel-body">
+              @if (topMovers().length) {
+                <ul class="cc__movers">
+                  @for (entry of topMovers(); track entry.code) {
+                    <li>
+                      <strong>{{ entry.code }}</strong>
+                      <span [class.cc__up]="entry.changePercent >= 0" [class.cc__down]="entry.changePercent < 0">
+                        {{ entry.changePercent | number:'1.2-2' }}%
+                      </span>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Movers appear after refresh.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Watchlist</header>
+            <div class="ctl__panel-body">
+              @if (watchlist().length) {
+                <ul class="cc__watch">
+                  @for (entry of watchlist(); track entry.code) {
+                    <li>
+                      <button type="button" class="cc__watch-item" (click)="setToCurrency(entry.code)">
+                        <strong>{{ entry.code }}</strong>
+                        <span>{{ entry.rate !== undefined ? (entry.rate | number:'1.4-4') : '—' }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Add currencies to watchlist.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body cc__related">
+              <ul class="cc__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="cc__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Select currencies and enter an amount.</li>
+        <li>Rates refresh every {{ refreshIntervalMinutes }} minutes.</li>
+        <li>Copy conversion results or track pairs in the watchlist.</li>
+      </ul>
+    </details>
+  </main>
 </div>

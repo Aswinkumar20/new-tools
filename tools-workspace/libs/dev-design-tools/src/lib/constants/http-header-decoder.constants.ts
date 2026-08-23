@@ -3,6 +3,17 @@ import type { HeaderCategory } from '../types/http-header-decoder.types';
 
 export const HTTP_HEADER_HISTORY_LIMIT = 10;
 
+export const HTTP_HEADER_SAMPLE = `date: Tue, 09 Aug 2026 12:00:00 GMT
+content-type: application/json; charset=utf-8
+content-length: 312
+server: GitHub.com
+x-github-media-type: github.v3; format=json
+access-control-allow-origin: *
+access-control-expose-headers: ETag, Link, X-GitHub-Request-Id
+cache-control: public, max-age=60, s-maxage=60
+etag: W/"abc123"
+`;
+
 export const HTTP_HEADER_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'content-type': 'Specifies the media type of the resource',
   'content-length': 'Indicates the size of the entity-body',

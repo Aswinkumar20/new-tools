@@ -17,6 +17,7 @@ export interface PixelRemHistoryEntry {
 export interface PixelRemCommonSize {
   px: number;
   rem: number;
+  label?: string;
 }
 
 export interface PixelRemFormValues {

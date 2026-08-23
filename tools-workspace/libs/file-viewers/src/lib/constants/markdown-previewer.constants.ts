@@ -19,11 +19,6 @@ export const MARKDOWN_MIN_ZOOM = 50;
 export const MARKDOWN_MAX_ZOOM = 200;
 export const MARKDOWN_ZOOM_STEP = 25;
 
-export const MARKDOWN_MARKED_CDN =
-  'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js';
-export const MARKDOWN_DOMPURIFY_CDN =
-  'https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js';
-
 export const MARKDOWN_MARKED_OPTIONS: MarkedOptions = {
   breaks: true,
   gfm: true,

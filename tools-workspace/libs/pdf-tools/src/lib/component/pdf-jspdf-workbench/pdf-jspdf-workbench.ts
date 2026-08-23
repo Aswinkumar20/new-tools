@@ -348,7 +348,7 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom' } },
+        plugins: { legend: { position: 'bottom' as const } },
       },
     };
     this.chartInstance = new Chart(canvas, config);

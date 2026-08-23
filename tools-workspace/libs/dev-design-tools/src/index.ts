@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/css-gradient-generator/css-gradient-generator';
 export * from './lib/component/box-shadow-generator/box-shadow-generator';
 export * from './lib/component/border-radius-preview/border-radius-preview';

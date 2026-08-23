@@ -1,198 +1,331 @@
-<div class="wsc">
-  <div class="wsc__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl dd dd-shell">
+  <lib-navigation></lib-navigation>
 
-  <section class="wsc__hero">
-    <div class="wsc__badge">Dev toolkit</div>
-    <h1>WebSocket Client</h1>
-    <p>
-      Connect to WebSocket servers, send and receive messages in real-time. Perfect for testing WebSocket APIs,
-      debugging connections, and monitoring message traffic.
-    </p>
-
-    @if (isConnected() || isConnecting()) {
-      <div class="wsc__hero-meta">
-        <div>
-          <span class="wsc__meta-label">Status</span>
-          <strong [class.wsc__status--connected]="isConnected()" [class.wsc__status--connecting]="isConnecting()">
-            {{ connectionStatus() === 'connected' ? 'Connected' : connectionStatus() === 'connecting' ? 'Connecting...' : 'Disconnected' }}
-          </strong>
-        </div>
-        <div>
-          <span class="wsc__meta-label">Messages</span>
-          <strong>{{ messages().length }}</strong>
-        </div>
-        <div>
-          <span class="wsc__meta-label">URL</span>
-          <strong class="wsc__url-display">{{ form.controls.url.value }}</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="wsc__hero-meta wsc__hero-meta--placeholder">
-        Enter a WebSocket URL and click "Connect" to start.
-      </div>
-    }
-  </section>
-
-  <div class="wsc__board" [formGroup]="form">
-    <section class="wsc__panel wsc__panel--connection">
-      <header class="wsc__card-header">
-        <div>
-          <h2>Connection</h2>
-          <p>Connect to a WebSocket server.</p>
-        </div>
-        <div class="wsc__connection-actions">
-          @if (isConnected()) {
-            <button type="button" class="btn btn--ghost btn--small" (click)="disconnect()">Disconnect</button>
-          } @else {
-            <button
-              type="button"
-              class="btn btn--primary btn--small"
-              (click)="connect()"
-              [disabled]="isConnecting()"
-            >
-              @if (isConnecting()) {
-                Connecting...
-              } @else {
-                Connect
-              }
-            </button>
-          }
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="wsc-eyebrow">Dev &amp; design</span>
+        <h1>WebSocket Client <span class="wsc-live-badge">Local &amp; private</span></h1>
+        <p>Connect to WebSocket servers, send and receive messages in real time.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="wsc__alert wsc__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="Connection statistics" appStatValueTooltipHost>
+        <div class="ctl__stat ctl__stat--mode">
+          <span
+            class="ctl__stat-value"
+            [class.wsc__status--connected]="isConnected()"
+            [class.wsc__status--connecting]="isConnecting()"
+            [class.wsc__status--error]="hasError()">
+            {{ statusLabel() }}
+          </span>
+          <span class="ctl__stat-label">Status</span>
         </div>
-      }
-
-      @if (warnings().length) {
-        <div class="wsc__alert wsc__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ messages().length }}</span>
+          <span class="ctl__stat-label">Messages</span>
         </div>
-      }
-
-      <div class="wsc__connection-form">
-        <label for="url" class="wsc__label">WebSocket URL</label>
-        <input
-          id="url"
-          type="url"
-          class="wsc__input"
-          formControlName="url"
-          placeholder="wss://echo.websocket.org"
-          [disabled]="isConnected() || isConnecting()"
-        />
-        <small>Enter a WebSocket URL (ws:// or wss://)</small>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value wsc__url-display">{{ form.controls.url.value }}</span>
+          <span class="ctl__stat-label">URL</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ isConnected() ? 'Open' : '—' }}</span>
+          <span class="ctl__stat-label">Socket</span>
+        </div>
       </div>
+    </div>
 
-      <div class="wsc__status-indicator" [class.wsc__status-indicator--connected]="isConnected()" [class.wsc__status-indicator--connecting]="isConnecting()">
-        <div class="wsc__status-dot"></div>
-        <span>
-          @if (isConnected()) {
-            Connected
-          } @else if (isConnecting()) {
-            Connecting...
-          } @else {
-            Disconnected
-          }
-        </span>
-      </div>
-    </section>
+    <div class="dd-workflow" aria-label="WebSocket actions"><div class="dd-workflow__group dd-workflow__group--actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="loadExample()"
+        aria-label="Load example"
+        appTooltip="Load a realistic example"
+        tooltipPosition="bottom">
+        <span class="ctl__tool-btn-label">Sample</span>
+      </button>
 
-    <section class="wsc__panel wsc__panel--messages">
-      <header class="wsc__card-header">
-        <div>
-          <h2>Messages</h2>
-          <p>Send and receive WebSocket messages.</p>
-        </div>
+      @if (isConnected()) {
         <button
           type="button"
-          class="btn btn--ghost btn--small"
-          (click)="clearMessages()"
-          [disabled]="!hasMessages()"
-        >
-          Clear
+          class="ctl__tool-btn"
+          (click)="disconnect()"
+          aria-label="Disconnect"
+          appTooltip="Disconnect"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="ctl__tool-btn-label">Disconnect</span>
         </button>
-      </header>
+      } @else {
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="connect()"
+          [disabled]="isConnecting()"
+          aria-label="Connect"
+          appTooltip="Connect"
+          tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="ctl__tool-btn-label">{{ isConnecting() ? 'Connecting…' : 'Connect' }}</span>
+        </button>
+      }
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="sendMessage()"
+        [disabled]="!isConnected()"
+        aria-label="Send message"
+        appTooltip="Send message"
+        tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span class="ctl__tool-btn-label">Send</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clearMessages()"
+        [disabled]="!hasMessages()"
+        aria-label="Clear messages"
+        appTooltip="Clear messages"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear</span>
+      </button>
+    </div>
+    </div>
+    <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
+      <section class="ctl__editor dd-viewer-panel">
+        <header class="ctl__editor-head">
+          <span>Messages</span>
+          @if (hasMessages()) {
+            <span class="ctl__editor-badge">{{ messages().length }}</span>
+          }
+        </header>
 
-      <div class="wsc__message-input-section">
-        <label for="message" class="wsc__label">Send message</label>
-        <div class="wsc__message-input-group">
+        @if (errors().length) {
+          <div class="ctl__alert ctl__alert--error" role="alert">
+            <ul>
+              @for (message of errors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (warnings().length) {
+          <div class="ctl__alert ctl__alert--warning" role="status">
+            <ul>
+              @for (message of warnings(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="wsc__suggest" aria-label="Suggested next step">
+            <div class="wsc__suggest-body">
+              <p class="wsc__suggest-title">{{ suggestion.title }}</p>
+              <p class="wsc__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="wsc__suggest-actions">
+              <a class="wsc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="wsc__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+        }
+
+        <div class="wsc__message-compose">
+          <label class="sr-only" for="message">Send message</label>
           <textarea
             id="message"
             class="wsc__textarea"
             formControlName="message"
             placeholder='{"type": "message", "data": "Hello!"}'
-            rows="3"
+            rows="2"
             [disabled]="!isConnected()"
+            (keydown)="onMessageKeydown($event)"
           ></textarea>
-          <button
-            type="button"
-            class="btn btn--primary"
-            (click)="sendMessage()"
-            [disabled]="!isConnected()"
-          >
-            Send
-          </button>
         </div>
-        <small>Enter a message to send. JSON will be automatically formatted.</small>
-      </div>
 
-      <label class="wsc__toggle">
-        <input type="checkbox" formControlName="rememberHistory" />
-        <div>
-          <strong>Remember history</strong>
-          <span>Keep track of sent and received messages</span>
-        </div>
-      </label>
-
-      @if (hasMessages()) {
-        <div class="wsc__messages-container">
-          @for (msg of messages(); track msg.id) {
-            <div class="wsc__message-item" [class.wsc__message-item--sent]="msg.type === 'sent'" [class.wsc__message-item--received]="msg.type === 'received'" [class.wsc__message-item--system]="msg.type === 'system'">
-              <div class="wsc__message-header">
-                <span class="wsc__message-type">
-                  @if (msg.type === 'sent') {
-                    📤 Sent
-                  } @else if (msg.type === 'received') {
-                    📥 Received
+        @if (hasMessages()) {
+          <div class="ctl__editor-body wsc__messages-container">
+            @for (msg of messages(); track msg.id) {
+              <div
+                class="wsc__message-item"
+                [class.wsc__message-item--sent]="msg.type === 'sent'"
+                [class.wsc__message-item--received]="msg.type === 'received'"
+                [class.wsc__message-item--system]="msg.type === 'system'">
+                <div class="wsc__message-header">
+                  <span class="wsc__message-type">
+                    @if (msg.type === 'sent') {
+                      Sent
+                    } @else if (msg.type === 'received') {
+                      Received
+                    } @else {
+                      System
+                    }
+                  </span>
+                  <span class="wsc__message-time">{{ formatTimestamp(msg.timestamp) }}</span>
+                  <button
+                    type="button"
+                    class="ctl__icon-btn"
+                    (click)="copyToClipboard(msg.content, 'Message')"
+                    aria-label="Copy message"
+                    appTooltip="Copy message"
+                    tooltipPosition="bottom">
+                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="14" height="14" />
+                  </button>
+                </div>
+                <div class="wsc__message-content">
+                  @if (isJson(msg.content)) {
+                    <pre class="wsc__message-json">{{ formatJsonContent(msg.content) }}</pre>
                   } @else {
-                    ℹ️ System
+                    <code class="wsc__message-text">{{ msg.content }}</code>
                   }
-                </span>
-                <span class="wsc__message-time">{{ formatTimestamp(msg.timestamp) }}</span>
-                <button
-                  type="button"
-                  class="btn btn--ghost btn--small wsc__copy-btn"
-                  (click)="copyToClipboard(msg.content, 'Message')"
-                  title="Copy message"
-                >
-                  Copy
-                </button>
+                </div>
               </div>
-              <div class="wsc__message-content">
-                @if (isJson(msg.content)) {
-                  <pre class="wsc__message-json">{{ formatMessageContent(msg.content) }}</pre>
-                } @else {
-                  <code class="wsc__message-text">{{ msg.content }}</code>
-                }
-              </div>
-            </div>
-          }
+            }
+          </div>
+        } @else {
+          <div class="ctl__empty">
+            <p>Connect and send a message to see the log here.</p>
+          </div>
+        }
+      </section>
+
+      <section class="dd-primary-panel" aria-label="Connection controls">
+        <div class="dd-primary-panel__head">
+          <span>Connection</span>
         </div>
-      } @else {
-        <div class="wsc__empty">No messages yet. Connect and send a message to see it here.</div>
-      }
-    </section>
-  </div>
+
+        <div class="dd-primary-panel__grid">
+          <label class="ctl__field" for="url">
+            <span>WebSocket URL</span>
+            <input
+              id="url"
+              type="url"
+              formControlName="url"
+              placeholder="wss://echo.websocket.events"
+              [disabled]="isConnected() || isConnecting()"
+            />
+          </label>
+        </div>
+
+        <div
+          class="wsc__status-indicator"
+          [class.wsc__status-indicator--connected]="isConnected()"
+          [class.wsc__status-indicator--connecting]="isConnecting()"
+          [class.wsc__status-indicator--error]="hasError()">
+          <div class="wsc__status-dot"></div>
+          <span>
+            @if (isConnected()) {
+              Connected
+            } @else if (isConnecting()) {
+              Connecting…
+            } @else if (hasError()) {
+              Error
+            } @else {
+              Disconnected
+            }
+          </span>
+        </div>
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open more panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="History and tips">
+          <details class="ctl__panel" open>
+            <summary class="ctl__panel-head">Preferences</summary>
+            <div class="ctl__settings">
+              <label class="wsc__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <span>Remember recent URLs</span>
+              </label>
+              @if (urlHistory().length) {
+                <div class="wsc__url-history">
+                  <span class="wsc__url-history-label">Recent URLs</span>
+                  @for (url of urlHistory(); track url) {
+                    <button type="button" class="wsc__url-chip" (click)="applyUrl(url)" [disabled]="isConnected() || isConnecting()">
+                      {{ url }}
+                    </button>
+                  }
+                  <button type="button" class="ctl__icon-btn" (click)="clearUrlHistory()" aria-label="Clear URL history">Clear</button>
+                </div>
+              }
+            </div>
+          </details>
+
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>Use <strong>wss://</strong> for secure connections in production environments.</p>
+            </div>
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot"></span>
+              <p>JSON messages are automatically formatted in the log.</p>
+            </div>
+          </div>
+
+          <details class="ctl__panel wsc__related" open>
+            <summary class="ctl__panel-head">Related tools</summary>
+            <ul class="wsc__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="wsc__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </details>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help dd-footer-help">
+      <summary>How to use WebSocket Client</summary>
+      <ol class="dd-help-steps">
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">1</span>
+          <h3>Connect</h3>
+          <p>Enter a ws:// or wss:// URL and Connect.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">2</span>
+          <h3>Sample</h3>
+          <p>Load the public echo socket with a JSON ping payload.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">3</span>
+          <h3>Chat</h3>
+          <p>Send messages and watch the live log. Shift+Enter for newlines.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">4</span>
+          <h3>Copy</h3>
+          <p>Copy a received JSON message for formatting or debugging.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">5</span>
+          <h3>Privacy</h3>
+          <p>The socket opens from your browser to the URL you enter.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
 </div>

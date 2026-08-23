@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/qr-code-generator/qr-code-generator';
 export * from './lib/component/barcode-generator/barcode-generator';
 export * from './lib/component/stopwatch-timer/stopwatch-timer';

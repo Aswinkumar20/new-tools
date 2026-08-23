@@ -1,0 +1,303 @@
+<div class="ctl ic cad-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ic-eyebrow">CAD viewers</span>
+        <h1>IFC Viewer <span class="ic-live-badge">Local &amp; private</span></h1>
+        <p>Inspect IFC building elements, properties, and disciplines locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="IFC Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="ic-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ic-suggest__body">
+        <p class="ic-suggest__title">{{ suggestion.title }}</p>
+        <p class="ic-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ic-suggest__actions">
+        <button type="button" class="ic-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="ic-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="ic-toolbar">
+      <div class="ic-toolbar__group">
+        <input #fileInput class="ic-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn ic-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ic-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="ic-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="ic-files" *ngIf="files.length">
+          <div class="ic-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ic-files__chip--active]="i === currentIndex">
+            <button type="button" class="ic-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="ic-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="ic-tab-bar" *ngIf="currentFile" role="tablist">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="ic-toolbar__status"><span class="ic-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="ic-workspace" [class.ic-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ic-panel" #viewerPanel>
+        <header class="ic-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.ifcVer || '—' }} · {{ parsed?.units || 'm' }} · {{ filteredElements.length }} elements · {{ filteredProperties.length }} properties · {{ filteredDisciplines.length }} disciplines</span>
+            <p class="ic-view-hint" *ngIf="viewMode !== 'table'">Drag to rotate · click to select · wheel zoom · <kbd>0</kbd> fit</p>
+          </div>
+          <div class="ic-view-controls" role="group" aria-label="View controls">
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1 / 1.2)" [disabled]="!parsed" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="ic-map-wrap">
+          <canvas
+            #canvasHost
+            class="ic-map"
+            [class.ic-map--rotating]="rotating"
+            *ngIf="currentFile && viewMode !== 'table'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp($event)"
+            (pointerleave)="onCanvasPointerUp($event)"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="ic-cards" *ngIf="currentFile && viewMode === 'building'">
+            <article *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElement?.id === element.id" tabindex="0" role="button" (click)="selectElement(element.id)" (keydown.enter)="selectElement(element.id)" (keydown.space)="selectElement(element.id); $event.preventDefault()">
+              <header>
+                <i class="ic-swatch" [style.background]="element.colorHex || tint(element.kind, element.index)"></i>
+                <strong>{{ element.name }}</strong>
+                <span>{{ element.kind }}</span>
+                <span>{{ element.ifcType }}</span>
+              </header>
+              <p>{{ element.kind === 'cylinder' ? 'r ' + element.r + ' · h ' + element.h : element.sx + ' × ' + element.sy }}</p>
+            </article>
+            <p class="ic-empty-filter" *ngIf="parsed && !filteredElements.length">No elements match the current filter.</p>
+          </div>
+          <div class="ic-cards" *ngIf="currentFile && viewMode === 'disciplines'">
+            <article *ngFor="let disc of filteredDisciplines; trackBy: trackByDiscipline" [class.is-active]="selectedDiscipline?.id === disc.id" tabindex="0" role="button" (click)="selectDiscipline(disc.id)" (keydown.enter)="selectDiscipline(disc.id)" (keydown.space)="selectDiscipline(disc.id); $event.preventDefault()">
+              <header>
+                <i class="ic-swatch" [style.background]="tint('discipline', disc.index)"></i>
+                <strong>{{ disc.name }}</strong>
+                <span>discipline</span>
+                <button type="button" class="ic-eye" (click)="toggleDiscVisible(disc.name, $event)" [attr.aria-label]="isDiscHidden(disc.name) ? 'Show' : 'Hide'" [appTooltip]="isDiscHidden(disc.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isDiscHidden(disc.name) ? 'Show' : 'Hide' }}</button>
+              </header>
+              <p>{{ disc.description || '—' }} · {{ disc.elementCount }} elements</p>
+            </article>
+            <p class="ic-empty-filter" *ngIf="parsed && !filteredDisciplines.length">No disciplines match the current filter.</p>
+          </div>
+          <div class="ic-cards" *ngIf="currentFile && viewMode === 'properties'">
+            <article *ngFor="let prop of filteredProperties; trackBy: trackByProp" [class.is-active]="selectedProp?.id === prop.id" tabindex="0" role="button" (click)="selectProp(prop.id)" (keydown.enter)="selectProp(prop.id)" (keydown.space)="selectProp(prop.id); $event.preventDefault()">
+              <header>
+                <i class="ic-swatch" [style.background]="tint('property', prop.index)"></i>
+                <strong>{{ prop.name }}</strong>
+                <span>property</span>
+              </header>
+              <p>{{ prop.pset }} · {{ prop.element }}</p>
+            </article>
+            <p class="ic-empty-filter" *ngIf="parsed && !filteredProperties.length">No properties match the current filter.</p>
+          </div>
+          <div class="ic-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="ic-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ic-empty" *ngIf="!currentFile && !loading">
+            <p>Drop an IFC dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="ic-loading" *ngIf="loading">Parsing IFC dump…</div>
+        </div>
+
+        <div class="ic-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ic-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ic-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for buildingSMART viewers, BIM Vision, or FZK Viewer. Education dump of IFC elements, property sets, and disciplines. Full IFC4 geometry is not expanded.</p>
+      </section>
+
+      <aside class="ic-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="ic-empty-panel">Upload a file or load the sample to inspect the model here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="ic-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search building</summary>
+          <div class="ctl__panel-body">
+            <div class="ic-search-row">
+              <input #searchInput class="ic-search" type="search" placeholder="elem:column kind:cylinder disc:Structure prop:shop-width (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+              <button type="button" class="ctl__icon-btn" *ngIf="query" (click)="clearSearch()" aria-label="Clear search" appTooltip="Clear search" tooltipPosition="top"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" /></button>
+            </div>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'building' && filteredElements.length" open>
+          <summary class="ctl__panel-head">Building</summary>
+          <div class="ctl__panel-body ic-units">
+            <button type="button" *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElementId === element.id" (click)="selectElement(element.id)">
+              <i class="ic-swatch" [style.background]="element.colorHex || tint(element.kind, element.index)"></i>
+              <span>{{ element.name }} <small>{{ element.kind }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'disciplines' && filteredDisciplines.length" open>
+          <summary class="ctl__panel-head">Disciplines</summary>
+          <div class="ctl__panel-body ic-units">
+            <button type="button" *ngFor="let disc of filteredDisciplines; trackBy: trackByDiscipline" [class.is-active]="selectedDiscId === disc.id" (click)="selectDiscipline(disc.id)">
+              <i class="ic-swatch" [style.background]="tint('discipline', disc.index)"></i>
+              <span>{{ disc.name }} <small>{{ disc.elementCount }} elems · {{ disc.description || '—' }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'properties' || viewMode === 'table') && filteredProperties.length" open>
+          <summary class="ctl__panel-head">Properties</summary>
+          <div class="ctl__panel-body ic-units">
+            <button type="button" *ngFor="let prop of filteredProperties; trackBy: trackByProp" [class.is-active]="selectedPropId === prop.id" (click)="selectProp(prop.id)">
+              <i class="ic-swatch" [style.background]="tint('property', prop.index)"></i>
+              <span>{{ prop.name }} <small>{{ prop.pset }} · {{ prop.element }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'building' && selectedElement" open>
+          <summary class="ctl__panel-head">Selected element</summary>
+          <div class="ctl__panel-body">
+            <dl class="ic-meta">
+              <div *ngFor="let row of elementMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'disciplines' && selectedDiscipline" open>
+          <summary class="ctl__panel-head">Selected discipline</summary>
+          <div class="ctl__panel-body">
+            <dl class="ic-meta">
+              <div *ngFor="let row of discMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'properties' && selectedProp" open>
+          <summary class="ctl__panel-head">Selected property</summary>
+          <div class="ctl__panel-body">
+            <dl class="ic-meta">
+              <div *ngFor="let row of propMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed && !hasSelection" open>
+          <summary class="ctl__panel-head">Selection</summary>
+          <div class="ctl__panel-body">
+            <p class="ic-empty-panel">Click the model or a tree item to inspect properties.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ic-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+
+    <details class="ctl__help cad-footer-help">
+      <summary>How to use IFC Viewer</summary>
+      <ol class="cad-help-steps">
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Drag to rotate, click to select, wheel zoom, or use Fit / Reset. Shortcuts: <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> <kbd>/</kbd>.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Search and select items to inspect properties in the side panel.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, schema/rows CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="cad-help-step">
+          <span class="cad-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a full native CAD kernel.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
+  <div class="ic-drop" *ngIf="showDropZone"><p>Drop IFC dump to preview</p></div>
+</div>

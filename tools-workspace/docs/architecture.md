@@ -21,8 +21,6 @@
 
 **CDN at runtime:** pdf.js, SheetJS, mammoth, marked, DOMPurify (markdown), JSZip, Chart.js, qrcode, JsBarcode, jspdf, html2canvas.
 
-**Installed but unused in tool code:** `@codemirror/*`, `figlet`, `ngx-doc-viewer`, `ngx-universal-file-viewer`, `@angular/flex-layout`.
-
 No NgRx, no app `environments/`, no HTTP interceptors, no route guards. Root `package.json` `"scripts": {}` — use `npx nx …`.
 
 ## Folder structure
@@ -32,7 +30,7 @@ tools-workspace/
 ├── apps/
 │   ├── tools-site/          # SPA + SSR (routes, SEO, GA)
 │   └── tools-site-e2e/      # Playwright
-├── libs/                    # 14 feature libraries (@tools-workspace/*)
+├── libs/                    # 23 libraries (@tools-workspace/*)
 ├── docs/                    # This documentation (canonical)
 ├── scripts/                 # SVG audit / stub helpers
 ├── nx.json
@@ -53,7 +51,7 @@ flowchart TB
   App --> SEO[SeoService]
   App --> GA[GoogleAnalyticsService]
   Outlet -->|lazy loadComponent| Home[features-home]
-  Outlet -->|lazy loadComponent| Tools[13 tool libs]
+  Outlet -->|lazy loadComponent| Tools[22 tool libs]
   Home --> Nav[Navigation]
   Tools --> Nav
   Tools --> ToastSvc[ToastService]
@@ -63,16 +61,16 @@ flowchart TB
 
 | Layer | Responsibility |
 | ----- | -------------- |
-| `apps/tools-site` | Bootstrap, `app.routes.ts` (162 lazy routes), SEO, GA, shell |
-| `features-home` | Home, nav, footer, toast, assets, language/translation |
-| Feature libs | One tool (or PDF mode) per route; client logic + optional CDN |
+| `apps/tools-site` | Bootstrap, `app.routes.ts` (365 lazy routes), SEO, GA, shell |
+| `features-home` (`type:shared`) | Home, nav, footer, toast, assets, i18n, coming-soon page |
+| Feature libs (`type:feature`) | One tool (or PDF mode) per route; client logic + optional CDN |
 | Build scripts | SEO catalog, prerender routes, sitemap |
 
 ### Routing
 
 - Single table: `apps/tools-site/src/app/app.routes.ts`.
 - Pattern: category parent → `children` with `loadComponent`.
-- Lib `lib.routes.ts` files are largely **unused** by the app.
+- Coming-soon routes load shared `ComingSoonPageComponent` from `features-home`.
 - `''` and `**` redirect toward `tools`.
 
 ### Design choices
@@ -80,7 +78,7 @@ flowchart TB
 1. Thin app, fat libs  
 2. Lazy per-tool chunks  
 3. Privacy-first client processing (FX rates are the main outbound product API)  
-4. Shell shared via `features-home` (no separate shared-ui lib yet)  
+4. Shell shared via `features-home` (`type:shared`; Navigation still coupled to the generated catalog)  
 5. PDF: mode-driven workbenches; Text: many tools extend `TextToolBase`
 
 Hardcoded: SEO base `https://easytoolhub.com`, GA `G-C7L2T1RHVW`.

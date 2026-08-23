@@ -48,3 +48,16 @@
 #   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 # </IfModule>
 
+# Prerendered pretty URLs: serve folder/index.html when present.
+# Unknown paths return HTTP 404 (do not SPA-fallback to homepage).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}/index.html -f
+  RewriteRule ^(.*)$ $1/index.html [L]
+</IfModule>
+
+ErrorDocument 404 /404.html
+

@@ -1,0 +1,136 @@
+<div class="ctl root">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="root-eyebrow">Science tools</span>
+        <h1>ROOT File Viewer <span class="root-live-badge">Local &amp; private</span></h1>
+        <p>Browse ROOT histograms and tree branches locally with object browser and export helpers. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="root-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="root-suggest__body">
+        <p class="root-suggest__title">{{ suggestion.title }}</p>
+        <p class="root-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="root-suggest__actions">
+        <button type="button" class="root-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="root-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="root-toolbar">
+      <div class="root-toolbar__group">
+        <input #fileInput class="root-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn root-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="root-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="root-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('objects-json', $event)">Objects JSON</button>
+            <button type="button" (click)="exportAs('histogram-csv', $event)">Histogram CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="root-files" *ngIf="files.length">
+          <div class="root-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.root-files__chip--active]="i === currentIndex">
+            <button type="button" class="root-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="root-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="root-toolbar__status"><span class="root-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="root-workspace" [class.root-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="root-panel">
+        <header class="root-map-head" *ngIf="currentFile">
+          <div><strong>{{ currentFile.name }}</strong><span>{{ objectLabel }}</span></div>
+          <div class="root-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="root-map-wrap" [class.root-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="root-map" *ngIf="object?.kind === 'histogram'"></canvas>
+          <div class="root-tree-table" *ngIf="object?.kind === 'tree' && object?.tree as tree">
+            <table>
+              <thead>
+                <tr>
+                  <th *ngFor="let col of tree.columns">{{ col }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of tree.rows">
+                  <td *ngFor="let cell of row">{{ cell }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="root-other" *ngIf="object?.kind === 'other' && object as obj">
+            <p>{{ obj.className }} · {{ obj.name }}</p>
+            <p>Preview not available for this object type.</p>
+          </div>
+          <div class="root-empty" *ngIf="!currentFile && !loading">
+            <p>Drop ROOT files here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="root-loading" *ngIf="loading">Parsing ROOT file…</div>
+        </div>
+
+        <div class="root-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="root-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="root-disclaimer">Education and research preview only — compressed streamer-dependent ROOT objects may be unsupported.</p>
+      </section>
+
+      <aside class="root-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">File overview</header>
+          <div class="ctl__panel-body">
+            <dl class="root-meta">
+              <div *ngFor="let row of fileMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="parsed?.objects?.length">
+          <header class="ctl__panel-head">Objects</header>
+          <div class="ctl__panel-body">
+            <button type="button" class="root-obj" *ngFor="let obj of parsed!.objects; trackBy: trackByObject" [class.is-active]="selectedObjectIndex === obj.index" (click)="selectObject(obj.index)">
+              <strong>{{ obj.name }}</strong>
+              <span>{{ obj.className }} · {{ obj.kind }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="object">
+          <header class="ctl__panel-head">Object details</header>
+          <div class="ctl__panel-body">
+            <dl class="root-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="histogramBars.length">
+          <header class="ctl__panel-head">Histogram</header>
+          <div class="ctl__panel-body root-hist">
+            <div class="root-hist__bar" *ngFor="let bar of histogramBars" [style.height.%]="bar.heightPct"></div>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="root-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="root-drop" *ngIf="showDropZone"><p>Drop ROOT files to preview</p></div>
+  </main>
+</div>

@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { ScreenshotToPdfComponent } from './screenshot-to-pdf';
 
 describe('ScreenshotToPdfComponent', () => {
@@ -7,7 +8,8 @@ describe('ScreenshotToPdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ScreenshotToPdfComponent]
+      imports: [ScreenshotToPdfComponent],
+      providers: pdfToolTestProviders(),
     }).compileComponents();
 
     fixture = TestBed.createComponent(ScreenshotToPdfComponent);

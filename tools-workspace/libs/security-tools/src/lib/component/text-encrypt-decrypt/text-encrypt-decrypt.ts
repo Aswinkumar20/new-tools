@@ -1,178 +1,191 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
-
-type Mode = 'encrypt' | 'decrypt';
-
-interface TextCryptoState {
-  output: string;
-  lastAction: Mode | null;
-}
-
-type TextEncryptDecryptFormGroup = FormGroup<{
-  mode: FormControl<Mode>;
-  plaintext: FormControl<string>;
-  ciphertext: FormControl<string>;
-  password: FormControl<string>;
-}>;
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  Navigation,
+  TooltipDirective,
+  AssetService,
+  ToastService
+} from '@tools-workspace/features-home';
+import type { StRelatedToolLink } from '../../shared/st-tool-suggestion.model';
+import { stCopyText } from '../../shared/st-clipboard.util';
+import { stDecryptAesGcm, stEncryptAesGcm } from '../../shared/st-aes-gcm.util';
+import {
+  TEXT_ENCRYPT_DEFAULT_FORM,
+  TEXT_ENCRYPT_EMPTY_STATE,
+  TEXT_ENCRYPT_RELATED_TOOLS
+} from '../../constants/text-encrypt-decrypt.constants';
+import type {
+  TextCryptoMode,
+  TextCryptoState,
+  TextEncryptDecryptFormGroup,
+  TextEncryptDecryptFormValues
+} from '../../types/text-encrypt-decrypt.types';
+import {
+  canRunTextCrypto,
+  mapTextCryptoError,
+  resolveTextCryptoInputLength,
+  resolveTextEncryptDecryptSuggestion,
+  toggleTextCryptoMode,
+  validateTextCryptoOperation
+} from '../../utils/text-encrypt-decrypt.utils';
 
 @Component({
   selector: 'lib-text-encrypt-decrypt',
   standalone: true,
   templateUrl: './text-encrypt-decrypt.html',
   styleUrls: ['./text-encrypt-decrypt.scss'],
-  imports: [CommonModule, ReactiveFormsModule, Navigation],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TextEncryptDecryptComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly assetService = inject(AssetService);
+
+  readonly relatedTools: ReadonlyArray<StRelatedToolLink> = TEXT_ENCRYPT_RELATED_TOOLS;
 
   readonly form: TextEncryptDecryptFormGroup = this.fb.group({
-    mode: this.fb.control<Mode>('encrypt', { nonNullable: true }),
-    plaintext: this.fb.control('', { nonNullable: true }),
-    ciphertext: this.fb.control('', { nonNullable: true }),
-    password: this.fb.control('', { nonNullable: true })
+    mode: this.fb.control<TextCryptoMode>(TEXT_ENCRYPT_DEFAULT_FORM.mode, {
+      nonNullable: true
+    }),
+    plaintext: this.fb.control(TEXT_ENCRYPT_DEFAULT_FORM.plaintext, { nonNullable: true }),
+    ciphertext: this.fb.control(TEXT_ENCRYPT_DEFAULT_FORM.ciphertext, { nonNullable: true }),
+    password: this.fb.control(TEXT_ENCRYPT_DEFAULT_FORM.password, { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
-  readonly state = signal<TextCryptoState>({ output: '', lastAction: null });
+  readonly state = signal<TextCryptoState>({ ...TEXT_ENCRYPT_EMPTY_STATE });
+  readonly formSnapshot = signal<TextEncryptDecryptFormValues>(this.readFormValues());
+  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasOutput = computed(() => !!this.state().output);
-  readonly isEncryptMode = computed(() => this.form.controls.mode.value === 'encrypt');
+
+  readonly isEncryptMode = computed(() => this.formSnapshot().mode === 'encrypt');
+
+  readonly inputLength = computed(() => {
+    const snapshot = this.formSnapshot();
+    return resolveTextCryptoInputLength(snapshot.mode, snapshot.plaintext, snapshot.ciphertext);
+  });
+
+  readonly canRun = computed(() => {
+    const snapshot = this.formSnapshot();
+    return canRunTextCrypto(
+      snapshot.mode,
+      snapshot.plaintext,
+      snapshot.ciphertext,
+      snapshot.password
+    );
+  });
+
+  readonly primarySuggestion = computed(() => {
+    const snapshot = this.formSnapshot();
+    const suggestion = resolveTextEncryptDecryptSuggestion({
+      mode: snapshot.mode,
+      hasPassword: !!snapshot.password,
+      hasPlaintext: !!snapshot.plaintext.trim(),
+      hasCiphertext: !!snapshot.ciphertext.trim(),
+      hasOutput: this.hasOutput(),
+      lastAction: this.state().lastAction,
+      errorMessage: this.errors()[0] ?? null
+    });
+
+    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
+      return null;
+    }
+    return suggestion;
+  });
+
+  constructor() {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.formSnapshot.set(this.readFormValues());
+    });
+  }
 
   async run(): Promise<void> {
     this.errors.set([]);
     this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
 
     const { mode, plaintext, ciphertext, password } = this.form.getRawValue();
-
-    if (!password) {
-      this.errors.set(['Enter a password for encryption/decryption.']);
+    const validationErrors = validateTextCryptoOperation({
+      mode,
+      plaintext,
+      ciphertext,
+      password
+    });
+    if (validationErrors.length) {
+      this.errors.set(validationErrors);
       return;
     }
 
     try {
       if (mode === 'encrypt') {
-        if (!plaintext.trim()) {
-          this.errors.set(['Enter plaintext to encrypt.']);
-          return;
-        }
-        const encrypted = await this.encrypt(plaintext, password);
+        const encrypted = await stEncryptAesGcm(plaintext, password);
         this.form.controls.ciphertext.setValue(encrypted);
         this.state.set({ output: encrypted, lastAction: 'encrypt' });
       } else {
-        if (!ciphertext.trim()) {
-          this.errors.set(['Enter ciphertext to decrypt.']);
-          return;
-        }
-        const decrypted = await this.decrypt(ciphertext, password);
+        const decrypted = await stDecryptAesGcm(ciphertext, password);
         this.form.controls.plaintext.setValue(decrypted);
         this.state.set({ output: decrypted, lastAction: 'decrypt' });
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error during encryption/decryption.';
-      this.errors.set([`Operation failed: ${msg}`]);
+      this.errors.set([mapTextCryptoError(e)]);
     }
   }
 
+  setMode(mode: TextCryptoMode): void {
+    this.form.controls.mode.setValue(mode);
+  }
+
   swapMode(): void {
-    const current = this.form.controls.mode.value;
-    const next: Mode = current === 'encrypt' ? 'decrypt' : 'encrypt';
-    this.form.controls.mode.setValue(next);
+    this.form.controls.mode.setValue(toggleTextCryptoMode(this.form.controls.mode.value));
   }
 
   clearAll(): void {
     this.form.controls.plaintext.setValue('');
     this.form.controls.ciphertext.setValue('');
     this.form.controls.password.setValue('');
-    this.state.set({ output: '', lastAction: null });
+    this.state.set({ ...TEXT_ENCRYPT_EMPTY_STATE });
     this.errors.set([]);
     this.warnings.set([]);
+    this.dismissedSuggestionId.set(null);
+    this.toast.info('Cleared');
   }
 
-  copyOutput(): void {
+  async copyInput(): Promise<void> {
+    const snapshot = this.formSnapshot();
+    const text = snapshot.mode === 'encrypt' ? snapshot.plaintext : snapshot.ciphertext;
+    const copied = await stCopyText(this.toast, text, 'Input');
+    if (!copied && text) {
+      this.errors.set(['Failed to copy input to clipboard.']);
+    }
+  }
+
+  async copyOutput(): Promise<void> {
     const output = this.state().output;
-    if (!output) return;
-    navigator.clipboard.writeText(output).catch(() => {
+    const copied = await stCopyText(this.toast, output, 'Output');
+    if (!copied && output) {
       this.errors.set(['Failed to copy output to clipboard.']);
-    });
+    }
   }
 
-  private async encrypt(plainText: string, password: string): Promise<string> {
-    const enc = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-
-    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, [
-      'deriveKey'
-    ]);
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-
-    const cipherBuffer = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv
-      },
-      key,
-      enc.encode(plainText)
-    );
-
-    const combined = new Uint8Array(salt.length + iv.length + cipherBuffer.byteLength);
-    combined.set(salt, 0);
-    combined.set(iv, salt.length);
-    combined.set(new Uint8Array(cipherBuffer), salt.length + iv.length);
-
-    return btoa(String.fromCharCode(...combined));
+  dismissSuggestion(suggestionId: string): void {
+    this.dismissedSuggestionId.set(suggestionId);
   }
 
-  private async decrypt(cipherBase64: string, password: string): Promise<string> {
-    const data = Uint8Array.from(atob(cipherBase64), (c) => c.charCodeAt(0));
-    const salt = data.slice(0, 16);
-    const iv = data.slice(16, 28);
-    const cipherBytes = data.slice(28);
-
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, [
-      'deriveKey'
-    ]);
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['decrypt']
-    );
-
-    const plainBuffer = await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv
-      },
-      key,
-      cipherBytes
-    );
-
-    const dec = new TextDecoder();
-    return dec.decode(plainBuffer);
+  private readFormValues(): TextEncryptDecryptFormValues {
+    return this.form.getRawValue();
   }
 }

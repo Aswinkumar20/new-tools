@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/json-formatter-beautifier-validator/json-formatter-beautifier-validator';
 export * from './lib/component/csv-to-json-json-to-csv/csv-to-json-json-to-csv';
 export * from './lib/component/yaml-to-json-json-to-yaml/yaml-to-json-json-to-yaml';

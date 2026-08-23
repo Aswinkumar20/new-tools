@@ -1,254 +1,264 @@
-<div class="lec">
-  <div class="lec__nav">
-    <lib-navigation></lib-navigation>
-  </div>
-
-  <section class="lec__hero">
-    <div class="lec__badge">Finance toolkit</div>
-    <h1>Loan EMI Planner</h1>
-    <p>
-      Model mortgage, auto, or personal loans, compare repayment frequencies, and explore how extra payments accelerate
-      payoff.
-    </p>
-
-    <div class="lec__actions">
-      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
-      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+<div class="ctl md">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Loan EMI Calculator</h1>
+        <p>Model mortgages, auto, and personal loans with amortization insights.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Loan statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.emi) : '—' }}</span>
+          <span class="ctl__stat-label">EMI</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.totalPayments) : '—' }}</span>
+          <span class="ctl__stat-label">Total</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ history().length }}</span>
+          <span class="ctl__stat-label">History</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ formSnapshot().loanType === 'reducing' ? 'Reducing' : 'Flat' }}</span>
+          <span class="ctl__stat-label">Type</span>
+        </div>
+      </div>
     </div>
 
-    @if (statusMessage()) {
-      <div class="lec__status">{{ statusMessage() }}</div>
-    }
-  </section>
-
-  <div class="lec__layout">
-    <section class="lec__card lec__card--form">
-      <header class="lec__card-header">
-        <div>
-          <h2>Loan details</h2>
-          <p>Enter loan amount, interest, and tenure. Toggle between reducing balance or flat rate.</p>
-        </div>
-      </header>
-
-      <form class="lec__form" [formGroup]="form" (ngSubmit)="submit()">
-        <div class="lec__grid">
-          <div class="lec__input">
-            <label for="amount">Loan amount</label>
-            <input id="amount" type="number" step="0.01" formControlName="amount" />
-          </div>
-          <div class="lec__input">
-            <label for="rate">Interest rate (% p.a.)</label>
-            <input id="rate" type="number" step="0.01" formControlName="rate" />
-          </div>
-        </div>
-
-        <div class="lec__grid lec__grid--term">
-          <div class="lec__input">
-            <label for="termYears">Term (years)</label>
-            <input id="termYears" type="number" formControlName="termYears" />
-          </div>
-          <div class="lec__input">
-            <label for="termMonths">Term (months)</label>
-            <input id="termMonths" type="number" formControlName="termMonths" />
-          </div>
-          <div class="lec__input">
-            <label for="frequency">Payment frequency</label>
-            <select id="frequency" formControlName="frequency">
-              @for (frequency of frequencies; track trackFrequency($index, frequency)) {
-                <option [value]="frequency.id">{{ frequency.label }}</option>
-              }
-            </select>
-          </div>
-        </div>
-
-        <div class="lec__loan-type">
-          <span>Loan type</span>
-          <div class="lec__segmented">
-            <button type="button" [class.is-active]="form.get('loanType')?.value === 'reducing'" (click)="setLoanType('reducing')">
-              Reducing balance
-            </button>
-            <button type="button" [class.is-active]="form.get('loanType')?.value === 'flat'" (click)="setLoanType('flat')">
-              Flat rate
-            </button>
-          </div>
-        </div>
-
-        <div class="lec__grid lec__grid--extras">
-          <div class="lec__input">
-            <label for="startDate">Start date</label>
-            <input id="startDate" type="date" formControlName="startDate" />
-          </div>
-          <div class="lec__input">
-            <label for="extraPayment">Extra payment</label>
-            <input id="extraPayment" type="number" step="0.01" formControlName="extraPayment" [disabled]="form.get('loanType')?.value === 'flat'" />
-          </div>
-          <div class="lec__input">
-            <label for="extraMode">Extra frequency</label>
-            <select id="extraMode" formControlName="extraMode" [disabled]="form.get('loanType')?.value === 'flat'">
-              <option value="none">None</option>
-              <option value="monthly">Every month</option>
-              <option value="annually">Every year</option>
-            </select>
-          </div>
-        </div>
-
-        <label class="lec__toggle">
-          <input type="checkbox" formControlName="includeHistory" />
-          <span>Keep this calculation in history</span>
-        </label>
-
-        @if (errorMessage()) {
-          <div class="lec__error">{{ errorMessage() }}</div>
-        }
-
-        <div class="lec__form-actions">
-          <button type="submit" class="btn btn--primary">Calculate</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="lec__card lec__card--summary">
-      <header class="lec__card-header">
-        <div>
-          <h2>Summary</h2>
-          <p>Key repayment metrics and totals.</p>
-        </div>
-      </header>
-
-      @if (summary()) {
-        <div class="lec__summary">
-          <div class="lec__summary-pill">
-            <strong>{{ formatCurrency(summary()!.emi) }}</strong>
-            <span>Periodic payment</span>
-            <small>Based on {{ form.get('frequency')?.value | titlecase }} schedule</small>
-          </div>
-
-          <div class="lec__metric-grid">
-            <div class="lec__metric">
-              <span>Total paid</span>
-              <strong>{{ formatCurrency(summary()!.totalPayments) }}</strong>
-            </div>
-            <div class="lec__metric">
-              <span>Total interest</span>
-              <strong>{{ formatCurrency(summary()!.totalInterest) }}</strong>
-            </div>
-            @if (summary()!.payoffDate) {
-              <div class="lec__metric">
-                <span>Projected payoff</span>
-                <strong>{{ summary()!.payoffDate | date:'mediumDate' }}</strong>
-              </div>
-            }
-            <div class="lec__metric">
-              <span>Duration</span>
-              <strong>{{ summary()!.durationMonths }} months</strong>
-            </div>
-            @if (summary()!.savingsFromExtra) {
-              <div class="lec__metric lec__metric--accent">
-                <span>Interest saved</span>
-                <strong>{{ formatCurrency(summary()!.savingsFromExtra!) }}</strong>
-              </div>
-            }
-          </div>
-        </div>
-      } @else {
-        <div class="lec__empty">Enter loan details to generate a plan.</div>
-      }
-    </section>
-
-    <section class="lec__card lec__card--schedule">
-      <header class="lec__card-header">
-        <div>
-          <h2>Schedule preview</h2>
-          <p>First {{ schedulePreview().length }} repayments.</p>
-        </div>
-      </header>
-      @if (schedulePreview().length > 0) {
-        <div class="lec__table-wrapper">
-          <table class="lec__table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Payment</th>
-                <th>Principal</th>
-                <th>Interest</th>
-                <th>Extra</th>
-                <th>Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of schedulePreview(); track trackSchedule($index, item)) {
-                <tr>
-                  <td>{{ item.period }}</td>
-                  <td>{{ item.paymentDate ? (item.paymentDate | date:'MMM y') : '—' }}</td>
-                  <td>{{ formatCurrency(item.payment) }}</td>
-                  <td>{{ formatCurrency(item.principal) }}</td>
-                  <td>{{ formatCurrency(item.interest) }}</td>
-                  <td>{{ formatCurrency(item.extraPayment) }}</td>
-                  <td>{{ formatCurrency(item.balance) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <div class="lec__empty">Preview will appear once the loan is calculated.</div>
-      }
-    </section>
-
-    <section class="lec__card lec__card--insights">
-      <header class="lec__card-header">
-        <h2>Insights</h2>
-      </header>
-      @if (insights().length > 0) {
-        <ul class="lec__insights">
-          @for (tip of insights(); track trackInsight($index, tip)) {
-            <li>{{ tip }}</li>
-          }
-        </ul>
-      } @else {
-        <div class="lec__empty">Insights will appear after calculating.</div>
-      }
-    </section>
-
-    <section class="lec__card lec__card--presets">
-      <header class="lec__card-header">
-        <h2>Quick presets</h2>
-      </header>
-      <div class="lec__preset-grid">
-        @for (preset of presets; track trackPreset($index, preset)) {
-          <button type="button" class="lec__preset" (click)="applyPreset(preset)">
-            <strong>{{ preset.label }}</strong>
-            <small>{{ preset.amount | number:'1.0-0' }} @ {{ preset.rate }}% · {{ preset.termYears }} yrs</small>
-          </button>
-        }
+    <div class="md-workflow" aria-label="Loan actions">
+      <div class="md-workflow__group md-workflow__group--actions">
+        <button type="button" class="ctl__tool-btn" (click)="submit()" appTooltip="Recalculate" tooltipPosition="bottom" aria-label="Recalculate">
+          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Calculate</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy result" tooltipPosition="bottom" aria-label="Copy result">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!history().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
-    </section>
+    </div>
 
-    <section class="lec__card lec__card--history">
-      <header class="lec__card-header">
-        <h2>History</h2>
-        <span class="lec__history-count">{{ history().length }}</span>
-      </header>
-      <div class="lec__history-list">
-        @for (entry of history(); track trackHistory($index, entry)) {
-          <article>
-            <div class="lec__history-head">
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor md-editor-panel">
+          <header class="ctl__editor-head"><span>Loan details</span></header>
+          <div class="ctl__editor-body ctl__settings">
+            <label class="ctl__field" for="amount">
+              <span>Loan amount</span>
+              <input id="amount" type="number" step="0.01" formControlName="amount" />
+            </label>
+            <label class="ctl__field" for="rate">
+              <span>Interest rate (% p.a.)</span>
+              <input id="rate" type="number" step="0.01" formControlName="rate" />
+            </label>
+            <label class="ctl__field" for="termYears">
+              <span>Term (years)</span>
+              <input id="termYears" type="number" formControlName="termYears" />
+            </label>
+            <label class="ctl__field" for="termMonths">
+              <span>Term (months)</span>
+              <input id="termMonths" type="number" formControlName="termMonths" />
+            </label>
+            <label class="ctl__field" for="frequency">
+              <span>Payment frequency</span>
+              <select id="frequency" formControlName="frequency">
+                @for (frequency of frequencies; track trackFrequency($index, frequency)) {
+                  <option [value]="frequency.id">{{ frequency.label }}</option>
+                }
+              </select>
+            </label>
+            <div class="lec__tabs" role="group" aria-label="Loan type">
+              <button
+                type="button"
+                class="lec__tab"
+                [class.lec__tab--active]="formSnapshot().loanType === 'reducing'"
+                [attr.aria-pressed]="formSnapshot().loanType === 'reducing'"
+                (click)="setLoanType('reducing')">
+                Reducing
+              </button>
+              <button
+                type="button"
+                class="lec__tab"
+                [class.lec__tab--active]="formSnapshot().loanType === 'flat'"
+                [attr.aria-pressed]="formSnapshot().loanType === 'flat'"
+                (click)="setLoanType('flat')">
+                Flat
+              </button>
+            </div>
+            <label class="ctl__field" for="startDate">
+              <span>Start date</span>
+              <input id="startDate" type="date" formControlName="startDate" />
+            </label>
+            <label class="ctl__field" for="extraPayment">
+              <span>Extra payment</span>
+              <input
+                id="extraPayment"
+                type="number"
+                step="0.01"
+                formControlName="extraPayment"
+                [disabled]="formSnapshot().loanType === 'flat'" />
+            </label>
+            <label class="ctl__toggle">
+              <input type="checkbox" formControlName="includeHistory" />
               <div>
-                <strong>{{ formatCurrency(entry.summary.emi) }} EMI</strong>
-                <span>{{ entry.amount | number:'1.0-0' }} @ {{ entry.rate | number:'1.2-2' }}% · {{ entry.termMonths }} months</span>
+                <strong>Store in history</strong>
+                <span>Keep recent calculations.</span>
               </div>
-              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
+            </label>
+            @if (errorMessage()) {
+              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            }
+          </div>
+        </section>
+
+        <section class="ctl__editor ctl__editor--output md-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Summary</span>
+            <div class="ctl__editor-actions">
+              @if (summary()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!summary()" appTooltip="Copy summary" tooltipPosition="bottom" aria-label="Copy summary">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
             </div>
-            <p class="lec__history-meta">
-              Total interest {{ formatCurrency(entry.summary.totalInterest) }} · {{ entry.summary.durationMonths }} months
-            </p>
-          </article>
-        }
-        @if (history().length === 0) {
-          <div class="lec__empty">Your loan scenarios will appear here.</div>
-        }
+          </header>
+
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="lec__suggest" aria-label="Suggested next step">
+              <div class="lec__suggest-body">
+                <p class="lec__suggest-title">{{ suggestion.title }}</p>
+                <p class="lec__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="lec__suggest-actions">
+                <a class="lec__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="lec__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
+          }
+
+          @if (summary()) {
+            <div class="ctl__editor-body lec__results" aria-live="polite">
+              <div class="lec__pill">
+                <strong>{{ formatCurrency(summary()!.emi) }}</strong>
+                <span>Monthly EMI</span>
+              </div>
+              <div class="lec__grid">
+                <div class="lec__metric">
+                  <span>Total payment</span>
+                  <strong>{{ formatCurrency(summary()!.totalPayments) }}</strong>
+                </div>
+                <div class="lec__metric">
+                  <span>Total interest</span>
+                  <strong>{{ formatCurrency(summary()!.totalInterest) }}</strong>
+                </div>
+                <div class="lec__metric">
+                  <span>Duration</span>
+                  <strong>{{ summary()!.durationMonths }} mo</strong>
+                </div>
+                <div class="lec__metric">
+                  <span>Payoff</span>
+                  <strong>{{ summary()!.payoffDate ? (summary()!.payoffDate | date:'mediumDate') : '—' }}</strong>
+                </div>
+              </div>
+              @if (insights().length > 0) {
+                <ul class="lec__insights">
+                  @for (insight of insights(); track trackInsight($index, insight)) {
+                    <li>{{ insight }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          } @else {
+            <div class="ctl__empty" aria-live="polite">
+              <p>Enter loan details to see EMI breakdown.</p>
+            </div>
+          }
+        </section>
       </div>
-    </section>
-  </div>
+
+      <details class="md-options-flyout">
+        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Presets</header>
+            <div class="ctl__panel-body">
+              <div class="lec__presets">
+                @for (preset of presets; track trackPreset($index, preset)) {
+                  <button type="button" class="lec__preset" (click)="applyPreset(preset)">
+                    <strong>{{ preset.label }}</strong>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">
+              <span>History</span>
+              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
+                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              </button>
+            </header>
+            <div class="ctl__panel-body">
+              @if (history().length > 0) {
+                <ul class="lec__history">
+                  @for (entry of history(); track trackHistory($index, entry)) {
+                    <li>
+                      <button type="button" class="lec__history-item" (click)="restoreHistory(entry)">
+                        <strong>{{ formatCurrency(entry.summary.emi) }} EMI</strong>
+                        <span>{{ entry.amount | number }} @ {{ entry.rate }}%</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <div class="ctl__panel-empty"><p>Loan calculations appear here.</p></div>
+              }
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body lec__related">
+              <ul class="lec__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="lec__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Enter loan amount, rate, and tenure.</li>
+        <li>Choose reducing balance or flat rate.</li>
+        <li>Copy EMI summary or restore from history.</li>
+      </ul>
+    </details>
+  </main>
 </div>

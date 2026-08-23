@@ -1,0 +1,249 @@
+<div class="ctl arch dv-shell">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="arch-eyebrow">Diagram viewers</span>
+        <h1>Architecture Diagram Viewer <span class="arch-live-badge">Local &amp; private</span></h1>
+        <p>Preview system boxes and connectors locally. Education/research only.</p>
+      </header>
+      <div class="ctl__stats" aria-label="Architecture Diagram Viewer statistics" appStatValueTooltipHost>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.files }}</span>
+          <span class="ctl__stat-label">Files</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.groupCount }}</span>
+          <span class="ctl__stat-label">{{ insights.groupLabel }}</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ insights.itemCount }}</span>
+          <span class="ctl__stat-label">{{ insights.itemLabel }}</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ insights.sizeValue }}</span>
+          <span class="ctl__stat-label">{{ insights.sizeLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="arch-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="arch-suggest__body">
+        <p class="arch-suggest__title">{{ suggestion.title }}</p>
+        <p class="arch-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="arch-suggest__actions">
+        <button type="button" class="arch-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="arch-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="arch-toolbar" role="toolbar" aria-label="Architecture Diagram Viewer actions">
+      <div class="arch-toolbar__group">
+        <input #fileInput class="arch-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn arch-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="arch-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="arch-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('boxes-csv', $event)">Boxes CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('connectors-csv', $event)">Connectors CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
+        <div class="arch-files" *ngIf="files.length">
+          <div class="arch-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.arch-files__chip--active]="i === currentIndex">
+            <button type="button" class="arch-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="arch-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Architecture Diagram Viewer views">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="arch-toolbar__status"><span class="arch-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
+    </div>
+
+
+    <div class="arch-workspace" [class.arch-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="arch-panel">
+        <header class="arch-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.boxes?.length || 0 }} boxes · {{ parsed?.connectors?.length || 0 }} connectors</span>
+          </div>
+          <div class="arch-view-controls">
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+          </div>
+        </header>
+
+        <div #mapWrap class="arch-map-wrap">
+          <canvas #canvasHost class="arch-map" [class.arch-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="arch-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'boxes')">
+            <article *ngFor="let box of filteredBoxes; trackBy: trackByBox" [class.is-active]="selectedBox?.id === box.id" (click)="selectBox(box.id)">
+              <header>
+                <i class="arch-swatch" [style.background]="tint(box.kind, box.index)"></i>
+                <strong>{{ box.name }}</strong>
+                <span>{{ box.kind }}</span>
+              </header>
+              <p>{{ box.stereotype || box.id }}</p>
+            </article>
+            <p class="arch-empty-filter" *ngIf="parsed && !filteredBoxes.length">No boxes match the current filter.</p>
+          </div>
+          <div class="arch-cards" *ngIf="currentFile && viewMode === 'connectors'">
+            <article *ngFor="let conn of filteredConnectors; trackBy: trackByConnector" [class.is-active]="selectedConnector?.id === conn.id" (click)="selectConnector(conn.id)">
+              <header>
+                <i class="arch-swatch" [style.background]="tint(conn.style, conn.index)"></i>
+                <strong>{{ conn.sourceName }} → {{ conn.targetName }}</strong>
+                <span>{{ conn.style }}</span>
+              </header>
+              <p>{{ conn.label || 'unlabeled' }}</p>
+            </article>
+            <p class="arch-empty-filter" *ngIf="parsed && !filteredConnectors.length">No connectors match the current filter.</p>
+          </div>
+          <div class="arch-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Label</th>
+                  <th>Style</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let conn of filteredConnectors; trackBy: trackByConnector" [class.is-active]="selectedConnector?.id === conn.id" (click)="selectConnector(conn.id)">
+                  <td>{{ conn.index + 1 }}</td>
+                  <td>{{ conn.sourceName }}</td>
+                  <td>{{ conn.targetName }}</td>
+                  <td>{{ conn.label || '—' }}</td>
+                  <td>{{ conn.style }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="arch-empty-filter" *ngIf="parsed && !filteredConnectors.length">No connectors match the current filter.</p>
+          </div>
+          <div class="arch-empty" *ngIf="!currentFile && !loading">
+            <p>Drop architecture source here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="arch-loading" *ngIf="loading">Parsing architecture…</div>
+        </div>
+
+        <div class="arch-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="arch-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="arch-disclaimer">Education and research preview only — not a substitute for enterprise architecture tools.</p>
+      </section>
+
+      <aside class="arch-sidebar">
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
+          <div class="ctl__panel-body">
+            <dl class="arch-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search diagram</summary>
+          <div class="ctl__panel-body">
+            <input #searchInput class="arch-search" type="search" placeholder="kind:database rel:HTTPS from:Web (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'table' || viewMode === 'connectors') && filteredConnectors.length" open>
+          <summary class="ctl__panel-head">Connectors</summary>
+          <div class="ctl__panel-body arch-units">
+            <button type="button" *ngFor="let conn of filteredConnectors; trackBy: trackByConnector" [class.is-active]="selectedConnectorId === conn.id" (click)="selectConnector(conn.id)">
+              <i class="arch-swatch" [style.background]="tint(conn.style, conn.index)"></i>
+              <span>{{ conn.sourceName }} → {{ conn.targetName }} <small>{{ conn.label || conn.style }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'connectors' && filteredBoxes.length" open>
+          <summary class="ctl__panel-head">Boxes</summary>
+          <div class="ctl__panel-body arch-units">
+            <button type="button" *ngFor="let box of filteredBoxes; trackBy: trackByBox" [class.is-active]="selectedBoxId === box.id" (click)="selectBox(box.id)">
+              <i class="arch-swatch" [style.background]="tint(box.kind, box.index)"></i>
+              <span>{{ box.name }} <small>{{ box.kind }}</small></span>
+            </button>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'table' || viewMode === 'connectors') && selectedConnector" open>
+          <summary class="ctl__panel-head">Selected connector</summary>
+          <div class="ctl__panel-body">
+            <dl class="arch-meta">
+              <div *ngFor="let row of connectorMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'table' && viewMode !== 'connectors' && selectedBox" open>
+          <summary class="ctl__panel-head">Selected box</summary>
+          <div class="ctl__panel-body">
+            <dl class="arch-meta">
+              <div *ngFor="let row of boxMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="arch-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
+          </div>
+        </details>
+      </aside>
+    </div>
+    <details class="ctl__help dv-footer-help">
+      <summary>How to use Architecture Diagram Viewer</summary>
+      <ol class="dv-help-steps">
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">1</span>
+          <h3>Upload or sample</h3>
+          <p>Open {{ formatsLabel }} locally, or load the built-in sample. Files never leave your browser.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">2</span>
+          <h3>Navigate</h3>
+          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">3</span>
+          <h3>Inspect</h3>
+          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">4</span>
+          <h3>Export</h3>
+          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+        </li>
+        <li class="dv-help-step">
+          <span class="dv-help-step__n">5</span>
+          <h3>Privacy &amp; limits</h3>
+          <p>{{ formatsHint }} Education/research preview only — not a substitute for native diagram suites.</p>
+        </li>
+      </ol>
+    </details>
+
+    <div class="arch-drop" *ngIf="showDropZone"><p>Drop architecture source to preview</p></div>
+  </main>
+</div>

@@ -1,222 +1,216 @@
-<div class="itt">
-  <div class="itt__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl ic">
+  <lib-navigation></lib-navigation>
 
-  <section class="itt__hero">
-    <div class="itt__badge">OCR toolkit</div>
-    <h1>Image to Text Converter</h1>
-    <p>
-      Extract text from images using OCR (Optical Character Recognition). Upload images, select language, and get
-      extracted text instantly. Perfect for digitizing documents, receipts, and printed text.
-    </p>
-
-    @if (result()) {
-      @let info = result()!;
-      <div class="itt__hero-meta">
-        <div>
-          <span class="itt__meta-label">Words</span>
-          <strong>{{ info.words }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Characters</span>
-          <strong>{{ info.characters }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Lines</span>
-          <strong>{{ info.lines }}</strong>
-        </div>
-        <div>
-          <span class="itt__meta-label">Confidence</span>
-          <strong>{{ info.confidence }}%</strong>
-        </div>
-      </div>
-    } @else {
-      <div class="itt__hero-meta itt__hero-meta--placeholder">
-        Upload an image to extract text using OCR. Supports multiple languages and provides confidence scores.
-      </div>
-    }
-  </section>
-
-  <div class="itt__board" [formGroup]="form">
-    <section class="itt__panel itt__panel--upload">
-      <header class="itt__card-header">
-        <div>
-          <h2>Upload & settings</h2>
-          <p>Select an image file and configure OCR options.</p>
-        </div>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>Image to Text</h1>
+        <p>Extract text from images using OCR — upload, select language, and get results instantly.</p>
       </header>
 
-      @if (errors().length) {
-        <div class="itt__alert itt__alert--error">
-          <ul>
-            @for (message of errors(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+      <div class="ctl__stats" aria-label="OCR statistics">
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ selectedFile()?.name ?? '—' }}</span>
+          <span class="ctl__stat-label">File</span>
         </div>
-      }
-
-      @if (warnings().length) {
-        <div class="itt__alert itt__alert--warning">
-          <ul>
-            @for (message of warnings(); track message) {
-              <li>{{ message }}</li>
-            }
-          </ul>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">{{ currentLanguageName() }}</span>
+          <span class="ctl__stat-label">Language</span>
         </div>
-      }
-
-      <div
-        class="itt__dropzone"
-        [class.itt__dropzone--active]="dragActive()"
-        (dragover)="onDragOver($event)"
-        (dragleave)="onDragLeave($event)"
-        (drop)="onDrop($event)"
-      >
-        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" class="itt__file-input" />
-        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Select image</button>
-        <p>or drag & drop here · {{ formatBytes(maxFileSize) }} limit</p>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result() ? result()!.words : '—' }}</span>
+          <span class="ctl__stat-label">Words</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ result() ? result()!.confidence + '%' : '—' }}</span>
+          <span class="ctl__stat-label">Confidence</span>
+        </div>
       </div>
+    </div>
 
-      @if (selectedFile()) {
-        <div class="itt__file-info">
-          <strong>{{ selectedFile()?.name }}</strong>
-          <span>{{ formatBytes(selectedFile()?.size ?? 0) }}</span>
-        </div>
-      }
-
-      <div class="itt__form-grid">
-        <label class="itt__input" for="itt-language">
-          <span>Language</span>
-          <select id="itt-language" formControlName="language" (change)="onLanguageChange()">
-            @for (lang of languages; track lang.code) {
-              <option [value]="lang.code">{{ lang.name }}</option>
-            }
-          </select>
-        </label>
-
-        <label class="itt__input" for="itt-psm">
-          <span>Page segmentation mode</span>
-          <select id="itt-psm" formControlName="psm">
-            @for (option of psmOptions; track option.value) {
-              <option [value]="option.value">{{ option.label }}</option>
-            }
-          </select>
-          <small>Controls how the image is analyzed for text detection.</small>
-        </label>
-
-        <label class="itt__toggle">
-          <input type="checkbox" formControlName="rememberHistory" />
-          <span>Remember extraction history</span>
-        </label>
-      </div>
-
-      @if (isProcessing()) {
-        <div class="itt__progress">
-          <div class="itt__progress-bar">
-            <div class="itt__progress-fill" [style.width.%]="progress()"></div>
-          </div>
-          <span>Processing... {{ progress() }}%</span>
-        </div>
-      }
-
-      <div class="itt__actions">
-        <button type="button" class="btn btn--primary" (click)="clear()">Clear</button>
-      </div>
-    </section>
-
-    <section class="itt__panel itt__panel--preview">
-      <header class="itt__card-header">
-        <div>
-          <h2>Image preview</h2>
-          <p>Preview the uploaded image.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="itt__preview-container">
-          <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="itt__preview-image" />
-        </div>
-      } @else {
-        <div class="itt__preview-placeholder">
-          <span>Upload an image to see preview</span>
-        </div>
-      }
-    </section>
-
-    <section class="itt__panel itt__panel--output">
-      <header class="itt__card-header">
-        <div>
-          <h2>Extracted text</h2>
-          <p>Copy or download the extracted text.</p>
-        </div>
-      </header>
-
-      @if (result()) {
-        @let current = result()!;
-        <div class="itt__output-actions">
-          <button type="button" class="btn btn--primary" (click)="copyToClipboard()">Copy text</button>
-          <button type="button" class="btn btn--ghost" (click)="downloadText()">Download .txt</button>
-        </div>
-
-        <div class="itt__text-output">
-          <pre class="itt__text-content">{{ current.text || 'No text extracted.' }}</pre>
-        </div>
-
-        <div class="itt__stats">
-          <div class="itt__stat-item">
-            <span class="itt__stat-label">Processing time</span>
-            <strong>{{ current.processingTime }}ms</strong>
-          </div>
-          <div class="itt__stat-item">
-            <span class="itt__stat-label">Confidence</span>
-            <strong>{{ current.confidence }}%</strong>
-          </div>
-        </div>
-      } @else {
-        <div class="itt__empty">Extract text from an image to see results here.</div>
-      }
-    </section>
-
-    <section class="itt__panel itt__panel--history">
-      <header class="itt__card-header">
-        <div>
-          <h2>Extraction history</h2>
-          <p>Quick access to recently extracted text.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
+    <div class="ic-workflow" aria-label="OCR actions">
+      <div class="ic-workflow__group ic-workflow__group--actions">
+        <input #fileInput id="itt-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="ctl__tool-btn" (click)="fileInput.click()" aria-label="Upload" appTooltip="Upload image" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
         </button>
-      </header>
+        <button type="button" class="ctl__tool-btn" (click)="copyToClipboard()" [disabled]="!result()" aria-label="Copy text" appTooltip="Copy extracted text" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Copy</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="downloadText()" [disabled]="!result()" aria-label="Download" appTooltip="Download .txt" tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!selectedFile()" aria-label="Clear" appTooltip="Clear all" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+    </div>
 
-      @if (hasHistory()) {
-        <ul class="itt__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <button type="button" (click)="applyHistory(entry)" class="itt__history-item">
-                <div class="itt__history-preview">
-                  <img [src]="entry.preview" [alt]="entry.filename ?? 'Preview'" />
-                </div>
-                <div class="itt__history-details">
-                  <strong>{{ entry.filename ?? 'Untitled' }}</strong>
-                  <span>{{ entry.words }} words · {{ entry.text.substring(0, 50) }}{{ entry.text.length > 50 ? '...' : '' }}</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
-              </button>
-            </li>
+    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
+      <div class="ctl__editors ctl__editors--split">
+        <section class="ctl__editor ic-editor-panel" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          <header class="ctl__editor-head"><span>Source image</span></header>
+          @if (primarySuggestion(); as suggestion) {
+            <aside class="itt__suggest" aria-label="Suggested next step">
+              <div class="itt__suggest-body">
+                <p class="itt__suggest-title">{{ suggestion.title }}</p>
+                <p class="itt__suggest-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="itt__suggest-actions">
+                <a class="itt__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+                <button
+                  type="button"
+                  class="itt__suggest-dismiss"
+                  (click)="dismissSuggestion(suggestion.id)"
+                  aria-label="Dismiss suggestion">
+                  Dismiss
+                </button>
+              </div>
+            </aside>
           }
-        </ul>
-      } @else {
-        <div class="itt__empty">Enable history tracking to keep a list of recent extractions.</div>
-      }
-    </section>
-  </div>
+          @if (errors().length || warnings().length) {
+            @if (errors().length) {
+              <div class="ctl__alert ctl__alert--error" role="alert">
+                <ul>
+                  @for (m of errors(); track m) {
+                    <li>{{ m }}</li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (warnings().length) {
+              <div class="ctl__alert ctl__alert--warning">
+                <ul>
+                  @for (m of warnings(); track m) {
+                    <li>{{ m }}</li>
+                  }
+                </ul>
+              </div>
+            }
+          }
+          @if (isProcessing()) {
+            <div class="ctl__editor-body">
+              <div class="ict-progress">
+                <div class="ict-progress-bar"><div class="ict-progress-fill" [style.width.%]="progress()"></div></div>
+                <span>Processing… {{ progress() }}%</span>
+              </div>
+            </div>
+          } @else if (result(); as current) {
+            <div class="ctl__editor-body itt__preview-wrap">
+              <img [src]="current.previewUrl" [alt]="current.filename ?? 'Uploaded'" class="ict-preview-img" />
+            </div>
+          } @else {
+            <div class="ctl__editor-body">
+              <button type="button" class="ict-dropzone" [class.ict-dropzone--active]="dragActive()" (click)="fileInput.click()">
+                <p>Drop an image or click to browse</p>
+                <p>Max {{ formatBytes(maxFileSize) }}</p>
+              </button>
+            </div>
+          }
+        </section>
+
+        <section class="ctl__editor ctl__editor--output ic-editor-panel">
+          <header class="ctl__editor-head">
+            <span>Extracted text</span>
+            <div class="ctl__editor-actions">
+              @if (result()) {
+                <span class="ctl__editor-badge">Ready</span>
+              }
+              <button type="button" class="ctl__icon-btn" (click)="copyToClipboard()" [disabled]="!result()" aria-label="Copy text" appTooltip="Copy extracted text" tooltipPosition="bottom">
+                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+              </button>
+            </div>
+          </header>
+          @if (result(); as current) {
+            <textarea class="ctl__textarea ctl__textarea--output" readonly rows="1" [value]="current.text || 'No text extracted.'" aria-label="Extracted text"></textarea>
+          } @else {
+            <div class="ctl__empty"><p>Upload an image to extract text via OCR.</p></div>
+          }
+        </section>
+      </div>
+
+      <details class="ic-options-flyout">
+        <summary class="ic-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>Options</span>
+        </summary>
+        <button type="button" class="ic-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar ic-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="OCR options">
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Options</header>
+            <div class="ctl__settings">
+              <label class="ctl__field" for="itt-language">
+                <span>Language</span>
+                <select id="itt-language" formControlName="language" (change)="onLanguageChange()">
+                  @for (lang of languages; track lang.code) {
+                    <option [value]="lang.code">{{ lang.name }}</option>
+                  }
+                </select>
+              </label>
+              <label class="ctl__field" for="itt-psm">
+                <span>Page segmentation</span>
+                <select id="itt-psm" formControlName="psm" (change)="onPsmChange()">
+                  @for (option of psmOptions; track option.value) {
+                    <option [value]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              </label>
+              <label class="ctl__toggle">
+                <input type="checkbox" formControlName="rememberHistory" />
+                <div><strong>Remember history</strong></div>
+              </label>
+            </div>
+          </div>
+          @if (result(); as current) {
+            <div class="ctl__info">
+              <div class="ctl__info-item">
+                <span class="ctl__info-dot ctl__info-dot--accent"></span>
+                <p><strong>{{ current.words }}</strong> words · {{ current.characters }} chars · {{ current.lines }} lines</p>
+              </div>
+              <div class="ctl__info-item">
+                <span class="ctl__info-dot"></span>
+                <p>Processed in {{ current.processingTime }}ms at {{ current.confidence }}% confidence.</p>
+              </div>
+            </div>
+          }
+          <div class="ctl__info">
+            <div class="ctl__info-item">
+              <span class="ctl__info-dot ctl__info-dot--accent"></span>
+              <p>OCR runs <strong>locally</strong> in your browser via Tesseract.js.</p>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Related tools</header>
+            <div class="ctl__panel-body itt__related">
+              <ul class="itt__related-list">
+                @for (tool of relatedTools; track tool.path) {
+                  <li>
+                    <a class="itt__related-link" [routerLink]="tool.path">
+                      <strong>{{ tool.label }}</strong>
+                      <span>{{ tool.description }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        <li>Upload a clear image with readable text.</li>
+        <li>Select language and segmentation mode for best results.</li>
+        <li>Copy or download the extracted text from the output panel.</li>
+      </ul>
+    </details>
+  </main>
 </div>

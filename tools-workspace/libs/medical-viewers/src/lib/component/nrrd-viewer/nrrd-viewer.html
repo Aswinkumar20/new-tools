@@ -1,0 +1,338 @@
+<div class="ctl nrrd">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="nrrd-eyebrow">Medical tools</span>
+        <h1>NRRD Viewer <span class="nrrd-live-badge">Local &amp; private</span></h1>
+        <p>
+          Local private preview for education and research — ortho slices, window/level, and intensity histogram. Not for diagnostic use.
+        </p>
+      </header>
+    </div>
+
+    <aside class="nrrd-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="nrrd-suggest__body">
+        <p class="nrrd-suggest__title">{{ suggestion.title }}</p>
+        <p class="nrrd-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="nrrd-suggest__actions">
+        <button type="button" class="nrrd-suggest__action" (click)="applySuggestion(suggestion)">
+          {{ suggestion.actionLabel }}
+        </button>
+        <button type="button" class="nrrd-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="nrrd-toolbar" aria-label="NRRD viewer controls">
+      <div class="nrrd-toolbar__group">
+        <label class="sr-only" for="nrrd-file-upload">Upload NRRD files</label>
+        <input
+          #fileInput
+          id="nrrd-file-upload"
+          class="nrrd-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn nrrd-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample NRRD volume" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="nrrd-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="nrrd-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">
+              <strong>Original file</strong>
+              <span>Download the uploaded volume</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('header-json', $event)">
+              <strong>Header JSON</strong>
+              <span>NRRD header fields</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Dims, voxel size, stats</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG snapshot</strong>
+              <span>Current slice</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="nrrdFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="nrrd-files" *ngIf="nrrdFiles.length > 0" aria-label="Loaded NRRD files">
+          <div
+            class="nrrd-files__chip"
+            *ngFor="let file of nrrdFiles; let i = index; trackBy: trackByFileId"
+            [class.nrrd-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="nrrd-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="nrrd-files__name">{{ file.name }}</span>
+              <span class="nrrd-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="nrrd-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="nrrd-toolbar__status">
+        <span class="nrrd-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      class="nrrd-workspace"
+      [class.nrrd-workspace--fullscreen]="isFullscreen"
+      data-medical-workspace
+      [class.nrrd-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="nrrd-panel" aria-label="NRRD viewport">
+        <header class="nrrd-map-head" *ngIf="currentFile">
+          <div class="nrrd-map-head__identity">
+            <span class="nrrd-map-head__file">{{ currentFile.name }}</span>
+            <span class="nrrd-map-head__meta" *ngIf="parsed">
+              {{ planeLabel }} · {{ parsed.dims[0] }}×{{ parsed.dims[1] }}×{{ parsed.dims[2] }} ·
+              {{ parsed.header.type }}
+            </span>
+          </div>
+          <div class="nrrd-view-controls" aria-label="View controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <button type="button" (click)="fitZoom()" appTooltip="Fit (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="100%" tooltipPosition="bottom">100%</button>
+            <button type="button" (click)="toggleInvert()" [attr.aria-pressed]="invert" appTooltip="Invert" tooltipPosition="bottom">Invert</button>
+            <span class="nrrd-view-controls__divider"></span>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="nrrd-view-controls__divider"></span>
+            <button
+              type="button"
+              class="nrrd-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="nrrd-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="nrrd-map-wrap" [class.nrrd-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="nrrd-map"
+            [attr.aria-busy]="loading"
+            aria-label="NRRD slice viewport"
+            (wheel)="onCanvasWheel($event)"></canvas>
+          <div class="nrrd-empty" *ngIf="!currentFile && !loading">
+            <p class="nrrd-empty__title">Drop an NRRD volume here</p>
+            <p class="nrrd-empty__formats">
+              <span class="nrrd-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="nrrd-empty__hint">
+              {{ formatsHint }} Toggle axial / coronal / sagittal · arrows or wheel change slice · <kbd>F</kbd> fit.
+            </p>
+            <div class="nrrd-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="nrrd-loading" *ngIf="loading">Loading NRRD…</div>
+        </div>
+
+        <div class="nrrd-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="nrrd-error" *ngIf="errorMessage" role="alert">
+          <p class="nrrd-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="nrrd-details-sidebar"
+        class="nrrd-sidebar"
+        aria-label="NRRD details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">
+            <span>Volume overview</span>
+            <span class="nrrd-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="nrrd-process-name">{{ currentFile?.name }}</p>
+            <div class="nrrd-stat-grid nrrd-stat-grid--dense" aria-label="Volume statistics">
+              <div><strong>{{ parsed.dims[0] }}</strong><span>X</span></div>
+              <div><strong>{{ parsed.dims[1] }}</strong><span>Y</span></div>
+              <div><strong>{{ parsed.dims[2] }}</strong><span>Z</span></div>
+              <div><strong>{{ parsed.dataMin | number:'1.1-2' }}</strong><span>Min</span></div>
+              <div><strong>{{ parsed.dataMax | number:'1.1-2' }}</strong><span>Max</span></div>
+              <div><strong>{{ parsed.header.type }}</strong><span>Type</span></div>
+            </div>
+            <dl class="nrrd-meta nrrd-meta--compact">
+              <div>
+                <dt>Spacing</dt>
+                <dd>
+                  {{ parsed.voxelSize[0] | number:'1.2-2' }} × {{ parsed.voxelSize[1] | number:'1.2-2' }} ×
+                  {{ parsed.voxelSize[2] | number:'1.2-2' }}
+                </dd>
+              </div>
+              <div><dt>Encoding</dt><dd>{{ parsed.header.encoding || '—' }}</dd></div>
+              <div><dt>Space</dt><dd>{{ parsed.header.space || '—' }}</dd></div>
+              <div><dt>Endian</dt><dd>{{ parsed.header.endian || '—' }}</dd></div>
+            </dl>
+            <p class="nrrd-education-disclaimer">
+              Education and research preview only. Not intended for clinical diagnosis or treatment decisions.
+            </p>
+            <p class="nrrd-privacy-note">Files never leave your browser.</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="histogramBars.length">
+          <header class="ctl__panel-head">Intensity histogram</header>
+          <div class="ctl__panel-body">
+            <div class="nrrd-histogram" role="img" aria-label="Volume intensity histogram">
+              <div
+                class="nrrd-histogram__bar"
+                *ngFor="let bar of histogramBars; trackBy: trackByHistogramBar"
+                [style.flex-grow]="bar.fraction"
+                [attr.title]="bar.label + ' · ' + bar.count + ' voxels'">
+                <span class="nrrd-histogram__fill" [style.height.%]="bar.fraction * 100"></span>
+              </div>
+            </div>
+            <p class="nrrd-histogram__caption">Bar width proportional to bin fraction · height shows relative density</p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile && parsed && !currentFile.softFail">
+          <header class="ctl__panel-head">Ortho / window</header>
+          <div class="ctl__panel-body">
+            <div class="nrrd-controls">
+              <label>
+                <span>Plane</span>
+                <select [value]="plane" (change)="onPlaneChange($event)">
+                  <option *ngFor="let p of planes" [value]="p">{{ p }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Slice <span class="nrrd-opacity-value">{{ sliceIndex + 1 }} / {{ maxSlice + 1 }}</span></span>
+                <input type="range" min="0" [max]="maxSlice" step="1" [value]="sliceIndex" (input)="onSliceChange($event)" />
+              </label>
+              <label>
+                <span>Colormap</span>
+                <select [value]="colormap" (change)="onColormapChange($event)">
+                  <option *ngFor="let c of colormaps" [value]="c">{{ c }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Center <span class="nrrd-opacity-value">{{ windowCenter | number:'1.1-2' }}</span></span>
+                <input
+                  type="range"
+                  [min]="parsed.dataMin"
+                  [max]="parsed.dataMax"
+                  step="any"
+                  [value]="windowCenter"
+                  (input)="onWindowCenterChange($event)" />
+              </label>
+              <label>
+                <span>Width <span class="nrrd-opacity-value">{{ windowWidth | number:'1.1-2' }}</span></span>
+                <input
+                  type="range"
+                  [min]="1e-3"
+                  [max]="(parsed.dataMax - parsed.dataMin) * 2 || 1"
+                  step="any"
+                  [value]="windowWidth"
+                  (input)="onWindowWidthChange($event)" />
+              </label>
+              <p class="nrrd-controls__hint">Arrow keys or wheel change slice · Shift+± adjusts window width</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="nrrd-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help nrrd-footer-help">
+      <summary>How to use NRRD Viewer</summary>
+      <ul>
+        <li>Upload <code>.nrrd</code> or detached <code>.nhdr</code> headers. Raw and gzip encodings are supported for common scalar types.</li>
+        <li>Switch axial, coronal, or sagittal planes and scroll slices with the slider, arrow keys, or mouse wheel. Window/level and grayscale or hot colormap adjust display.</li>
+        <li>Inspect the intensity histogram in the sidebar. Export original, header JSON, summary JSON, or a PNG of the current slice. Files never leave your browser.</li>
+        <li><strong>Education disclaimer:</strong> this tool is for learning and research workflows only — not for diagnostic or clinical use.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="nrrd-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop NRRD files to open</p>
+    <p class="nrrd-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

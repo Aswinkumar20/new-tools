@@ -1,8 +1,14 @@
-import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import { PDFDocument } from 'pdf-lib';
+import { validateOutputFilename } from '../../shared/pdf.validation';
+import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
+import { downloadBytes, downloadBlob } from '../../shared/pdf.utils';
+import { PdfPreviewService } from '../../services/pdf-preview.service';
+import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
 
 interface PdfFile {
   file: File;
@@ -22,11 +28,19 @@ interface PdfFile {
   standalone: true,
   templateUrl: './merge-pdfs.html',
   styleUrls: ['./merge-pdfs.scss'],
-  imports: [CommonModule, FormsModule, Navigation]
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective, PdfFullscreenOverlayComponent]
 })
 export class MergePdfsComponent implements OnInit {
+  readonly assetService = inject(AssetService);
+  private readonly toast = inject(ToastService);
+  private readonly preview = inject(PdfPreviewService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewCanvas') previewCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('optionsFlyout') optionsFlyout?: ElementRef<HTMLElement>;
+  @ViewChild(PdfFullscreenOverlayComponent) fullscreenOverlay?: PdfFullscreenOverlayComponent;
+
+  previewFullscreen = false;
+  optionsPanelOpen = true;
 
   // PDF files
   pdfFiles: PdfFile[] = [];
@@ -36,8 +50,6 @@ export class MergePdfsComponent implements OnInit {
   showDropZone: boolean = false;
   loading: boolean = false;
   loadingMessage: string = 'Processing...';
-  errorMessage: string = '';
-  successMessage: string = '';
   
   // Password handling
   showPasswordDialog: boolean = false;
@@ -50,43 +62,52 @@ export class MergePdfsComponent implements OnInit {
   preserveBookmarks: boolean = true;
   removeDuplicatePages: boolean = false;
   outputFilename: string = 'merged-document.pdf';
+
+  get needsMoreFiles(): boolean {
+    return this.pdfFiles.length > 0 && this.pdfFiles.length < 2;
+  }
+
+  get canClearAll(): boolean {
+    return this.pdfFiles.length > 0 && !this.loading;
+  }
+
+  get canMerge(): boolean {
+    return this.pdfFiles.length >= 2 && !this.hasFilesNeedingPassword() && !this.loading;
+  }
+
+  get canDownloadMerged(): boolean {
+    return this.canMerge;
+  }
+
+  get mergeSetupHint(): string {
+    if (!this.pdfFiles.length) return 'Add at least two PDF files to merge.';
+    if (this.needsMoreFiles) return 'Add one more PDF file, then review merge options in Configuration.';
+    return 'Review output filename and merge options in Configuration before downloading.';
+  }
+
+  openOptionsPanel(): void {
+    this.optionsPanelOpen = true;
+    this.optionsFlyout?.nativeElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    this.cdr.detectChanges();
+  }
+
+  toggleOptionsPanel(): void {
+    this.optionsPanelOpen = !this.optionsPanelOpen;
+    this.cdr.detectChanges();
+  }
   
   // Preview
   mergedPdfPreview: PDFDocument | null = null;
   previewPage: number = 1;
-  private pdfjsLib: any = null;
   private mergedPdfBytes: Uint8Array | null = null;
   private previewRenderRetries: number = 0;
   private readonly maxPreviewRetries: number = 10;
-  private cachedPdfDocument: any = null; // Cache PDF.js document
-  private currentRenderTask: any = null; // Track current render task to cancel if needed
+  private previewRenderGeneration = 0;
   
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
-    this.loadPdfJs();
-  }
-
-  async loadPdfJs(): Promise<void> {
-    if (globalThis.window === undefined) return;
-    
-    if ((globalThis as any).pdfjsLib) {
-      this.pdfjsLib = (globalThis as any).pdfjsLib;
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    document.head.appendChild(script);
-
-    return new Promise((resolve, reject) => {
-      script.onload = () => {
-        this.pdfjsLib = (globalThis as any).pdfjsLib;
-        this.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        resolve();
-      };
-      script.onerror = () => reject(new Error('Failed to load PDF.js'));
-    });
+    /* PDF preview uses PdfPreviewService */
   }
 
   openFileDialog(): void {
@@ -129,7 +150,7 @@ export class MergePdfsComponent implements OnInit {
       if (files.length > 0) {
         this.processFiles(files);
       } else {
-        this.errorMessage = 'Please drop valid PDF files';
+        pdfNotifyError(this.toast, 'Please drop valid PDF files');
       }
     }
   }
@@ -137,12 +158,11 @@ export class MergePdfsComponent implements OnInit {
   async processFiles(files: File[]): Promise<void> {
     this.loading = true;
     this.loadingMessage = 'Loading PDF files...';
-    this.errorMessage = '';
 
     try {
       for (const file of files) {
         if (file.size > 100 * 1024 * 1024) {
-          this.errorMessage = `File "${file.name}" is too large (max 100MB)`;
+          pdfNotifyError(this.toast, `File "${file.name}" is too large (max 100MB)`);
           continue;
         }
 
@@ -152,7 +172,7 @@ export class MergePdfsComponent implements OnInit {
       this.updateTotalPages();
       this.cdr.detectChanges();
     } catch (error) {
-      this.errorMessage = `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -251,7 +271,7 @@ export class MergePdfsComponent implements OnInit {
       this.cdr.detectChanges();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.errorMessage = `Failed to load PDF "${file.name}": ${errorMessage}`;
+      pdfNotifyError(this.toast, `Failed to load PDF "${file.name}": ${errorMessage}`);
       throw error;
     }
   }
@@ -336,29 +356,57 @@ export class MergePdfsComponent implements OnInit {
   }
 
   downloadMergedPdf(): void {
-    if (!this.mergedPdfBytes) {
-      this.errorMessage = 'No merged PDF available to download';
+    void this.downloadMergedPdfAsync();
+  }
+
+  private async buildMergedBytes(): Promise<Uint8Array | null> {
+    if (this.pdfFiles.length < 2) return null;
+    if (this.hasFilesNeedingPassword()) return null;
+
+    const mergedPdf = await PDFDocument.create();
+    await this.copyPagesToMergedPdf(mergedPdf);
+    return this.buildMergedBytesFromDoc(mergedPdf);
+  }
+
+  private async buildMergedBytesFromDoc(mergedPdf: PDFDocument): Promise<Uint8Array> {
+    return new Uint8Array(await mergedPdf.save());
+  }
+
+  private async downloadMergedPdfAsync(): Promise<void> {
+    const filenameErr = validateOutputFilename(this.outputFilename || 'merged-document.pdf');
+    if (filenameErr) {
+      pdfNotifyError(this.toast, filenameErr);
       return;
     }
 
+    if (this.pdfFiles.length < 2) {
+      pdfNotifyWarning(this.toast, 'Add at least two PDF files before downloading');
+      return;
+    }
+
+    if (this.hasFilesNeedingPassword()) {
+      pdfNotifyWarning(this.toast, 'Unlock password-protected PDFs before downloading');
+      return;
+    }
+
+    this.loading = true;
+    this.loadingMessage = 'Preparing download…';
+    this.cdr.detectChanges();
+
     try {
-      const blob = new Blob([this.mergedPdfBytes as BlobPart], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = this.outputFilename || 'merged-document.pdf';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      
-      this.successMessage = 'Download started!';
-      setTimeout(() => {
-        this.successMessage = '';
-        this.cdr.detectChanges();
-      }, 3000);
+      const bytes = await this.buildMergedBytes();
+      if (!bytes?.length) {
+        pdfNotifyError(this.toast, 'No merged PDF available to download');
+        return;
+      }
+      this.mergedPdfBytes = bytes;
+      downloadBytes(bytes, this.outputFilename || 'merged-document.pdf');
+      pdfNotifySuccess(this.toast, 'Download started!');
     } catch (error) {
-      this.errorMessage = `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      this.loading = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -376,8 +424,6 @@ export class MergePdfsComponent implements OnInit {
     this.mergedPdfPreview = null;
     this.mergedPdfBytes = null;
     this.previewPage = 1;
-    this.errorMessage = '';
-    this.successMessage = '';
     this.cdr.detectChanges();
   }
 
@@ -455,16 +501,48 @@ export class MergePdfsComponent implements OnInit {
     return this.formatFileSize(totalBytes);
   }
 
+  togglePreviewFullscreen(): void {
+    if (!this.mergedPdfPreview) return;
+    this.previewFullscreen = !this.previewFullscreen;
+    this.cdr.detectChanges();
+    this.scheduleRenderPreview();
+  }
+
+  closePreviewFullscreen(): void {
+    this.previewFullscreen = false;
+    this.cdr.detectChanges();
+    this.scheduleRenderPreview();
+  }
+
+  scheduleRenderPreview(): void {
+    this.previewRenderRetries = 0;
+    this.previewRenderGeneration++;
+    requestAnimationFrame(() => {
+      this.cdr.detectChanges();
+      requestAnimationFrame(() => void this.renderPreview(this.previewRenderGeneration));
+    });
+  }
+
   async mergePdfs(): Promise<void> {
     if (this.pdfFiles.length < 2) {
-      this.errorMessage = 'Please add at least 2 PDF files to merge';
+      pdfNotifyWarning(this.toast, 'Please add at least 2 PDF files to merge');
+      return;
+    }
+
+    const filenameErr = validateOutputFilename(this.outputFilename);
+    if (filenameErr) {
+      pdfNotifyWarning(this.toast, filenameErr);
+      this.openOptionsPanel();
+      return;
+    }
+
+    if (this.hasFilesNeedingPassword()) {
+      pdfNotifyWarning(this.toast, 'Unlock password-protected PDFs before merging');
       return;
     }
 
     this.loading = true;
     this.loadingMessage = 'Merging PDFs...';
-    this.errorMessage = '';
-    this.successMessage = '';
 
     try {
       const mergedPdf = await PDFDocument.create();
@@ -472,29 +550,24 @@ export class MergePdfsComponent implements OnInit {
       // Copy pages from all PDFs in order
       await this.copyPagesToMergedPdf(mergedPdf);
 
-      const mergedBytes = await mergedPdf.save();
+      const mergedBytes = await this.buildMergedBytesFromDoc(mergedPdf);
+      if (!mergedBytes?.length) {
+        throw new Error('Merged PDF is empty');
+      }
       this.mergedPdfBytes = mergedBytes;
       this.mergedPdfPreview = mergedPdf;
       this.previewPage = 1;
       this.totalPages = mergedPdf.getPageCount();
-      
-      // Clear cached PDF document to force reload
-      this.cachedPdfDocument = null;
+      this.preview.clearCache();
 
-      // Update view first, then render preview
       this.previewRenderRetries = 0;
       this.cdr.detectChanges();
-      
-      // Wait for view to update before rendering preview
-      setTimeout(async () => {
-        await this.renderPreview();
-        this.cdr.detectChanges();
-      }, 0);
+      this.scheduleRenderPreview();
 
-      this.successMessage = 'PDFs merged successfully! Preview is ready below.';
+      pdfNotifySuccess(this.toast, 'PDFs merged successfully! Preview is ready below.');
       this.cdr.detectChanges();
     } catch (error) {
-      this.errorMessage = `Failed to merge PDFs: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      pdfNotifyError(this.toast, `Failed to merge PDFs: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -531,122 +604,56 @@ export class MergePdfsComponent implements OnInit {
     }
   }
 
-  async renderPreview(): Promise<void> {
-    if (!this.pdfjsLib || !this.mergedPdfBytes) return;
-    
-    // Check if canvas element exists in DOM
-    if (!this.previewCanvas?.nativeElement) {
-      // Retry after a short delay if canvas is not available yet
+  async renderPreview(generation = this.previewRenderGeneration): Promise<void> {
+    if (generation !== this.previewRenderGeneration || !this.mergedPdfBytes) return;
+
+    const canvas = this.previewFullscreen
+      ? this.fullscreenOverlay?.canvasElement
+      : this.previewCanvas?.nativeElement;
+
+    if (!canvas) {
       if (this.previewRenderRetries < this.maxPreviewRetries) {
         this.previewRenderRetries++;
-        setTimeout(() => this.renderPreview(), 100);
+        setTimeout(() => void this.renderPreview(generation), 100);
       }
       return;
     }
-    
-    // Reset retry counter on success
-    this.previewRenderRetries = 0;
-
-    const canvas = this.previewCanvas.nativeElement;
-    const context = canvas.getContext('2d');
-    
-    if (!context) return;
 
     try {
-      // Cancel any ongoing render task
-      if (this.currentRenderTask) {
-        try {
-          this.currentRenderTask.cancel();
-        } catch {
-          // Ignore cancellation errors - task may have already completed
-        }
-        this.currentRenderTask = null;
-      }
-
-      // Load or use cached PDF document
-      if (!this.cachedPdfDocument) {
-        const loadingTask = this.pdfjsLib.getDocument({ data: this.mergedPdfBytes });
-        this.cachedPdfDocument = await loadingTask.promise;
-      }
-
-      // Validate page number (PDF.js uses 1-based indexing)
-      const numPages = this.cachedPdfDocument.numPages;
-      
-      if (this.previewPage < 1 || this.previewPage > numPages) {
-        console.error(`Invalid page number: ${this.previewPage} (total pages: ${numPages})`);
-        return;
-      }
-
-      // Get the page (PDF.js uses 1-based page numbers)
-      const page = await this.cachedPdfDocument.getPage(this.previewPage);
-
-      const container = canvas.parentElement;
-      const containerWidth = container ? container.clientWidth - 32 : 400;
-      const maxWidth = containerWidth;
-
-      const viewportAtScale1 = page.getViewport({ scale: 1 });
-      const scale = maxWidth / viewportAtScale1.width;
-      const viewport = page.getViewport({ scale });
-
-      canvas.style.width = '100%';
-      canvas.style.height = 'auto';
-      canvas.style.maxWidth = '100%';
-
-      const devicePixelRatio = window.devicePixelRatio || 1;
-      const outputScale = devicePixelRatio;
-      
-      // Set canvas dimensions (this automatically clears the canvas)
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-
-      // Reset transform to identity matrix
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      
-      // Clear the canvas (should be cleared by setting width/height, but ensure it's cleared)
-      context.fillStyle = 'white';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Scale context for high DPI
-      context.scale(outputScale, outputScale);
-
-      // Render the page
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-
-      // Store render task and await it
-      this.currentRenderTask = page.render(renderContext);
-      await this.currentRenderTask.promise;
-      this.currentRenderTask = null;
-
+      const maxWidth = this.previewFullscreen ? fullscreenPreviewWidth() : undefined;
+      await this.preview.renderPageToCanvas(
+        this.mergedPdfBytes,
+        this.previewPage,
+        canvas,
+        maxWidth,
+      );
+      if (generation !== this.previewRenderGeneration) return;
     } catch (error) {
-      console.error('Error rendering preview:', error);
-      this.errorMessage = `Failed to render preview: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      if (generation !== this.previewRenderGeneration) return;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.toLowerCase().includes('cancel') || message.toLowerCase().includes('same canvas')) return;
+      pdfNotifyError(this.toast, `Failed to render preview: ${message}`);
     }
   }
 
   async previousPreviewPage(): Promise<void> {
     if (this.previewPage > 1) {
       this.previewPage--;
-      await this.renderPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 
   async nextPreviewPage(): Promise<void> {
     if (this.mergedPdfPreview && this.previewPage < this.totalPages) {
       this.previewPage++;
-      await this.renderPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 
   async goToPreviewPage(page: number): Promise<void> {
     if (page >= 1 && page <= this.totalPages) {
       this.previewPage = page;
-      await this.renderPreview();
-      this.cdr.detectChanges();
+      this.scheduleRenderPreview();
     }
   }
 

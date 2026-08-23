@@ -1,5 +1,5 @@
-/// <reference path="./pako.d.ts" />
 import * as pako from 'pako';
+import type { DeflateFunctionOptions } from 'pako';
 
 export type PakoFormat = 'deflate' | 'deflateRaw' | 'gzip';
 export type PakoBinaryEncoding = 'base64' | 'hex';
@@ -41,9 +41,14 @@ function hexToUint8(hex: string): Uint8Array {
   return bytes;
 }
 
+function toPakoLevel(level: number): NonNullable<DeflateFunctionOptions['level']> {
+  const clamped = Math.min(9, Math.max(0, Math.round(level)));
+  return clamped as NonNullable<DeflateFunctionOptions['level']>;
+}
+
 function compressBytes(text: string, format: PakoFormat, level: number): Uint8Array {
   const input = new TextEncoder().encode(text);
-  const options = { level: Math.min(9, Math.max(0, level)) };
+  const options: DeflateFunctionOptions = { level: toPakoLevel(level) };
   switch (format) {
     case 'deflate':
       return pako.deflate(input, options);

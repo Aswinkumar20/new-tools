@@ -1,42 +1,30 @@
 # Compilation / build performance
 
-Notes for faster local builds of this large Angular + Monaco workspace.
+EasyToolHub uses Angular 20 `@angular/build:application` (esbuild), not the webpack `browser` builder.
+
+## Local vs production (one codebase, two configs)
+
+| Command | Config | Behavior |
+| --- | --- | --- |
+| `npx nx serve tools-site` / `npm start` | `development` | CSR only, no prerender, `sourceMap: false`, ~4GB Node heap |
+| `npx nx serve-ssr tools-site` | `ssr-dev` | SSR without prerender |
+| `npx nx run tools-site:build-prod` | `production` | Prerender every sitemap URL (tools + category indexes). Use a **16GB** machine |
+
+Heap: `.npmrc` + `apps/tools-site/.env` set `NODE_OPTIONS=--max-old-space-size=4096`. On a very tight 8GB laptop you can also set `NG_BUILD_MAX_WORKERS=1`.
 
 ## Known hotspots
 
-| Issue | Detail |
-| ----- | ------ |
-| Large SCSS | e.g. `generic-styles.scss`, home SCSS, global `styles.scss` |
-| Monaco assets | `node_modules/monaco-editor` copied to `assets/monaco-editor` (~50 MB) |
-| Large codebase | Many libs and routes |
-
-## Already improved
-
-- Default build configuration: **development** (faster local)  
-- Incremental TypeScript (`incremental`, `isolatedModules` in base tsconfig)  
-
-Always pass `--configuration=production` before deploy.
-
-## Recommendations
-
-1. Split large SCSS; prefer `@use` over deep `@import` chains.  
-2. Load Monaco only on routes that need it (e.g. text difference).  
-3. Use Nx affected:
-   ```bash
-   npx nx affected -t lint,test
-   npx nx graph
-   ```
-4. Optional: disable source maps in a custom fast-dev config if not debugging.  
-5. Avoid weakening `strict` long-term for speed — prefer isolating heavy projects.
+- Large SCSS (`generic-styles.scss`, home, global styles)
+- Monaco loaded only on the text-difference route (`provideMonacoEditor` on that route; assets = `monaco-editor/min/vs`)
+- Many libs/routes — each tool is a deep `loadComponent`, not a library barrel
 
 ## Commands
 
 ```bash
-npx nx serve tools-site                          # dev
-npx nx build tools-site                          # development build
+npx nx serve tools-site
+npx nx run tools-site:generate-sitemap
 npx nx build tools-site --configuration=production
 npx nx serve-ssr tools-site
-npx nx run tools-site:generate-sitemap
 ```
 
-See also root getting-started in [`README.md`](../../README.md).
+See also [`README.md`](../../README.md).

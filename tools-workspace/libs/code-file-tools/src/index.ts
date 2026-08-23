@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/html-minifier/html-minifier';
 export * from './lib/component/css-minifier/css-minifier';
 export * from './lib/component/javascript-minifier/javascript-minifier';

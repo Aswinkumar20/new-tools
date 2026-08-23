@@ -1,0 +1,201 @@
+<div class="ctl ox">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="ox-eyebrow">ML viewers</span>
+        <h1>ONNX Viewer <span class="ox-live-badge">Local &amp; private</span></h1>
+        <p>Explore ONNX ops graphs, tensors, and metadata locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="ox-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="ox-suggest__body">
+        <p class="ox-suggest__title">{{ suggestion.title }}</p>
+        <p class="ox-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ox-suggest__actions">
+        <button type="button" class="ox-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="ox-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="ox-toolbar">
+      <div class="ox-toolbar__group">
+        <input #fileInput class="ox-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn ox-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ox-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="ox-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="ox-files" *ngIf="files.length">
+          <div class="ox-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ox-files__chip--active]="i === currentIndex">
+            <button type="button" class="ox-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="ox-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="ox-toolbar__status"><span class="ox-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="ox-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="ox-workspace" [class.ox-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="ox-panel">
+        <header class="ox-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · IR {{ parsed?.irVersion || '—' }} · {{ filteredOps.length }} ops · {{ filteredTensors.length }} tensors</span>
+          </div>
+          <div class="ox-view-controls">
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="ox-map-wrap" [class.ox-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="ox-map" [class.ox-map--tall]="viewMode === 'graph'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
+          <div class="ox-cards" *ngIf="currentFile && viewMode === 'graph'">
+            <article *ngFor="let node of filteredOps; trackBy: trackByOp" [class.is-active]="selectedOp?.id === node.id" (click)="selectOp(node.id)">
+              <header>
+                <i class="ox-swatch" [style.background]="tint(node.opType, node.index)"></i>
+                <strong>{{ node.name }}</strong>
+                <span>{{ node.opType }}</span>
+              </header>
+              <p>in: {{ node.inputs.join(', ') || '—' }} · out: {{ node.outputs.join(', ') || '—' }}</p>
+            </article>
+            <p class="ox-empty-filter" *ngIf="parsed && !filteredOps.length">No ops match the current filter.</p>
+          </div>
+          <div class="ox-cards" *ngIf="currentFile && viewMode === 'tensors'">
+            <article *ngFor="let entry of filteredTensors; trackBy: trackByTensor" [class.is-active]="selectedTensor?.id === entry.id" (click)="selectTensor(entry.id)">
+              <header>
+                <i class="ox-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+                <strong>{{ entry.name }}</strong>
+                <span>{{ entry.kind }}</span>
+              </header>
+              <p>{{ entry.dtype }} · {{ entry.shapeLabel }}{{ entry.preview ? ' · ' + entry.preview : '' }}</p>
+            </article>
+            <p class="ox-empty-filter" *ngIf="parsed && !filteredTensors.length">No tensors match the current filter.</p>
+          </div>
+          <div class="ox-cards" *ngIf="currentFile && viewMode === 'preview'">
+            <article *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <header>
+                <i class="ox-swatch" [style.background]="tint('number', i)"></i>
+                <strong>Row {{ i + 1 }}</strong>
+                <span>preview</span>
+              </header>
+              <p>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'opType') || 'op' }}</p>
+            </article>
+            <p class="ox-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ox-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="ox-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="ox-empty" *ngIf="!currentFile && !loading">
+            <p>Drop an ONNX file here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="ox-loading" *ngIf="loading">Parsing ONNX…</div>
+        </div>
+
+        <div class="ox-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ox-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ox-disclaimer">Education and research preview only — not a substitute for Netron or ONNX Runtime. Weights are not executed; protobuf support is a subset.</p>
+      </section>
+
+      <aside class="ox-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="ox-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search graph</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="ox-search" type="search" placeholder="op:Relu tensor:W1 dtype:FLOAT name:softmax (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'graph' && filteredOps.length">
+          <header class="ctl__panel-head">Ops</header>
+          <div class="ctl__panel-body ox-units">
+            <button type="button" *ngFor="let node of filteredOps; trackBy: trackByOp" [class.is-active]="selectedOpId === node.id" (click)="selectOp(node.id)">
+              <i class="ox-swatch" [style.background]="tint(node.opType, node.index)"></i>
+              <span>{{ node.name }} <small>{{ node.opType }} · {{ node.inputCount }} in</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'tensors' && filteredTensors.length">
+          <header class="ctl__panel-head">Tensors</header>
+          <div class="ctl__panel-body ox-units">
+            <button type="button" *ngFor="let entry of filteredTensors; trackBy: trackByTensor" [class.is-active]="selectedTensorId === entry.id" (click)="selectTensor(entry.id)">
+              <i class="ox-swatch" [style.background]="tint(entry.kind, entry.index)"></i>
+              <span>{{ entry.name }} <small>{{ entry.kind }} · {{ entry.dtype }} {{ entry.shapeLabel }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredRows.length">
+          <header class="ctl__panel-head">Rows</header>
+          <div class="ctl__panel-body ox-units">
+            <button type="button" *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+              <i class="ox-swatch" [style.background]="tint('number', i)"></i>
+              <span>Row {{ i + 1 }} <small>{{ rowValue(row, 'name') }} · {{ rowValue(row, 'opType') }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'graph' && selectedOp">
+          <header class="ctl__panel-head">Selected op</header>
+          <div class="ctl__panel-body">
+            <dl class="ox-meta">
+              <div *ngFor="let row of opMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="viewMode === 'tensors' && selectedTensor">
+          <header class="ctl__panel-head">Selected tensor</header>
+          <div class="ctl__panel-body">
+            <dl class="ox-meta">
+              <div *ngFor="let row of tensorMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ox-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="ox-drop" *ngIf="showDropZone"><p>Drop ONNX to preview</p></div>
+  </main>
+</div>

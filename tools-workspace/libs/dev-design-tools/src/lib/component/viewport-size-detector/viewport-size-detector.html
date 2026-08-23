@@ -1,217 +1,306 @@
-<div class="vsd">
-  <div class="vsd__nav">
-    <lib-navigation></lib-navigation>
-  </div>
+<div class="ctl dd dd-shell">
+  <lib-navigation></lib-navigation>
 
-  <section class="vsd__hero">
-    <div class="vsd__badge">Design toolkit</div>
-    <h1>Viewport Size Detector</h1>
-    <p>
-      Real-time viewport and screen size detection. Monitor your browser's viewport dimensions, screen size, device pixel
-      ratio, and active breakpoint as you resize the window.
-    </p>
-
-    @if (viewportInfo(); as info) {
-      <div class="vsd__hero-meta">
-        <div>
-          <span class="vsd__meta-label">Viewport</span>
-          <strong>{{ info.viewportWidth }} × {{ info.viewportHeight }}px</strong>
-        </div>
-        <div>
-          <span class="vsd__meta-label">Screen</span>
-          <strong>{{ info.screenWidth }} × {{ info.screenHeight }}px</strong>
-        </div>
-        <div>
-          <span class="vsd__meta-label">Breakpoint</span>
-          <strong [style.color]="getBreakpointColor(activeBreakpoint())">
-            {{ formatBreakpointName(activeBreakpoint()) }}
-          </strong>
-        </div>
-      </div>
-    } @else {
-      <div class="vsd__hero-meta vsd__hero-meta--placeholder">
-        Loading viewport information...
-      </div>
-    }
-  </section>
-
-  <div class="vsd__board" [formGroup]="form">
-    <section class="vsd__panel vsd__panel--viewport">
-      <header class="vsd__card-header">
-        <div>
-          <h2>Viewport information</h2>
-          <p>Current browser viewport dimensions and properties.</p>
-        </div>
-        @if (viewportInfo(); as info) {
-          <button
-            type="button"
-            class="btn btn--primary btn--small"
-            (click)="copyToClipboard(`${info.viewportWidth}×${info.viewportHeight}`, 'Viewport dimensions')"
-          >
-            Copy dimensions
-          </button>
-        }
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="vsd-eyebrow">Dev &amp; design</span>
+        <h1>Viewport Size Detector <span class="vsd-live-badge">Local &amp; private</span></h1>
+        <p>Monitor viewport, screen size, device pixel ratio, and active breakpoint in real time.</p>
       </header>
 
       @if (viewportInfo(); as info) {
-        <div class="vsd__info-grid">
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Viewport width</span>
-            <strong class="vsd__info-value">{{ info.viewportWidth }}px</strong>
+        <div class="ctl__stats" aria-label="Viewport statistics" appStatValueTooltipHost>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ info.viewportWidth }}×{{ info.viewportHeight }}</span>
+            <span class="ctl__stat-label">Viewport</span>
           </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Viewport height</span>
-            <strong class="vsd__info-value">{{ info.viewportHeight }}px</strong>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ info.screenWidth }}×{{ info.screenHeight }}</span>
+            <span class="ctl__stat-label">Screen</span>
           </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Aspect ratio</span>
-            <strong class="vsd__info-value">{{ info.aspectRatio.toFixed(2) }}:1</strong>
+          <div class="ctl__stat">
+            <span class="ctl__stat-value">{{ info.devicePixelRatio }}x</span>
+            <span class="ctl__stat-label">DPR</span>
           </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Orientation</span>
-            <strong class="vsd__info-value vsd__info-value--orientation" [class.vsd__info-value--portrait]="info.orientation === 'portrait'">
-              {{ info.orientation === 'portrait' ? '📱 Portrait' : '🖥️ Landscape' }}
-            </strong>
-          </div>
-        </div>
-
-        <div class="vsd__visual-representation">
-          <div class="vsd__viewport-box" [style.width.px]="Math.min(info.viewportWidth, 400)" [style.height.px]="(Math.min(info.viewportWidth, 400) / info.aspectRatio)">
-            <div class="vsd__viewport-label">
-              {{ info.viewportWidth }} × {{ info.viewportHeight }}px
-            </div>
+          <div class="ctl__stat ctl__stat--mode">
+            <span class="ctl__stat-value" [style.color]="breakpointColor(activeBreakpoint())">
+              {{ formatBreakpointLabel(activeBreakpoint()) }}
+            </span>
+            <span class="ctl__stat-label">Breakpoint</span>
           </div>
         </div>
       }
-    </section>
+    </div>
 
-    <section class="vsd__panel vsd__panel--screen">
-      <header class="vsd__card-header">
-        <div>
-          <h2>Screen information</h2>
-          <p>Physical screen dimensions and device properties.</p>
-        </div>
-        @if (viewportInfo(); as info) {
-          <button
-            type="button"
-            class="btn btn--primary btn--small"
-            (click)="copyToClipboard(`${info.screenWidth}×${info.screenHeight}`, 'Screen dimensions')"
-          >
-            Copy dimensions
-          </button>
-        }
-      </header>
+    <div class="dd-workflow" aria-label="Viewport actions"><div class="dd-workflow__group dd-workflow__group--actions">
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyMetrics()"
+        [disabled]="!viewportInfo()"
+        aria-label="Copy all metrics"
+        appTooltip="Copy all metrics"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Copy</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="copyJson()"
+        [disabled]="!viewportInfo()"
+        aria-label="Copy as JSON"
+        appTooltip="Copy as JSON"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">JSON</span>
+      </button>
+      <button
+        type="button"
+        class="ctl__tool-btn"
+        (click)="clearHistory()"
+        [disabled]="!hasHistory()"
+        aria-label="Clear history"
+        appTooltip="Clear history"
+        tooltipPosition="bottom">
+        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <span class="ctl__tool-btn-label">Clear history</span>
+      </button>
+    </div>
+    </div>
+    <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
+      <section class="ctl__editor dd-viewer-panel">
+        <header class="ctl__editor-head">
+          <span>Detailed metrics</span>
+          @if (viewportInfo(); as info) {
+            <span class="ctl__editor-badge">{{ orientationLabel(info.orientation) }}</span>
+          }
+        </header>
 
-      @if (viewportInfo(); as info) {
-        <div class="vsd__info-grid">
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Screen width</span>
-            <strong class="vsd__info-value">{{ info.screenWidth }}px</strong>
-          </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Screen height</span>
-            <strong class="vsd__info-value">{{ info.screenHeight }}px</strong>
-          </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Device pixel ratio</span>
-            <strong class="vsd__info-value">{{ info.devicePixelRatio }}x</strong>
-          </div>
-          <div class="vsd__info-item">
-            <span class="vsd__info-label">Effective resolution</span>
-            <strong class="vsd__info-value">
-              {{ Math.round(info.screenWidth * info.devicePixelRatio) }} ×
-              {{ Math.round(info.screenHeight * info.devicePixelRatio) }}px
-            </strong>
-          </div>
-        </div>
-      }
-    </section>
-
-    <section class="vsd__panel vsd__panel--breakpoint">
-      <header class="vsd__card-header">
-        <div>
-          <h2>Active breakpoint</h2>
-          <p>Current responsive breakpoint based on viewport width.</p>
-        </div>
-      </header>
-
-      @if (activeBreakpoint(); as bp) {
-        <div class="vsd__breakpoint-display" [style.background-color]="getBreakpointColor(bp)">
-          <div class="vsd__breakpoint-content">
-            <strong>{{ formatBreakpointName(bp) }}</strong>
-            <span>Viewport width: {{ viewportInfo()?.viewportWidth }}px</span>
-          </div>
-        </div>
-      }
-
-      <div class="vsd__breakpoints-list">
-        @for (breakpoint of breakpoints; track breakpoint.name) {
-          <div
-            class="vsd__breakpoint-item"
-            [class.vsd__breakpoint-item--active]="activeBreakpoint() && activeBreakpoint()!.name === breakpoint.name"
-            [style.border-color]="getBreakpointColor(breakpoint)"
-          >
-            <div class="vsd__breakpoint-color" [style.background-color]="getBreakpointColor(breakpoint)"></div>
-            <div class="vsd__breakpoint-info">
-              <strong>{{ breakpoint.name }}</strong>
-              <span>
-                @if (breakpoint.max === Infinity) {
-                  {{ breakpoint.min }}+px
-                } @else {
-                  {{ breakpoint.min }}-{{ breakpoint.max }}px
-                }
-              </span>
-            </div>
-            @if (activeBreakpoint() && activeBreakpoint()!.name === breakpoint.name) {
-              <span class="vsd__breakpoint-active">Active</span>
-            }
+        @if (errors().length) {
+          <div class="ctl__alert ctl__alert--error" role="alert">
+            <ul>
+              @for (message of errors(); track message) {
+                <li>{{ message }}</li>
+              }
+            </ul>
           </div>
         }
-      </div>
-    </section>
 
-    <section class="vsd__panel vsd__panel--history">
-      <header class="vsd__card-header">
-        <div>
-          <h2>Viewport history</h2>
-          <p>Track recent viewport size changes.</p>
-        </div>
-        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
-          Clear
-        </button>
-      </header>
-
-      <label class="vsd__toggle">
-        <input type="checkbox" formControlName="rememberHistory" />
-        <div>
-          <strong>Remember history</strong>
-          <span>Keep track of viewport size changes</span>
-        </div>
-      </label>
-
-      @if (hasHistory()) {
-        <ul class="vsd__history-list">
-          @for (entry of history(); track entry.timestamp) {
-            <li>
-              <div class="vsd__history-item">
-                <div class="vsd__history-info">
-                  <strong>{{ entry.width }} × {{ entry.height }}px</strong>
-                  <span>Aspect ratio: {{ entry.aspectRatio.toFixed(2) }}:1 • {{ formatTimestamp(entry.timestamp) }}</span>
-                </div>
-              </div>
+        @if (primarySuggestion(); as suggestion) {
+          <aside class="vsd__suggest" aria-label="Suggested next step">
+            <div class="vsd__suggest-body">
+              <p class="vsd__suggest-title">{{ suggestion.title }}</p>
+              <p class="vsd__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="vsd__suggest-actions">
+              <a class="vsd__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
               <button
                 type="button"
-                class="btn btn--ghost btn--small"
-                (click)="removeHistoryEntry(entry.timestamp)"
-              >
-                Remove
+                class="vsd__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">
+                Dismiss
               </button>
-            </li>
+            </div>
+          </aside>
+        }
+
+        @if (viewportInfo(); as info) {
+          <div class="ctl__editor-body vsd__info-grid">
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Viewport width</span>
+              <strong>{{ info.viewportWidth }} px</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Viewport height</span>
+              <strong>{{ info.viewportHeight }} px</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Aspect ratio</span>
+              <strong>{{ info.aspectRatio.toFixed(2) }}:1</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Orientation</span>
+              <strong>{{ orientationLabel(info.orientation) }}</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Screen width</span>
+              <strong>{{ info.screenWidth }} px</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Screen height</span>
+              <strong>{{ info.screenHeight }} px</strong>
+            </div>
+            <div class="vsd__info-item">
+              <span class="vsd__info-label">Device pixel ratio</span>
+              <strong>{{ info.devicePixelRatio }}x</strong>
+            </div>
+            @if (info.visualViewportWidth && info.visualViewportHeight) {
+              <div class="vsd__info-item">
+                <span class="vsd__info-label">Visual viewport</span>
+                <strong>{{ info.visualViewportWidth | number:'1.0-0' }} × {{ info.visualViewportHeight | number:'1.0-0' }} px</strong>
+              </div>
+            }
+            @if (effectivePixelSize(); as effective) {
+              <div class="vsd__info-item">
+                <span class="vsd__info-label">Effective resolution</span>
+                <strong>{{ effective.width }} × {{ effective.height }} px</strong>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="ctl__empty">
+            <p>Loading viewport information…</p>
+          </div>
+        }
+      </section>
+
+      <details class="dd-options-flyout">
+        <summary class="dd-options-flyout__trigger" aria-label="Open options panel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+          </svg>
+          <span>More</span>
+        </summary>
+        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
+        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Breakpoint preview">
+          <details class="ctl__panel" open>
+            <summary class="ctl__panel-head">Viewport preview</summary>
+            <div class="ctl__panel-body vsd__preview-wrap">
+              @if (viewportInfo(); as info) {
+                <div class="vsd__preview-screen">
+                  <div
+                    class="vsd__preview-viewport"
+                    [style.aspect-ratio]="info.aspectRatio">
+                    <div class="vsd__preview-label vsd__preview-label--top">
+                      {{ info.viewportWidth }} × {{ info.viewportHeight }} px
+                    </div>
+                    <div class="vsd__preview-label vsd__preview-label--side">
+                      {{ info.aspectRatio.toFixed(2) }}:1
+                    </div>
+                  </div>
+                </div>
+              }
+              <p class="vsd__note">
+                Values come from browser APIs and may differ from physical display characteristics due to zoom or scaling.
+              </p>
+            </div>
+          </details>
+
+          @if (activeBreakpoint(); as bp) {
+            <details class="ctl__panel" open>
+              <summary class="ctl__panel-head">Active breakpoint</summary>
+              <div class="vsd__breakpoint-display" [style.background-color]="breakpointColor(bp)">
+                <strong>{{ formatBreakpointLabel(bp) }}</strong>
+                <span>Viewport width: {{ viewportInfo()?.viewportWidth }}px</span>
+              </div>
+              <div class="vsd__breakpoints-list">
+                @for (breakpoint of breakpoints; track breakpoint.name) {
+                  <div
+                    class="vsd__breakpoint-item"
+                    [class.vsd__breakpoint-item--active]="activeBreakpoint()?.name === breakpoint.name"
+                    [style.border-color]="breakpointColor(breakpoint)">
+                    <div class="vsd__breakpoint-color" [style.background-color]="breakpointColor(breakpoint)"></div>
+                    <div class="vsd__breakpoint-info">
+                      <strong>{{ breakpoint.name }}</strong>
+                      <span>
+                        @if (isOpenEnded(breakpoint)) {
+                          {{ breakpoint.min }}+px
+                        } @else {
+                          {{ breakpoint.min }}-{{ breakpoint.max }}px
+                        }
+                      </span>
+                    </div>
+                    @if (activeBreakpoint()?.name === breakpoint.name) {
+                      <span class="vsd__breakpoint-active">Active</span>
+                    }
+                  </div>
+                }
+              </div>
+            </details>
           }
-        </ul>
-      } @else {
-        <div class="vsd__empty">Enable history tracking to keep a list of recent viewport sizes.</div>
-      }
-    </section>
-  </div>
+
+          <details class="ctl__panel" open>
+            <summary class="ctl__panel-head">Viewport history</summary>
+            <label class="vsd__toggle">
+              <input type="checkbox" formControlName="rememberHistory" />
+              <span>Remember size changes</span>
+            </label>
+            @if (hasHistory()) {
+              <ul class="vsd__history-list">
+                @for (entry of history(); track entry.timestamp) {
+                  <li>
+                    <div class="vsd__history-info">
+                      <strong>{{ entry.width }} × {{ entry.height }}px</strong>
+                      <span>{{ entry.aspectRatio.toFixed(2) }}:1 • {{ formatTimestamp(entry.timestamp) }}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="ctl__icon-btn"
+                      (click)="removeHistoryEntry(entry.timestamp)"
+                      aria-label="Remove entry"
+                      appTooltip="Remove"
+                      tooltipPosition="bottom">
+                      ×
+                    </button>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <div class="ctl__empty">
+                <p>Enable history to track recent viewport sizes.</p>
+              </div>
+            }
+          </details>
+
+          <details class="ctl__panel vsd__related" open>
+            <summary class="ctl__panel-head">Related tools</summary>
+            <ul class="vsd__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="vsd__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </details>
+        </aside>
+      </details>
+    </div>
+
+    <details class="ctl__help dd-footer-help">
+      <summary>How to use Viewport Size Detector</summary>
+      <ol class="dd-help-steps">
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">1</span>
+          <h3>Watch</h3>
+          <p>Resize the window to see viewport, screen, DPR, and breakpoint update live.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">2</span>
+          <h3>Compare</h3>
+          <p>CSS viewport pixels can differ from physical screen size when zoomed.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">3</span>
+          <h3>Copy</h3>
+          <p>Copy metrics as text or JSON for bug reports.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">4</span>
+          <h3>History</h3>
+          <p>Enable Remember size changes in More to track recent viewports.</p>
+        </li>
+        <li class="dd-help-step">
+          <span class="dd-help-step__n">5</span>
+          <h3>Privacy</h3>
+          <p>Readings stay on this device. Education/research preview only.</p>
+        </li>
+      </ol>
+    </details>
+  </main>
 </div>

@@ -1,0 +1,197 @@
+<div class="ctl las">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="las-eyebrow">Science tools</span>
+        <h1>LAS Well Log Viewer <span class="las-live-badge">Local &amp; private</span></h1>
+        <p>Inspect CWLS LAS well logs locally with depth tracks, crossplots, histograms, and curve stats. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="las-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="las-suggest__body">
+        <p class="las-suggest__title">{{ suggestion.title }}</p>
+        <p class="las-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="las-suggest__actions">
+        <button type="button" class="las-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="las-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="las-toolbar">
+      <div class="las-toolbar__group">
+        <input #fileInput class="las-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn las-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="las-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="las-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('curves-csv', $event)">Curves CSV</button>
+            <button type="button" (click)="exportAs('subset-las', $event)">Depth subset LAS</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="las-files" *ngIf="files.length">
+          <div class="las-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.las-files__chip--active]="i === currentIndex">
+            <button type="button" class="las-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="las-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="las-toolbar__status"><span class="las-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="las-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="las-workspace" [class.las-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="las-panel">
+        <header class="las-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.curves?.length || 0 }} curves · {{ parsed?.depth?.length || 0 }} samples · LAS {{ parsed?.version }}</span>
+          </div>
+          <div class="las-view-controls">
+            <button type="button" (click)="zoomDepth(0.8)" title="Zoom in (+)">+</button>
+            <button type="button" (click)="zoomDepth(1.25)" title="Zoom out (−)">−</button>
+            <button type="button" (click)="fitDepth()" title="Fit depth (F)">Fit</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div class="las-filters" *ngIf="currentFile && parsed">
+          <label>Depth min <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMin" (ngModelChange)="depthMin = +$event; onDepthChange()" /></label>
+          <span>{{ depthMin | number:'1.1-1' }} {{ parsed.depthUnit }}</span>
+          <label>Depth max <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMax" (ngModelChange)="depthMax = +$event; onDepthChange()" /></label>
+          <span>{{ depthMax | number:'1.1-1' }} {{ parsed.depthUnit }}</span>
+          <ng-container *ngIf="viewMode === 'crossplot'">
+            <label>X
+              <select [ngModel]="crossplotX" (ngModelChange)="setCrossplotX($event)">
+                <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
+              </select>
+            </label>
+            <label>Y
+              <select [ngModel]="crossplotY" (ngModelChange)="setCrossplotY($event)">
+                <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
+              </select>
+            </label>
+          </ng-container>
+        </div>
+
+        <div #mapWrap class="las-map-wrap" [class.las-map-wrap--empty]="!currentFile">
+          <canvas #canvasHost class="las-map" *ngIf="currentFile && (viewMode === 'tracks' || viewMode === 'crossplot')"></canvas>
+          <div class="las-hist" *ngIf="currentFile && viewMode === 'histogram'">
+            <p *ngIf="!selectedCurve">Select a curve in the sidebar.</p>
+            <ng-container *ngIf="selectedCurve">
+              <p>{{ selectedCurve.mnemonic }} · {{ selectedCurve.unit || 'unitless' }}</p>
+              <div class="las-hist__bars">
+                <div *ngFor="let bar of histogramBars" class="las-hist__col">
+                  <div class="las-hist__bar" [style.height.%]="bar.heightPct" [style.background]="bar.color" [title]="bar.label + ': ' + bar.count"></div>
+                  <span>{{ bar.label }}</span>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+          <div class="las-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>DEPT</th>
+                  <th *ngFor="let curve of visibleCurves; trackBy: trackByCurve">{{ curve.mnemonic }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of tableRows; let i = index; trackBy: trackByRow" [class.is-active]="i === selectedRowIndex" (click)="selectRow(i)">
+                  <td>{{ formatValue(parsed?.depth?.[row]) }}</td>
+                  <td *ngFor="let curve of visibleCurves; trackBy: trackByCurve">{{ formatValue(curve.values[row]) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="las-empty-filter" *ngIf="parsed && !tableRows.length">No samples in the current depth window.</p>
+          </div>
+          <div class="las-empty" *ngIf="!currentFile && !loading">
+            <p>Drop LAS well logs here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="las-loading" *ngIf="loading">Parsing LAS…</div>
+        </div>
+
+        <div class="las-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="las-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="las-disclaimer">Education and research preview only — not validated for petrophysical interpretation or well operations.</p>
+      </section>
+
+      <aside class="las-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="las-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search curves</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="las-search" type="search" placeholder="Search mnemonic / unit (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="filteredCurveList.length">
+          <header class="ctl__panel-head">Curves</header>
+          <div class="ctl__panel-body las-curves">
+            <button type="button" *ngFor="let curve of filteredCurveList; let i = index; trackBy: trackByCurve" [class.is-active]="selectedMnemonic === curve.mnemonic" (click)="selectCurve(curve.mnemonic)">
+              <i class="las-swatch" [style.background]="curveSwatch(curve.mnemonic, i)"></i>
+              <span>{{ curve.mnemonic }} <small>{{ curve.unit }}</small></span>
+              <span class="las-curves__toggles" (click)="$event.stopPropagation()">
+                <label><input type="checkbox" [checked]="enabledMnemonics.has(curve.mnemonic)" (change)="toggleCurve(curve.mnemonic)" /> show</label>
+                <label><input type="checkbox" [checked]="!!curve.logScale" (change)="toggleLogScale(curve)" /> log</label>
+                <label><input type="checkbox" [checked]="!!curve.reversed" (change)="toggleReversed(curve)" /> rev</label>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="selectedCurve">
+          <header class="ctl__panel-head">Selected curve</header>
+          <div class="ctl__panel-body">
+            <dl class="las-meta">
+              <div *ngFor="let row of curveMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="wellRows.length">
+          <header class="ctl__panel-head">Well header</header>
+          <div class="ctl__panel-body">
+            <dl class="las-meta">
+              <div *ngFor="let row of wellRows"><dt>{{ row.mnemonic }}</dt><dd>{{ row.value }} {{ row.unit }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="parameterRows.length">
+          <header class="ctl__panel-head">Parameters</header>
+          <div class="ctl__panel-body">
+            <dl class="las-meta">
+              <div *ngFor="let row of parameterRows"><dt>{{ row.mnemonic }}</dt><dd>{{ row.value }} {{ row.unit }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="las-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="las-drop" *ngIf="showDropZone"><p>Drop LAS well logs to preview</p></div>
+  </main>
+</div>

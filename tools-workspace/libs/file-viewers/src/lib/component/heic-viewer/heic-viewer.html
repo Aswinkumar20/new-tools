@@ -1,0 +1,186 @@
+<div class="ctl hc">
+  <lib-navigation></lib-navigation>
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="hc-eyebrow">File viewers</span>
+        <h1>HEIC Viewer <span class="hc-live-badge">Local &amp; private</span></h1>
+        <p>Inspect HEIC frames, metadata, and preview locally. Education/research only.</p>
+      </header>
+    </div>
+
+    <aside class="hc-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="hc-suggest__body">
+        <p class="hc-suggest__title">{{ suggestion.title }}</p>
+        <p class="hc-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="hc-suggest__actions">
+        <button type="button" class="hc-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
+        <button type="button" class="hc-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+      </div>
+    </aside>
+
+    <div class="hc-toolbar">
+      <div class="hc-toolbar__group">
+        <input #fileInput class="hc-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
+        <button type="button" class="ctl__tool-btn hc-primary-action" (click)="openFilePicker()">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="hc-export" *ngIf="canExport">
+          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
+          <div class="hc-export__menu" *ngIf="showExportMenu" role="menu">
+            <button type="button" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" (click)="exportAs('schema-csv', $event)">Schema CSV</button>
+            <button type="button" (click)="exportAs('rows-csv', $event)">Rows CSV</button>
+            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+          </div>
+        </div>
+        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <div class="hc-files" *ngIf="files.length">
+          <div class="hc-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.hc-files__chip--active]="i === currentIndex">
+            <button type="button" class="hc-files__select" (click)="selectFile(i)">{{ file.name }}</button>
+            <button type="button" class="hc-files__remove" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="hc-toolbar__status"><span class="hc-toolbar__status-dot"></span>Files never leave your browser</div>
+    </div>
+
+    <div class="hc-tab-bar" *ngIf="currentFile" role="tablist">
+      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+    </div>
+
+    <div class="hc-workspace" [class.hc-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="hc-panel">
+        <header class="hc-map-head" *ngIf="currentFile">
+          <div>
+            <strong>{{ currentFile.name }}</strong>
+            <span>{{ parsed?.title || parsed?.name }} · {{ parsed?.heicVer || '—' }} · {{ filteredFrames.length }} frames · {{ filteredMetas.length }} metadata · {{ parsed?.make || '—' }}</span>
+          </div>
+          <div class="hc-view-controls">
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1 / 1.2)">−</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="fitView()">Fit {{ zoomPercent }}%</button>
+            <button type="button" *ngIf="viewMode === 'preview'" (click)="zoomBy(1.2)">+</button>
+            <button type="button" (click)="toggleSidebar()">Panel</button>
+          </div>
+        </header>
+
+        <div #mapWrap class="hc-map-wrap" [class.hc-map-wrap--empty]="!currentFile">
+          <canvas
+            #canvasHost
+            class="hc-map"
+            [class.hc-map--panning]="panning"
+            *ngIf="currentFile && viewMode === 'preview'"
+            (pointerdown)="onCanvasPointerDown($event)"
+            (pointermove)="onCanvasPointerMove($event)"
+            (pointerup)="onCanvasPointerUp()"
+            (pointerleave)="onCanvasPointerUp()"
+            (wheel)="onCanvasWheel($event)"
+          ></canvas>
+          <div class="hc-cards" *ngIf="currentFile && viewMode === 'metadata'">
+            <article *ngFor="let meta of filteredMetas; trackBy: trackByMeta" [class.is-active]="selectedMeta?.id === meta.id" (click)="selectMeta(meta.id)">
+              <header>
+                <i class="hc-swatch" [style.background]="meta.group === 'exif' ? '#38bdf8' : '#7dd3fc'"></i>
+                <strong>{{ meta.name }}</strong>
+                <span>{{ meta.group }}</span>
+                <span>{{ meta.value }}</span>
+              </header>
+              <p>{{ meta.value }}</p>
+            </article>
+            <p class="hc-empty-filter" *ngIf="parsed && !filteredMetas.length">No metadata match the current filter.</p>
+          </div>
+          <div class="hc-cards" *ngIf="currentFile && viewMode === 'frames'">
+            <article *ngFor="let frame of filteredFrames; trackBy: trackByFrame" [class.is-active]="selectedFrame?.id === frame.id" (click)="selectFrame(frame.id)">
+              <header>
+                <strong>{{ frame.name }}</strong>
+                <span>{{ frame.kind }}</span>
+                <span>{{ frame.width }} × {{ frame.height }}</span>
+              </header>
+              <p>{{ frame.kind }} on {{ frame.width }} × {{ frame.height }}</p>
+            </article>
+            <p class="hc-empty-filter" *ngIf="parsed && !filteredFrames.length">No frames match the current filter.</p>
+          </div>
+          <div class="hc-table" *ngIf="currentFile && viewMode === 'table'">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ column.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of filteredRows; let i = index; trackBy: trackByRowIndex" [class.is-active]="selectedRowIndex === i" (click)="selectRow(i)">
+                  <td>{{ i + 1 }}</td>
+                  <td *ngFor="let column of filteredColumns; trackBy: trackByColumn">{{ rowValue(row, column.name) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="hc-empty-filter" *ngIf="parsed && !filteredRows.length">No rows match the current filter.</p>
+          </div>
+          <div class="hc-empty" *ngIf="!currentFile && !loading">
+            <p>Drop a HEIC dump here</p>
+            <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+          </div>
+          <div class="hc-loading" *ngIf="loading">Parsing HEIC dump…</div>
+        </div>
+
+        <div class="hc-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="hc-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="hc-disclaimer">Education and research preview only — not a substitute for Apple Photos, Preview, or libheif. ASCII dumps are supported; binary HEIC/HEIF (ftyp) is not decoded. Export a PNG snapshot from Preview.</p>
+      </section>
+
+      <aside class="hc-sidebar">
+        <div class="ctl__panel" *ngIf="parsed">
+          <header class="ctl__panel-head">Overview</header>
+          <div class="ctl__panel-body">
+            <dl class="hc-meta">
+              <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Search HEIC</header>
+          <div class="ctl__panel-body">
+            <input #searchInput class="hc-search" type="search" placeholder="frame:primary meta:make exif:iso (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'metadata' || viewMode === 'table') && filteredMetas.length">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body hc-units">
+            <button type="button" *ngFor="let meta of filteredMetas; trackBy: trackByMeta" [class.is-active]="selectedMetaId === meta.id" (click)="selectMeta(meta.id)">
+              <i class="hc-swatch" [style.background]="meta.group === 'exif' ? '#38bdf8' : '#7dd3fc'"></i>
+              <span>{{ meta.name }} <small>{{ meta.group }} · {{ meta.value }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'frames' || viewMode === 'preview') && filteredFrames.length">
+          <header class="ctl__panel-head">Frames</header>
+          <div class="ctl__panel-body hc-units">
+            <button type="button" *ngFor="let frame of filteredFrames; trackBy: trackByFrame" [class.is-active]="selectedFrameId === frame.id" (click)="selectFrame(frame.id)">
+              <span>{{ frame.name }} <small>{{ frame.kind }} · {{ frame.width }} × {{ frame.height }}</small></span>
+            </button>
+          </div>
+        </div>
+        <div class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'frames') && selectedFrame">
+          <header class="ctl__panel-head">Selected frame</header>
+          <div class="ctl__panel-body">
+            <dl class="hc-meta">
+              <div *ngFor="let row of frameMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="hc-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="hc-drop" *ngIf="showDropZone"><p>Drop HEIC dump to preview</p></div>
+  </main>
+</div>

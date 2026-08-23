@@ -1,4 +1,3 @@
-export * from './lib/lib.routes';
 export * from './lib/component/json-schema-validator/json-schema-validator';
 export * from './lib/component/password-rule-validator/password-rule-validator';
 export * from './lib/component/email-url-ip-checker/email-url-ip-checker';

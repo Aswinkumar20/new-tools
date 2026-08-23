@@ -1,0 +1,415 @@
+<div class="ctl gpx">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="gpx-eyebrow">GIS tools</span>
+        <h1>GPX Viewer <span class="gpx-live-badge">Local &amp; private</span></h1>
+        <p>
+          Map GPS tracks with elevation, distance, pace, and activity stats — files stay in your browser.
+        </p>
+      </header>
+    </div>
+
+    <aside class="gpx-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="gpx-suggest__body">
+        <p class="gpx-suggest__title">{{ suggestion.title }}</p>
+        <p class="gpx-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="gpx-suggest__actions">
+        <a class="gpx-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button
+          type="button"
+          class="gpx-suggest__dismiss"
+          (click)="dismissSuggestion(suggestion.id)"
+          aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="gpx-toolbar" aria-label="GPX viewer controls">
+      <div class="gpx-toolbar__group">
+        <label class="sr-only" for="gpx-file-upload">Upload GPX files</label>
+        <input
+          #fileInput
+          id="gpx-file-upload"
+          class="gpx-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn gpx-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload GPX · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="loadSample()"
+          appTooltip="Load sample coastal hike"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="gpx-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="gpx-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('gpx', $event)">
+              <strong>GPX</strong>
+              <span>Download the source document</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('points-csv', $event)">
+              <strong>Points CSV</strong>
+              <span>Track, route, and waypoint rows</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Stats and item inventory</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          *ngIf="currentFile"
+          (click)="copyGpx()"
+          appTooltip="Copy GPX XML"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Copy XML</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleUnits()"
+          [appTooltip]="units === 'metric' ? 'Switch to miles / feet (U)' : 'Switch to km / meters (U)'"
+          tooltipPosition="bottom"
+          [attr.aria-pressed]="units === 'imperial'">
+          <span class="ctl__tool-btn-label">{{ units === 'metric' ? 'Metric' : 'Imperial' }}</span>
+        </button>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="gpxFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="gpx-files" *ngIf="gpxFiles.length > 0" aria-label="Loaded GPX files">
+          <div
+            class="gpx-files__chip"
+            *ngFor="let file of gpxFiles; let i = index; trackBy: trackByFileId"
+            [class.gpx-files__chip--active]="i === currentFileIndex">
+            <button
+              type="button"
+              class="gpx-files__select"
+              [attr.aria-pressed]="i === currentFileIndex"
+              (click)="selectFile(i)">
+              <span class="gpx-files__name">{{ file.name }}</span>
+              <span class="gpx-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button
+              type="button"
+              class="gpx-files__remove"
+              [attr.aria-label]="'Remove ' + file.name"
+              (click)="removeFile(i, $event)">
+              ×
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="gpx-toolbar__status">
+        <span class="gpx-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="gpx-workspace"
+      [class.gpx-workspace--fullscreen]="isFullscreen"
+      [class.gpx-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="gpx-panel" aria-label="GPX map">
+        <header class="gpx-map-head" *ngIf="currentFile">
+          <div class="gpx-map-head__identity">
+            <span class="gpx-map-head__file">{{ currentFile.name }}</span>
+            <span class="gpx-map-head__meta">
+              {{ stats?.title || 'GPX' }} · {{ formatDistanceValue(stats?.distanceMeters ?? 0) }}
+              <span *ngIf="stats?.avgSpeedMps"> · {{ formatSpeedValue(stats?.avgSpeedMps) }}</span>
+            </span>
+          </div>
+          <div class="gpx-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="gpx-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="gpx-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit activity (F)" tooltipPosition="bottom">Fit</button>
+            <button type="button" (click)="resetZoom()" appTooltip="Reset zoom (0)" tooltipPosition="bottom">World</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="gpx-view-controls__divider"></span>
+            <button
+              type="button"
+              class="gpx-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="gpx-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="gpx-map-wrap" [class.gpx-map-wrap--empty]="!currentFile">
+          <div #mapHost class="gpx-map" [attr.aria-busy]="loading" aria-label="Interactive GPX map"></div>
+          <div class="gpx-empty" *ngIf="!currentFile && !loading">
+            <p class="gpx-empty__title">Drop a GPX file here</p>
+            <p class="gpx-empty__formats">
+              <span class="gpx-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="gpx-empty__hint">
+              {{ formatsHint }}. Or load the sample coastal hike. Shortcuts:
+              <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>U</kbd> units, <kbd>0</kbd> world.
+            </p>
+            <div class="gpx-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="gpx-loading" *ngIf="loading">Loading map…</div>
+        </div>
+
+        <div class="gpx-profile" *ngIf="currentFile && elevationProfile.length > 1" aria-label="Elevation profile">
+          <div class="gpx-profile__head">
+            <strong>Elevation</strong>
+            <span *ngIf="hoverSample as sample; else profileRange">
+              {{ formatDistanceValue(sample.distanceMeters) }} · {{ formatElevationValue(sample.elevationMeters) }}
+            </span>
+            <ng-template #profileRange>
+              <span>
+                {{ formatElevationValue(stats?.minElevationMeters) }} → {{ formatElevationValue(stats?.maxElevationMeters) }}
+              </span>
+            </ng-template>
+          </div>
+          <svg
+            class="gpx-profile__svg"
+            viewBox="0 0 100 36"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Elevation along the activity. Hover to inspect, click to zoom map."
+            (mousemove)="onProfileMove($event)"
+            (mouseleave)="clearProfileHover()"
+            (click)="onProfileClick()">
+            <polygon
+              *ngIf="profileArea"
+              class="gpx-profile__area"
+              [attr.points]="profileArea"
+              fill="currentColor" />
+            <polyline
+              class="gpx-profile__line"
+              [attr.points]="profileLine"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="0.7"
+              vector-effect="non-scaling-stroke" />
+            <line
+              *ngIf="hoverSample"
+              class="gpx-profile__cursor"
+              [attr.x1]="hoverX"
+              [attr.x2]="hoverX"
+              y1="0"
+              y2="36"
+              stroke="currentColor"
+              stroke-width="0.35"
+              vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+
+        <div class="gpx-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="gpx-error" *ngIf="errorMessage" role="alert">
+          <p class="gpx-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+            Load sample hike
+          </button>
+        </div>
+      </section>
+
+      <aside
+        id="gpx-details-sidebar"
+        class="gpx-sidebar"
+        aria-label="Activity details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Activity overview</span>
+            <span class="gpx-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="gpx-process-name">{{ stats.title }}</p>
+            <div class="gpx-stat-grid gpx-stat-grid--dense" aria-label="Activity statistics">
+              <div><strong>{{ formatDistanceValue(stats.distanceMeters) }}</strong><span>Distance</span></div>
+              <div><strong>{{ formatElevationValue(stats.elevationGainMeters) }}</strong><span>Gain</span></div>
+              <div><strong>{{ formatElevationValue(stats.elevationLossMeters) }}</strong><span>Loss</span></div>
+              <div><strong>{{ formatDurationValue(stats.durationSeconds) }}</strong><span>Duration</span></div>
+              <div><strong>{{ formatSpeedValue(stats.avgSpeedMps) }}</strong><span>Avg speed</span></div>
+              <div><strong>{{ formatPaceValue(stats.avgSpeedMps) }}</strong><span>Pace</span></div>
+            </div>
+            <dl class="gpx-meta gpx-meta--compact">
+              <div><dt>Tracks</dt><dd>{{ stats.tracks }}</dd></div>
+              <div><dt>Routes</dt><dd>{{ stats.routes }}</dd></div>
+              <div><dt>Waypoints</dt><dd>{{ stats.waypoints }}</dd></div>
+              <div><dt>Creator</dt><dd>{{ currentFile?.data?.creator || '—' }}</dd></div>
+              <div><dt>Bounds</dt><dd class="gpx-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="selectedItem as item">
+          <header class="ctl__panel-head">Selection</header>
+          <div class="ctl__panel-body">
+            <p class="gpx-selection__name">{{ item.name }}</p>
+            <p class="gpx-selection__type">{{ kindLabel(item.kind) }} · {{ item.pointCount }} points</p>
+            <p class="gpx-selection__id">{{ item.id }}</p>
+            <ul class="gpx-props">
+              <li><strong>Distance</strong><span>{{ formatDistanceValue(item.distanceMeters) }}</span></li>
+              <li><strong>Gain</strong><span>{{ formatElevationValue(item.elevationGainMeters) }}</span></li>
+              <li><strong>Loss</strong><span>{{ formatElevationValue(item.elevationLossMeters) }}</span></li>
+              <li><strong>Duration</strong><span>{{ formatDurationValue(item.durationSeconds) }}</span></li>
+              <li><strong>Avg speed</strong><span>{{ formatSpeedValue(item.avgSpeedMps) }}</span></li>
+              <li><strong>Pace</strong><span>{{ formatPaceValue(item.avgSpeedMps) }}</span></li>
+            </ul>
+            <p class="ctl__panel-hint" *ngIf="item.preview">{{ item.preview }}</p>
+            <button type="button" class="gpx-selection__copy" (click)="copySelectedId()">Copy ID</button>
+          </div>
+        </div>
+
+        <div class="ctl__panel gpx-features-panel">
+          <header class="ctl__panel-head">Tracks &amp; points</header>
+          <div class="ctl__panel-body">
+            <div class="gpx-kind-filters" role="tablist" aria-label="GPX item filters">
+              <button
+                type="button"
+                *ngFor="let filter of itemFilters; trackBy: trackByFilterId"
+                role="tab"
+                class="gpx-kind-filters__btn"
+                [class.gpx-kind-filters__btn--active]="itemFilter === filter.id"
+                [attr.aria-selected]="itemFilter === filter.id"
+                (click)="setItemFilter(filter.id)">
+                {{ filter.label }}
+                <span>{{ kindCounts[filter.id] }}</span>
+              </button>
+            </div>
+
+            <label class="gpx-filter">
+              <span class="sr-only">Filter items</span>
+              <input
+                type="search"
+                placeholder="Search name or id"
+                [value]="itemSearch"
+                (input)="onItemSearchInput($event)" />
+            </label>
+
+            <ul class="gpx-feature-list" *ngIf="filteredItems.length > 0; else noItems">
+              <li *ngFor="let item of filteredItems; trackBy: trackByItemId">
+                <button
+                  type="button"
+                  class="gpx-feature-list__btn"
+                  [class.gpx-feature-list__btn--active]="item.id === selectedItemId"
+                  (click)="focusItem(item)">
+                  <strong>{{ item.name }}</strong>
+                  <span>{{ kindLabel(item.kind) }} · {{ formatDistanceValue(item.distanceMeters) }}</span>
+                </button>
+              </li>
+            </ul>
+            <ng-template #noItems>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No items match this filter.' : 'Upload a GPX file to inspect tracks and waypoints.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="gpx-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help gpx-footer-help">
+      <summary>How to use GPX Viewer</summary>
+      <ul>
+        <li>Supported uploads: <code>.gpx</code> tracks, routes, and waypoints (GPX 1.0 / 1.1).</li>
+        <li>Invalid files are rejected early (empty, wrong type, oversized, bad coordinates, unusable XML).</li>
+        <li>Scroll to zoom, drag to pan, or use Fit / Zoom (<kbd>+</kbd> <kbd>−</kbd> <kbd>F</kbd> <kbd>0</kbd>). Toggle units with <kbd>U</kbd>.</li>
+        <li>Hover the elevation profile to inspect height; click to zoom the map. Selecting a track updates the profile.</li>
+        <li>Export GPX, CSV, or summary JSON — all processed in your browser. Map tiles load from OpenStreetMap.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="gpx-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop GPX files to open</p>
+    <p class="gpx-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>

@@ -1,0 +1,351 @@
+<div class="ctl contour">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <span class="contour-eyebrow">GIS tools</span>
+        <h1>Contour Map Viewer <span class="contour-live-badge">Local &amp; private</span></h1>
+        <p>
+          Generate isolines from elevation GeoTIFF or open precomputed contour GeoJSON — interval, labels, and DEM underlay.
+        </p>
+      </header>
+    </div>
+
+    <aside class="contour-suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+      <div class="contour-suggest__body">
+        <p class="contour-suggest__title">{{ suggestion.title }}</p>
+        <p class="contour-suggest__reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="contour-suggest__actions">
+        <a class="contour-suggest__action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="contour-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
+          Dismiss
+        </button>
+      </div>
+    </aside>
+
+    <div class="contour-toolbar" aria-label="Contour map viewer controls">
+      <div class="contour-toolbar__group">
+        <label class="sr-only" for="contour-file-upload">Upload contour or DEM files</label>
+        <input
+          #fileInput
+          id="contour-file-upload"
+          class="contour-file-input"
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          tabindex="-1"
+          aria-hidden="true" />
+
+        <button
+          type="button"
+          class="ctl__tool-btn contour-primary-action"
+          (click)="openFilePicker()"
+          [appTooltip]="'Upload · Supported formats: ' + formatsLabel"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" appTooltip="Load sample contour DEM" tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+
+        <div class="contour-export" *ngIf="canExport">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            aria-label="Export options"
+            appTooltip="Export options"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="contour-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+            <button type="button" role="menuitem" (click)="exportAs('geotiff', $event)" [disabled]="!canExportDem">
+              <strong>Original DEM</strong>
+              <span>Download the GeoTIFF when loaded from DEM</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('contours-geojson', $event)">
+              <strong>Contour GeoJSON</strong>
+              <span>Isoline FeatureCollection</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">
+              <strong>Summary JSON</strong>
+              <span>Levels, interval, and elevation stats</span>
+            </button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">
+              <strong>PNG overlay</strong>
+              <span>Current contour map as PNG</span>
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="contourFiles.length === 0"
+          appTooltip="Clear all"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+
+        <div class="contour-files" *ngIf="contourFiles.length > 0" aria-label="Loaded contour files">
+          <div
+            class="contour-files__chip"
+            *ngFor="let file of contourFiles; let i = index; trackBy: trackByFileId"
+            [class.contour-files__chip--active]="i === currentFileIndex">
+            <button type="button" class="contour-files__select" [attr.aria-pressed]="i === currentFileIndex" (click)="selectFile(i)">
+              <span class="contour-files__name">{{ file.name }}</span>
+              <span class="contour-files__size">{{ formatSize(file.size) }}</span>
+            </button>
+            <button type="button" class="contour-files__remove" [attr.aria-label]="'Remove ' + file.name" (click)="removeFile(i, $event)">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="contour-toolbar__status">
+        <span class="contour-toolbar__status-dot"></span>
+        Files never leave your browser
+      </div>
+    </div>
+
+    <div
+      #workspace
+      class="contour-workspace"
+      [class.contour-workspace--fullscreen]="isFullscreen"
+      [class.contour-workspace--sidebar-collapsed]="sidebarCollapsed">
+      <section class="contour-panel" aria-label="Contour map">
+        <header class="contour-map-head" *ngIf="currentFile">
+          <div class="contour-map-head__identity">
+            <span class="contour-map-head__file">{{ currentFile.name }}</span>
+            <span class="contour-map-head__meta">
+              {{ stats?.contourCount || 0 }} levels · Δ {{ stats?.contourInterval }} ·
+              {{ formatElev(stats?.elevation?.min) }}–{{ formatElev(stats?.elevation?.max) }}
+            </span>
+          </div>
+          <div class="contour-view-controls" aria-label="Map view controls">
+            <button type="button" (click)="zoomOut()" appTooltip="Zoom out (−)" tooltipPosition="bottom" aria-label="Zoom out">−</button>
+            <span class="contour-zoom" aria-live="polite">{{ zoomPercent }}%</span>
+            <button type="button" (click)="zoomIn()" appTooltip="Zoom in (+)" tooltipPosition="bottom" aria-label="Zoom in">+</button>
+            <span class="contour-view-controls__divider"></span>
+            <button type="button" (click)="fitViewport()" appTooltip="Fit bounds (F)" tooltipPosition="bottom">Fit</button>
+            <button
+              type="button"
+              (click)="toggleFullscreen()"
+              [attr.aria-pressed]="isFullscreen"
+              [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+            </button>
+            <span class="contour-view-controls__divider"></span>
+            <button
+              type="button"
+              class="contour-sidebar-toggle"
+              (click)="toggleSidebar()"
+              [attr.aria-expanded]="!sidebarCollapsed"
+              aria-controls="contour-details-sidebar"
+              [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'"
+              tooltipPosition="bottom"
+              [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16" />
+                <path *ngIf="!sidebarCollapsed" d="m12 9-3 3 3 3" />
+                <path *ngIf="sidebarCollapsed" d="m9 9 3 3-3 3" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="contour-map-wrap" [class.contour-map-wrap--empty]="!currentFile">
+          <div #mapHost class="contour-map" [attr.aria-busy]="loading" aria-label="Interactive contour map"></div>
+          <div class="contour-empty" *ngIf="!currentFile && !loading">
+            <p class="contour-empty__title">Drop a DEM or contour GeoJSON here</p>
+            <p class="contour-empty__formats">
+              <span class="contour-formats__chip" *ngFor="let ext of supportedExtensions">{{ ext }}</span>
+            </p>
+            <p class="contour-empty__hint">
+              {{ formatsHint }}. Shortcuts: <kbd>+</kbd>/<kbd>−</kbd> zoom, <kbd>F</kbd> fit, <kbd>Esc</kbd> exit fullscreen.
+            </p>
+            <div class="contour-empty__actions">
+              <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload file</button>
+              <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+            </div>
+          </div>
+          <div class="contour-loading" *ngIf="loading">Generating contours…</div>
+        </div>
+
+        <div class="contour-warnings" *ngIf="warnings.length" role="status">
+          <p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p>
+        </div>
+
+        <div class="contour-error" *ngIf="errorMessage" role="alert">
+          <p class="contour-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
+        </div>
+      </section>
+
+      <aside
+        id="contour-details-sidebar"
+        class="contour-sidebar"
+        aria-label="Contour details"
+        [attr.aria-hidden]="sidebarCollapsed">
+        <div class="ctl__panel" *ngIf="stats">
+          <header class="ctl__panel-head">
+            <span>Contour overview</span>
+            <span class="contour-overview__status">Ready</span>
+          </header>
+          <div class="ctl__panel-body">
+            <p class="contour-process-name">{{ stats.title }}</p>
+            <div class="contour-stat-grid" aria-label="Contour statistics">
+              <div><strong>{{ stats.contourCount }}</strong><span>Levels</span></div>
+              <div><strong>{{ formatElev(stats.elevation.min) }}</strong><span>Min</span></div>
+              <div><strong>{{ formatElev(stats.elevation.max) }}</strong><span>Max</span></div>
+              <div><strong>{{ stats.contourInterval }}</strong><span>Interval</span></div>
+            </div>
+            <dl class="contour-meta contour-meta--compact">
+              <div><dt>Major every</dt><dd>{{ stats.majorEvery }}</dd></div>
+              <div><dt>Features</dt><dd>{{ stats.featureCount }}</dd></div>
+              <div><dt>Bounds</dt><dd class="contour-meta__bounds">{{ boundsLabel }}</dd></div>
+            </dl>
+            <p class="contour-sample-elev" *ngIf="clickedElevation != null">
+              Clicked level: <strong>{{ formatElev(clickedElevation) }}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div class="ctl__panel" *ngIf="currentFile">
+          <header class="ctl__panel-head">Contour controls</header>
+          <div class="ctl__panel-body">
+            <div class="contour-controls">
+              <label>
+                <span>Contour interval</span>
+                <input type="number" min="0.1" step="any" [value]="contourInterval" (change)="onContourIntervalChange($event)" />
+              </label>
+              <button type="button" class="ctl__tool-btn" (click)="suggestInterval()" [disabled]="currentFile.sourceKind !== 'dem'">
+                Suggest interval
+              </button>
+              <label>
+                <span>Major every Nth level <span class="contour-opacity-value">{{ majorEvery }}</span></span>
+                <input type="range" min="1" max="10" step="1" [value]="majorEvery" (change)="onMajorEveryChange($event)" />
+              </label>
+              <label>
+                <span>Line color</span>
+                <select [value]="lineColorMode" (change)="onLineColorModeChange($event)">
+                  <option value="elevation">By elevation</option>
+                  <option value="solid">Solid</option>
+                </select>
+              </label>
+              <label *ngIf="lineColorMode === 'solid'">
+                <span>Solid color</span>
+                <input type="color" [value]="solidColor" (change)="onSolidColorChange($event)" />
+              </label>
+              <label *ngIf="lineColorMode === 'elevation'">
+                <span>Colormap</span>
+                <select [value]="colormap" (change)="onColormapChange($event)">
+                  <option *ngFor="let cm of colormaps" [value]="cm">{{ cm }}</option>
+                </select>
+              </label>
+              <label>
+                <span>Line weight <span class="contour-opacity-value">{{ lineWeight | number:'1.1-1' }}</span></span>
+                <input type="range" min="0.5" max="4" step="0.25" [value]="lineWeight" (change)="onLineWeightChange($event)" />
+              </label>
+              <label>
+                <span>Opacity <span class="contour-opacity-value">{{ (opacity * 100) | number:'1.0-0' }}%</span></span>
+                <input type="range" min="10" max="100" step="1" [value]="opacity * 100" (input)="onOpacityChange($event)" />
+              </label>
+              <label class="contour-controls__row" style="grid-template-columns: auto 1fr; align-items: center;">
+                <input type="checkbox" [checked]="showLabels" (change)="onLabelsToggle($event)" />
+                <span>Show labels (max ~40)</span>
+              </label>
+              <label
+                class="contour-controls__row"
+                style="grid-template-columns: auto 1fr; align-items: center;"
+                *ngIf="currentFile.sourceKind === 'dem'">
+                <input type="checkbox" [checked]="showUnderlay" (change)="onUnderlayToggle($event)" />
+                <span>Faint hillshade underlay</span>
+              </label>
+              <div class="contour-legend" aria-label="Elevation legend" *ngIf="lineColorMode === 'elevation'">
+                <div class="contour-legend__bar" [style.background]="legendCss"></div>
+                <div class="contour-legend__labels">
+                  <span>{{ formatElev(stats?.elevation?.min) }}</span>
+                  <span>{{ formatElev(stats?.elevation?.max) }}</span>
+                </div>
+              </div>
+              <p class="contour-controls__hint">Click near a contour to show its elevation level.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ctl__panel contour-meta-panel">
+          <header class="ctl__panel-head">Metadata</header>
+          <div class="ctl__panel-body">
+            <table class="contour-meta-table" *ngIf="metaRows.length > 0; else noMeta">
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of metaRows; trackBy: trackByMetaKey">
+                  <th scope="row">{{ row.key }}</th>
+                  <td>{{ row.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <ng-template #noMeta>
+              <p class="ctl__panel-hint">
+                {{ currentFile ? 'No metadata rows found.' : 'Upload a DEM or contour GeoJSON to inspect metadata.' }}
+              </p>
+            </ng-template>
+          </div>
+        </div>
+
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body">
+            <ul class="contour-related">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help contour-footer-help">
+      <summary>How to use Contour Map Viewer</summary>
+      <ul>
+        <li>Upload elevation <code>.tif</code> / <code>.tiff</code> / <code>.geotiff</code> or contour <code>.geojson</code> / <code>.json</code> (max 40&nbsp;MB).</li>
+        <li>Adjust interval and major factor; toggle labels and DEM hillshade underlay.</li>
+        <li>Line color can follow elevation colormap or a solid stroke.</li>
+        <li>Export contour GeoJSON, summary JSON, PNG overlay, or the original DEM.</li>
+      </ul>
+    </details>
+  </main>
+
+  <div class="contour-drop-overlay" *ngIf="showDropZone" aria-hidden="true">
+    <p>Drop DEM or contour GeoJSON to open</p>
+    <p class="contour-drop-overlay__formats">{{ formatsLabel }}</p>
+  </div>
+</div>
