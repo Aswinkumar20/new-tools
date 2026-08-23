@@ -1,253 +1,174 @@
-<div class="ctl cf">
-  <lib-navigation></lib-navigation>
+<div class="fmv">
+  <div class="fmv__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>File Metadata Viewer</h1>
-        <p>Upload files to inspect size, type, dimensions, and other properties locally.</p>
+  <section class="fmv__hero">
+    <div class="fmv__badge">Utility toolkit</div>
+    <h1>File Metadata Viewer</h1>
+    <p>
+      Upload files to view comprehensive metadata including file size, type, dimensions, and more. Perfect for
+      inspecting file properties and understanding file characteristics.
+    </p>
+
+    @if (hasFiles()) {
+      <div class="fmv__hero-meta">
+        <div>
+          <span class="fmv__meta-label">Files loaded</span>
+          <strong>{{ files().length }}</strong>
+        </div>
+        <div>
+          <span class="fmv__meta-label">Total size</span>
+          <strong>{{ formatFileSize(totalSize()) }}</strong>
+        </div>
+        <div>
+          <span class="fmv__meta-label">Selected</span>
+          <strong>{{ selectedFile()?.name ?? 'None' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="fmv__hero-meta fmv__hero-meta--placeholder">
+        Drag and drop files here or click to upload. View detailed metadata for any file type.
+      </div>
+    }
+  </section>
+
+  <div class="fmv__board">
+    <section
+      class="fmv__panel fmv__panel--upload"
+      [class.fmv__panel--dragging]="isDragOver()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+    >
+      <header class="fmv__card-header">
+        <div>
+          <h2>Upload files</h2>
+          <p>Drag and drop files or click to browse.</p>
+        </div>
+        @if (hasFiles()) {
+          <button type="button" class="btn btn--ghost btn--small" (click)="clearAll()">Clear all</button>
+        }
       </header>
 
-      <div class="ctl__stats" aria-label="File statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ files().length }}</span>
-          <span class="ctl__stat-label">Files</span>
+      @if (errors().length) {
+        <div class="fmv__alert fmv__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasFiles() ? formatFileSize(totalSize()) : '—' }}</span>
-          <span class="ctl__stat-label">Total</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ selectedFile() ? selectedFile()!.extension || 'file' : '—' }}</span>
-          <span class="ctl__stat-label">Type</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ selectedFile() ? 'Selected' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
-    </div>
+      }
 
-    <div class="cf-workflow" aria-label="File actions">
-      <div class="cf-workflow__group cf-workflow__group--actions">
-        <label class="ctl__tool-btn" aria-label="Upload files" appTooltip="Upload files" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
-          <input type="file" multiple (change)="onFileInputChange($event)" />
+      <div class="fmv__dropzone" [class.fmv__dropzone--active]="isDragOver()">
+        <div class="fmv__dropzone-icon">📁</div>
+        <div class="fmv__dropzone-text">
+          <strong>Drop files here or click to upload</strong>
+          <span>Supports all file types</span>
+        </div>
+        <label class="btn btn--primary">
+          <input type="file" multiple (change)="onFileInputChange($event)" style="display: none" />
+          Choose files
         </label>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="downloadFile(selectedFile()!)"
-          [disabled]="!selectedFile()"
-          aria-label="Download file"
-          appTooltip="Download"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="downloadMetadataJson()"
-          [disabled]="!selectedFile()"
-          aria-label="Download metadata as JSON"
-          appTooltip="Download metadata JSON"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">JSON</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clearAll()"
-          [disabled]="!hasFiles()"
-          aria-label="Clear all"
-          appTooltip="Clear all"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
       </div>
-    </div>
 
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>File preview</span>
-          </header>
-
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="fmv__suggest" aria-label="Suggested next step">
-              <div class="fmv__suggest-body">
-                <p class="fmv__suggest-title">{{ suggestion.title }}</p>
-                <p class="fmv__suggest-reason">{{ suggestion.reason }}</p>
+      @if (hasFiles()) {
+        <div class="fmv__files-list">
+          @for (file of files(); track file.name + file.lastModified) {
+            <button
+              type="button"
+              class="fmv__file-item"
+              [class.fmv__file-item--selected]="selectedFile() === file"
+              (click)="selectFile(file)"
+            >
+              <div class="fmv__file-icon">{{ getFileIcon(file.extension) }}</div>
+              <div class="fmv__file-info">
+                <strong>{{ file.name }}</strong>
+                <span>{{ formatFileSize(file.size) }} • {{ getFileTypeLabel(file.mimeType) }}</span>
               </div>
-              <div class="fmv__suggest-actions">
-                <a class="fmv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="fmv__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-
-          @if (selectedFile()?.preview; as preview) {
-            <div class="ctl__editor-body fmv-preview">
-              <img [src]="preview" [alt]="selectedFile()!.name" />
-            </div>
-          } @else if (selectedFile()) {
-            <div class="ctl__empty">
-              <p>{{ getFileIcon(selectedFile()!.extension) }} {{ selectedFile()!.name }}</p>
-              <p>No visual preview for this file type.</p>
-            </div>
-          } @else {
-            <div
-              class="ctl__empty fmv-dropzone"
-              [class.fmv-dropzone--active]="isDragOver()"
-              (dragover)="onDragOver($event)"
-              (dragleave)="onDragLeave($event)"
-              (drop)="onDrop($event)"
-              aria-live="polite">
-              <p>Drop files here or use <strong>Upload</strong> in the toolbar.</p>
-            </div>
-          }
-        </section>
-
-        <section class="ctl__editor ctl__editor--output cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Metadata</span>
-            <div class="ctl__editor-actions">
-              @if (selectedFile()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
               <button
                 type="button"
-                class="ctl__icon-btn"
-                (click)="copyMetadata()"
-                [disabled]="!selectedFile()"
-                aria-label="Copy metadata"
-                appTooltip="Copy metadata"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                class="btn btn--ghost btn--small"
+                (click)="removeFile(file); $event.stopPropagation()"
+              >
+                Remove
               </button>
-            </div>
-          </header>
-          @if (selectedFile()) {
-            <textarea
-              class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
-              readonly
-              rows="1"
-              [value]="metadataText()"
-              aria-label="File metadata"></textarea>
-          } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Select a file to view its metadata.</p></div>
+            </button>
           }
-        </section>
-      </div>
+        </div>
+      }
+    </section>
 
-      <details class="cf-options-flyout">
-        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button
-          type="button"
-          class="cf-options-flyout__backdrop"
-          aria-label="Close options panel"
-          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Uploaded files">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Files ({{ files().length }})</header>
-            <div class="ctl__panel-body">
-              @if (hasFiles()) {
-                <ul class="fmv-files">
-                  @for (file of files(); track file.name + file.lastModified) {
-                    <li>
-                      <button
-                        type="button"
-                        class="fmv-file"
-                        [class.fmv-file--selected]="selectedFile() === file"
-                        (click)="selectFile(file)">
-                        <span class="fmv-file__icon">{{ getFileIcon(file.extension) }}</span>
-                        <span class="fmv-file__info">
-                          <strong>{{ file.name }}</strong>
-                          <span>{{ formatFileSize(file.size) }} · {{ getFileTypeLabel(file.mimeType) }}</span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        class="cft-history__remove"
-                        (click)="removeFile(file)"
-                        aria-label="Remove file">
-                        ×
-                      </button>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <p class="cft-history__empty">No files uploaded yet.</p>
-              }
-            </div>
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <section class="fmv__panel fmv__panel--metadata">
+        <header class="fmv__card-header">
+          <div>
+            <h2>File metadata</h2>
+            <p>Detailed information about the selected file.</p>
           </div>
+          <button type="button" class="btn btn--primary btn--small" (click)="downloadFile(file)">Download</button>
+        </header>
 
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>Related tools</span>
-            </header>
-            <div class="ctl__panel-body fmv__related">
-              <ul class="fmv__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="fmv__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
+        <div class="fmv__metadata-grid">
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File name</span>
+            <strong>{{ file.name }}</strong>
           </div>
-
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Files are processed <strong>locally</strong> — nothing is uploaded to a server.</p>
-            </div>
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>Image previews and text stats are derived in-browser from the selected file.</p>
-            </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File size</span>
+            <strong>{{ formatFileSize(file.size) }}</strong>
           </div>
-        </aside>
-      </details>
-    </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">File type</span>
+            <strong>{{ getFileTypeLabel(file.mimeType) }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">MIME type</span>
+            <strong>{{ file.mimeType }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">Extension</span>
+            <strong>{{ file.extension || 'None' }}</strong>
+          </div>
+          <div class="fmv__metadata-item">
+            <span class="fmv__metadata-label">Last modified</span>
+            <strong>{{ formatDate(file.lastModified) }}</strong>
+          </div>
+          @if (file.dimensions) {
+            <div class="fmv__metadata-item">
+              <span class="fmv__metadata-label">Dimensions</span>
+              <strong>{{ file.dimensions.width }} × {{ file.dimensions.height }} px</strong>
+            </div>
+          }
+          @if (file.additionalInfo) {
+            @for (item of getAdditionalInfoItems(file.additionalInfo); track item.key) {
+              <div class="fmv__metadata-item">
+                <span class="fmv__metadata-label">{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </div>
+            }
+          }
+        </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Upload or drag-and-drop files using the toolbar or drop zone.</li>
-        <li>Select a file in the sidebar to view metadata and preview.</li>
-        <li>Use the copy icon to grab metadata as formatted text.</li>
-        <li>Image files show an inline preview when supported.</li>
-      </ul>
-    </details>
-  </main>
+        @if (file.preview) {
+          <div class="fmv__preview-container">
+            <h3>Preview</h3>
+            <img [src]="file.preview" [alt]="file.name" class="fmv__preview-image" />
+          </div>
+        }
+      </section>
+    } @else {
+      <section class="fmv__panel fmv__panel--metadata">
+        <header class="fmv__card-header">
+          <div>
+            <h2>File metadata</h2>
+            <p>Select a file to view its metadata.</p>
+          </div>
+        </header>
+        <div class="fmv__empty">No file selected. Upload and select a file to view its metadata.</div>
+      </section>
+    }
+  </div>
 </div>

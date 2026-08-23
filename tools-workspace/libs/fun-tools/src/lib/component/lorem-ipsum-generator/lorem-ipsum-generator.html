@@ -1,192 +1,161 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="lig">
+  <div class="lig__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Lorem Ipsum Generator</h1>
-        <p>Generate placeholder text by paragraphs, words, or sentences for mockups and testing.</p>
+  <section class="lig__hero">
+    <div class="lig__badge">Fun tools</div>
+    <h1>Lorem Ipsum Generator</h1>
+    <p>
+      Generate placeholder text in Latin for design mockups, testing, and development. Customize by paragraphs, words, or
+      sentences.
+    </p>
+
+    @if (hasGeneratedText()) {
+      <div class="lig__hero-meta">
+        <div>
+          <span class="lig__meta-label">Words</span>
+          <strong>{{ stats().words }}</strong>
+        </div>
+        <div>
+          <span class="lig__meta-label">Characters</span>
+          <strong>{{ stats().characters }}</strong>
+        </div>
+        @if (form.controls.type.value === 'paragraphs') {
+          <div>
+            <span class="lig__meta-label">Paragraphs</span>
+            <strong>{{ stats().paragraphs }}</strong>
+          </div>
+        }
+        @if (form.controls.type.value === 'sentences') {
+          <div>
+            <span class="lig__meta-label">Sentences</span>
+            <strong>{{ stats().sentences }}</strong>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="lig__hero-meta lig__hero-meta--placeholder">
+        Configure options below and click "Generate" to create lorem ipsum text.
+      </div>
+    }
+  </section>
+
+  <div class="lig__board" [formGroup]="form">
+    <section class="lig__panel lig__panel--options">
+      <header class="lig__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure text generation settings.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
       </header>
 
-      <div class="ctl__stats" aria-label="Text statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().words }}</span>
-          <span class="ctl__stat-label">Words</span>
+      @if (errors().length) {
+        <div class="lig__alert lig__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().characters }}</span>
-          <span class="ctl__stat-label">Chars</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().paragraphs }}</span>
-          <span class="ctl__stat-label">Paras</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.type.value }}</span>
-          <span class="ctl__stat-label">Type</span>
-        </div>
-      </div>
-    </div>
+      }
 
-    <div class="ft-workflow" aria-label="Generator actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="generate()"
-          aria-label="Generate text"
-          appTooltip="Generate text"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-          <span class="ctl__tool-btn-label">Generate</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clearText()"
-          [disabled]="!hasGeneratedText()"
-          aria-label="Clear output"
-          appTooltip="Clear output"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
+      <div class="lig__field">
+        <label for="type" class="lig__label">Generation Type</label>
+        <select id="type" class="lig__select" formControlName="type">
+          <option value="paragraphs">Paragraphs</option>
+          <option value="words">Words</option>
+          <option value="sentences">Sentences</option>
+        </select>
+        <small class="lig__hint">Choose how to generate the text.</small>
       </div>
-    </div>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ctl__editor--merged">
-          <header class="ctl__editor-head">
-            <span>Generated text</span>
-            <div class="ctl__editor-actions">
-              @if (hasGeneratedText()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyToClipboard()"
-                [disabled]="!hasGeneratedText()"
-                aria-label="Copy generated text"
-                appTooltip="Copy generated text"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="lig__suggest" aria-label="Suggested next step">
-              <div class="lig__suggest-body">
-                <p class="lig__suggest-title">{{ suggestion.title }}</p>
-                <p class="lig__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="lig__suggest-actions">
-                <a class="lig__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="lig__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (hasGeneratedText()) {
-            <textarea
-              class="ctl__textarea ctl__textarea--output"
-              [value]="generatedText()"
-              readonly
-              rows="1"
-              aria-label="Generated lorem ipsum text"></textarea>
+      <div class="lig__field">
+        <label for="count" class="lig__label">Count</label>
+        <input
+          id="count"
+          type="number"
+          class="lig__input"
+          formControlName="count"
+          [min]="1"
+          [max]="form.controls.type.value === 'paragraphs' ? 50 : form.controls.type.value === 'words' ? 1000 : 200"
+        />
+        <small class="lig__hint">
+          @if (form.controls.type.value === 'paragraphs') {
+            Number of paragraphs (1-50).
+          } @else if (form.controls.type.value === 'words') {
+            Number of words (1-1000).
           } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Configure options and click Generate to create lorem ipsum text.</p>
-            </div>
+            Number of sentences (1-200).
           }
-        </section>
+        </small>
       </div>
 
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Generation options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="type">
-                <span>Generation type</span>
-                <select id="type" formControlName="type">
-                  <option value="paragraphs">Paragraphs</option>
-                  <option value="words">Words</option>
-                  <option value="sentences">Sentences</option>
-                </select>
-              </label>
-              <label class="ctl__field" for="count">
-                <span>Count</span>
-                <input
-                  id="count"
-                  type="number"
-                  formControlName="count"
-                  [min]="1"
-                  [max]="countMax()" />
-              </label>
-              <label class="ctl__field" for="startWith">
-                <span>Start with</span>
-                <select id="startWith" formControlName="startWith">
-                  <option value="lorem">Lorem ipsum</option>
-                  <option value="random">Random words</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Max limits: <strong>50 paragraphs</strong>, <strong>1000 words</strong>, or <strong>200 sentences</strong>.</p>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body lig__related">
-              <ul class="lig__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="lig__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
+      <div class="lig__field">
+        <label for="startWith" class="lig__label">Start With</label>
+        <select id="startWith" class="lig__select" formControlName="startWith">
+          <option value="lorem">Lorem ipsum</option>
+          <option value="random">Random words</option>
+        </select>
+        <small class="lig__hint">Whether to start with "Lorem ipsum" or random words.</small>
+      </div>
+    </section>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Choose generation type, count, and whether to start with classic "Lorem ipsum".</li>
-        <li>Click <strong>Generate</strong> to create fresh placeholder text.</li>
-        <li>Use the copy icon to grab the output for your design or code.</li>
-      </ul>
-    </details>
-  </main>
+    <section class="lig__panel lig__panel--output">
+      <header class="lig__card-header">
+        <div>
+          <h2>Generated Text</h2>
+          <p>Your lorem ipsum placeholder text.</p>
+        </div>
+        <div class="lig__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="clearText()"
+            [disabled]="!hasGeneratedText()"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard()"
+            [disabled]="!hasGeneratedText()"
+          >
+            Copy
+          </button>
+        </div>
+      </header>
+
+      @if (hasGeneratedText()) {
+        <div class="lig__output-container">
+          <pre class="lig__output-text">{{ generatedText() }}</pre>
+        </div>
+
+        <div class="lig__stats">
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Words</span>
+            <strong>{{ stats().words }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Characters</span>
+            <strong>{{ stats().characters }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Paragraphs</span>
+            <strong>{{ stats().paragraphs }}</strong>
+          </div>
+          <div class="lig__stat-item">
+            <span class="lig__stat-label">Sentences</span>
+            <strong>{{ stats().sentences }}</strong>
+          </div>
+        </div>
+      } @else {
+        <div class="lig__empty">
+          <p>Click "Generate" to create lorem ipsum text.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

@@ -1,113 +1,159 @@
 import {
-  AfterViewInit,
-  ChangeDetectorRef,
   Component,
-  ElementRef,
-  HostListener,
-  Inject,
-  OnDestroy,
   OnInit,
-  PLATFORM_ID,
+  OnDestroy,
+  AfterViewInit,
   ViewChild,
-  inject
+  ElementRef,
+  ChangeDetectorRef,
+  HostListener,
+  PLATFORM_ID,
+  Inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { fvCopyText } from '../../shared/fv-clipboard.util';
-import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
-import {
-  ARCHIVE_ACCEPT_ATTR,
-  ARCHIVE_RELATED_TOOLS
-} from '../../constants/archive-viewer.constants';
-import type {
-  ArchiveFile,
-  ArchiveInfo,
-  ArchivePreviewType,
-  JSZipConstructor,
-  JSZipInstance
-} from '../../types/archive-viewer.types';
-import {
-  buildArchiveFileTree,
-  createPasswordPendingArchive,
-  detectPreviewType,
-  filterValidArchiveFiles,
-  findArchiveFileByPath,
-  formatArchiveFileSize,
-  getArchiveFileIcon,
-  getFileExtension,
-  isFullySupportedArchiveExtension,
-  isPasswordRequiredError,
-  loadJSZipLibrary,
-  resolveArchiveSuggestion
-} from '../../utils/archive-viewer.utils';
+import { Navigation } from '@tools-workspace/features-home';
+
+// JSZip types
+interface JSZip {
+  new (): JSZipInstance;
+  loadAsync(data: ArrayBuffer | Uint8Array | string, options?: { base64?: boolean; checkCRC32?: boolean; password?: string }): Promise<JSZipInstance>;
+}
+
+interface JSZipInstance {
+  files: { [path: string]: JSZipFile };
+  forEach(callback: (relativePath: string, file: JSZipFile) => void): void;
+  file(name: string): JSZipFile | null;
+  folder(name?: string): JSZipObject | null;
+  generateAsync(options?: { type?: string; compression?: string; compressionOptions?: any; password?: string }): Promise<Blob>;
+}
+
+interface JSZipFile {
+  name: string;
+  dir: boolean;
+  date: Date;
+  comment: string;
+  unixPermissions: number;
+  dosPermissions: number;
+  async(type: string, options?: { base64?: boolean; password?: string }): Promise<any>;
+  async(type: 'string'): Promise<string>;
+  async(type: 'text'): Promise<string>;
+  async(type: 'blob'): Promise<Blob>;
+  async(type: 'arraybuffer'): Promise<ArrayBuffer>;
+  async(type: 'uint8array'): Promise<Uint8Array>;
+}
+
+interface JSZipObject {
+  files: { [path: string]: JSZipFile };
+  folders: { [path: string]: JSZipObject };
+}
+
+// Load JSZip dynamically from CDN
+async function loadJSZip(): Promise<JSZip> {
+  if (globalThis.window === undefined) {
+    throw new TypeError('JSZip can only be loaded in browser environment');
+  }
+
+  if ((globalThis as any).JSZip) {
+    return (globalThis as any).JSZip;
+  }
+
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  document.head.appendChild(script);
+
+  return new Promise((resolve, reject) => {
+    script.onload = () => {
+      const JSZipLib = (globalThis as any).JSZip;
+      resolve(new JSZipLib());
+    };
+    script.onerror = () => reject(new Error('Failed to load JSZip library'));
+  });
+}
+
+interface ArchiveFile {
+  name: string;
+  path: string;
+  size: number;
+  compressedSize: number;
+  isDirectory: boolean;
+  date: Date;
+  children?: ArchiveFile[];
+  parent?: ArchiveFile;
+  level: number;
+  expanded?: boolean;
+}
+
+interface ArchiveInfo {
+  name: string;
+  file: File;
+  size: number;
+  format: string;
+  totalFiles: number;
+  totalSize: number;
+  compressedSize: number;
+  passwordProtected: boolean;
+  loaded: boolean;
+}
 
 @Component({
   selector: 'lib-archive-viewer',
   standalone: true,
   templateUrl: './archive-viewer.html',
   styleUrls: ['./archive-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective]
+  imports: [CommonModule, FormsModule, Navigation]
 })
 export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
-
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewContainer') previewContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('fileTree') fileTree!: ElementRef<HTMLDivElement>;
 
-  readonly acceptAttr = ARCHIVE_ACCEPT_ATTR;
-  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = ARCHIVE_RELATED_TOOLS;
-
   archiveFiles: ArchiveInfo[] = [];
-  currentArchiveIndex = -1;
+  currentArchiveIndex: number = -1;
   fileTreeData: ArchiveFile[] = [];
   flatFileList: ArchiveFile[] = [];
   selectedFile: ArchiveFile | null = null;
-  previewContent = '';
-  previewType: ArchivePreviewType = 'none';
-  previewFileName = '';
-
-  loading = false;
-  loadingProgress = 0;
-  errorMessage = '';
-  showDropZone = false;
-  showAbout = false;
-  showPasswordDialog = false;
-  passwordInput = '';
-  passwordError = '';
+  previewContent: string = '';
+  previewType: 'text' | 'image' | 'binary' | 'none' = 'none';
+  previewFileName: string = '';
+  
+  loading: boolean = false;
+  loadingProgress: number = 0;
+  errorMessage: string = '';
+  showDropZone: boolean = false;
+  showAbout: boolean = false;
+  showPasswordDialog: boolean = false;
+  passwordInput: string = '';
+  passwordError: string = '';
   passwordForArchive: ArchiveInfo | null = null;
-
-  searchText = '';
+  
+  searchText: string = '';
   expandedPaths: Set<string> = new Set();
-  selectedPath = '';
-
-  dismissedSuggestionId: string | null = null;
-  hasCopiedPreview = false;
-
-  private JSZipLib: JSZipConstructor | null = null;
+  selectedPath: string = '';
+  
+  private JSZipLib: JSZip | null = null;
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
+  private readonly supportedFormats = [
+    '.zip',
+    '.rar',
+    '.7z',
+    '.tar',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.z',
+    '.cab',
+    '.iso',
+    '.apk',
+    '.jar',
+    '.war',
+    '.ear'
+  ];
 
   constructor(
     private readonly cdr: ChangeDetectorRef,
-    @Inject(PLATFORM_ID) private readonly platformId: object
+    @Inject(PLATFORM_ID) private readonly platformId: Object
   ) {}
-
-  get primarySuggestion() {
-    const suggestion = resolveArchiveSuggestion({
-      hasArchives: this.archiveFiles.length > 0,
-      unsupportedFormatMessage: this.errorMessage.toLowerCase().includes('not fully supported'),
-      previewType: this.previewType,
-      selectedFileName: this.previewFileName || this.selectedFile?.name || '',
-      hasCopiedPreview: this.hasCopiedPreview
-    });
-    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  }
 
   ngOnInit(): void {
     this.setupDragAndDrop();
@@ -115,11 +161,12 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngAfterViewInit(): void {
     if (isPlatformBrowser(this.platformId)) {
-      loadJSZipLibrary()
-        .then((lib) => {
+      loadJSZip()
+        .then(lib => {
           this.JSZipLib = lib;
         })
-        .catch(() => {
+        .catch(err => {
+          console.error('Failed to load JSZip:', err);
           this.errorMessage = 'Failed to load archive processing library. Please refresh the page.';
           this.cdr.markForCheck();
         });
@@ -128,11 +175,6 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
 
   ngOnDestroy(): void {
     this.cleanup();
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId = suggestionId;
-    this.cdr.markForCheck();
   }
 
   @HostListener('window:resize')
@@ -148,9 +190,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   setupDragAndDrop(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -177,7 +217,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      void this.handleFiles(Array.from(files));
+      this.handleFiles(Array.from(files));
     }
   }
 
@@ -188,7 +228,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      void this.handleFiles(Array.from(input.files));
+      this.handleFiles(Array.from(input.files));
     }
   }
 
@@ -199,7 +239,13 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
 
-    const validFiles = filterValidArchiveFiles(files);
+    const validFiles = files.filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      return this.supportedFormats.includes(ext) || 
+             file.type.includes('zip') || 
+             file.type.includes('archive') ||
+             file.type.includes('compressed');
+    });
 
     if (validFiles.length === 0) {
       this.errorMessage = 'Please select valid archive files (.zip, .rar, .7z, .tar, etc.)';
@@ -209,7 +255,6 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
 
     this.loading = true;
     this.errorMessage = '';
-    this.dismissedSuggestionId = null;
     this.cdr.markForCheck();
 
     try {
@@ -228,9 +273,11 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       throw new Error('JSZip library not loaded');
     }
 
-    const ext = getFileExtension(file.name);
-
-    if (!isFullySupportedArchiveExtension(ext)) {
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    // For now, only ZIP files are fully supported via JSZip
+    // Other formats would need additional libraries
+    if (ext !== '.zip') {
       this.errorMessage = `Format ${ext} is currently not fully supported. ZIP files are fully supported.`;
       this.loading = false;
       this.cdr.markForCheck();
@@ -245,12 +292,23 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       let zip: JSZipInstance;
       try {
         zip = await (this.JSZipLib as any).loadAsync(arrayBuffer, {
-          password
+          password: password
         });
         this.loadingProgress = 60;
-      } catch (error: unknown) {
-        if (isPasswordRequiredError(error)) {
-          this.passwordForArchive = createPasswordPendingArchive(file, ext);
+      } catch (error: any) {
+        if (error.message && error.message.includes('password')) {
+          // Password required
+          this.passwordForArchive = {
+            name: file.name,
+            file: file,
+            size: file.size,
+            format: ext,
+            totalFiles: 0,
+            totalSize: 0,
+            compressedSize: 0,
+            passwordProtected: true,
+            loaded: false
+          };
           this.showPasswordDialog = true;
           this.loading = false;
           this.cdr.markForCheck();
@@ -259,17 +317,17 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
         throw error;
       }
 
-      const { roots, flatList } = buildArchiveFileTree(zip);
-      this.flatFileList = flatList;
+      // Build file tree
+      const fileTree = this.buildFileTree(zip);
       this.loadingProgress = 80;
 
       const archiveInfo: ArchiveInfo = {
         name: file.name,
-        file,
+        file: file,
         size: file.size,
         format: ext,
         totalFiles: this.flatFileList.length,
-        totalSize: this.flatFileList.reduce((sum, entry) => sum + entry.size, 0),
+        totalSize: this.flatFileList.reduce((sum, f) => sum + f.size, 0),
         compressedSize: file.size,
         passwordProtected: false,
         loaded: true
@@ -279,7 +337,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
 
       if (this.archiveFiles.length === 1) {
         this.currentArchiveIndex = 0;
-        this.fileTreeData = roots;
+        this.fileTreeData = fileTree;
         this.expandedPaths.add('/');
       }
 
@@ -287,14 +345,121 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       this.loading = false;
       this.cdr.markForCheck();
     } catch (error) {
-      throw new Error(
-        `Failed to parse archive: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      console.error('Error loading archive:', error);
+      throw new Error(`Failed to parse archive: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-    return file.arrayBuffer();
+    return await file.arrayBuffer();
+  }
+
+  buildFileTree(zip: JSZipInstance): ArchiveFile[] {
+    const rootFiles: ArchiveFile[] = [];
+    const fileMap = new Map<string, ArchiveFile>();
+    this.flatFileList = [];
+
+    zip.forEach((relativePath, file) => {
+      const pathParts = relativePath.split('/').filter(p => p);
+      const isDirectory = relativePath.endsWith('/');
+      const name = pathParts[pathParts.length - 1] || relativePath;
+
+      const archiveFile: ArchiveFile = {
+        name: name,
+        path: relativePath,
+        size: isDirectory ? 0 : (file as any)._data?.uncompressedSize || 0,
+        compressedSize: isDirectory ? 0 : (file as any)._data?.compressedSize || 0,
+        isDirectory: isDirectory,
+        date: file.date || new Date(),
+        level: pathParts.length - 1,
+        expanded: false,
+        children: []
+      };
+
+      this.flatFileList.push(archiveFile);
+
+      if (isDirectory) {
+        fileMap.set(relativePath, archiveFile);
+      } else {
+        fileMap.set(relativePath, archiveFile);
+
+        // Add to parent
+        const parentPath = pathParts.slice(0, -1).join('/') + '/';
+        if (parentPath !== '/') {
+          const parent = fileMap.get(parentPath);
+          if (parent) {
+            if (!parent.children) {
+              parent.children = [];
+            }
+            parent.children.push(archiveFile);
+            archiveFile.parent = parent;
+          } else {
+            // Create parent directories
+            let currentPath = '';
+            for (let i = 0; i < pathParts.length - 1; i++) {
+              currentPath += pathParts[i] + '/';
+              if (!fileMap.has(currentPath)) {
+                const dir: ArchiveFile = {
+                  name: pathParts[i],
+                  path: currentPath,
+                  size: 0,
+                  compressedSize: 0,
+                  isDirectory: true,
+                  date: new Date(),
+                  level: i,
+                  expanded: false,
+                  children: []
+                };
+                fileMap.set(currentPath, dir);
+                this.flatFileList.push(dir);
+
+                // Add to parent
+                if (i > 0) {
+                  const parentPath = pathParts.slice(0, i).join('/') + '/';
+                  const parent = fileMap.get(parentPath);
+                  if (parent && parent.children) {
+                    parent.children.push(dir);
+                    dir.parent = parent;
+                  }
+                }
+              }
+            }
+            const finalParent = fileMap.get(currentPath);
+            if (finalParent && finalParent.children) {
+              finalParent.children.push(archiveFile);
+              archiveFile.parent = finalParent;
+            }
+          }
+        } else {
+          rootFiles.push(archiveFile);
+        }
+      }
+    });
+
+    // Build root structure
+    const roots: ArchiveFile[] = [];
+    fileMap.forEach((file, path) => {
+      if (file.level === 0) {
+        roots.push(file);
+      }
+    });
+
+    // Sort: directories first, then by name
+    const sortFiles = (files: ArchiveFile[]): ArchiveFile[] => {
+      return files.sort((a, b) => {
+        if (a.isDirectory !== b.isDirectory) {
+          return a.isDirectory ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      }).map(f => {
+        if (f.children) {
+          f.children = sortFiles(f.children);
+        }
+        return f;
+      });
+    };
+
+    return sortFiles(roots);
   }
 
   selectArchive(index: number): void {
@@ -305,13 +470,12 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       this.previewType = 'none';
       this.previewFileName = '';
       this.searchText = '';
-      this.hasCopiedPreview = false;
-      this.dismissedSuggestionId = null;
-
+      
+      // Reload file tree for selected archive
       if (this.archiveFiles[index].loaded) {
-        void this.loadArchiveStructure(index);
+        this.loadArchiveStructure(index);
       }
-
+      
       this.cdr.markForCheck();
     }
   }
@@ -325,15 +489,12 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       const archive = this.archiveFiles[index];
       const arrayBuffer = await this.readFileAsArrayBuffer(archive.file);
       const zip = await (this.JSZipLib as any).loadAsync(arrayBuffer);
-      const { roots, flatList } = buildArchiveFileTree(zip);
-      this.fileTreeData = roots;
-      this.flatFileList = flatList;
+      this.fileTreeData = this.buildFileTree(zip);
       this.expandedPaths.clear();
       this.expandedPaths.add('/');
       this.cdr.markForCheck();
-    } catch {
-      this.errorMessage = 'Failed to reload archive structure';
-      this.cdr.markForCheck();
+    } catch (error) {
+      console.error('Error loading archive structure:', error);
     }
   }
 
@@ -347,6 +508,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       this.expandedPaths.add(file.path);
     } else {
       this.expandedPaths.delete(file.path);
+      // Collapse all children
       this.collapseChildren(file);
     }
     this.cdr.markForCheck();
@@ -406,12 +568,11 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
     this.previewContent = '';
     this.previewType = 'none';
     this.previewFileName = file.name;
-    this.hasCopiedPreview = false;
-    this.dismissedSuggestionId = null;
 
     try {
       await this.previewFile(file);
-    } catch {
+    } catch (error) {
+      console.error('Error previewing file:', error);
       this.previewType = 'binary';
       this.previewContent = 'Binary file - cannot preview';
       this.cdr.markForCheck();
@@ -421,10 +582,6 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
   async previewFile(file: ArchiveFile): Promise<void> {
     if (!this.JSZipLib || this.currentArchiveIndex < 0) {
       return;
-    }
-
-    if (this.previewContent && this.previewType === 'image') {
-      URL.revokeObjectURL(this.previewContent);
     }
 
     const archive = this.archiveFiles[this.currentArchiveIndex];
@@ -437,15 +594,23 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       return;
     }
 
-    const kind = detectPreviewType(file.name);
-    if (kind === 'image') {
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'];
+    const textExtensions = ['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'log', 'csv', 'yml', 'yaml'];
+
+    if (imageExtensions.includes(ext)) {
+      // Preview as image
       const blob = await zipFile.async('blob');
-      this.previewContent = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
+      this.previewContent = url;
       this.previewType = 'image';
-    } else if (kind === 'text') {
-      this.previewContent = await zipFile.async('text');
+    } else if (textExtensions.includes(ext)) {
+      // Preview as text
+      const text = await zipFile.async('text');
+      this.previewContent = text;
       this.previewType = 'text';
     } else {
+      // Binary file
       this.previewContent = 'Binary file - cannot preview';
       this.previewType = 'binary';
     }
@@ -477,8 +642,8 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       link.download = file.name;
       link.click();
       URL.revokeObjectURL(url);
-      this.toast.info(`Downloaded ${file.name}`);
-    } catch {
+    } catch (error) {
+      console.error('Error downloading file:', error);
       this.errorMessage = 'Failed to download file';
       this.cdr.markForCheck();
     }
@@ -494,15 +659,17 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
       const arrayBuffer = await this.readFileAsArrayBuffer(archive.file);
       const zip = await (this.JSZipLib as any).loadAsync(arrayBuffer);
       const blob = await zip.generateAsync({ type: 'blob' });
-
+      
+      // Create a download link for all files
+      // In a real implementation, you might want to extract files individually
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = archive.name.replace(/\.(zip|rar|7z|tar)$/i, '_extracted.zip');
       link.click();
       URL.revokeObjectURL(url);
-      this.toast.info('Archive extract started');
-    } catch {
+    } catch (error) {
+      console.error('Error extracting archive:', error);
       this.errorMessage = 'Failed to extract archive';
       this.cdr.markForCheck();
     }
@@ -516,35 +683,50 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     const searchLower = this.searchText.toLowerCase();
-    const matchedFiles = this.flatFileList.filter(
-      (file) =>
-        Boolean(
-          file.name.toLowerCase().includes(searchLower) || file.path.toLowerCase().includes(searchLower)
-        )
+    const matchedFiles = this.flatFileList.filter(file => 
+      Boolean(file.name.toLowerCase().includes(searchLower) ||
+      file.path.toLowerCase().includes(searchLower))
     );
 
     if (matchedFiles.length > 0) {
+      // Expand paths to show first match
       const firstMatch = matchedFiles[0];
       this.expandToPath(firstMatch.path);
-      void this.selectFile(firstMatch);
+      this.selectFile(firstMatch);
     }
 
     this.cdr.markForCheck();
   }
 
   expandToPath(path: string): void {
-    const parts = path.split('/').filter((part) => part);
+    const parts = path.split('/').filter(p => p);
     let currentPath = '';
-
+    
     for (const part of parts.slice(0, -1)) {
       currentPath += part + '/';
       this.expandedPaths.add(currentPath);
-
-      const file = findArchiveFileByPath(this.fileTreeData, currentPath);
+      
+      // Find and expand the file in tree
+      const file = this.findFileByPath(this.fileTreeData, currentPath);
       if (file) {
         file.expanded = true;
       }
     }
+  }
+
+  findFileByPath(files: ArchiveFile[], path: string): ArchiveFile | null {
+    for (const file of files) {
+      if (file.path === path) {
+        return file;
+      }
+      if (file.children) {
+        const found = this.findFileByPath(file.children, path);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return null;
   }
 
   onPasswordSubmit(): void {
@@ -557,25 +739,26 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
     this.passwordError = '';
     const password = this.passwordInput;
     const archive = this.passwordForArchive;
-
+    
     this.passwordInput = '';
     this.showPasswordDialog = false;
     this.passwordForArchive = null;
     this.loading = true;
     this.cdr.markForCheck();
 
-    this.loadArchiveFile(archive.file, password).catch((error: Error) => {
-      if (isPasswordRequiredError(error)) {
-        this.passwordForArchive = archive;
-        this.showPasswordDialog = true;
-        this.passwordError = 'Incorrect password. Please try again.';
-        this.loading = false;
-      } else {
-        this.errorMessage = `Failed to load archive: ${error.message}`;
-        this.loading = false;
-      }
-      this.cdr.markForCheck();
-    });
+    this.loadArchiveFile(archive.file, password)
+      .catch(error => {
+        if (error.message && error.message.includes('password')) {
+          this.passwordForArchive = archive;
+          this.showPasswordDialog = true;
+          this.passwordError = 'Incorrect password. Please try again.';
+          this.loading = false;
+        } else {
+          this.errorMessage = `Failed to load archive: ${error.message}`;
+          this.loading = false;
+        }
+        this.cdr.markForCheck();
+      });
   }
 
   closePasswordDialog(): void {
@@ -590,7 +773,7 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
   removeArchive(index: number): void {
     if (index >= 0 && index < this.archiveFiles.length) {
       this.archiveFiles.splice(index, 1);
-
+      
       if (this.archiveFiles.length === 0) {
         this.currentArchiveIndex = -1;
         this.fileTreeData = [];
@@ -603,51 +786,37 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
           this.currentArchiveIndex = this.archiveFiles.length - 1;
         }
         if (this.currentArchiveIndex >= 0) {
-          void this.loadArchiveStructure(this.currentArchiveIndex);
+          this.loadArchiveStructure(this.currentArchiveIndex);
         }
       }
-
-      this.cdr.markForCheck();
-    }
-  }
-
-  clearAll(): void {
-    if (this.previewContent && this.previewType === 'image') {
-      URL.revokeObjectURL(this.previewContent);
-    }
-    this.archiveFiles = [];
-    this.currentArchiveIndex = -1;
-    this.fileTreeData = [];
-    this.flatFileList = [];
-    this.selectedFile = null;
-    this.previewContent = '';
-    this.previewType = 'none';
-    this.searchText = '';
-    this.errorMessage = '';
-    this.loading = false;
-    this.hasCopiedPreview = false;
-    this.dismissedSuggestionId = null;
-    this.cdr.markForCheck();
-  }
-
-  async copyPreviewText(): Promise<void> {
-    if (!this.previewContent || this.previewType !== 'text') {
-      return;
-    }
-    const ok = await fvCopyText(this.toast, this.previewContent, 'Preview text');
-    if (ok) {
-      this.hasCopiedPreview = true;
-      this.dismissedSuggestionId = null;
+      
       this.cdr.markForCheck();
     }
   }
 
   formatFileSize(bytes: number): string {
-    return formatArchiveFileSize(bytes);
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 
   getFileIcon(file: ArchiveFile): string {
-    return getArchiveFileIcon(file);
+    if (file.isDirectory) {
+      return '📁';
+    }
+    
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const iconMap: { [key: string]: string } = {
+      'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'webp': '🖼️', 'svg': '🖼️',
+      'txt': '📄', 'md': '📝', 'doc': '📄', 'docx': '📄',
+      'pdf': '📕', 'zip': '📦', 'rar': '📦', '7z': '📦',
+      'mp3': '🎵', 'mp4': '🎬', 'avi': '🎬',
+      'js': '📜', 'ts': '📜', 'json': '📜',
+      'html': '🌐', 'css': '🎨', 'xml': '📋'
+    };
+    return iconMap[ext] || '📄';
   }
 
   toggleAbout(): void {
@@ -656,15 +825,14 @@ export class ArchiveViewerComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   cleanup(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);
       document.body.removeEventListener(eventName, this.preventDefaultsFn, false);
     }
 
+    // Cleanup preview URLs
     if (this.previewContent && this.previewType === 'image') {
       URL.revokeObjectURL(this.previewContent);
     }

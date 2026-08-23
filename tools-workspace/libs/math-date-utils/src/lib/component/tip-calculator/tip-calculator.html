@@ -1,290 +1,220 @@
-<div class="ctl md">
-  <lib-navigation></lib-navigation>
+<div class="tc">
+  <div class="tc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Tip Calculator</h1>
-        <p>Compute tips, split bills, and account for taxes with presets and history.</p>
+  <section class="tc__hero">
+    <div class="tc__badge">Dining helper</div>
+    <h1>Tip Calculator Suite</h1>
+    <p>
+      Quickly compute tips, split bills, and account for taxes or custom shares. Use presets for common scenarios and
+      track recent calculations.
+    </p>
+
+    <div class="tc__actions">
+      <button type="button" class="btn btn--primary" (click)="submit()">Recalculate</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="tc__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="tc__layout">
+    <section class="tc__card tc__card--form">
+      <header class="tc__card-header">
+        <div>
+          <h2>Bill details</h2>
+          <p>Enter the bill, choose tip and tax, then select how to split the total.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Tip statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.grandTotal) : '—' }}</span>
-          <span class="ctl__stat-label">Total</span>
+      <form class="tc__form" [formGroup]="form" (ngSubmit)="submit()">
+        <div class="tc__grid">
+          <div class="tc__input">
+            <label for="amount">Bill amount</label>
+            <input id="amount" type="number" step="0.01" formControlName="amount" />
+          </div>
+          <div class="tc__input">
+            <label for="tipPercent">Tip %</label>
+            <input id="tipPercent" type="number" step="0.1" formControlName="tipPercent" />
+          </div>
+          <div class="tc__input">
+            <label for="taxPercent">Tax %</label>
+            <input id="taxPercent" type="number" step="0.1" formControlName="taxPercent" />
+          </div>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ summary() ? formatCurrency(summary()!.totalTip) : '—' }}</span>
-          <span class="ctl__stat-label">Tip</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ history().length }}</span>
-          <span class="ctl__stat-label">History</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ splitMode() === 'equal' ? 'Equal' : 'Custom' }}</span>
-          <span class="ctl__stat-label">Split</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="md-workflow" aria-label="Tip actions">
-      <div class="md-workflow__group md-workflow__group--actions">
-        <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Recalculate" appTooltip="Recalculate" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Calculate</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!summary()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor md-editor-panel">
-          <header class="ctl__editor-head"><span>Bill details</span></header>
-          <div class="ctl__editor-body ctl__settings">
-            <label class="ctl__field" for="amount">
-              <span>Bill amount</span>
-              <input id="amount" type="number" step="0.01" formControlName="amount" />
-            </label>
-            <label class="ctl__field" for="tipPercent">
-              <span>Tip %</span>
-              <input id="tipPercent" type="number" step="0.1" formControlName="tipPercent" />
-            </label>
-            <label class="ctl__field" for="taxPercent">
-              <span>Tax %</span>
-              <input id="taxPercent" type="number" step="0.1" formControlName="taxPercent" />
-            </label>
-            <label class="ctl__field" for="splitCount">
-              <span>Split count</span>
-              <input
-                id="splitCount"
-                type="number"
-                formControlName="splitCount"
-                [disabled]="formSnapshot().splitMode === 'custom'" />
-            </label>
-            <label class="ctl__field" for="currency">
-              <span>Currency</span>
-              <select id="currency" formControlName="currency">
-                @for (code of currencies; track code) {
-                  <option [value]="code">{{ code }}</option>
-                }
-              </select>
-            </label>
-            <div class="tc__tabs" role="group" aria-label="Split mode">
-              <button
-                type="button"
-                class="tc__tab"
-                [class.tc__tab--active]="splitMode() === 'equal'"
-                [attr.aria-pressed]="splitMode() === 'equal'"
-                (click)="setSplitMode('equal')">
-                Equal
-              </button>
-              <button
-                type="button"
-                class="tc__tab"
-                [class.tc__tab--active]="splitMode() === 'custom'"
-                [attr.aria-pressed]="splitMode() === 'custom'"
-                (click)="setSplitMode('custom')">
-                Custom
-              </button>
-            </div>
-            <label class="ctl__toggle">
+        <div class="tc__grid tc__grid--split">
+          <div class="tc__input">
+            <label for="splitCount">Split count</label>
+            <input id="splitCount" type="number" formControlName="splitCount" [disabled]="form.get('splitMode')?.value === 'custom'" />
+          </div>
+          <div class="tc__input">
+            <label for="currency">Currency</label>
+            <select id="currency" formControlName="currency">
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+              <option value="CAD">CAD</option>
+              <option value="AUD">AUD</option>
+            </select>
+          </div>
+          <div class="tc__input tc__input--toggle">
+            <label class="tc__toggle">
               <input type="checkbox" formControlName="round" />
-              <div>
-                <strong>Round grand total</strong>
-                <span>Round the final amount.</span>
-              </div>
+              <span>Round grand total</span>
             </label>
-            @if (splitMode() === 'custom') {
-              <div class="tc__shares">
-                @for (share of formSnapshot().customShares; track $index) {
-                  <label class="ctl__field" [attr.for]="'share-' + $index">
-                    <span>Share {{ $index + 1 }}</span>
-                    <input
-                      [id]="'share-' + $index"
-                      type="number"
-                      min="0.1"
-                      step="0.1"
-                      [value]="share"
-                      (input)="onCustomShareInput($event, $index)" />
-                  </label>
-                }
+          </div>
+        </div>
+
+        <fieldset class="tc__split-mode">
+          <legend id="split-mode-label">Split mode</legend>
+          <div class="tc__segmented" aria-labelledby="split-mode-label">
+            <button type="button" [class.is-active]="splitMode() === 'equal'" (click)="setSplitMode('equal')">Equal split</button>
+            <button type="button" [class.is-active]="splitMode() === 'custom'" (click)="setSplitMode('custom')">Custom shares</button>
+          </div>
+        </fieldset>
+
+        @if (splitMode() === 'custom') {
+          <fieldset class="tc__custom">
+            <legend>Custom shares</legend>
+            <div class="tc__custom-grid">
+              @for (share of form.get('customShares')?.value; track math.random()) {
+                <div class="tc__custom-input">
+                  <label [attr.for]="'custom-share-' + $index">Share {{ $index + 1 }}</label>
+                  <input
+                    [id]="'custom-share-' + $index"
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    [value]="share"
+                    (input)="onCustomShareInput($event, $index)"
+                  />
+                </div>
+              }
+            </div>
+          </fieldset>
+        }
+
+        <label class="tc__toggle tc__toggle--history">
+          <input type="checkbox" formControlName="includeHistory" />
+          <span>Store this calculation</span>
+        </label>
+
+        @if (errorMessage()) {
+          <div class="tc__error">{{ errorMessage() }}</div>
+        }
+
+        <div class="tc__form-actions">
+          <button type="submit" class="btn btn--primary">Calculate</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="tc__card tc__card--summary">
+      <header class="tc__card-header">
+        <div>
+          <h2>Summary</h2>
+          <p>Totals and per-person splits.</p>
+        </div>
+      </header>
+
+      @if (summary()) {
+        <div class="tc__summary">
+          <div class="tc__summary-pill">
+            <strong>{{ formatCurrency(summary()!.grandTotal) }}</strong>
+            <span>Grand total</span>
+            <small>Tip {{ formatCurrency(summary()!.totalTip) }} · Tax {{ formatCurrency(summary()!.totalTax) }}</small>
+          </div>
+
+          <div class="tc__metric-grid">
+            <div class="tc__metric">
+              <span>Bill</span>
+              <strong>{{ formatCurrency(summary()!.totalBill) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Tip amount</span>
+              <strong>{{ formatCurrency(summary()!.totalTip) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Tax amount</span>
+              <strong>{{ formatCurrency(summary()!.totalTax) }}</strong>
+            </div>
+            <div class="tc__metric">
+              <span>Rounding adj.</span>
+              <strong>{{ formatCurrency(summary()!.roundingAdjustment) }}</strong>
+            </div>
+          </div>
+
+          <div class="tc__split-list">
+            @for (amount of summary()!.perPerson; track amount) {
+              <div class="tc__split-item">
+                <strong>{{ summary()!.perPersonLabels[$index] }}</strong>
+                <span>{{ formatCurrency(amount) }}</span>
               </div>
-            }
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="includeHistory" />
-              <div>
-                <strong>Store in history</strong>
-                <span>Keep recent calculations.</span>
-              </div>
-            </label>
-            @if (errorMessage()) {
-              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
             }
           </div>
-        </section>
+        </div>
+      } @else {
+        <div class="tc__empty">Enter bill details to see allocations.</div>
+      }
+    </section>
 
-        <section class="ctl__editor ctl__editor--output md-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Summary</span>
-            <div class="ctl__editor-actions">
-              @if (summary()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!summary()" aria-label="Copy summary" appTooltip="Copy summary" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="tc__suggest" aria-label="Suggested next step">
-              <div class="tc__suggest-body">
-                <p class="tc__suggest-title">{{ suggestion.title }}</p>
-                <p class="tc__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="tc__suggest-actions">
-                <a class="tc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="tc__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
+    <section class="tc__card tc__card--insights">
+      <header class="tc__card-header">
+        <h2>Insights</h2>
+      </header>
+      @if (tips().length > 0) {
+        <ul class="tc__insights">
+          @for (tip of tips(); track trackTip($index, tip)) {
+            <li>{{ tip }}</li>
           }
+        </ul>
+      } @else {
+        <div class="tc__empty">Insights will appear once you calculate.</div>
+      }
+    </section>
 
-          @if (summary()) {
-            <div class="ctl__editor-body tc__results" aria-live="polite">
-              <div class="tc__pill">
-                <strong>{{ formatCurrency(summary()!.grandTotal) }}</strong>
-                <span>Grand total</span>
-                <small>Tip {{ formatCurrency(summary()!.totalTip) }} · Tax {{ formatCurrency(summary()!.totalTax) }}</small>
-              </div>
-              <div class="tc__grid">
-                <div class="tc__metric">
-                  <span>Bill</span>
-                  <strong>{{ formatCurrency(summary()!.totalBill) }}</strong>
-                </div>
-                <div class="tc__metric">
-                  <span>Tip</span>
-                  <strong>{{ formatCurrency(summary()!.totalTip) }}</strong>
-                </div>
-                <div class="tc__metric">
-                  <span>Tax</span>
-                  <strong>{{ formatCurrency(summary()!.totalTax) }}</strong>
-                </div>
-                <div class="tc__metric">
-                  <span>Rounding</span>
-                  <strong>{{ formatCurrency(summary()!.roundingAdjustment) }}</strong>
-                </div>
-              </div>
-              <div class="tc__splits">
-                @for (amount of summary()!.perPerson; track $index) {
-                  <div class="tc__split">
-                    <strong>{{ summary()!.perPersonLabels[$index] }}</strong>
-                    <span>{{ formatCurrency(amount) }}</span>
-                  </div>
-                }
-              </div>
-              @if (tips().length > 0) {
-                <ul class="tc__insights">
-                  @for (tip of tips(); track trackTip($index, tip)) {
-                    <li>{{ tip }}</li>
-                  }
-                </ul>
-              }
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Enter bill details to see allocations.</p>
-            </div>
-          }
-        </section>
+    <section class="tc__card tc__card--presets">
+      <header class="tc__card-header">
+        <h2>Quick presets</h2>
+      </header>
+      <div class="tc__preset-grid">
+        @for (preset of presets; track trackPreset($index, preset)) {
+          <button type="button" class="tc__preset" (click)="applyPreset(preset)">
+            <strong>{{ preset.label }}</strong>
+            <small>{{ preset.amount | currency:form.get('currency')?.value }} · {{ preset.tipPercent }}% tip</small>
+          </button>
+        }
       </div>
+    </section>
 
-      <details class="md-options-flyout">
-        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Quick presets</header>
-            <div class="ctl__panel-body">
-              <div class="tc__presets">
-                @for (preset of presets; track trackPreset($index, preset)) {
-                  <button type="button" class="tc__preset" (click)="applyPreset(preset)">
-                    <strong>{{ preset.label }}</strong>
-                    <small>{{ preset.amount | currency:formSnapshot().currency }} · {{ preset.tipPercent }}% tip</small>
-                  </button>
-                }
+    <section class="tc__card tc__card--history">
+      <header class="tc__card-header">
+        <h2>History</h2>
+        <span class="tc__history-count">{{ history().length }}</span>
+      </header>
+      <div class="tc__history-list">
+        @for (entry of history(); track trackHistory($index, entry)) {
+          <article>
+            <div class="tc__history-head">
+              <div>
+                <strong>{{ entry.summary.perPerson.length }} split</strong>
+                <span>{{ entry.amount | currency:form.get('currency')?.value }} · {{ entry.tipPercent | number:'1.0-1' }}%</span>
               </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">Restore</button>
             </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
-              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-              </button>
-            </header>
-            <div class="ctl__panel-body">
-              @if (history().length > 0) {
-                <ul class="tc__history">
-                  @for (entry of history(); track trackHistory($index, entry)) {
-                    <li>
-                      <button type="button" class="tc__history-item" (click)="restoreHistory(entry)">
-                        <strong>{{ entry.summary.perPerson.length }} split · {{ entry.summary.grandTotal | currency:formSnapshot().currency }}</strong>
-                        <span>{{ entry.amount | currency:formSnapshot().currency }} · {{ entry.tipPercent | number:'1.0-1' }}% tip</span>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <div class="ctl__panel-empty"><p>Your recent tip calculations will appear here.</p></div>
-              }
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body tc__related">
-              <ul class="tc__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="tc__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Enter the bill amount, tip percentage, and optional tax.</li>
-        <li>Choose <strong>Equal</strong> or <strong>Custom</strong> split mode for per-person amounts.</li>
-        <li>Copy the summary or restore past calculations from the sidebar.</li>
-      </ul>
-    </details>
-  </main>
+            <p class="tc__history-meta">
+              Grand total {{ entry.summary.grandTotal | currency:form.get('currency')?.value }} · Tip {{ entry.summary.totalTip | currency:form.get('currency')?.value }}
+            </p>
+          </article>
+        }
+        @if (history().length === 0) {
+          <div class="tc__empty">Your recent tip calculations will appear here.</div>
+        }
+      </div>
+    </section>
+  </div>
 </div>

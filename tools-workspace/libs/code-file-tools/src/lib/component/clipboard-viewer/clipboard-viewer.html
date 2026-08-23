@@ -1,261 +1,258 @@
-<div class="ctl cf">
-  <lib-navigation></lib-navigation>
+<div class="cv">
+  <div class="cv__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Clipboard Viewer</h1>
-        <p>View clipboard contents in real time with metadata and optional auto-refresh.</p>
+  <section class="cv__hero">
+    <div class="cv__badge">Utility toolkit</div>
+    <h1>Clipboard Viewer</h1>
+    <p>
+      View your clipboard contents in real-time. Automatically refresh to see the latest clipboard content, view
+      metadata, and copy or download the content. Perfect for monitoring clipboard activity.
+    </p>
+
+    @if (hasContent()) {
+      @let content = clipboardContent()!;
+      <div class="cv__hero-meta">
+        <div>
+          <span class="cv__meta-label">Type</span>
+          <strong>{{ content.type.charAt(0).toUpperCase() + content.type.slice(1) }}</strong>
+        </div>
+        <div>
+          <span class="cv__meta-label">Size</span>
+          <strong>{{ formatBytes(content.length) }}</strong>
+        </div>
+        <div>
+          <span class="cv__meta-label">Characters</span>
+          <strong>{{ content.metadata.characters }}</strong>
+        </div>
+        @if (lastUpdate()) {
+          <div>
+            <span class="cv__meta-label">Last updated</span>
+            <strong>{{ formatTimestamp(lastUpdate()!) }}</strong>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="cv__hero-meta cv__hero-meta--placeholder">
+        @if (clipboardSupported()) {
+          Click "Read Clipboard" to view current clipboard contents, or enable auto-refresh for real-time monitoring.
+        } @else {
+          Clipboard API is not supported in this browser. Please use a modern browser.
+        }
+      </div>
+    }
+  </section>
+
+  <div class="cv__board" [formGroup]="form">
+    <section class="cv__panel cv__panel--settings">
+      <header class="cv__card-header">
+        <div>
+          <h2>Settings</h2>
+          <p>Configure clipboard viewing options.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Clipboard statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasContent() ? clipboardContent()!.type : '—' }}</span>
-          <span class="ctl__stat-label">Type</span>
+      @if (errors().length) {
+        <div class="cv__alert cv__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasContent() ? formatBytes(clipboardContent()!.length) : '—' }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasContent() ? clipboardContent()!.metadata.characters : '—' }}</span>
-          <span class="ctl__stat-label">Chars</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ statusLabel() }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
-    </div>
+      }
 
-    <div class="cf-workflow" aria-label="Viewer actions">
-      <div class="cf-workflow__group cf-workflow__group--actions">
+      @if (warnings().length) {
+        <div class="cv__alert cv__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (!clipboardSupported()) {
+        <div class="cv__alert cv__alert--warning">
+          <p>Clipboard API is not available in this browser. Some features may be limited.</p>
+        </div>
+      }
+
+      <div class="cv__settings-grid">
+        <label class="cv__toggle">
+          <input type="checkbox" formControlName="autoRefresh" />
+          <div>
+            <strong>Auto-refresh</strong>
+            <span>Automatically refresh clipboard content</span>
+          </div>
+        </label>
+
+        <label class="cv__input">
+          <span>Refresh interval (ms)</span>
+          <input
+            type="number"
+            min="100"
+            max="10000"
+            step="100"
+            formControlName="refreshInterval"
+            [disabled]="!form.controls.autoRefresh.value"
+          />
+          <small>How often to check clipboard (100-10000ms)</small>
+        </label>
+
+        <label class="cv__toggle">
+          <input type="checkbox" formControlName="showMetadata" />
+          <div>
+            <strong>Show metadata</strong>
+            <span>Display content statistics and information</span>
+          </div>
+        </label>
+
+        <label class="cv__toggle">
+          <input type="checkbox" formControlName="wordWrap" />
+          <div>
+            <strong>Word wrap</strong>
+            <span>Wrap long lines in the content viewer</span>
+          </div>
+        </label>
+
+        <label class="cv__input">
+          <span>Font size</span>
+          <input type="number" min="10" max="24" formControlName="fontSize" />
+          <small>Font size for content display (10-24px)</small>
+        </label>
+      </div>
+
+      <div class="cv__actions">
         <button
           type="button"
-          class="ctl__tool-btn"
+          class="btn btn--primary"
           (click)="readClipboard()"
           [disabled]="!clipboardSupported() || isRefreshing()"
-          aria-label="Read clipboard"
-          appTooltip="Read clipboard"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">{{ isRefreshing() ? 'Reading…' : 'Read' }}</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="downloadContent()"
-          [disabled]="!hasContent()"
-          aria-label="Download content"
-          appTooltip="Download"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clearContent()"
-          [disabled]="!hasContent()"
-          aria-label="Clear"
-          appTooltip="Clear"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Metadata</span>
-          </header>
-
-          @if (!clipboardSupported()) {
-            <div class="ctl__alert ctl__alert--warning" role="status">
-              <p>Clipboard API is not available in this browser.</p>
-            </div>
-          }
-
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning" role="status">
-              <ul>
-                @for (message of warnings(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="cv__suggest" aria-label="Suggested next step">
-              <div class="cv__suggest-body">
-                <p class="cv__suggest-title">{{ suggestion.title }}</p>
-                <p class="cv__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="cv__suggest-actions">
-                <a class="cv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="cv__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-
-          @if (hasContent() && showMetadata()) {
-            @let content = clipboardContent()!;
-            <div class="ctl__editor-body cv-meta">
-              <div><span>Lines</span><strong>{{ content.metadata.lines }}</strong></div>
-              <div><span>Words</span><strong>{{ content.metadata.words }}</strong></div>
-              <div><span>Characters</span><strong>{{ content.metadata.characters }}</strong></div>
-              <div><span>Updated</span><strong>{{ formatTimestamp(content.timestamp) }}</strong></div>
-            </div>
-          } @else if (hasContent()) {
-            <div class="ctl__empty"><p>Enable <strong>Show metadata</strong> in the sidebar.</p></div>
+        >
+          @if (isRefreshing()) {
+            Refreshing...
           } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Click <strong>Read</strong> to inspect clipboard metadata.</p></div>
+            Read clipboard
           }
-        </section>
-
-        <section class="ctl__editor ctl__editor--output cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Clipboard content</span>
-            <div class="ctl__editor-actions">
-              @if (hasContent()) {
-                <span class="ctl__editor-badge">{{ clipboardContent()!.type }}</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyOutput()"
-                [disabled]="!hasContent()"
-                aria-label="Copy content"
-                appTooltip="Copy content"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (hasContent()) {
-            @let content = clipboardContent()!;
-            @if (content.type === 'empty') {
-              <div class="ctl__empty"><p>Clipboard is empty.</p></div>
-            } @else {
-              <textarea
-                class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
-                [class.ctl__textarea--wrap]="wordWrap()"
-                [style.font-size.px]="fontSize()"
-                readonly
-                rows="1"
-                [value]="content.text"
-                aria-label="Clipboard content"></textarea>
-            }
-          } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Clipboard content appears here after you read.</p></div>
-          }
-        </section>
+        </button>
+        <button type="button" class="btn btn--ghost" (click)="clearContent()">Clear</button>
       </div>
+    </section>
 
-      <details class="cf-options-flyout">
-        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button
-          type="button"
-          class="cf-options-flyout__backdrop"
-          aria-label="Close options panel"
-          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Viewer settings">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Settings</header>
-            <div class="ctl__settings">
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="autoRefresh" />
-                <div><strong>Auto-refresh</strong><span>Poll clipboard at the set interval.</span></div>
-              </label>
-              <label class="ctl__field">
-                <span>Interval (ms)</span>
-                <input
-                  type="number"
-                  min="100"
-                  max="10000"
-                  step="100"
-                  formControlName="refreshInterval" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="showMetadata" />
-                <div><strong>Show metadata</strong><span>Display stats in the metadata panel.</span></div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="wordWrap" />
-                <div><strong>Word wrap</strong><span>Wrap long lines in the content view.</span></div>
-              </label>
-              <label class="ctl__field">
-                <span>Font size (px)</span>
-                <input type="number" min="10" max="24" formControlName="fontSize" />
-              </label>
+    <section class="cv__panel cv__panel--content">
+      <header class="cv__card-header">
+        <div>
+          <h2>Clipboard content</h2>
+          <p>Current clipboard contents displayed here.</p>
+        </div>
+        @if (hasContent()) {
+          <div class="cv__header-actions">
+            <button
+              type="button"
+              class="btn btn--primary btn--small"
+              (click)="copyToClipboard(contentText())"
+            >
+              Copy
+            </button>
+            <button type="button" class="btn btn--ghost btn--small" (click)="downloadContent()">Download</button>
+          </div>
+        }
+      </header>
+
+      @if (hasContent()) {
+        @let content = clipboardContent()!;
+        @if (content.type === 'empty') {
+          <div class="cv__empty-state">
+            <p>Clipboard is empty</p>
+            <span>Copy something to your clipboard to see it here.</span>
+          </div>
+        } @else {
+          <div class="cv__content-container">
+            <div
+              class="cv__content-badge"
+              [class.cv__content-badge--url]="content.type === 'url'"
+              [class.cv__content-badge--code]="content.type === 'code'"
+              [class.cv__content-badge--html]="content.type === 'html'"
+            >
+              {{ content.type }}
+            </div>
+            <div
+              class="cv__content-viewer"
+              [class.cv__content-viewer--wrap]="form.controls.wordWrap.value"
+              [style.font-size.px]="form.controls.fontSize.value"
+            >
+              <pre class="cv__content-text">{{ content.text }}</pre>
             </div>
           </div>
 
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>Related tools</span>
-            </header>
-            <div class="ctl__panel-body cv__related">
-              <ul class="cv__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="cv__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
+          @if (form.controls.showMetadata.value) {
+            <div class="cv__metadata">
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Lines</span>
+                <strong>{{ content.metadata.lines }}</strong>
+              </div>
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Words</span>
+                <strong>{{ content.metadata.words }}</strong>
+              </div>
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Characters</span>
+                <strong>{{ content.metadata.characters }}</strong>
+              </div>
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Size</span>
+                <strong>{{ formatBytes(content.length) }}</strong>
+              </div>
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Type</span>
+                <strong>{{ content.type }}</strong>
+              </div>
+              <div class="cv__metadata-item">
+                <span class="cv__metadata-label">Updated</span>
+                <strong>{{ formatTimestamp(content.timestamp) }}</strong>
+              </div>
             </div>
-          </div>
+          }
+        }
+      } @else {
+        <div class="cv__empty">Click "Read Clipboard" to view current clipboard contents.</div>
+      }
+    </section>
 
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Reading runs <strong>locally</strong> — content never leaves your browser.</p>
-            </div>
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>Clipboard access may require focus and permission in some browsers.</p>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
+    <section class="cv__panel cv__panel--preview">
+      <header class="cv__card-header">
+        <div>
+          <h2>Content preview</h2>
+          <p>Quick preview of clipboard content.</p>
+        </div>
+      </header>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Click <strong>Read</strong> to capture current clipboard contents.</li>
-        <li>Enable auto-refresh to monitor clipboard changes.</li>
-        <li>Use the copy icon on the content editor to copy text.</li>
-        <li>Adjust font size and word wrap in the sidebar.</li>
-      </ul>
-    </details>
-  </main>
+      @if (hasContent()) {
+        @let content = clipboardContent()!;
+        @if (content.type === 'url') {
+          <div class="cv__preview-container">
+            <a [href]="content.text" target="_blank" rel="noopener noreferrer" class="cv__preview-link">
+              {{ content.text }}
+            </a>
+          </div>
+        } @else if (content.type === 'html') {
+          <div class="cv__preview-container">
+            <div class="cv__preview-html" [innerHTML]="content.text"></div>
+          </div>
+        } @else if (content.type === 'code') {
+          <div class="cv__preview-container">
+            <pre class="cv__preview-code">{{ content.preview }}</pre>
+          </div>
+        } @else {
+          <div class="cv__preview-container">
+            <p class="cv__preview-text">{{ content.preview }}</p>
+          </div>
+        }
+      } @else {
+        <div class="cv__empty">No content to preview.</div>
+      }
+    </section>
+  </div>
 </div>

@@ -1,33 +1,22 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { cftCopyText } from '../../shared/cft-clipboard.util';
-import { cftDownloadBlob } from '../../shared/cft-download.util';
-import type { CftRelatedToolLink, CftToolSuggestion } from '../../shared/cft-tool-suggestion.model';
-import {
-  HTML_MINIFIER_DEFAULT_OPTIONS,
-  HTML_MINIFIER_HISTORY_LIMIT,
-  HTML_MINIFIER_HISTORY_PREVIEW_LENGTH,
-  HTML_MINIFIER_RELATED_TOOLS,
-  HTML_MINIFIER_SAMPLE
-} from '../../constants/html-minifier.constants';
-import type { HtmlMinifierOptions } from '../../types/html-minifier.types';
-import type { MinificationResult, MinifierHistoryEntry } from '../../types/minifier.types';
-import { formatClipboardBytes } from '../../utils/clipboard-history.utils';
-import {
-  buildMinificationResult,
-  createMinifierHistoryEntry,
-  formatMinifierHistoryPreview,
-  prependMinifierHistory
-} from '../../utils/minifier-common.utils';
-import { minifyHtml, resolveHtmlMinifierSuggestion } from '../../utils/html-minifier.utils';
+import { Navigation } from '@tools-workspace/features-home';
+
+interface MinificationResult {
+  minified: string;
+  originalSize: number;
+  minifiedSize: number;
+  reduction: number;
+  reductionPercentage: number;
+}
+
+interface HistoryEntry {
+  timestamp: number;
+  original: string;
+  minified: string;
+  reduction: number;
+}
 
 type MinifierFormGroup = FormGroup<{
   removeComments: FormControl<boolean>;
@@ -41,85 +30,68 @@ type MinifierFormGroup = FormGroup<{
   rememberHistory: FormControl<boolean>;
 }>;
 
+const SAMPLE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sample HTML Document</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to HTML Minifier</h1>
+    <p>This is a sample HTML document for testing minification.</p>
+    <script>
+        console.log('Hello, World!');
+    </script>
+</body>
+</html>`;
+
 @Component({
   selector: 'lib-html-minifier',
   standalone: true,
   templateUrl: './html-minifier.html',
   styleUrls: ['./html-minifier.scss'],
-  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HtmlMinifierComponent {
-  private readonly formBuilder = inject(FormBuilder);
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
+  private readonly fb = inject(FormBuilder);
 
-  readonly relatedTools: ReadonlyArray<CftRelatedToolLink> = HTML_MINIFIER_RELATED_TOOLS;
-  readonly formatBytes = formatClipboardBytes;
-  readonly formatHistoryPreview = (minified: string) =>
-    formatMinifierHistoryPreview(minified, HTML_MINIFIER_HISTORY_PREVIEW_LENGTH);
-
-  readonly form: MinifierFormGroup = this.formBuilder.group({
-    removeComments: this.formBuilder.control(HTML_MINIFIER_DEFAULT_OPTIONS.removeComments, {
-      nonNullable: true
-    }),
-    collapseWhitespace: this.formBuilder.control(
-      HTML_MINIFIER_DEFAULT_OPTIONS.collapseWhitespace,
-      { nonNullable: true }
-    ),
-    removeAttributeQuotes: this.formBuilder.control(
-      HTML_MINIFIER_DEFAULT_OPTIONS.removeAttributeQuotes,
-      { nonNullable: true }
-    ),
-    removeOptionalTags: this.formBuilder.control(
-      HTML_MINIFIER_DEFAULT_OPTIONS.removeOptionalTags,
-      { nonNullable: true }
-    ),
-    removeEmptyAttributes: this.formBuilder.control(
-      HTML_MINIFIER_DEFAULT_OPTIONS.removeEmptyAttributes,
-      { nonNullable: true }
-    ),
-    caseSensitive: this.formBuilder.control(HTML_MINIFIER_DEFAULT_OPTIONS.caseSensitive, {
-      nonNullable: true
-    }),
-    minifyCSS: this.formBuilder.control(HTML_MINIFIER_DEFAULT_OPTIONS.minifyCSS, {
-      nonNullable: true
-    }),
-    minifyJS: this.formBuilder.control(HTML_MINIFIER_DEFAULT_OPTIONS.minifyJS, {
-      nonNullable: true
-    }),
-    rememberHistory: this.formBuilder.control(HTML_MINIFIER_DEFAULT_OPTIONS.rememberHistory, {
-      nonNullable: true
-    })
+  readonly form: MinifierFormGroup = this.fb.group({
+    removeComments: this.fb.control(true, { nonNullable: true }),
+    collapseWhitespace: this.fb.control(true, { nonNullable: true }),
+    removeAttributeQuotes: this.fb.control(false, { nonNullable: true }),
+    removeOptionalTags: this.fb.control(false, { nonNullable: true }),
+    removeEmptyAttributes: this.fb.control(true, { nonNullable: true }),
+    caseSensitive: this.fb.control(true, { nonNullable: true }),
+    minifyCSS: this.fb.control(false, { nonNullable: true }),
+    minifyJS: this.fb.control(false, { nonNullable: true }),
+    rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly inputHtml = signal(HTML_MINIFIER_SAMPLE);
+  readonly inputHtml = signal<string>(SAMPLE_HTML);
   readonly errors = signal<string[]>([]);
-  readonly result = signal<MinificationResult | null>(null);
-  readonly history = signal<MinifierHistoryEntry[]>([]);
+  readonly result: WritableSignal<MinificationResult | null> = signal(null);
+  readonly history = signal<HistoryEntry[]>([]);
   readonly isProcessing = signal(false);
-  readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasResult = computed(() => this.result() !== null);
-  readonly hasInput = computed(() => !!this.inputHtml().trim());
   readonly minifiedHtml = computed(() => this.result()?.minified ?? '');
   readonly reductionPercentage = computed(() => this.result()?.reductionPercentage ?? 0);
 
-  readonly primarySuggestion = computed<CftToolSuggestion | null>(() => {
-    const suggestion = resolveHtmlMinifierSuggestion(this.inputHtml(), this.result());
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
+  readonly Math = Math;
 
   constructor() {
+    // Initial minification
     this.minify();
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
   }
 
   onInputChange(value: string): void {
@@ -139,13 +111,25 @@ export class HtmlMinifierComponent {
         return;
       }
 
-      const options = this.form.getRawValue() as HtmlMinifierOptions;
-      const minified = minifyHtml(input, options);
-      const minificationResult = buildMinificationResult(input, minified);
-      this.result.set(minificationResult);
+      const options = this.form.getRawValue();
+      const minified = this.minifyHtml(input, options);
+      const originalSize = input.length;
+      const minifiedSize = minified.length;
+      const reduction = originalSize - minifiedSize;
+      const reductionPercentage = originalSize > 0 ? Math.round((reduction / originalSize) * 100) : 0;
+
+      const result: MinificationResult = {
+        minified,
+        originalSize,
+        minifiedSize,
+        reduction,
+        reductionPercentage
+      };
+
+      this.result.set(result);
 
       if (options.rememberHistory) {
-        this.addToHistory(input, minified, minificationResult.reduction);
+        this.addToHistory(input, minified, reduction);
       }
     } catch (error) {
       this.errors.set([`Minification failed: ${(error as Error)?.message ?? 'Unknown error'}`]);
@@ -155,50 +139,118 @@ export class HtmlMinifierComponent {
     }
   }
 
-  copyInput(): void {
-    void cftCopyText(this.toast, this.inputHtml(), 'Input');
+  private minifyHtml(html: string, options: any): string {
+    let result = html;
+
+    // Remove HTML comments
+    if (options.removeComments) {
+      result = result.replace(/<!--[\s\S]*?-->/g, '');
+    }
+
+    // Collapse whitespace
+    if (options.collapseWhitespace) {
+      // Preserve whitespace in pre, textarea, and script tags
+      result = result.replace(/>\s+</g, '><');
+      result = result.replace(/\s+/g, ' ');
+      result = result.replace(/^\s+|\s+$/g, '');
+    }
+
+    // Remove optional tags (simplified)
+    if (options.removeOptionalTags) {
+      result = result.replace(/<\/?(html|head|body)[^>]*>/gi, '');
+    }
+
+    // Remove empty attributes
+    if (options.removeEmptyAttributes) {
+      result = result.replace(/\s+(\w+)=""/g, '');
+      result = result.replace(/\s+(\w+)=''/g, '');
+    }
+
+    // Remove attribute quotes where safe
+    if (options.removeAttributeQuotes) {
+      result = result.replace(/(\w+)="([^"]*)"/g, (match, attr, value) => {
+        // Only remove quotes if value doesn't contain spaces or special chars
+        if (!/[ =<>"'`]/.test(value)) {
+          return `${attr}=${value}`;
+        }
+        return match;
+      });
+    }
+
+    // Minify inline CSS
+    if (options.minifyCSS) {
+      result = result.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (match, css) => {
+        const minifiedCSS = css
+          .replace(/\/\*[\s\S]*?\*\//g, '') // Remove CSS comments
+          .replace(/\s+/g, ' ') // Collapse whitespace
+          .replace(/;\s*}/g, '}') // Remove semicolon before closing brace
+          .replace(/\s*{\s*/g, '{') // Remove spaces around opening brace
+          .replace(/;\s*/g, ';') // Remove spaces after semicolons
+          .trim();
+        return match.replace(css, minifiedCSS);
+      });
+    }
+
+    // Minify inline JavaScript
+    if (options.minifyJS) {
+      result = result.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, (match, js) => {
+        const minifiedJS = js
+          .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+          .replace(/\/\/.*/g, '') // Remove line comments
+          .replace(/\s+/g, ' ') // Collapse whitespace
+          .replace(/\s*{\s*/g, '{')
+          .replace(/\s*}\s*/g, '}')
+          .replace(/\s*;\s*/g, ';')
+          .trim();
+        return match.replace(js, minifiedJS);
+      });
+    }
+
+    return result.trim();
   }
 
-  copyOutput(): void {
-    void cftCopyText(this.toast, this.minifiedHtml(), 'Output');
+  copyToClipboard(text: string, label: string): void {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        // Success - could show toast
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
   }
 
   downloadMinified(): void {
     const current = this.result();
     if (!current) return;
 
-    try {
-      cftDownloadBlob(
-        new Blob([current.minified], { type: 'text/html;charset=utf-8' }),
-        'minified.html'
-      );
-      this.toast.success('Minified HTML downloaded');
-    } catch {
-      this.toast.error('Could not download minified HTML');
-    }
+    const blob = new Blob([current.minified], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'minified.html';
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   loadSample(): void {
-    this.inputHtml.set(HTML_MINIFIER_SAMPLE);
+    this.inputHtml.set(SAMPLE_HTML);
     this.minify();
-    this.toast.info('Sample HTML loaded');
   }
 
   clear(): void {
     this.inputHtml.set('');
     this.result.set(null);
     this.errors.set([]);
-    this.toast.info('Editors cleared');
   }
 
-  applyHistory(entry: MinifierHistoryEntry): void {
+  applyHistory(entry: HistoryEntry): void {
     this.inputHtml.set(entry.original);
     this.minify();
   }
 
   clearHistory(): void {
     this.history.set([]);
-    this.toast.info('History cleared');
   }
 
   removeHistoryEntry(timestamp: number): void {
@@ -206,9 +258,28 @@ export class HtmlMinifierComponent {
   }
 
   private addToHistory(original: string, minified: string, reduction: number): void {
-    const entry = createMinifierHistoryEntry(original, minified, reduction);
-    this.history.update((entries) =>
-      prependMinifierHistory(entries, entry, HTML_MINIFIER_HISTORY_LIMIT)
-    );
+    const entry: HistoryEntry = {
+      timestamp: Date.now(),
+      original,
+      minified,
+      reduction
+    };
+    this.history.update((entries) => {
+      const exists = entries.some((e) => e.minified === entry.minified && e.original === entry.original);
+      if (exists) {
+        return entries;
+      }
+      return [entry, ...entries].slice(0, 10);
+    });
+  }
+
+  formatBytes(value: number): string {
+    if (value === 0) {
+      return '0 B';
+    }
+    const UNITS = ['B', 'KB', 'MB'];
+    const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), UNITS.length - 1);
+    const scaled = value / Math.pow(1024, exponent);
+    return `${scaled.toFixed(scaled >= 10 || exponent === 0 ? 0 : 1)} ${UNITS[exponent]}`;
   }
 }

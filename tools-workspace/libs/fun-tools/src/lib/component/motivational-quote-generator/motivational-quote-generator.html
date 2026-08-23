@@ -1,183 +1,109 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="mqg">
+  <div class="mqg__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Motivational Quote Generator</h1>
-        <p>Get inspired with random quotes — save favorites and browse your history.</p>
+  <section class="mqg__hero">
+    <div class="mqg__badge">Fun tools</div>
+    <h1>Motivational Quote Generator</h1>
+    <p>
+      Get inspired with random motivational quotes from famous personalities. Save your favorites and browse through your
+      quote history.
+    </p>
+
+    <div class="mqg__hero-meta">
+      <div>
+        <span class="mqg__meta-label">Total generated</span>
+        <strong>{{ stats().totalGenerated }}</strong>
+      </div>
+      <div>
+        <span class="mqg__meta-label">Unique quotes</span>
+        <strong>{{ stats().uniqueQuotes }}</strong>
+      </div>
+      <div>
+        <span class="mqg__meta-label">Favorites</span>
+        <strong>{{ stats().favorites }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="mqg__board">
+    <section class="mqg__panel mqg__panel--quote">
+      <header class="mqg__card-header">
+        <div>
+          <h2>Quote</h2>
+          <p>Get inspired with a new quote.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generateQuote()">
+          New Quote
+        </button>
       </header>
 
-      <div class="ctl__stats" aria-label="Quote statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().totalGenerated }}</span>
-          <span class="ctl__stat-label">Generated</span>
+      @if (currentQuote(); as quote) {
+        <div class="mqg__quote-card">
+          <div class="mqg__quote-icon">"</div>
+          <div class="mqg__quote-content">
+            <p class="mqg__quote-text">{{ quote.text }}</p>
+            <div class="mqg__quote-author">— {{ quote.author }}</div>
+          </div>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().uniqueQuotes }}</span>
-          <span class="ctl__stat-label">Unique</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().favorites }}</span>
-          <span class="ctl__stat-label">Favorites</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ isFavorite() ? '★' : '—' }}</span>
-          <span class="ctl__stat-label">Saved</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="ft-workflow" aria-label="Quote actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
+        <div class="mqg__quote-actions">
+          <button
+            type="button"
+            class="btn btn--ghost"
+            (click)="toggleFavorite()"
+            [class.btn--favorite]="isFavorite()"
+          >
+            {{ isFavorite() ? '★ Favorited' : '☆ Favorite' }}
+          </button>
+          <button type="button" class="btn btn--primary" (click)="copyQuote()">Copy Quote</button>
+        </div>
+      } @else {
+        <div class="mqg__empty">
+          <p>Click "New Quote" to generate a motivational quote.</p>
+        </div>
+      }
+    </section>
+
+    <section class="mqg__panel mqg__panel--history">
+      <header class="mqg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Recently generated quotes (last 50).</p>
+        </div>
         <button
           type="button"
-          class="ctl__tool-btn"
-          (click)="generateQuote()"
-          aria-label="New quote"
-          appTooltip="New quote"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-          <span class="ctl__tool-btn-label">New Quote</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="toggleFavorite()"
-          [disabled]="!hasCurrentQuote()"
-          [attr.aria-pressed]="isFavorite()"
-          aria-label="Toggle favorite"
-          appTooltip="Toggle favorite"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <span class="ctl__tool-btn-label">{{ isFavorite() ? 'Unfavorite' : 'Favorite' }}</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
+          class="btn btn--ghost btn--small"
           (click)="clearHistory()"
           [disabled]="!hasHistory()"
-          aria-label="Clear history"
-          appTooltip="Clear history"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
+        >
+          Clear
         </button>
-      </div>
-    </div>
+      </header>
 
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ctl__editor--merged">
-          <header class="ctl__editor-head">
-            <span>Current quote</span>
-            <div class="ctl__editor-actions">
-              @if (hasCurrentQuote()) {
-                <span class="ctl__editor-badge">{{ isFavorite() ? 'Favorited' : 'Ready' }}</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyQuote()"
-                [disabled]="!hasCurrentQuote()"
-                aria-label="Copy quote"
-                appTooltip="Copy quote"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="mqg__suggest" aria-label="Suggested next step">
-              <div class="mqg__suggest-body">
-                <p class="mqg__suggest-title">{{ suggestion.title }}</p>
-                <p class="mqg__suggest-reason">{{ suggestion.reason }}</p>
+      @if (hasHistory()) {
+        <ul class="mqg__history-list">
+          @for (item of quoteHistory(); track item.timestamp) {
+            <li class="mqg__history-item" [class.mqg__history-item--favorite]="favorites().includes(item.quote.id)">
+              <div class="mqg__history-quote">
+                <p class="mqg__history-text">"{{ item.quote.text }}"</p>
+                <div class="mqg__history-author">— {{ item.quote.author }}</div>
               </div>
-              <div class="mqg__suggest-actions">
-                <a class="mqg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="mqg__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (currentQuote(); as quote) {
-            <div class="ctl__editor-body mqg-quote" aria-live="polite">
-              <blockquote class="mqg-quote__text">"{{ quote.text }}"</blockquote>
-              <cite class="mqg-quote__author">— {{ quote.author }}</cite>
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Click New Quote to generate a motivational quote.</p>
-            </div>
-          }
-        </section>
-      </div>
-
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Quote history">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">History</header>
-            @if (hasHistory()) {
-              <div class="ctl__panel-body mqg-history">
-                <ul class="mqg-history__list">
-                  @for (item of quoteHistory(); track item.timestamp) {
-                    <li class="mqg-history__item" [class.mqg-history__item--favorite]="favorites().includes(item.quote.id)">
-                      <p class="mqg-history__text">"{{ item.quote.text }}"</p>
-                      <div class="mqg-history__meta">
-                        <span>— {{ item.quote.author }}</span>
-                        @if (favorites().includes(item.quote.id)) {
-                          <span class="mqg-history__star">★</span>
-                        }
-                        <time>{{ formatTimestamp(item.timestamp) }}</time>
-                      </div>
-                    </li>
-                  }
-                </ul>
-              </div>
-            } @else {
-              <div class="ctl__panel-empty">
-                <p>No history yet. Generate quotes to see them here.</p>
-              </div>
-            }
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body mqg__related">
-              <ul class="mqg__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="mqg__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
+              <div class="mqg__history-meta">
+                @if (favorites().includes(item.quote.id)) {
+                  <span class="mqg__history-favorite-badge">★</span>
                 }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Click <strong>New Quote</strong> for a random motivational quote.</li>
-        <li>Star favorites to track quotes you love.</li>
-        <li>Use the copy icon to share the current quote.</li>
-      </ul>
-    </details>
-  </main>
+                <span class="mqg__history-time">{{ formatTimestamp(item.timestamp) }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="mqg__empty">
+          <p>No quote history yet. Generate quotes to see them here.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

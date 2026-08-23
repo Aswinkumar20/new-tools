@@ -1,21 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
-import type { PdfToolMode } from '../../shared/pdf.types';
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-screenshot-to-pdf',
   standalone: true,
-  template: `
-    <lib-pdf-workbench
-      [mode]="mode"
-      [title]="title"
-      [description]="description" />
-  `,
-  imports: [PdfWorkbenchComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './screenshot-to-pdf.html',
+  styleUrls: ['./screenshot-to-pdf.scss'],
+  imports: [CommonModule, FormsModule, Navigation]
 })
 export class ScreenshotToPdfComponent {
-  readonly mode: PdfToolMode = 'screenshot-to-pdf';
-  readonly title = 'Screenshot to PDF';
-  readonly description = 'Turn images or screenshots into a multi-page PDF.';
+  constructor() {}
 }

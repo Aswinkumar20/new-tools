@@ -23,71 +23,24 @@ export function app(): express.Express {
   // Example Express Rest API endpoints
   // server.get('/api/**', (req, res) => { });
   
-  // Serve sitemap.xml from dist folder (copied during build)
-  const sitemapPath = join(distFolder, 'sitemap.xml');
-  if (existsSync(sitemapPath)) {
-    server.get('/sitemap.xml', (req, res) => {
-      res.setHeader('Content-Type', 'application/xml');
-      res.sendFile(sitemapPath);
-    });
-  }
-  
-  // Serve robots.txt from dist folder (copied during build)
-  const robotsPath = join(distFolder, 'robots.txt');
-  if (existsSync(robotsPath)) {
-    server.get('/robots.txt', (req, res) => {
-      res.setHeader('Content-Type', 'text/plain');
-      res.sendFile(robotsPath);
-    });
-  }
-  
-  // IMPORTANT: Serve static files BEFORE Angular routing to prevent asset requests
-  // from being caught by Angular router (which returns index.html)
-  // This must come BEFORE the catch-all route to ensure assets are served correctly
+  // Serve static files from /browser with proper MIME types
   server.use(
     express.static(distFolder, {
       maxAge: '1y',
-      immutable: true,
       setHeaders: (res, path) => {
-        // Set proper MIME types for different file types
+        // Set proper MIME types for SVG files
         if (path.endsWith('.svg')) {
           res.setHeader('Content-Type', 'image/svg+xml');
-        } else if (path.endsWith('.png')) {
-          res.setHeader('Content-Type', 'image/png');
-        } else if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
-          res.setHeader('Content-Type', 'image/jpeg');
-        } else if (path.endsWith('.gif')) {
-          res.setHeader('Content-Type', 'image/gif');
-        } else if (path.endsWith('.webp')) {
-          res.setHeader('Content-Type', 'image/webp');
-        } else if (path.endsWith('.ico')) {
-          res.setHeader('Content-Type', 'image/x-icon');
-        } else if (path.endsWith('.css')) {
-          res.setHeader('Content-Type', 'text/css');
-        } else if (path.endsWith('.js')) {
-          res.setHeader('Content-Type', 'application/javascript');
-        } else if (path.endsWith('.json')) {
-          res.setHeader('Content-Type', 'application/json');
         }
-        
-        // Cache control for static assets
-        if (path.match(/\.(svg|png|jpg|jpeg|gif|ico|webp|woff|woff2|ttf|eot)$/)) {
+        // Cache control for images
+        if (path.match(/\.(svg|png|jpg|jpeg|gif|ico|webp)$/)) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        } else if (path.match(/\.(css|js)$/)) {
-          // For CSS/JS with hash in filename (production build), cache for 1 year
-          // Otherwise, cache for 1 hour in development
-          if (path.match(/\.[a-f0-9]{8,}\.(css|js)$/)) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          } else {
-            res.setHeader('Cache-Control', 'public, max-age=3600');
-          }
         }
       },
     })
   );
 
-  // All regular routes use the Angular engine (this is a catch-all)
-  // Static files are served above, so this only handles Angular routes
+  // All regular routes use the Angular engine
   server.get('*', (req, res, next) => {
     const { protocol, originalUrl, baseUrl, headers } = req;
 

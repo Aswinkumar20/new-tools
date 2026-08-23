@@ -1,200 +1,194 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="qrc">
+  <div class="qrc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>QR Code Generator</h1>
-        <p>Create QR codes for URLs and text — customize size, colors, and error correction.</p>
+  <section class="qrc__hero">
+    <div class="qrc__badge">Fun tools</div>
+    <h1>QR Code Generator</h1>
+    <p>
+      Generate QR codes for URLs, text, contact information, and more. Customize size, colors, error correction level,
+      and download or copy the result.
+    </p>
+
+    @if (hasQRCode()) {
+      <div class="qrc__hero-meta">
+        <div>
+          <span class="qrc__meta-label">Status</span>
+          <strong>Ready</strong>
+        </div>
+        <div>
+          <span class="qrc__meta-label">Size</span>
+          <strong>{{ formatSize(form.controls.size.value) }}</strong>
+        </div>
+        <div>
+          <span class="qrc__meta-label">Error correction</span>
+          <strong>{{ form.controls.errorCorrectionLevel.value }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="qrc__hero-meta qrc__hero-meta--placeholder">
+        Enter text or URL below and your QR code will be generated automatically.
+      </div>
+    }
+  </section>
+
+  <div class="qrc__board" [formGroup]="form">
+    <section class="qrc__panel qrc__panel--options">
+      <header class="qrc__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure QR code content and appearance.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="QR code statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasQRCode() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ form.controls.size.value }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.errorCorrectionLevel.value }}</span>
-          <span class="ctl__stat-label">ECC</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ form.controls.text.value.length }}</span>
-          <span class="ctl__stat-label">Chars</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="ft-workflow" aria-label="QR code actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="downloadQRCode()"
-          [disabled]="!hasQRCode()"
-          aria-label="Download QR code"
-          appTooltip="Download QR code"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="copyQRCode()"
-          [disabled]="!hasQRCode()"
-          aria-label="Copy QR image"
-          appTooltip="Copy QR image"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ft-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Content</span>
-            <div class="ctl__editor-actions">
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyContent()"
-                [disabled]="!form.controls.text.value.trim()"
-                aria-label="Copy content"
-                appTooltip="Copy content"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="qrc__suggest" aria-label="Suggested next step">
-              <div class="qrc__suggest-body">
-                <p class="qrc__suggest-title">{{ suggestion.title }}</p>
-                <p class="qrc__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="qrc__suggest-actions">
-                <a class="qrc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="qrc__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          <label class="sr-only" for="text">QR content</label>
-          <textarea
-            id="text"
-            class="ctl__textarea"
-            formControlName="text"
-            rows="1"
-            placeholder="Enter text, URL, or other content…"
-            spellcheck="false"
-            autocomplete="off"></textarea>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output ft-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Preview</span>
-            @if (hasQRCode()) {
-              <span class="ctl__editor-badge">Ready</span>
+      @if (errors().length) {
+        <div class="qrc__alert qrc__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
             }
-          </header>
-          @if (libraryLoaded() === false) {
-            <div class="ctl__empty"><p>Loading QR code library…</p></div>
-          } @else if (hasQRCode() && qrCodeDataUrl(); as dataUrl) {
-            <div class="ctl__editor-body qrc-preview">
-              <img [src]="dataUrl" alt="Generated QR code" class="qrc-preview__img" />
-            </div>
-          } @else {
-            <div class="ctl__empty"><p>Enter content to generate a QR code.</p></div>
-          }
-        </section>
+          </ul>
+        </div>
+      }
+
+      <div class="qrc__field">
+        <label for="text" class="qrc__label">Content</label>
+        <textarea
+          id="text"
+          class="qrc__textarea"
+          formControlName="text"
+          placeholder="Enter text, URL, or other content..."
+          rows="4"
+        ></textarea>
+        <small class="qrc__hint">The text or URL to encode in the QR code.</small>
       </div>
 
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="QR options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="size">
-                <span>Size (px)</span>
-                <input id="size" type="number" formControlName="size" min="100" max="1000" step="8" />
-              </label>
-              <label class="ctl__field" for="margin">
-                <span>Margin</span>
-                <input id="margin" type="number" formControlName="margin" min="0" max="10" />
-              </label>
-              <label class="ctl__field" for="errorCorrectionLevel">
-                <span>Error correction</span>
-                <select id="errorCorrectionLevel" formControlName="errorCorrectionLevel">
-                  <option value="L">L — Low (~7%)</option>
-                  <option value="M">M — Medium (~15%)</option>
-                  <option value="Q">Q — Quartile (~25%)</option>
-                  <option value="H">H — High (~30%)</option>
-                </select>
-              </label>
-              <label class="ctl__field" for="darkColor">
-                <span>Dark color</span>
-                <input id="darkColor" type="color" [value]="form.controls.darkColor.value" (input)="form.controls.darkColor.setValue($any($event.target).value)" />
-              </label>
-              <label class="ctl__field" for="lightColor">
-                <span>Light color</span>
-                <input id="lightColor" type="color" [value]="form.controls.lightColor.value" (input)="form.controls.lightColor.setValue($any($event.target).value)" />
-              </label>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body qrc__related">
-              <ul class="qrc__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="qrc__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
+      <div class="qrc__field qrc__field--inline">
+        <div>
+          <label for="size" class="qrc__label">Size (pixels)</label>
+          <input
+            id="size"
+            type="number"
+            class="qrc__input"
+            formControlName="size"
+            min="100"
+            max="1000"
+            step="8"
+          />
+          <small class="qrc__hint">QR code dimensions (100-1000px).</small>
+        </div>
+        <div>
+          <label for="margin" class="qrc__label">Margin</label>
+          <input
+            id="margin"
+            type="number"
+            class="qrc__input"
+            formControlName="margin"
+            min="0"
+            max="10"
+          />
+          <small class="qrc__hint">White space around QR code (0-10).</small>
+        </div>
+      </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Paste a URL or text — the QR code generates as you type.</li>
-        <li>Higher error correction tolerates more damage but increases complexity.</li>
-        <li>Download or copy the image; use the content copy icon for the raw text.</li>
-      </ul>
-    </details>
-  </main>
+      <div class="qrc__field">
+        <label for="errorCorrectionLevel" class="qrc__label">Error Correction Level</label>
+        <select id="errorCorrectionLevel" class="qrc__select" formControlName="errorCorrectionLevel">
+          <option value="L">L - Low (~7% recovery)</option>
+          <option value="M">M - Medium (~15% recovery)</option>
+          <option value="Q">Q - Quartile (~25% recovery)</option>
+          <option value="H">H - High (~30% recovery)</option>
+        </select>
+        <small class="qrc__hint">Higher levels allow more damage but increase QR code complexity.</small>
+      </div>
+
+      <div class="qrc__field qrc__field--inline">
+        <div>
+          <label for="darkColor" class="qrc__label">Dark Color</label>
+          <div class="qrc__color-input-wrapper">
+            <input
+              id="darkColor"
+              type="color"
+              class="qrc__color-input"
+              [value]="form.controls.darkColor.value"
+              (input)="form.controls.darkColor.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="qrc__color-text"
+              formControlName="darkColor"
+              placeholder="#000000"
+            />
+          </div>
+          <small class="qrc__hint">Color of QR code modules.</small>
+        </div>
+        <div>
+          <label for="lightColor" class="qrc__label">Light Color</label>
+          <div class="qrc__color-input-wrapper">
+            <input
+              id="lightColor"
+              type="color"
+              class="qrc__color-input"
+              [value]="form.controls.lightColor.value"
+              (input)="form.controls.lightColor.setValue($any($event.target).value)"
+            />
+            <input
+              type="text"
+              class="qrc__color-text"
+              formControlName="lightColor"
+              placeholder="#ffffff"
+            />
+          </div>
+          <small class="qrc__hint">Background color.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="qrc__panel qrc__panel--preview">
+      <header class="qrc__card-header">
+        <div>
+          <h2>Preview</h2>
+          <p>Generated QR code preview.</p>
+        </div>
+        <div class="qrc__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="copyQRCode()"
+            [disabled]="!hasQRCode()"
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="downloadQRCode()"
+            [disabled]="!hasQRCode()"
+          >
+            Download
+          </button>
+        </div>
+      </header>
+
+      @if (libraryLoaded() === false) {
+        <div class="qrc__empty">
+          <p>Loading QR code library...</p>
+        </div>
+      } @else if (hasQRCode() && qrCodeDataUrl(); as dataUrl) {
+        <div class="qrc__preview-container">
+          <img [src]="dataUrl" alt="Generated QR Code" class="qrc__preview-image" />
+          <div class="qrc__preview-info">
+            <p class="qrc__preview-text">
+              <strong>Content:</strong> {{ form.controls.text.value || '(empty)' }}
+            </p>
+          </div>
+        </div>
+      } @else {
+        <div class="qrc__empty">
+          <p>Enter content above to generate a QR code.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

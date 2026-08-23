@@ -1,9 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CommonModule, NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
-import { downloadBytes } from '../../shared/pdf.utils';
+import { Navigation } from '@tools-workspace/features-home';
 
 // PDF.js types - using dynamic import to avoid build-time dependency issues
 interface PDFDocumentProxy {
@@ -75,11 +73,9 @@ interface PdfFile {
   standalone: true,
   templateUrl: './pdf-viewer.html',
   styleUrls: ['./pdf-viewer.scss'],
-  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf, TooltipDirective]
+  imports: [CommonModule, FormsModule, Navigation, NgIf, NgForOf]
 })
 export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfContainer') pdfContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('canvasContainer') canvasContainer!: ElementRef<HTMLDivElement>;
@@ -93,6 +89,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   zoomLevel: number = 100;
   isFullscreen: boolean = false;
   loading: boolean = false;
+  errorMessage: string = '';
   showDropZone: boolean = false;
   showPasswordDialog: boolean = false;
   passwordInput: string = '';
@@ -119,7 +116,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     // Initialize PDF.js library
     loadPdfJs().catch(err => {
       console.error('Failed to load PDF.js:', err);
-      pdfNotifyError(this.toast, 'Failed to load PDF viewer library. Please refresh the page.');
+      this.errorMessage = 'Failed to load PDF viewer library. Please refresh the page.';
     });
   }
 
@@ -180,6 +177,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async processFiles(files: File[]): Promise<void> {
+    this.errorMessage = '';
     this.loading = true;
     
     // Ensure PDF.js is loaded
@@ -189,7 +187,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch (error: unknown) {
       this.loading = false;
       const message = error instanceof Error ? error.message : 'Unknown error';
-      pdfNotifyError(this.toast, `Failed to load PDF viewer library: ${message}. Please refresh the page.`);
+      this.errorMessage = `Failed to load PDF viewer library: ${message}. Please refresh the page.`;
       console.error('PDF.js load error:', error);
       return;
     }
@@ -212,7 +210,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (errors.length > 0) {
-      pdfNotifyError(this.toast, errors.join('\n'));
+      this.errorMessage = errors.join('\n');
     }
 
     for (const file of validFiles) {
@@ -237,8 +235,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         
         if (this.currentPdfIndex === -1 && pdfFile.pdfDoc) {
           this.currentPdfIndex = this.pdfFiles.length - 1;
-          this.totalPages = pdfFile.totalPages;
-          this.currentPage = 1;
+          await this.loadPdf(pdfFile);
         }
         
         this.cdr.detectChanges();
@@ -249,13 +246,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.loading = false;
     if (errors.length > 0) {
-      pdfNotifyError(this.toast, errors.join('\n'));
-    }
-
-    this.cdr.detectChanges();
-
-    if (this.currentPdf?.pdfDoc) {
-      await this.scheduleRenderPage();
+      this.errorMessage = errors.join('\n');
     }
     
     if (this.fileInput?.nativeElement) {
@@ -324,7 +315,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.detectChanges();
         throw error;
       } else {
-        pdfNotifyError(this.toast, `Failed to load PDF: ${errorMessage}`);
+        this.errorMessage = `Failed to load PDF: ${errorMessage}`;
         throw error;
       }
     }
@@ -342,7 +333,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     
     this.totalPages = pdfFile.totalPages;
     this.currentPage = 1;
-    await this.scheduleRenderPage();
+    await this.renderPage();
   }
 
   submitPassword(): void {
@@ -429,13 +420,6 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private async scheduleRenderPage(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-    await this.renderPage();
-  }
-
   async renderPage(): Promise<void> {
     if (!this.currentPdf || !this.currentPdf.pdfDoc || this.isRendering) {
       return;
@@ -507,7 +491,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cdr.detectChanges();
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
-        pdfNotifyError(this.toast, `Failed to render page: ${error.message}`);
+        this.errorMessage = `Failed to render page: ${error.message}`;
       }
     } finally {
       this.isRendering = false;
@@ -580,7 +564,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       
       setTimeout(() => {
-        void this.scheduleRenderPage();
+        this.renderPage();
       }, 100);
     }, 0);
   }
@@ -605,7 +589,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     
     setTimeout(() => {
-      void this.scheduleRenderPage();
+      this.renderPage();
     }, 100);
     
     this.cdr.detectChanges();
@@ -630,7 +614,6 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!isCurrentlyFullscreen && this.isFullscreen) {
       this.isFullscreen = false;
       this.cdr.detectChanges();
-      void this.scheduleRenderPage();
     }
   }
 
@@ -646,19 +629,14 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   downloadPdf(): void {
-    void this.downloadPdfAsync();
-  }
-
-  private async downloadPdfAsync(): Promise<void> {
     if (!this.currentPdf) return;
-
-    try {
-      const buffer = await this.currentPdf.file.arrayBuffer();
-      downloadBytes(new Uint8Array(buffer), this.currentPdf.name);
-      pdfNotifySuccess(this.toast, 'Download started');
-    } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Download failed');
-    }
+    
+    const link = document.createElement('a');
+    link.href = this.currentPdf.url;
+    link.download = this.currentPdf.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   printPdf(): void {

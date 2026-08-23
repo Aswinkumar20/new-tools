@@ -1,728 +1,400 @@
-import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy} from '@angular/core';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
-import {
-  AP_SMALL_WORDS,
-  CHICAGO_SMALL_WORDS,
-  DEFAULT_FAVORITES,
-  DEFAULT_TITLE_EXCEPTIONS,
-  PROGRAMMING_CYCLE,
-  TEXT_CASE_DEFAULT_CASE,
-  TEXT_CASE_MAX_UPLOAD_BYTES,
-  TEXT_CASE_RELATED_TOOLS,
-} from '../../constants/text-case-convertor.constants';
-import type {
-  CaseId,
-  CasePreset,
-  ConvertOptions,
-  CustomRule,
-  EscapeMode,
-  UnicodeForm,
-} from '../../types/text-case-convertor.types';
-import {
-  ALL_PRESETS,
-  convertCase,
-  detectCase,
-  getPresetsByCategory,
-  isValidIdentifier,
-  resolveTextCaseSuggestion,
-} from '../../utils/text-case-convertor.utils';
+import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-text-case-convertor',
   standalone: true,
   templateUrl: './text-case-convertor.html',
   styleUrls: ['./text-case-convertor.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+
 })
 export class TextCaseConvertorComponent implements OnInit, OnDestroy {
-  @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
-
-  readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_CASE_RELATED_TOOLS;
-  private dismissedSuggestionId: string | null = null;
-
   inputText = '';
   convertedText = '';
-  selectedCase: CaseId = TEXT_CASE_DEFAULT_CASE;
-  screenReaderMessage = '';
+  selectedCase:
+    // Standard Cases
+    | 'upper'
+    | 'lower'
+    | 'title'
+    | 'sentence'
+    | 'toggle'
+    // Programming Cases
+    | 'camel'
+    | 'pascal'
+    | 'snake'
+    | 'upperSnake'
+    | 'kebab'
+    | 'train'
+    | 'dot'
+    | 'path'
+    | 'constant'
+    | 'macro'
+    | 'camelSnake'
+    | 'pascalSnake'
+    | 'dotPascal'
+    // Fun & Stylistic Cases
+    | 'alternating'
+    | 'studly'
+    | 'reversed'
+    | 'vowelUpper'
+    | 'consonantUpper'
+    | 'leet'
+    | 'fullwidth'
+    | 'smallCaps'
+    | 'upsideDown'
+    | 'mixed'
+    | 'bracketed' = 'upper';
 
   charCount = 0;
   wordCount = 0;
 
   undoStack: string[] = [''];
   redoStack: string[] = [];
-  private isRestoringHistory = false;
-  private historyTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingHistoryValue = '';
-
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = TEXT_CASE_MAX_UPLOAD_BYTES;
-  private fileInput?: HTMLInputElement;
-
-  activePresetTab: 'standard' | 'programming' | 'fun' | 'favorites' = 'standard';
-  presetSearch = '';
-  favoritePresets: CaseId[] = [...DEFAULT_FAVORITES];
-  recentPresets: CaseId[] = [];
-
-  batchLineMode = false;
-  preserveLineBreaks = true;
-  showOptionsPanel = false;
-  selectionPreview: { start: number; end: number } | null = null;
-
-  locale = 'en';
-  unicodeForm: UnicodeForm = 'none';
-  escapeMode: EscapeMode = 'none';
-  randomSeed = 42;
-  titleStyle: 'ap' | 'chicago' = 'ap';
-  titleExceptionsText = DEFAULT_TITLE_EXCEPTIONS.join(', ');
-  smallWordsText = Array.from(AP_SMALL_WORDS).join(', ');
-  customRules: CustomRule[] = [{ pattern: '', replacement: 'upper' }];
-  identifierLang: 'js' | 'python' = 'js';
-  editorFontSize = 16;
-
-  readonly standardPresets = getPresetsByCategory('standard');
-  readonly programmingPresets = getPresetsByCategory('programming');
-  readonly funPresets = getPresetsByCategory('fun');
-  readonly allPresets = ALL_PRESETS;
-
-  readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
-
-  get canUndo(): boolean {
-    return this.undoStack.length > 1;
-  }
-
-  get canRedo(): boolean {
-    return this.redoStack.length > 0;
-  }
-
-  get hasContent(): boolean {
-    return this.inputText.trim().length > 0;
-  }
-
-  get selectedCaseLabel(): string {
-    return ALL_PRESETS.find((p) => p.id === this.selectedCase)?.label ?? this.selectedCase;
-  }
-
-  get detectedCaseLabel(): string {
-    const sample = this.inputText.trim().split(/\n/)[0]?.trim() ?? '';
-    const detected = detectCase(sample);
-    return detected === 'unknown' ? '' : detected;
-  }
-
-  get identifierWarning(): string {
-    if (!this.convertedText.trim()) return '';
-    const lines = this.convertedText.trim().split(/\n/);
-    const first = lines[0]?.trim() ?? '';
-    if (!first || first.includes(' ')) return '';
-    return isValidIdentifier(first, this.identifierLang) ? '' : `Not a valid ${this.identifierLang.toUpperCase()} identifier`;
-  }
-
-  get shortcutPresets(): CasePreset[] {
-    return this.favoritePresets
-      .slice(0, 5)
-      .map((id) => ALL_PRESETS.find((p) => p.id === id))
-      .filter((p): p is CasePreset => !!p);
-  }
-
-  get activePresets(): CasePreset[] {
-    if (this.activePresetTab === 'favorites') {
-      return this.favoritePresets
-        .map((id) => ALL_PRESETS.find((p) => p.id === id))
-        .filter((p): p is CasePreset => !!p);
-    }
-    const base =
-      this.activePresetTab === 'programming'
-        ? this.programmingPresets
-        : this.activePresetTab === 'fun'
-          ? this.funPresets
-          : this.standardPresets;
-    return this.filterPresets(base);
-  }
-
-  get filteredAllPresets(): CasePreset[] {
-    return this.filterPresets(ALL_PRESETS);
-  }
-
-  get editorFontSizeStyle(): Record<string, string> {
-    return { 'font-size': `${this.editorFontSize}px` };
-  }
-
-  get convertOptions(): ConvertOptions {
-    const smallWords = new Set(
-      this.smallWordsText
-        .split(/[,;\s]+/)
-        .map((w) => w.trim().toLowerCase())
-        .filter(Boolean)
-    );
-    const titleExceptions = this.titleExceptionsText
-      .split(/[,;\n]+/)
-      .map((w) => w.trim())
-      .filter(Boolean);
-
-    return {
-      locale: this.locale,
-      smallWords: smallWords.size ? smallWords : this.titleStyle === 'chicago' ? CHICAGO_SMALL_WORDS : AP_SMALL_WORDS,
-      titleExceptions,
-      randomSeed: this.randomSeed,
-      unicodeForm: this.unicodeForm,
-      customRules: this.customRules.filter((r) => r.pattern.trim()),
-      escapeMode: this.escapeMode,
-    };
-  }
-
-  private filterPresets(presets: CasePreset[]): CasePreset[] {
-    const q = this.presetSearch.trim().toLowerCase();
-    if (!q) return presets;
-    return presets.filter(
-      (p) => p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
-    );
-  }
-
-  setPresetTab(tab: 'standard' | 'programming' | 'fun' | 'favorites'): void {
-    this.activePresetTab = tab;
-  }
-
-  get selectionActive(): boolean {
-    return this.selectionPreview !== null;
-  }
-
-  get zalgoLengthWarning(): string {
-    if (this.selectedCase !== 'zalgo' || this.inputText.length <= 200) return '';
-    return 'Zalgo works best on shorter text (200+ chars may be slow)';
-  }
-
-  get primarySuggestion(): TuToolSuggestion | null {
-    const sample = this.inputText.trim().split(/\n/)[0]?.trim() ?? '';
-    const suggestion = resolveTextCaseSuggestion({
-      hasInput: this.hasContent,
-      hasOutput: !!this.convertedText,
-      selectedCase: this.selectedCase,
-      detectedCase: detectCase(sample),
-      identifierWarning: this.identifierWarning,
-      zalgoLengthWarning: this.zalgoLengthWarning,
-      inputLength: this.inputText.length,
-    });
-    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId = suggestionId;
-  }
-
-  getPresetLabel(id: CaseId): string {
-    return ALL_PRESETS.find((p) => p.id === id)?.label ?? id;
-  }
-
-  isFavorite(id: CaseId): boolean {
-    return this.favoritePresets.includes(id);
-  }
-
-  toggleFavorite(id: CaseId, event?: Event): void {
-    event?.stopPropagation();
-    if (this.favoritePresets.includes(id)) {
-      this.favoritePresets = this.favoritePresets.filter((f) => f !== id);
-    } else {
-      this.favoritePresets = [...this.favoritePresets, id];
-    }
-  }
-
-  private trackRecent(id: CaseId): void {
-    this.recentPresets = [id, ...this.recentPresets.filter((r) => r !== id)].slice(0, 8);
-  }
-
-  @HostListener('document:keydown', ['$event'])
-  handleKeyboard(evt: KeyboardEvent): void {
-    if (!this.isSourceEditorFocused()) {
-      return;
-    }
-
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const key = evt.key.toLowerCase();
-    const undoKey = isMac
-      ? evt.metaKey && key === 'z' && !evt.shiftKey
-      : evt.ctrlKey && key === 'z' && !evt.shiftKey;
-    const redoKey = isMac
-      ? evt.metaKey && (key === 'y' || (evt.shiftKey && key === 'z'))
-      : evt.ctrlKey && (key === 'y' || (evt.shiftKey && key === 'z'));
-
-    if (undoKey) {
-      evt.preventDefault();
-      this.undo();
-      return;
-    }
-    if (redoKey) {
-      evt.preventDefault();
-      this.redo();
-      return;
-    }
-
-    if (!evt.ctrlKey && !evt.metaKey && !evt.altKey && /^[1-5]$/.test(evt.key)) {
-      const idx = Number(evt.key) - 1;
-      const preset = this.shortcutPresets[idx];
-      if (preset) {
-        evt.preventDefault();
-        this.onCaseChange(preset.id);
-      }
-    }
-  }
-
-  private isSourceEditorFocused(): boolean {
-    const textarea = this.inputTextareaRef?.nativeElement;
-    return !!textarea && document.activeElement === textarea;
-  }
 
   ngOnInit(): void {
-    this.applyShareFromUrl();
-    this.seedHistory(this.inputText);
-    this.syncPresetTab();
-    this.refreshOutput();
-    this.updateCounts(this.inputText);
+    // Component initialization - tooltips handled by directive
   }
 
   ngOnDestroy(): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-      this.historyTimer = null;
-    }
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    // Cleanup - tooltips handled by directive
   }
 
-  private seedHistory(value: string): void {
-    this.undoStack = [value];
-    this.redoStack = [];
-  }
-
-  onInputChange(value: string): void {
-    if (this.isRestoringHistory) {
-      return;
-    }
-
-    this.dismissedSuggestionId = null;
+  onInputChange(value: string) {
     this.inputText = value;
-    this.selectionPreview = null;
-    this.refreshOutput();
+    this.pushToUndoStack(value);
+    this.convertedText = this.convertText(value);
     this.updateCounts(value);
-    this.scheduleHistoryPush(value);
   }
 
-  private refreshOutput(): void {
-    this.convertedText = this.runConversion(this.inputText);
-    this.announceOutput();
-  }
-
-  private runConversion(value: string): string {
-    if (!value) return '';
-
-    const text = this.preserveLineBreaks ? value : value.replace(/\s+/g, ' ').trim();
-
-    if (this.selectionPreview) {
-      const { start, end } = this.selectionPreview;
-      const safeStart = Math.max(0, Math.min(start, text.length));
-      const safeEnd = Math.max(safeStart, Math.min(end, text.length));
-      if (safeStart === safeEnd) {
-        this.selectionPreview = null;
-      } else {
-        const before = text.slice(0, safeStart);
-        const selected = text.slice(safeStart, safeEnd);
-        const after = text.slice(safeEnd);
-        return before + this.convertTextSegment(selected) + after;
-      }
-    }
-
-    return this.convertTextSegment(text);
-  }
-
-  private convertTextSegment(text: string): string {
-    if (this.batchLineMode) {
-      return text
-        .split('\n')
-        .map((line) => this.convertSingle(line))
-        .join('\n');
-    }
-    return this.convertSingle(text);
-  }
-
-  private convertSingle(text: string): string {
-    let smallWords = this.convertOptions.smallWords;
-    if (this.selectedCase === 'chicagoTitle' && (!smallWords || smallWords.size === 0)) {
-      smallWords = CHICAGO_SMALL_WORDS;
-    }
-
-    return convertCase(this.selectedCase, text, { ...this.convertOptions, smallWords });
-  }
-
-  private announceOutput(): void {
-    if (!this.convertedText) {
-      this.screenReaderMessage = '';
-      return;
-    }
-    this.screenReaderMessage = `Converted to ${this.selectedCaseLabel}. Output length ${this.convertedText.length} characters.`;
-  }
-
-  private scheduleHistoryPush(value: string): void {
-    this.pendingHistoryValue = value;
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-    }
-    const wait = value.length > 5000 ? 600 : value.length > 2000 ? 450 : 300;
-    this.historyTimer = setTimeout(() => {
-      if (!this.isRestoringHistory) {
-        this.pushToUndoStack(this.pendingHistoryValue);
-      }
-      this.historyTimer = null;
-    }, wait);
-  }
-
-  private applyInputState(value: string): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-      this.historyTimer = null;
-    }
-    this.pendingHistoryValue = value;
-    this.isRestoringHistory = true;
-    this.inputText = value;
-    this.selectionPreview = null;
-    this.refreshOutput();
-    this.updateCounts(value);
-    this.isRestoringHistory = false;
-  }
-
-  onCaseChange(caseType: CaseId): void {
+  onCaseChange(caseType: typeof this.selectedCase) {
     this.selectedCase = caseType;
-    this.dismissedSuggestionId = null;
-    this.trackRecent(caseType);
-    this.refreshOutput();
-    this.syncPresetTab();
-    this.updateShareUrl();
+    this.convertedText = this.convertText(this.inputText);
   }
 
-  cycleProgrammingCase(): void {
-    const idx = PROGRAMMING_CYCLE.indexOf(this.selectedCase);
-    const next = PROGRAMMING_CYCLE[(idx + 1) % PROGRAMMING_CYCLE.length];
-    this.onCaseChange(next);
-    this.toastService.info(`Switched to ${ALL_PRESETS.find((p) => p.id === next)?.label ?? next}`);
-  }
+  convertText(value: string): string {
+    const text = value.trim();
 
-  onOptionsChange(): void {
-    this.dismissedSuggestionId = null;
-    this.refreshOutput();
-  }
+    switch (this.selectedCase) {
+      // Standard Cases
+      case 'upper':
+        return text.toUpperCase();
+      case 'lower':
+        return text.toLowerCase();
+      case 'title':
+        return text.replace(/\w\S*/g, word =>
+          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        );
+      case 'sentence':
+        const sentences = text.toLowerCase().match(/[^.!?]+[.!?]*\s*/g) || [];
+        return sentences
+          .map(s => s.trim())
+          .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+          .join(' ');
+      case 'toggle':
+        return text
+          .split('')
+          .map(char => char === char.toUpperCase() ? char.toLowerCase() : char.toUpperCase())
+          .join('');
 
-  private syncPresetTab(): void {
-    if (this.favoritePresets.includes(this.selectedCase) && this.activePresetTab === 'favorites') {
-      return;
+      // Programming Cases
+      case 'camel':
+        return this.toCamelCase(text);
+      case 'pascal':
+        return this.toPascalCase(text);
+      case 'snake':
+        return this.toSnakeCase(text);
+      case 'upperSnake':
+        return this.toSnakeCase(text).toUpperCase();
+      case 'kebab':
+        return this.toKebabCase(text);
+      case 'train':
+        return this.toTrainCase(text);
+      case 'dot':
+        return this.toDotCase(text);
+      case 'path':
+        return this.toPathCase(text);
+      case 'constant':
+        return this.toConstantCase(text);
+      case 'macro':
+        return this.toMacroCase(text);
+      case 'camelSnake':
+        return this.toCamelSnakeCase(text);
+      case 'pascalSnake':
+        return this.toPascalSnakeCase(text);
+      case 'dotPascal':
+        return this.toDotPascalCase(text);
+
+      // Fun & Stylistic Cases
+      case 'alternating':
+        return this.toAlternatingCase(text);
+      case 'studly':
+        return this.toStudlyCase(text);
+      case 'reversed':
+        return this.toReversedCase(text);
+      case 'vowelUpper':
+        return this.toVowelUpperCase(text);
+      case 'consonantUpper':
+        return this.toConsonantUpperCase(text);
+      case 'leet':
+        return this.toLeetSpeak(text);
+      case 'fullwidth':
+        return this.toFullwidthCase(text);
+      case 'smallCaps':
+        return this.toSmallCaps(text);
+      case 'upsideDown':
+        return this.toUpsideDown(text);
+      case 'mixed':
+        return this.toMixedCase(text);
+      case 'bracketed':
+        return this.toBracketedCase(text);
+      default:
+        return text;
     }
-    const preset = ALL_PRESETS.find((p) => p.id === this.selectedCase);
-    if (preset) {
-      this.activePresetTab = preset.category;
+  }
+
+  // Core utility functions
+  private capitalize(word: string): string {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }
+
+  private splitWords(text: string): string[] {
+    return text.toLowerCase().split(/[\s_\-\.\/]+/);
+  }
+
+  // Standard case conversion functions
+  private toCamelCase(text: string): string {
+    const words = this.splitWords(text);
+    return words[0] + words.slice(1).map(this.capitalize).join('');
+  }
+
+  private toPascalCase(text: string): string {
+    return this.splitWords(text).map(this.capitalize).join('');
+  }
+
+  private toSnakeCase(text: string): string {
+    return this.splitWords(text).join('_');
+  }
+
+  private toKebabCase(text: string): string {
+    return this.splitWords(text).join('-');
+  }
+
+  // Extended programming cases
+  private toTrainCase(text: string): string {
+    return this.splitWords(text).map(this.capitalize).join('-');
+  }
+
+  private toDotCase(text: string): string {
+    return this.splitWords(text).join('.');
+  }
+
+  private toPathCase(text: string): string {
+    return this.splitWords(text).join('/');
+  }
+
+  private toConstantCase(text: string): string {
+    return this.toSnakeCase(text).toUpperCase();
+  }
+
+  private toMacroCase(text: string): string {
+    return this.toConstantCase(text);
+  }
+
+  private toCamelSnakeCase(text: string): string {
+    return this.splitWords(text)
+      .map((word, index) => index === 0 ? word : this.capitalize(word))
+      .join('_');
+  }
+
+  private toPascalSnakeCase(text: string): string {
+    return this.splitWords(text).map(this.capitalize).join('_');
+  }
+
+  private toDotPascalCase(text: string): string {
+    return this.splitWords(text).map(this.capitalize).join('.');
+  }
+
+  // Fun & Stylistic cases
+  private toAlternatingCase(text: string): string {
+    return text.split('').map((char, i) => 
+      i % 2 === 0 ? char.toLowerCase() : char.toUpperCase()
+    ).join('');
+  }
+
+  private toStudlyCase(text: string): string {
+    return text.split('').map(char => 
+      Math.random() > 0.5 ? char.toUpperCase() : char.toLowerCase()
+    ).join('');
+  }
+
+  private toReversedCase(text: string): string {
+    return text.split('').reverse().join('');
+  }
+
+  private toVowelUpperCase(text: string): string {
+    return text.split('').map(char => 
+      'aeiouAEIOU'.includes(char) ? char.toUpperCase() : char.toLowerCase()
+    ).join('');
+  }
+
+  private toConsonantUpperCase(text: string): string {
+    return text.split('').map(char => 
+      'aeiouAEIOU'.includes(char) ? char.toLowerCase() : char.toUpperCase()
+    ).join('');
+  }
+
+  private toLeetSpeak(text: string): string {
+    const leetMap: { [key: string]: string } = {
+      'a': '4', 'e': '3', 'i': '1', 'o': '0', 'l': '1',
+      's': '5', 't': '7', 'b': '8', 'g': '6', 'z': '2'
+    };
+    return text.toLowerCase().split('').map(char => 
+      leetMap[char] || char
+    ).join('');
+  }
+
+  private toFullwidthCase(text: string): string {
+    return text.split('').map(char => {
+      const code = char.charCodeAt(0);
+      if ((code >= 33 && code <= 126)) {
+        return String.fromCharCode(code + 0xFEE0);
+      }
+      return char;
+    }).join('');
+  }
+
+  private toSmallCaps(text: string): string {
+    const smallCapsMap: { [key: string]: string } = {
+      'a': 'ᴀ', 'b': 'ʙ', 'c': 'ᴄ', 'd': 'ᴅ', 'e': 'ᴇ', 'f': 'ғ', 'g': 'ɢ',
+      'h': 'ʜ', 'i': 'ɪ', 'j': 'ᴊ', 'k': 'ᴋ', 'l': 'ʟ', 'm': 'ᴍ', 'n': 'ɴ',
+      'o': 'ᴏ', 'p': 'ᴘ', 'q': 'ǫ', 'r': 'ʀ', 's': 's', 't': 'ᴛ', 'u': 'ᴜ',
+      'v': 'ᴠ', 'w': 'ᴡ', 'x': 'x', 'y': 'ʏ', 'z': 'ᴢ'
+    };
+    return text.toLowerCase().split('').map(char => 
+      smallCapsMap[char] || char
+    ).join('');
+  }
+
+  private toUpsideDown(text: string): string {
+    const upsideDownMap: { [key: string]: string } = {
+      'a': 'ɐ', 'b': 'q', 'c': 'ɔ', 'd': 'p', 'e': 'ǝ', 'f': 'ɟ', 'g': 'ƃ',
+      'h': 'ɥ', 'i': 'ᴉ', 'j': 'ɾ', 'k': 'ʞ', 'l': 'l', 'm': 'ɯ', 'n': 'u',
+      'o': 'o', 'p': 'd', 'q': 'b', 'r': 'ɹ', 's': 's', 't': 'ʇ', 'u': 'n',
+      'v': 'ʌ', 'w': 'ʍ', 'x': 'x', 'y': 'ʎ', 'z': 'z', '.': '˙', '[': ']',
+      '(': ')', '{': '}', '?': '¿', '!': '¡', '\'': ',', '<': '>', '_': '‾'
+    };
+    return text.toLowerCase().split('').reverse().map(char => 
+      upsideDownMap[char] || char
+    ).join('');
+  }
+
+  private toMixedCase(text: string): string {
+    let result = '';
+    let capitalize = true;
+    for (const char of text) {
+      if (/[a-zA-Z]/.test(char)) {
+        result += capitalize ? char.toUpperCase() : char.toLowerCase();
+        capitalize = !capitalize;
+      } else {
+        result += char;
+      }
     }
+    return result;
   }
 
-  convertSelectionOnly(): void {
-    const textarea = this.inputTextareaRef?.nativeElement;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    if (start === end) {
-      this.toastService.info('Select text in the source editor first');
-      return;
-    }
-
-    this.selectionPreview = { start, end };
-    this.refreshOutput();
-    this.toastService.info('Converting selection only — edit source to reset');
+  private toBracketedCase(text: string): string {
+    return `[${text}]`;
   }
 
-  swapSourceOutput(): void {
-    if (!this.convertedText) {
-      this.toastService.info('No output to swap');
-      return;
-    }
-    const prev = this.convertedText;
-    this.applyInputState(prev);
-    this.pushToUndoStack(prev);
-    this.toastService.info('Output moved to source');
-  }
 
-  useOutputAsInput(): void {
-    this.swapSourceOutput();
-  }
-
-  addCustomRule(): void {
-    this.customRules = [...this.customRules, { pattern: '', replacement: 'upper' }];
-  }
-
-  removeCustomRule(index: number): void {
-    this.customRules = this.customRules.filter((_, i) => i !== index);
-    this.onOptionsChange();
-  }
-
-  updateCounts(value: string): void {
+  updateCounts(value: string) {
     this.charCount = value.length;
     this.wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
   }
 
-  pushToUndoStack(value: string): void {
-    if (this.isRestoringHistory) {
-      return;
+  pushToUndoStack(value: string) {
+    if (this.undoStack.length === 0 || this.undoStack[this.undoStack.length - 1] !== value) {
+      this.undoStack.push(value);
+      if (this.undoStack.length > 100) this.undoStack.shift(); // limit size
+      this.redoStack = [];
     }
-    const last = this.undoStack[this.undoStack.length - 1];
-    if (last !== undefined && last === value) {
-      return;
-    }
-    this.undoStack.push(value);
-    if (this.undoStack.length > 100) {
-      this.undoStack.shift();
-    }
-    this.redoStack = [];
   }
 
-  undo(): void {
+  undo() {
     if (this.undoStack.length > 1) {
       const last = this.undoStack.pop()!;
       this.redoStack.push(last);
       const prev = this.undoStack[this.undoStack.length - 1];
-      this.applyInputState(prev);
+      this.inputText = prev;
+      this.convertedText = this.convertText(prev);
+      this.updateCounts(prev);
+      this.saveToLocalStorage();
     }
   }
 
-  redo(): void {
+  redo() {
     if (this.redoStack.length > 0) {
       const next = this.redoStack.pop()!;
-      this.undoStack.push(next);
-      this.applyInputState(next);
+      this.inputText = next;
+      this.convertedText = this.convertText(next);
+      this.pushToUndoStack(next);
+      this.updateCounts(next);
+      this.saveToLocalStorage();
     }
   }
 
-  reset(): void {
-    if (this.historyTimer) {
-      clearTimeout(this.historyTimer);
-      this.historyTimer = null;
-    }
-    this.applyInputState('');
-    this.seedHistory('');
-    this.dismissedSuggestionId = null;
-    this.updateShareUrl();
-    this.toastService.info('Text cleared');
+  reset() {
+    this.inputText = '';
+    this.convertedText = '';
+    this.charCount = 0;
+    this.wordCount = 0;
+    this.undoStack = [''];
+    this.redoStack = [];
+    this.saveToLocalStorage();
   }
 
-  uploadTextFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) {
-          this.handleUploadedFile(file);
-        }
-        if (this.fileInput) {
-          this.fileInput.value = '';
-        }
-      });
-      document.body.appendChild(this.fileInput);
-    }
-
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
-    this.fileInput.click();
-  }
-
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
-      return;
-    }
-
-    if (!this.isLikelyTextFile(file)) {
-      this.toastService.error('Please upload a text-based file (.txt, .md, .csv, .json, etc.).');
-      return;
-    }
-
-    this.isReadingFile = true;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.historyTimer) {
-        clearTimeout(this.historyTimer);
-        this.historyTimer = null;
-      }
-      this.dismissedSuggestionId = null;
-      this.applyInputState(text);
-      this.pushToUndoStack(text);
-      this.updateShareUrl();
-      this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-    };
-
-    reader.onerror = () => {
-      this.isReadingFile = false;
-      this.toastService.error('Could not read the file. Please try another text file.');
-    };
-
-    reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) {
-      return true;
-    }
-    const allowedTypes = new Set([
-      'application/json', 'application/xml', 'application/javascript',
-      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
-    ]);
-    if (allowedTypes.has(file.type)) {
-      return true;
-    }
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    const textExtensions = new Set([
-      'txt', 'text', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
-      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf', 'js', 'ts', 'css', 'scss',
-    ]);
-    return textExtensions.has(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
-    }
-  }
-
-  copyInput(): void {
-    this.copyText(this.inputText, 'Source');
-  }
-
-  copyOutput(): void {
-    this.copyText(this.convertedText, 'Output');
-  }
-
-  copyWithLabel(): void {
-    if (!this.convertedText) return;
-    const text = `${this.selectedCaseLabel}: ${this.convertedText}`;
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.info('Copied with case label');
+  copyToClipboard() {
+    navigator.clipboard.writeText(this.convertedText).then(() => {
+      alert('Copied to clipboard!');
     });
   }
 
-  copyAsJson(): void {
-    if (!this.convertedText) return;
-    const payload = JSON.stringify({ original: this.inputText, converted: this.convertedText, preset: this.selectedCase }, null, 2);
-    navigator.clipboard.writeText(payload).then(() => {
-      this.toastService.info('Copied as JSON');
-    });
-  }
-
-  copyAsCsv(): void {
-    if (!this.convertedText) return;
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const row = `${escape(this.inputText)},${escape(this.convertedText)},${escape(this.selectedCase)}`;
-    navigator.clipboard.writeText(row).then(() => {
-      this.toastService.info('Copied as CSV');
-    });
-  }
-
-  private copyText(text: string, label: string): void {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      this.toastService.info(`${label} copied to clipboard`);
-    });
-  }
-
-  downloadText(): void {
-    this.downloadWithName(`output-${this.selectedCase}.txt`);
-  }
-
-  downloadWithName(filename?: string): void {
-    if (!this.convertedText) return;
+  downloadText() {
     const blob = new Blob([this.convertedText], { type: 'text/plain;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = filename ?? `output-${this.selectedCase}.txt`;
+    link.download = 'converted-text.txt';
     link.click();
     URL.revokeObjectURL(link.href);
   }
 
-  copyShareLink(): void {
-    this.updateShareUrl();
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
-      this.toastService.info('Share link copied (text is in URL — share carefully)');
-    });
+  saveToLocalStorage() {
+    const state = {
+      inputText: this.inputText,
+      convertedText: this.convertedText,
+      selectedCase: this.selectedCase,
+      undoStack: this.undoStack,
+      redoStack: this.redoStack,
+      charCount: this.charCount,
+      wordCount: this.wordCount,
+    };
+    localStorage.setItem('textCaseConvertorState', JSON.stringify(state));
   }
 
-  private encodeSharePayload(payload: object): string {
-    const json = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(json);
-    let binary = '';
-    for (const byte of bytes) {
-      binary += String.fromCharCode(byte);
-    }
-    return btoa(binary);
-  }
-
-  private decodeSharePayload(encoded: string): { t?: string; c?: CaseId } | null {
-    try {
-      const binary = atob(encoded);
-      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-      const json = new TextDecoder().decode(bytes);
-      return JSON.parse(json) as { t?: string; c?: CaseId };
-    } catch {
-      return null;
-    }
-  }
-
-  private updateShareUrl(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      const payload = { t: this.inputText.slice(0, 2000), c: this.selectedCase };
-      const encoded = this.encodeSharePayload(payload);
-      const base = window.location.pathname + window.location.search;
-      window.history.replaceState(null, '', `${base}#tcc=${encoded}`);
-    } catch {
-      // skip if payload too large
-    }
-  }
-
-  private applyShareFromUrl(): void {
-    if (typeof window === 'undefined') return;
-    const hash = window.location.hash;
-    if (!hash.startsWith('#tcc=')) return;
-    const data = this.decodeSharePayload(hash.slice(5));
-    if (!data) return;
-    if (data.t !== undefined) this.inputText = data.t;
-    if (data.c && ALL_PRESETS.some((p) => p.id === data.c)) {
-      this.selectedCase = data.c;
+  loadFromLocalStorage() {
+    const saved = localStorage.getItem('textCaseConvertorState');
+    if (saved) {
+      const state = JSON.parse(saved);
+      this.inputText = state.inputText || '';
+      this.convertedText = state.convertedText || '';
+      this.selectedCase = state.selectedCase || 'upper';
+      this.undoStack = state.undoStack || [''];
+      this.redoStack = state.redoStack || [];
+      this.charCount = state.charCount || 0;
+      this.wordCount = state.wordCount || 0;
     }
   }
 }

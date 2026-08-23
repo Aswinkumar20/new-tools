@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { ExtractPagesComponent } from './extract-pages';
 
 describe('ExtractPagesComponent', () => {
@@ -8,8 +7,7 @@ describe('ExtractPagesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ExtractPagesComponent],
-      providers: pdfToolTestProviders(),
+      imports: [ExtractPagesComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(ExtractPagesComponent);

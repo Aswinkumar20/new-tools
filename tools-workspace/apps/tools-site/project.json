@@ -6,25 +6,9 @@
   "sourceRoot": "apps/tools-site/src",
   "tags": [],
   "targets": {
-    "generate-tool-seo-catalog": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "node apps/tools-site/scripts/generate-tool-seo-catalog.js",
-        "description": "Generate per-tool SEO metadata catalog from routes and descriptions"
-      }
-    },
-    "generate-sitemap": {
-      "executor": "nx:run-commands",
-      "dependsOn": ["generate-tool-seo-catalog"],
-      "options": {
-        "command": "node apps/tools-site/scripts/generate-sitemap.js",
-        "description": "Generate sitemap.xml from application routes"
-      }
-    },
     "build": {
       "executor": "@angular-devkit/build-angular:browser",
       "outputs": ["{options.outputPath}"],
-      "dependsOn": ["generate-sitemap"],
       "options": {
         "outputPath": "dist/apps/tools-site",
         "index": "apps/tools-site/src/index.html",
@@ -42,21 +26,6 @@
             "glob": "**/*",
             "input": "node_modules/monaco-editor",
             "output": "assets/monaco-editor"
-          },
-          {
-            "glob": "sitemap.xml",
-            "input": "apps/tools-site/public",
-            "output": "."
-          },
-          {
-            "glob": "robots.txt",
-            "input": "apps/tools-site/public",
-            "output": "."
-          },
-          {
-            "glob": "vercel.json",
-            "input": "apps/tools-site/public",
-            "output": "."
           }
         ],
         "styles": ["apps/tools-site/src/styles.scss"]
@@ -82,11 +51,11 @@
           "optimization": false,
           "vendorChunk": true,
           "extractLicenses": false,
-          "sourceMap": false,
+          "sourceMap": true,
           "namedChunks": true
         }
       },
-      "defaultConfiguration": "development"
+      "defaultConfiguration": "production"
     },
     "serve": {
       "continuous": true,
@@ -167,10 +136,8 @@
     },
     "prerender": {
       "executor": "@angular-devkit/build-angular:prerender",
-      "outputs": ["{options.outputPath}"],
-      "dependsOn": ["generate-sitemap"],
       "options": {
-        "routesFile": "prerender-routes.txt"
+        "routes": ["/"]
       },
       "configurations": {
         "development": {
@@ -183,24 +150,6 @@
         }
       },
       "defaultConfiguration": "production"
-    },
-    "build-prod": {
-      "executor": "nx:run-commands",
-      "dependsOn": ["generate-sitemap"],
-      "options": {
-        "command": "npx nx run tools-site:prerender:production",
-        "description": "Production prerendered static build (deploy dist/apps/tools-site/browser)"
-      }
-    },
-    "serve-prerender": {
-      "continuous": true,
-      "executor": "@nx/web:file-server",
-      "options": {
-        "buildTarget": "tools-site:prerender:production",
-        "staticFilePath": "dist/apps/tools-site/browser",
-        "spa": false,
-        "port": 4200
-      }
     }
   }
 }

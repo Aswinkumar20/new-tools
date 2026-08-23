@@ -1,109 +1,79 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
-import {
-  HEX_RGB_DEBOUNCE_MS,
-  HEX_RGB_DEFAULTS,
-  HEX_RGB_ERROR,
-  HEX_RGB_RELATED_TOOLS
-} from '../../constants/hex-to-rgb.constants';
-import { ictCopyText } from '../../shared/ict-clipboard.util';
-import type { IctRelatedToolLink } from '../../shared/ict-tool-suggestion.model';
-import type {
-  HexRgbColorResult,
-  HexRgbFormGroup,
-  HexRgbHistoryEntry,
-  HexRgbInputMode
-} from '../../types/hex-to-rgb.types';
-import {
-  formatHslCss,
-  formatHslaCss,
-  formatRgbCss,
-  formatRgbaCss,
-  hexColorValidator
-} from '../../utils/ict-color.utils';
-import {
-  buildHexRgbResultFromHex,
-  buildHexRgbResultFromRgb,
-  createHexRgbHistoryEntry,
-  prependHexRgbHistory,
-  resolveHexRgbSuggestion
-} from '../../utils/hex-to-rgb.utils';
+
+interface ColorResult {
+  hex: string;
+  rgb: { r: number; g: number; b: number };
+  rgba: { r: number; g: number; b: number; a: number };
+  hsl: { h: number; s: number; l: number };
+  hsla: { h: number; s: number; l: number; a: number };
+  valid: boolean;
+}
+
+interface HistoryEntry {
+  timestamp: number;
+  hex: string;
+  rgb: string;
+}
+
+type ColorFormGroup = FormGroup<{
+  hex: FormControl<string>;
+  red: FormControl<number | null>;
+  green: FormControl<number | null>;
+  blue: FormControl<number | null>;
+  alpha: FormControl<number>;
+  rememberHistory: FormControl<boolean>;
+}>;
 
 @Component({
   selector: 'lib-hex-to-rgb',
   standalone: true,
   templateUrl: './hex-to-rgb.html',
   styleUrls: ['./hex-to-rgb.scss'],
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HexToRgbComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
 
-  readonly form: HexRgbFormGroup = this.fb.group({
-    hex: this.fb.control<string>(HEX_RGB_DEFAULTS.hex, {
+  readonly form: ColorFormGroup = this.fb.group({
+    hex: this.fb.control<string>('#007bff', {
       nonNullable: true,
-      validators: [Validators.required, hexColorValidator]
+      validators: [Validators.required, this.hexValidator]
     }),
-    red: this.fb.control<number | null>(HEX_RGB_DEFAULTS.red, {
+    red: this.fb.control<number | null>(0, {
       validators: [Validators.min(0), Validators.max(255)]
     }),
-    green: this.fb.control<number | null>(HEX_RGB_DEFAULTS.green, {
+    green: this.fb.control<number | null>(123, {
       validators: [Validators.min(0), Validators.max(255)]
     }),
-    blue: this.fb.control<number | null>(HEX_RGB_DEFAULTS.blue, {
+    blue: this.fb.control<number | null>(255, {
       validators: [Validators.min(0), Validators.max(255)]
     }),
-    alpha: this.fb.control<number>(HEX_RGB_DEFAULTS.alpha, {
+    alpha: this.fb.control<number>(1, {
       nonNullable: true,
       validators: [Validators.min(0), Validators.max(1)]
     }),
     rememberHistory: this.fb.control<boolean>(true, { nonNullable: true })
   });
 
-  readonly relatedTools: ReadonlyArray<IctRelatedToolLink> = HEX_RGB_RELATED_TOOLS;
-
-  readonly result = signal<HexRgbColorResult | null>(null);
+  readonly result: WritableSignal<ColorResult | null> = signal(null);
   readonly errors = signal<string[]>([]);
-  readonly history = signal<HexRgbHistoryEntry[]>([]);
-  readonly inputMode = signal<HexRgbInputMode>('hex');
-  private readonly dismissedSuggestionId = signal<string | null>(null);
+  readonly history = signal<HistoryEntry[]>([]);
+  readonly inputMode = signal<'hex' | 'rgb'>('hex');
 
   readonly hasHistory = computed(() => this.history().length > 0);
-
-  readonly primarySuggestion = computed(() => {
-    const suggestion = resolveHexRgbSuggestion({
-      inputMode: this.inputMode(),
-      hasResult: this.result() !== null,
-      hasError: this.errors().length > 0,
-      alpha: this.form.controls.alpha.value ?? 1,
-      historyCount: this.history().length
-    });
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
+  readonly isValidColor = computed(() => this.result()?.valid ?? false);
 
   constructor() {
     this.form.controls.hex.valueChanges
       .pipe(
-        debounceTime(HEX_RGB_DEBOUNCE_MS),
+        debounceTime(300),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -115,7 +85,7 @@ export class HexToRgbComponent {
 
     this.form.controls.red.valueChanges
       .pipe(
-        debounceTime(HEX_RGB_DEBOUNCE_MS),
+        debounceTime(300),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -127,7 +97,7 @@ export class HexToRgbComponent {
 
     this.form.controls.green.valueChanges
       .pipe(
-        debounceTime(HEX_RGB_DEBOUNCE_MS),
+        debounceTime(300),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -139,7 +109,7 @@ export class HexToRgbComponent {
 
     this.form.controls.blue.valueChanges
       .pipe(
-        debounceTime(HEX_RGB_DEBOUNCE_MS),
+        debounceTime(300),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -151,7 +121,7 @@ export class HexToRgbComponent {
 
     this.form.controls.alpha.valueChanges
       .pipe(
-        debounceTime(HEX_RGB_DEBOUNCE_MS),
+        debounceTime(300),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -163,6 +133,7 @@ export class HexToRgbComponent {
         }
       });
 
+    // Initial conversion
     this.convertFromHex();
   }
 
@@ -186,31 +157,44 @@ export class HexToRgbComponent {
       return;
     }
 
-    const built = buildHexRgbResultFromHex(hexValue, alpha);
-    if (built.error === 'invalidHex') {
-      this.errors.set([HEX_RGB_ERROR.invalidHex]);
-      this.result.set(null);
-      return;
-    }
-    if (built.error === 'parseHex' || !built.result) {
-      this.errors.set([HEX_RGB_ERROR.parseHex]);
+    const normalized = this.normalizeHex(hexValue);
+    if (!normalized) {
+      this.errors.set(['Invalid HEX color format. Use #RRGGBB or #RGB.']);
       this.result.set(null);
       return;
     }
 
-    const colorResult = built.result;
-    this.result.set(colorResult);
+    const rgb = this.hexToRgb(normalized);
+    if (!rgb) {
+      this.errors.set(['Unable to parse HEX color.']);
+      this.result.set(null);
+      return;
+    }
+
+    const hslaResult = this.rgbToHsl(rgb, alpha);
+    const result: ColorResult = {
+      hex: normalized,
+      rgb: { r: rgb.r, g: rgb.g, b: rgb.b },
+      rgba: { r: rgb.r, g: rgb.g, b: rgb.b, a: alpha },
+      hsl: { h: hslaResult.h, s: hslaResult.s, l: hslaResult.l },
+      hsla: hslaResult,
+      valid: true
+    };
+
+    this.result.set(result);
+
+    // Update RGB form controls without triggering conversion
     this.form.patchValue(
       {
-        red: colorResult.rgb.r,
-        green: colorResult.rgb.g,
-        blue: colorResult.rgb.b
+        red: rgb.r,
+        green: rgb.g,
+        blue: rgb.b
       },
       { emitEvent: false }
     );
 
     if (this.form.controls.rememberHistory.value) {
-      this.addToHistory(colorResult);
+      this.addToHistory(result);
     }
   }
 
@@ -226,52 +210,53 @@ export class HexToRgbComponent {
       return;
     }
 
-    const built = buildHexRgbResultFromRgb(red, green, blue, alpha);
-    if (built.error === 'rgbRange' || !built.result) {
-      this.errors.set([HEX_RGB_ERROR.rgbRange]);
+    if (red < 0 || red > 255 || green < 0 || green > 255 || blue < 0 || blue > 255) {
+      this.errors.set(['RGB values must be between 0 and 255.']);
       this.result.set(null);
       return;
     }
 
-    const colorResult = built.result;
-    this.result.set(colorResult);
-    this.form.patchValue({ hex: colorResult.hex }, { emitEvent: false });
+    const hex = this.rgbToHex({ r: red, g: green, b: blue });
+    const rgb = { r: red, g: green, b: blue };
+    const hslaResult = this.rgbToHsl(rgb, alpha);
+
+    const result: ColorResult = {
+      hex,
+      rgb,
+      rgba: { r: red, g: green, b: blue, a: alpha },
+      hsl: { h: hslaResult.h, s: hslaResult.s, l: hslaResult.l },
+      hsla: hslaResult,
+      valid: true
+    };
+
+    this.result.set(result);
+
+    // Update HEX form control without triggering conversion
+    this.form.patchValue({ hex }, { emitEvent: false });
 
     if (this.form.controls.rememberHistory.value) {
-      this.addToHistory(colorResult);
+      this.addToHistory(result);
     }
   }
 
-  async copyToClipboard(value: string, label: string): Promise<void> {
-    const ok = await ictCopyText(this.toast, value, label);
-    if (!ok) {
-      this.errors.set([`Unable to copy ${label} to clipboard.`]);
-    }
-  }
-
-  formatRgb(result: HexRgbColorResult): string {
-    return formatRgbCss(result.rgb);
-  }
-
-  formatRgba(result: HexRgbColorResult): string {
-    return formatRgbaCss(result.rgb, result.rgba.a);
-  }
-
-  formatHsl(result: HexRgbColorResult): string {
-    return formatHslCss(result.hsl);
-  }
-
-  formatHsla(result: HexRgbColorResult): string {
-    return formatHslaCss(result.hsla);
+  copyToClipboard(value: string, label: string): void {
+    navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        // Could show a toast notification here
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
   }
 
   clear(): void {
     this.form.patchValue({
-      hex: HEX_RGB_DEFAULTS.hex,
-      red: HEX_RGB_DEFAULTS.red,
-      green: HEX_RGB_DEFAULTS.green,
-      blue: HEX_RGB_DEFAULTS.blue,
-      alpha: HEX_RGB_DEFAULTS.alpha
+      hex: '#007bff',
+      red: 0,
+      green: 123,
+      blue: 255,
+      alpha: 1
     });
     this.result.set(null);
     this.errors.set([]);
@@ -287,7 +272,7 @@ export class HexToRgbComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  applyHistory(entry: HexRgbHistoryEntry): void {
+  applyHistory(entry: HistoryEntry): void {
     this.form.patchValue({ hex: entry.hex });
     this.inputMode.set('hex');
     this.convertFromHex();
@@ -302,12 +287,104 @@ export class HexToRgbComponent {
     }
   }
 
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
+  private normalizeHex(hex: string): string | null {
+    let cleaned = hex.replace(/^#/, '').trim();
+    if (cleaned.length === 3) {
+      cleaned = cleaned
+        .split('')
+        .map((c) => c + c)
+        .join('');
+    }
+    if (cleaned.length !== 6) {
+      return null;
+    }
+    if (!/^[0-9A-Fa-f]{6}$/.test(cleaned)) {
+      return null;
+    }
+    return '#' + cleaned.toUpperCase();
   }
 
-  private addToHistory(result: HexRgbColorResult): void {
-    const entry = createHexRgbHistoryEntry(result);
-    this.history.update((entries) => prependHexRgbHistory(entries, entry));
+  private hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const match = hex.match(/^#([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      r: Number.parseInt(match[1], 16),
+      g: Number.parseInt(match[2], 16),
+      b: Number.parseInt(match[3], 16)
+    };
+  }
+
+  private rgbToHex(rgb: { r: number; g: number; b: number }): string {
+    const toHex = (n: number) => {
+      const hex = Math.round(n).toString(16).padStart(2, '0');
+      return hex.toUpperCase();
+    };
+    return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+  }
+
+  private rgbToHsl(rgb: { r: number; g: number; b: number }, alpha: number = 1): {
+    h: number;
+    s: number;
+    l: number;
+    a: number;
+  } {
+    const r = rgb.r / 255;
+    const g = rgb.g / 255;
+    const b = rgb.b / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const delta = max - min;
+      s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+
+      switch (max) {
+        case r:
+          h = ((g - b) / delta + (g < b ? 6 : 0)) / 6;
+          break;
+        case g:
+          h = ((b - r) / delta + 2) / 6;
+          break;
+        case b:
+          h = ((r - g) / delta + 4) / 6;
+          break;
+      }
+    }
+
+    return {
+      h: Math.round(h * 360),
+      s: Math.round(s * 100),
+      l: Math.round(l * 100),
+      a: alpha
+    };
+  }
+
+  private addToHistory(result: ColorResult): void {
+    const entry: HistoryEntry = {
+      timestamp: Date.now(),
+      hex: result.hex,
+      rgb: `rgb(${result.rgb.r}, ${result.rgb.g}, ${result.rgb.b})`
+    };
+    this.history.update((entries) => [entry, ...entries].slice(0, 10));
+  }
+
+  private hexValidator(control: FormControl<string>): { [key: string]: any } | null {
+    const value = control.value?.trim() || '';
+    if (!value) {
+      return null;
+    }
+    const cleaned = value.replace(/^#/, '');
+    if (cleaned.length === 3 || cleaned.length === 6) {
+      if (/^[0-9A-Fa-f]+$/.test(cleaned)) {
+        return null;
+      }
+    }
+    return { invalidHex: true };
   }
 }

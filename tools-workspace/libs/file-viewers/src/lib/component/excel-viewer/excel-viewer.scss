@@ -1,133 +1,331 @@
-@use '../../../../../../apps/tools-site/src/app/compact-tool-layout.scss';
-@use '../../styles/viewer-ctl';
+@import '../common-styles.scss';
 
-$ev-accent-border: rgba(0, 123, 255, 0.28);
-$ev-accent-soft: rgba(0, 123, 255, 0.06);
-$ev-card-border: var(--border-color, rgba(15, 23, 42, 0.1));
-
-@mixin ev-focus-ring {
-  outline: 2px solid var(--accent, #007bff);
-  outline-offset: 2px;
-}
-
-.excel-viewer-panel {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-.ev__suggest {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0.5rem 0.875rem 0;
-  padding: 0.75rem 0.875rem;
-  border-radius: 10px;
-  border: 1px solid $ev-accent-border;
-  background: linear-gradient(135deg, rgba(0, 123, 255, 0.06), rgba(0, 123, 255, 0.02));
-
-  &-body {
-    flex: 1 1 12rem;
-    min-width: 0;
-  }
-
-  &-title {
-    margin: 0 0 0.25rem;
-    font-size: 0.8125rem;
-    font-weight: 650;
-    color: var(--text);
-  }
-
-  &-reason {
-    margin: 0;
-    font-size: 0.75rem;
-    line-height: 1.45;
-    color: var(--muted);
-  }
-
-  &-actions {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.375rem;
-    flex-shrink: 0;
-  }
-
-  &-action {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.375rem 0.75rem;
-    border-radius: 8px;
-    background: var(--accent, #007bff);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-decoration: none;
-
-    &:focus-visible {
-      @include ev-focus-ring;
-    }
-  }
-
-  &-dismiss {
-    border: 1px solid $ev-card-border;
-    background: transparent;
-    color: var(--muted);
-    border-radius: 8px;
-    padding: 0.375rem 0.625rem;
-    font-size: 0.75rem;
+// Upload card styles (matching image-viewer)
+.upload-card {
+  .drop-zone {
+    width: 100%;
+    min-height: 220px;
+    border: 2px dashed rgba(148, 163, 184, 0.4);
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.06);
+    padding: 2rem 1.5rem;
     cursor: pointer;
-    font-family: inherit;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
 
-    &:focus-visible {
-      @include ev-focus-ring;
+    &.active {
+      border-color: var(--accent);
+      background: rgba(0, 123, 255, 0.08);
+      transform: scale(1.02);
     }
+
+    .drop-zone-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      text-align: center;
+
+      svg {
+        color: var(--muted);
+      }
+
+      .drop-zone-text {
+        font-weight: 600;
+        color: var(--text);
+        margin: 0;
+      }
+
+      .drop-zone-formats {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 0;
+      }
+    }
+  }
+
+  .upload-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .btn-primary {
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    text-align: center;
+  }
+
+  .btn-primary:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 16px rgba(0, 123, 255, 0.3);
+  }
+
+  .upload-hint {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 0;
+    line-height: 1.5;
   }
 }
 
-.ev__related {
-  padding: 0.5rem;
+// Component-specific styles
+.excel-shell {
+  background: var(--card);
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-.ev__related-list {
-  list-style: none;
-  margin: 0;
+.panel-viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: clamp(500px, 65vh, 800px);
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  box-sizing: border-box;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panel-viewer .panel-header {
+  padding: 1.1rem 1.5rem 0.9rem;
+  flex: 0 0 auto;
+}
+
+.panel-viewer .panel-header .viewer-controls {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.viewer-zoom-controls-inline {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.viewer-zoom-controls-inline .btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
   padding: 0;
+}
+
+.viewer-zoom-controls-inline .btn-icon:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.viewer-zoom-controls-inline .btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoom-level-display {
+  min-width: 50px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.viewer-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.clear-btn-sm {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.clear-btn-sm:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.clear-btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.viewer-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  gap: 1rem;
+  color: var(--muted);
+  min-height: 300px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(148, 163, 184, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  padding: 1rem 1.5rem;
+  margin: 1rem;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #991b1b;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+// File List
+.file-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
-.ev__related-link {
+.file-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.625rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid $ev-card-border;
-  background: var(--bg);
-  text-decoration: none;
-  color: inherit;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
 
-  strong {
-    font-size: 0.8125rem;
-    color: var(--text);
+  &:hover {
+    border-color: var(--accent);
+    background: rgba(148, 163, 184, 0.06);
   }
 
-  span {
-    font-size: 0.6875rem;
-    line-height: 1.4;
+  &.active {
+    border-color: var(--accent);
+    background: rgba(37, 99, 235, 0.1);
+  }
+
+  .file-item-icon {
+    display: flex;
+    align-items: center;
     color: var(--muted);
   }
 
-  &:hover {
-    border-color: $ev-accent-border;
-    background: $ev-accent-soft;
+  .file-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
   }
 
-  &:focus-visible {
-    @include ev-focus-ring;
+  .file-item-name {
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-item-details {
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .file-item-remove {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 1.25rem;
+    line-height: 1;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(220, 38, 38, 0.1);
+      color: #991b1b;
+    }
+  }
+}
+
+// Sheet Navigation
+.sheet-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+
+  label {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    font-size: 0.9rem;
   }
 }
 
@@ -319,6 +517,33 @@ $ev-card-border: var(--border-color, rgba(15, 23, 42, 0.1));
   }
 }
 
+.empty-gallery {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  gap: 1rem;
+  color: var(--muted);
+  min-height: 400px;
+  text-align: center;
+
+  svg {
+    opacity: 0.5;
+  }
+
+  p {
+    font-size: 1.1rem;
+    margin: 0.5rem 0;
+    color: var(--text);
+  }
+
+  .hint {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+}
+
 // Custom Scrollbar
 .table-container,
 .table-wrapper {
@@ -342,10 +567,65 @@ $ev-card-border: var(--border-color, rgba(15, 23, 42, 0.1));
   }
 }
 
+// Responsive Design
+@media (max-width: 1230px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .panel-viewer {
+    min-height: clamp(450px, 55vh, 700px);
+  }
+}
+
 @media (max-width: 768px) {
+  .upload-card .drop-zone {
+    min-height: 180px;
+    padding: 1.5rem 1rem;
+  }
+  
+  .upload-card .drop-zone-content svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .panel-viewer {
+    min-height: clamp(400px, 50vh, 600px);
+  }
+
+  .panel-viewer .panel-header {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .panel-viewer .panel-header .viewer-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .viewer-zoom-controls-inline {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .viewer-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .sheet-navigation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .sheet-tabs {
     flex-direction: column;
-
+    
     .sheet-tab {
       max-width: 100%;
     }

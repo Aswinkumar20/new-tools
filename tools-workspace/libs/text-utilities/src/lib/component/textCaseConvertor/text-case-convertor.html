@@ -1,390 +1,315 @@
-<div class="tcc">
+<div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <main class="tcc__main">
-    <div class="tcc__top">
-      <header class="tcc__header">
-        <h1>Text Case Convertor</h1>
-        <p>Transform copy into any case — live preview as you type, paste, or upload.</p>
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Text Case Convertor</p>
+          <h1>Transform copy into any case in seconds</h1>
+          <p class="strapline">
+            Paste or write content, explore dozens of presets, and preview precise output instantly.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">20+ presets</span>
+          <span class="meta-pill">Undo history</span>
+          <span class="meta-pill">Instant preview</span>
+        </div>
       </header>
 
-      <div class="tcc__stats" aria-label="Live text counters">
-        <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ wordCount }}</span>
-          <span class="tcc__stat-label">Words</span>
-        </div>
-        <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ charCount }}</span>
-          <span class="tcc__stat-label">Chars</span>
-        </div>
-        <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ convertedText.length }}</span>
-          <span class="tcc__stat-label">Output</span>
-        </div>
-        <div class="tcc__stat tcc__stat--preset">
-          <span class="tcc__stat-value" [title]="selectedCaseLabel">{{ selectedCaseLabel }}</span>
-          <span class="tcc__stat-label">Preset</span>
+      <div class="editor-toolbar" aria-label="Case conversion controls">
+        <div class="toolbar-stats" aria-label="Live text counters">
+          <div class="stat-chip">
+            <span class="stat-label">Input words</span>
+            <span class="stat-value">{{ wordCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Input characters</span>
+            <span class="stat-value">{{ charCount }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Output length</span>
+            <span class="stat-value">{{ convertedText ? convertedText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Selected preset</span>
+            <span class="stat-value">{{ selectedCase }}</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="tcc__workflow" aria-label="Conversion options">
-      <label class="tcc__toggle">
-        <input type="checkbox" [(ngModel)]="batchLineMode" (ngModelChange)="onOptionsChange()" />
-        <span>Line-by-line</span>
-      </label>
-      <label class="tcc__toggle">
-        <input type="checkbox" [(ngModel)]="preserveLineBreaks" (ngModelChange)="onOptionsChange()" />
-        <span>Preserve line breaks</span>
-      </label>
-      <button type="button" class="tcc__chip-btn" (click)="swapSourceOutput()" [disabled]="!convertedText" appTooltip="Swap source ↔ output" tooltipPosition="bottom">
-        ⇄ Swap
-      </button>
-      <button type="button" class="tcc__chip-btn" (click)="convertSelectionOnly()" [disabled]="!hasContent" [class.tcc__chip-btn--active]="selectionActive" appTooltip="Convert selected text only" tooltipPosition="bottom">
-        Selection
-      </button>
-      <button type="button" class="tcc__chip-btn" (click)="cycleProgrammingCase()" appTooltip="camel → snake → kebab → pascal" tooltipPosition="bottom">
-        Code cycle
-      </button>
-      <button type="button" class="tcc__chip-btn" (click)="showOptionsPanel = !showOptionsPanel" [class.tcc__chip-btn--active]="showOptionsPanel">
-        Options
-      </button>
-    </div>
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Source text</h2>
+                <p>Keep typing to update the live preview.</p>
+              </div>
+              <div class="panel-actions">
+                <button type="button"
+                        class="panel-btn"
+                        (click)="undo()"
+                        [disabled]="undoStack.length <= 1"
+                        aria-label="Undo latest change"
+                        [appTooltip]="'Undo (Ctrl+Z)'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+                </button>
+                <button type="button"
+                        class="panel-btn"
+                        (click)="redo()"
+                        [disabled]="redoStack.length === 0"
+                        aria-label="Redo change"
+                        [appTooltip]="'Redo (Ctrl+Y)'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/redo.svg" alt="" />
+                </button>
+                <button type="button"
+                        class="panel-btn destructive"
+                        (click)="reset()"
+                        [disabled]="!inputText && !convertedText"
+                        aria-label="Clear input"
+                        [appTooltip]="'Clear input'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+                </button>
+              </div>
+            </header>
+            <label class="sr-only" for="input-text">Enter your source text</label>
+            <textarea id="input-text"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (input)="onInputChange(inputText)"
+                      rows="12"
+                      placeholder="Drop raw copy here to start transforming…"></textarea>
+          </section>
 
-    @if (showOptionsPanel) {
-      <section class="tcc__options" aria-label="Advanced options">
-        <div class="tcc__options-grid">
-          <label class="tcc__field">
-            <span>Locale</span>
-            <select [(ngModel)]="locale" (ngModelChange)="onOptionsChange()">
-              <option value="en">English</option>
-              <option value="tr">Turkish</option>
-              <option value="de">German</option>
-              <option value="fr">French</option>
-            </select>
-          </label>
-          <label class="tcc__field">
-            <span>Unicode normalize</span>
-            <select [(ngModel)]="unicodeForm" (ngModelChange)="onOptionsChange()">
-              <option value="none">None</option>
-              <option value="NFC">NFC</option>
-              <option value="NFD">NFD</option>
-              <option value="NFKC">NFKC</option>
-              <option value="NFKD">NFKD</option>
-            </select>
-          </label>
-          <label class="tcc__field">
-            <span>Escape for code</span>
-            <select [(ngModel)]="escapeMode" (ngModelChange)="onOptionsChange()">
-              <option value="none">None</option>
-              <option value="json">JSON string</option>
-              <option value="js">JS string</option>
-              <option value="python">Python string</option>
-            </select>
-          </label>
-          <label class="tcc__field">
-            <span>Random seed</span>
-            <input type="number" [(ngModel)]="randomSeed" (ngModelChange)="onOptionsChange()" min="0" />
-          </label>
-          <label class="tcc__field">
-            <span>Identifier check</span>
-            <select [(ngModel)]="identifierLang">
-              <option value="js">JavaScript</option>
-              <option value="python">Python</option>
-            </select>
-          </label>
-          <label class="tcc__field">
-            <span>Font size ({{ editorFontSize }}px)</span>
-            <input type="range" min="12" max="24" [(ngModel)]="editorFontSize" (ngModelChange)="onOptionsChange()" />
-          </label>
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Converted output</h2>
+                <p>Preview the {{ selectedCase }} transformation in real time.</p>
+              </div>
+              <div class="panel-actions">
+                @if (convertedText) {
+                  <span class="panel-badge">Ready to copy</span>
+                }
+                <button type="button"
+                        class="panel-btn primary"
+                        (click)="copyToClipboard()"
+                        [disabled]="!convertedText"
+                        aria-label="Copy converted text"
+                        [appTooltip]="'Copy to clipboard'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                  <span>Copy</span>
+                </button>
+                <button type="button"
+                        class="panel-btn"
+                        (click)="downloadText()"
+                        [disabled]="!convertedText"
+                        aria-label="Download converted text"
+                        [appTooltip]="'Download as TXT'"
+                        tooltipPosition="top">
+                  <img class="btn-icon" src="/assets/icons/txt.svg" alt="" />
+                  <span>Download</span>
+                </button>
+              </div>
+            </header>
+
+            @if (convertedText) {
+              <textarea id="converted-text"
+                        class="text-area text-area--output"
+                        readonly
+                        rows="12"
+                        [value]="convertedText"
+                        aria-label="Converted output preview"></textarea>
+            } @else {
+              <div class="panel-empty" aria-live="polite">
+                <h3>Awaiting conversion</h3>
+                <p>Select a preset to see the transformed result. The preview updates as you type.</p>
+              </div>
+            }
+          </section>
         </div>
-        <label class="tcc__field tcc__field--full">
-          <span>Title exceptions (comma-separated)</span>
-          <input type="text" [(ngModel)]="titleExceptionsText" (ngModelChange)="onOptionsChange()" placeholder="iPhone, JavaScript, API" />
-        </label>
-        <label class="tcc__field tcc__field--full">
-          <span>Small words ignore list (AP/Chicago)</span>
-          <input type="text" [(ngModel)]="smallWordsText" (ngModelChange)="onOptionsChange()" />
-        </label>
-        <div class="tcc__custom-rules">
-          <span class="tcc__custom-rules-title">Custom regex rules</span>
-          @for (rule of customRules; track $index) {
-            <div class="tcc__custom-rule">
-              <input type="text" [(ngModel)]="rule.pattern" (ngModelChange)="onOptionsChange()" placeholder="Regex pattern" />
-              <select [(ngModel)]="rule.replacement" (ngModelChange)="onOptionsChange()">
-                <option value="upper">UPPER</option>
-                <option value="lower">lower</option>
-                <option value="title">Title</option>
-                <option value="camel">camelCase</option>
-                <option value="snake">snake_case</option>
-                <option value="kebab">kebab-case</option>
-              </select>
-              <button type="button" class="tcc__icon-btn tcc__icon-btn--sm" (click)="removeCustomRule($index)" aria-label="Remove rule">×</button>
-            </div>
-          }
-          <button type="button" class="tcc__chip-btn" (click)="addCustomRule()">+ Add rule</button>
+
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">History depth</span>
+            <span class="metric-value">{{ undoStack.length }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Redo queue</span>
+            <span class="metric-value">{{ redoStack.length }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Output encoding</span>
+            <span class="metric-value">UTF-8 plain text</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="reset()"
+                  [disabled]="!inputText && !convertedText"
+                  aria-label="Clear editor">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear editor</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Workflow tips</h2>
+          <p>Pick a preset and the output updates instantly. Copy, download, or undo with one click.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Switch presets freely—the latest selection stays active for new text.</li>
+            <li>Undo/redo keeps a rolling history of the last 100 edits.</li>
+            <li>Reset clears both panes and preserves your preset selection.</li>
+          </ul>
         </div>
       </section>
-    }
 
-    <div class="tcc__workspace">
-      <div class="tcc__editors" aria-label="Source and converted text">
-        <section
-          class="tcc__editor"
-          [class.tcc__editor--dragover]="isDragOver"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)">
-          <header class="tcc__editor-head" aria-label="Source editor actions">
-            <div class="tcc__editor-head-left">
-              <span class="tcc__editor-title">Source</span>
-              @if (detectedCaseLabel) {
-                <span class="tcc__editor-badge tcc__editor-badge--detect">{{ detectedCaseLabel }}</span>
-              }
-            </div>
-            <div class="tcc__toolbar">
-              <button type="button" class="tcc__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" aria-label="Upload text file" [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="copyInput()" [disabled]="!hasContent" aria-label="Copy source" appTooltip="Copy source" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">Copy</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="undo()" [disabled]="!canUndo" aria-label="Undo" appTooltip="Undo (Ctrl+Z)" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">Undo</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="redo()" [disabled]="!canRedo" aria-label="Redo" appTooltip="Redo (Ctrl+Y)" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">Redo</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="reset()" [disabled]="!hasContent && !convertedText" aria-label="Clear" appTooltip="Clear all" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">Clear</span>
-              </button>
-            </div>
-          </header>
-
-          @if (primarySuggestion; as suggestion) {
-            <aside class="tcc__suggest" aria-label="Suggested next step">
-              <div class="tcc__suggest-body">
-                <p class="tcc__suggest-title">{{ suggestion.title }}</p>
-                <p class="tcc__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="tcc__suggest-actions">
-                <a class="tcc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="tcc__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-
-          <label class="sr-only" for="input-text">Enter your source text</label>
-          <textarea
-            #inputTextarea
-            id="input-text"
-            class="tcc__textarea"
-            [ngStyle]="editorFontSizeStyle"
-            [(ngModel)]="inputText"
-            (input)="onInputChange(inputText)"
-            rows="1"
-            placeholder="Paste, type, or drop a text file here…"></textarea>
-        </section>
-
-        <section class="tcc__editor tcc__editor--output">
-          <header class="tcc__editor-head" aria-label="Output editor actions">
-            <div class="tcc__editor-head-left">
-              <span class="tcc__editor-title">Output</span>
-              @if (convertedText) {
-                <span class="tcc__editor-badge">Ready</span>
-              }
-              @if (identifierWarning) {
-                <span class="tcc__editor-badge tcc__editor-badge--warn" [title]="identifierWarning">⚠ ID</span>
-              }
-              @if (zalgoLengthWarning) {
-                <span class="tcc__editor-badge tcc__editor-badge--warn" [title]="zalgoLengthWarning">⚠ Length</span>
-              }
-            </div>
-            <div class="tcc__toolbar">
-              <button type="button" class="tcc__tool-btn" (click)="copyOutput()" [disabled]="!convertedText" aria-label="Copy output" appTooltip="Copy output" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">Copy</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="copyWithLabel()" [disabled]="!convertedText" aria-label="Copy with label" appTooltip="Copy with case label" tooltipPosition="bottom">
-                <span class="tcc__tool-btn-label">Label</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="copyAsJson()" [disabled]="!convertedText" aria-label="Copy JSON" appTooltip="Copy as JSON" tooltipPosition="bottom">
-                <span class="tcc__tool-btn-label">JSON</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="copyAsCsv()" [disabled]="!convertedText" aria-label="Copy CSV" appTooltip="Copy as CSV" tooltipPosition="bottom">
-                <span class="tcc__tool-btn-label">CSV</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="downloadText()" [disabled]="!convertedText" aria-label="Download TXT" appTooltip="Download with preset name" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-                <span class="tcc__tool-btn-label">TXT</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="useOutputAsInput()" [disabled]="!convertedText" aria-label="Use as input" appTooltip="Use output as new input" tooltipPosition="bottom">
-                <span class="tcc__tool-btn-label">→ In</span>
-              </button>
-              <button type="button" class="tcc__tool-btn" (click)="copyShareLink()" [disabled]="!hasContent" aria-label="Share link" appTooltip="Copy share link (URL hash)" tooltipPosition="bottom">
-                <span class="tcc__tool-btn-label">Share</span>
-              </button>
-            </div>
-          </header>
-          @if (convertedText) {
-            <textarea
-              id="converted-text"
-              class="tcc__textarea tcc__textarea--output"
-              [ngStyle]="editorFontSizeStyle"
-              readonly
-              rows="1"
-              [value]="convertedText"
-              aria-label="Converted output"></textarea>
-          } @else {
-            <div class="tcc__empty" aria-live="polite">
-              <p>Select a preset to preview the converted text.</p>
-            </div>
-          }
-        </section>
-      </div>
-
-      <aside class="tcc__presets" aria-label="Case presets">
-        <div class="tcc__preset-search">
-          <input
-            type="search"
-            [(ngModel)]="presetSearch"
-            placeholder="Search presets…"
-            aria-label="Search presets" />
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Standard cases</h2>
+          <p>Everyday editorial presets for polished copy.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'lower'" (click)="onCaseChange('lower')">lowercase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upper'" (click)="onCaseChange('upper')">UPPERCASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'sentence'" (click)="onCaseChange('sentence')">Sentence case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'title'" (click)="onCaseChange('title')">Title Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'toggle'" (click)="onCaseChange('toggle')">Toggle Case</button>
         </div>
+      </section>
 
-        @if (presetSearch.trim()) {
-          <div class="tcc__panel tcc__panel--search">
-            <div class="tcc__preset-grid">
-              @for (preset of filteredAllPresets; track preset.id) {
-                <button
-                  type="button"
-                  class="tcc__preset-btn"
-                  [class.tcc__preset-btn--active]="selectedCase === preset.id"
-                  (click)="onCaseChange(preset.id)">
-                  <span class="tcc__preset-label">{{ preset.label }}</span>
-                  <span
-                    class="tcc__preset-star"
-                    [class.tcc__preset-star--on]="isFavorite(preset.id)"
-                    (click)="toggleFavorite(preset.id, $event)"
-                    role="button"
-                    tabindex="0"
-                    [attr.aria-label]="isFavorite(preset.id) ? 'Remove favorite' : 'Add favorite'">★</span>
-                </button>
-              }
-            </div>
-          </div>
-        } @else {
-          <div class="tcc__tabs" role="tablist">
-            <button type="button" role="tab" class="tcc__tab" [class.tcc__tab--active]="activePresetTab === 'favorites'" [attr.aria-selected]="activePresetTab === 'favorites'" (click)="setPresetTab('favorites')" appTooltip="Favorites" tooltipPosition="bottom">
-              <span class="tcc__tab-label tcc__tab-label--long">★ Fav</span>
-              <span class="tcc__tab-label tcc__tab-label--short">★</span>
-            </button>
-            <button type="button" role="tab" class="tcc__tab" [class.tcc__tab--active]="activePresetTab === 'standard'" [attr.aria-selected]="activePresetTab === 'standard'" (click)="setPresetTab('standard')" appTooltip="Standard cases" tooltipPosition="bottom">
-              <span class="tcc__tab-label tcc__tab-label--long">Standard</span>
-              <span class="tcc__tab-label tcc__tab-label--short">Std</span>
-            </button>
-            <button type="button" role="tab" class="tcc__tab" [class.tcc__tab--active]="activePresetTab === 'programming'" [attr.aria-selected]="activePresetTab === 'programming'" (click)="setPresetTab('programming')" appTooltip="Programming cases" tooltipPosition="bottom">
-              <span class="tcc__tab-label tcc__tab-label--long">Programming</span>
-              <span class="tcc__tab-label tcc__tab-label--short">Code</span>
-            </button>
-            <button type="button" role="tab" class="tcc__tab" [class.tcc__tab--active]="activePresetTab === 'fun'" [attr.aria-selected]="activePresetTab === 'fun'" (click)="setPresetTab('fun')" appTooltip="Fun & stylistic" tooltipPosition="bottom">
-              <span class="tcc__tab-label tcc__tab-label--long">Fun</span>
-              <span class="tcc__tab-label tcc__tab-label--short">Fun</span>
-            </button>
-          </div>
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Programming cases</h2>
+          <p>Developer-ready naming styles for APIs, variables, and files.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'camel'" (click)="onCaseChange('camel')">camelCase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'pascal'" (click)="onCaseChange('pascal')">PascalCase</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'snake'" (click)="onCaseChange('snake')">snake_case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upperSnake'" (click)="onCaseChange('upperSnake')">UPPER_SNAKE_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'kebab'" (click)="onCaseChange('kebab')">kebab-case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'train'" (click)="onCaseChange('train')">Train-Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'dot'" (click)="onCaseChange('dot')">dot.case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'path'" (click)="onCaseChange('path')">path/case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'constant'" (click)="onCaseChange('constant')">CONSTANT_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'macro'" (click)="onCaseChange('macro')">MACRO_CASE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'camelSnake'" (click)="onCaseChange('camelSnake')">camel_Snake_Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'pascalSnake'" (click)="onCaseChange('pascalSnake')">Pascal_Snake_Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'dotPascal'" (click)="onCaseChange('dotPascal')">Dot.Pascal.Case</button>
+        </div>
+      </section>
 
-          @if (shortcutPresets.length) {
-            <div class="tcc__shortcuts" aria-label="Keyboard shortcuts 1-5">
-              @for (preset of shortcutPresets; track preset.id; let i = $index) {
-                <button
-                  type="button"
-                  class="tcc__shortcut-btn"
-                  [class.tcc__shortcut-btn--active]="selectedCase === preset.id"
-                  (click)="onCaseChange(preset.id)"
-                  [appTooltip]="'Shortcut ' + (i + 1)"
-                  tooltipPosition="bottom">
-                  <kbd>{{ i + 1 }}</kbd> {{ preset.label }}
-                </button>
-              }
-            </div>
-          }
+      <section class="insight-card case-card">
+        <header class="insight-header">
+          <h2>Fun & stylistic</h2>
+          <p>Expressive treatments for playful or experimental copy.</p>
+        </header>
+        <div class="preset-button-grid">
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'alternating'" (click)="onCaseChange('alternating')">aLtErNaTiNg</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'studly'" (click)="onCaseChange('studly')">StUdLy CaPs</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'reversed'" (click)="onCaseChange('reversed')">Reversed Case</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'vowelUpper'" (click)="onCaseChange('vowelUpper')">vOwEl UppEr</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'consonantUpper'" (click)="onCaseChange('consonantUpper')">CoNSoNaNT</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'leet'" (click)="onCaseChange('leet')">1337 5P34K</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'fullwidth'" (click)="onCaseChange('fullwidth')">Ｆｕｌｌｗｉｄｔｈ</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'smallCaps'" (click)="onCaseChange('smallCaps')">sᴍᴀʟʟ ᴄᴀᴘs</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'upsideDown'" (click)="onCaseChange('upsideDown')">uʍop ǝpᴉsd∩</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'mixed'" (click)="onCaseChange('mixed')">MiXeD cAsE</button>
+          <button type="button" class="case-btn" [class.active]="selectedCase === 'bracketed'" (click)="onCaseChange('bracketed')">[bracketed]</button>
+        </div>
+      </section>
 
-          @if (recentPresets.length && activePresetTab !== 'favorites') {
-            <div class="tcc__recent">
-              <span class="tcc__recent-label">Recent</span>
-              <div class="tcc__recent-list">
-                @for (id of recentPresets; track id) {
-                  <button type="button" class="tcc__recent-btn" (click)="onCaseChange(id)">
-                    {{ getPresetLabel(id) }}
-                  </button>
-                }
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How to use</h2>
+          <p>Transform your text into any case format with our comprehensive converter.</p>
+        </header>
+
+        <div class="insight-body">
+          <ol class="how-to-list">
+            <li>
+              <strong>Enter your text</strong>
+              <p>Paste or type your content in the source text panel. The preview updates automatically.</p>
+            </li>
+            <li>
+              <strong>Select a case preset</strong>
+              <p>Choose from 20+ presets including standard, programming, and stylistic cases.</p>
+            </li>
+            <li>
+              <strong>Preview the result</strong>
+              <p>See the transformed output in real-time as you type or change presets.</p>
+            </li>
+            <li>
+              <strong>Copy or download</strong>
+              <p>Use "Copy output" to paste the result, or "Download TXT" to save it as a file.</p>
+            </li>
+            <li>
+              <strong>Use history</strong>
+              <p>Press <kbd>Ctrl+Z</kbd> (or <kbd>Cmd+Z</kbd> on Mac) to undo, or <kbd>Ctrl+Y</kbd> to redo changes.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our text case converter.</p>
+        </header>
+
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              The Text Case Converter is a versatile tool that transforms text into various case formats. 
+              Whether you need standard editorial cases, programming naming conventions, or creative stylistic 
+              treatments, this tool handles it all with real-time preview and instant conversion.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>20+ presets</strong>
+                <p>From lowercase to leet speak, choose from a wide variety of case transformations.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Real-time preview</strong>
+                <p>See your text transform instantly as you type or switch between presets.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Undo/redo history</strong>
+                <p>Maintain a rolling history of your last 100 edits for easy backtracking.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Export options</strong>
+                <p>Copy to clipboard or download as a text file for easy sharing and storage.</p>
               </div>
             </div>
-          }
 
-          <div class="tcc__panel" role="tabpanel">
-            <div class="tcc__preset-grid">
-              @for (preset of activePresets; track preset.id) {
-                <button
-                  type="button"
-                  class="tcc__preset-btn"
-                  [class.tcc__preset-btn--active]="selectedCase === preset.id"
-                  (click)="onCaseChange(preset.id)">
-                  <span class="tcc__preset-label">{{ preset.label }}</span>
-                  <span
-                    class="tcc__preset-star"
-                    [class.tcc__preset-star--on]="isFavorite(preset.id)"
-                    (click)="toggleFavorite(preset.id, $event)"
-                    role="button"
-                    tabindex="0"
-                    [attr.aria-label]="isFavorite(preset.id) ? 'Remove favorite' : 'Add favorite'">★</span>
-                </button>
-              }
+            <div class="use-cases">
+              <strong>Perfect for:</strong>
+              <ul class="tip-list">
+                <li>Variable and function naming</li>
+                <li>API endpoint formatting</li>
+                <li>File and folder naming</li>
+                <li>CSS class name generation</li>
+                <li>Social media formatting</li>
+                <li>Creative text styling</li>
+              </ul>
             </div>
           </div>
-        }
-      </aside>
-    </div>
-
-    <div class="tcc__related-wrap">
-      <div class="tcc__panel tcc__related-panel">
-        <header class="tcc__related-head">Related tools</header>
-        <ul class="tcc__related-list">
-          @for (tool of relatedTools; track tool.path) {
-            <li>
-              <a class="tcc__related-link" [routerLink]="tool.path">
-                <strong>{{ tool.label }}</strong>
-                <span>{{ tool.description }}</span>
-              </a>
-            </li>
-          }
-        </ul>
-      </div>
-    </div>
-
-    <div class="sr-only" aria-live="polite" aria-atomic="true">{{ screenReaderMessage }}</div>
-
-    <details class="tcc__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Type, paste, <strong>Upload</strong>, or drag &amp; drop text in <strong>Source</strong> — output updates instantly.</li>
-        <li>Search or browse <strong>40+ presets</strong> across Standard, Programming, and Fun tabs. Star favorites and use keys <kbd>1</kbd>–<kbd>5</kbd>.</li>
-        <li><strong>Line-by-line</strong> converts each row independently. <strong>Selection</strong> converts highlighted text only.</li>
-        <li><strong>Swap</strong> or <strong>→ In</strong> moves output back to source. Export via Copy, JSON, CSV, TXT, or Share link.</li>
-        <li><strong>Options</strong> panel: locale, Unicode normalize, code escape, custom regex rules, title exceptions.</li>
-        <li><kbd>Ctrl+Z</kbd> / <kbd>Cmd+Z</kbd> undo · <kbd>Ctrl+Y</kbd> / <kbd>Cmd+Shift+Z</kbd> redo.</li>
-      </ul>
-    </details>
-  </main>
+        </div>
+      </section>
+    </aside>
+  </div>
 </div>

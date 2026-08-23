@@ -1,86 +1,47 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { cftCopyText } from '../../shared/cft-clipboard.util';
-import { cftDownloadBlob } from '../../shared/cft-download.util';
-import type { CftRelatedToolLink, CftToolSuggestion } from '../../shared/cft-tool-suggestion.model';
-import {
-  HTML_ENTITY_DEFAULT_ENCODING,
-  HTML_ENTITY_HISTORY_PREVIEW_LENGTH,
-  HTML_ENTITY_RELATED_TOOLS,
-  HTML_ENTITY_SAMPLE
-} from '../../constants/html-entity-encoder.constants';
-import type {
-  HtmlEntityEncodingFormat,
-  HtmlEntityHistoryEntry,
-  HtmlEntityMode
-} from '../../types/html-entity-encoder.types';
-import { formatClipboardTimestamp } from '../../utils/clipboard-history.utils';
-import {
-  createHtmlEntityHistoryEntry,
-  formatHtmlEntityHistoryPreview,
-  prependHtmlEntityHistory,
-  processHtmlEntities,
-  resolveHtmlEntitySuggestion
-} from '../../utils/html-entity-encoder.utils';
+import { ChangeDetectionStrategy, Component, WritableSignal, computed, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Navigation } from '@tools-workspace/features-home';
+
+interface HistoryEntry {
+  timestamp: number;
+  input: string;
+  output: string;
+  mode: 'encode' | 'decode';
+}
+
+type EncodingMode = 'named' | 'numeric' | 'hex' | 'all';
+
+const SAMPLE_TEXT = `Hello <world> & "friends"!
+This is a sample text with special characters: ©, ®, ™, €, £, ¥`;
 
 @Component({
   selector: 'lib-html-entity-encoder',
   standalone: true,
   templateUrl: './html-entity-encoder.html',
   styleUrls: ['./html-entity-encoder.scss'],
-  imports: [RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HtmlEntityEncoderComponent {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
-
-  readonly relatedTools: ReadonlyArray<CftRelatedToolLink> = HTML_ENTITY_RELATED_TOOLS;
-  readonly formatTimestamp = formatClipboardTimestamp;
-  readonly formatHistoryPreview = (input: string) =>
-    formatHtmlEntityHistoryPreview(input, HTML_ENTITY_HISTORY_PREVIEW_LENGTH);
-
-  readonly mode = signal<HtmlEntityMode>('encode');
-  readonly encodingMode = signal<HtmlEntityEncodingFormat>(HTML_ENTITY_DEFAULT_ENCODING);
-  readonly inputText = signal(HTML_ENTITY_SAMPLE);
-  readonly outputText = signal('');
+  readonly mode = signal<'encode' | 'decode'>('encode');
+  readonly encodingMode = signal<EncodingMode>('named');
+  readonly inputText = signal<string>(SAMPLE_TEXT);
+  readonly outputText = signal<string>('');
   readonly errors = signal<string[]>([]);
-  readonly history = signal<HtmlEntityHistoryEntry[]>([]);
-  readonly dismissedSuggestionId = signal<string | null>(null);
+  readonly history = signal<HistoryEntry[]>([]);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasOutput = computed(() => this.outputText().length > 0);
 
-  readonly primarySuggestion = computed<CftToolSuggestion | null>(() => {
-    const suggestion = resolveHtmlEntitySuggestion(
-      this.inputText(),
-      this.mode(),
-      this.hasOutput()
-    );
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
-
   constructor() {
+    // Initial encoding
     this.process();
   }
 
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
-  }
-
-  selectMode(selectedMode: HtmlEntityMode): void {
+  selectMode(selectedMode: 'encode' | 'decode'): void {
     if (this.mode() !== selectedMode) {
       this.mode.set(selectedMode);
+      // Swap input and output
       const currentInput = this.inputText();
       const currentOutput = this.outputText();
       this.inputText.set(currentOutput);
@@ -89,7 +50,7 @@ export class HtmlEntityEncoderComponent {
     }
   }
 
-  selectEncodingMode(selectedMode: HtmlEntityEncodingFormat): void {
+  selectEncodingMode(selectedMode: EncodingMode): void {
     this.encodingMode.set(selectedMode);
     this.process();
   }
@@ -109,7 +70,11 @@ export class HtmlEntityEncoderComponent {
     }
 
     try {
-      this.outputText.set(processHtmlEntities(input, this.mode(), this.encodingMode()));
+      if (this.mode() === 'encode') {
+        this.outputText.set(this.encodeHtmlEntities(input, this.encodingMode()));
+      } else {
+        this.outputText.set(this.decodeHtmlEntities(input));
+      }
       this.addToHistory();
     } catch (error) {
       this.errors.set([`Processing failed: ${(error as Error)?.message ?? 'Unknown error'}`]);
@@ -117,40 +82,156 @@ export class HtmlEntityEncoderComponent {
     }
   }
 
-  copyInput(): void {
-    void cftCopyText(this.toast, this.inputText(), 'Input');
+  private encodeHtmlEntities(text: string, mode: EncodingMode): string {
+    const namedEntities: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+      '©': '&copy;',
+      '®': '&reg;',
+      '™': '&trade;',
+      '€': '&euro;',
+      '£': '&pound;',
+      '¥': '&yen;',
+      '¢': '&cent;',
+      '§': '&sect;',
+      '°': '&deg;',
+      '±': '&plusmn;',
+      '×': '&times;',
+      '÷': '&divide;',
+      '½': '&frac12;',
+      '¼': '&frac14;',
+      '¾': '&frac34;',
+      'á': '&aacute;',
+      'é': '&eacute;',
+      'í': '&iacute;',
+      'ó': '&oacute;',
+      'ú': '&uacute;',
+      'ñ': '&ntilde;',
+      'Á': '&Aacute;',
+      'É': '&Eacute;',
+      'Í': '&Iacute;',
+      'Ó': '&Oacute;',
+      'Ú': '&Uacute;',
+      'Ñ': '&Ntilde;'
+    };
+
+    let result = text;
+
+    if (mode === 'named' || mode === 'all') {
+      // Encode using named entities
+      for (const [char, entity] of Object.entries(namedEntities)) {
+        result = result.replace(new RegExp(this.escapeRegex(char), 'g'), entity);
+      }
+    }
+
+    if (mode === 'numeric' || mode === 'all') {
+      // Encode remaining special characters as numeric entities
+      result = result.replace(/[^\x00-\x7F]/g, (char) => {
+        const code = char.charCodeAt(0);
+        return `&#${code};`;
+      });
+    }
+
+    if (mode === 'hex' || mode === 'all') {
+      // Encode remaining special characters as hex entities
+      result = result.replace(/[^\x00-\x7F]/g, (char) => {
+        const code = char.charCodeAt(0);
+        return `&#x${code.toString(16)};`;
+      });
+    }
+
+    // Always encode basic HTML entities
+    if (mode !== 'all') {
+      result = result
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    return result;
   }
 
-  copyOutput(): void {
-    void cftCopyText(this.toast, this.outputText(), 'Output');
+  private decodeHtmlEntities(text: string): string {
+    // Create a temporary div element to decode HTML entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    let decoded = textarea.value;
+
+    // If the textarea method didn't work (for some entities), use manual decoding
+    if (decoded === text) {
+      // Manual decoding for common entities
+      const entityMap: { [key: string]: string } = {
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&quot;': '"',
+        '&#39;': "'",
+        '&apos;': "'",
+        '&nbsp;': ' ',
+        '&copy;': '©',
+        '&reg;': '®',
+        '&trade;': '™',
+        '&euro;': '€',
+        '&pound;': '£',
+        '&yen;': '¥',
+        '&cent;': '¢',
+        '&sect;': '§',
+        '&deg;': '°',
+        '&plusmn;': '±',
+        '&times;': '×',
+        '&divide;': '÷',
+        '&frac12;': '½',
+        '&frac14;': '¼',
+        '&frac34;': '¾'
+      };
+
+      for (const [entity, char] of Object.entries(entityMap)) {
+        decoded = decoded.replace(new RegExp(entity, 'gi'), char);
+      }
+
+      // Decode numeric entities (&#123;)
+      decoded = decoded.replace(/&#(\d+);/g, (match, code) => {
+        return String.fromCharCode(Number.parseInt(code, 10));
+      });
+
+      // Decode hex entities (&#x1F;)
+      decoded = decoded.replace(/&#x([0-9A-Fa-f]+);/g, (match, code) => {
+        return String.fromCharCode(Number.parseInt(code, 16));
+      });
+    }
+
+    return decoded;
   }
 
-  downloadOutput(): void {
-    if (!this.hasOutput()) {
-      return;
-    }
-    try {
-      cftDownloadBlob(
-        new Blob([this.outputText()], { type: 'text/plain;charset=utf-8' }),
-        this.mode() === 'encode' ? 'encoded-entities.txt' : 'decoded-text.txt'
-      );
-      this.toast.success('Output downloaded');
-    } catch {
-      this.toast.error('Could not download output');
-    }
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  copyToClipboard(text: string, label: string): void {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        // Success - could show toast
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
   }
 
   loadSample(): void {
-    this.inputText.set(HTML_ENTITY_SAMPLE);
+    this.inputText.set(SAMPLE_TEXT);
     this.process();
-    this.toast.info('Sample text loaded');
   }
 
   clear(): void {
     this.inputText.set('');
     this.outputText.set('');
     this.errors.set([]);
-    this.toast.info('Editors cleared');
   }
 
   swapInputOutput(): void {
@@ -161,7 +242,7 @@ export class HtmlEntityEncoderComponent {
     this.process();
   }
 
-  applyHistory(entry: HtmlEntityHistoryEntry): void {
+  applyHistory(entry: HistoryEntry): void {
     this.mode.set(entry.mode);
     this.inputText.set(entry.input);
     this.outputText.set(entry.output);
@@ -169,7 +250,6 @@ export class HtmlEntityEncoderComponent {
 
   clearHistory(): void {
     this.history.set([]);
-    this.toast.info('History cleared');
   }
 
   removeHistoryEntry(timestamp: number): void {
@@ -179,10 +259,48 @@ export class HtmlEntityEncoderComponent {
   private addToHistory(): void {
     const input = this.inputText().trim();
     const output = this.outputText().trim();
+
     if (!input || !output) {
       return;
     }
-    const entry = createHtmlEntityHistoryEntry(input, output, this.mode());
-    this.history.update((entries) => prependHtmlEntityHistory(entries, entry));
+
+    const entry: HistoryEntry = {
+      timestamp: Date.now(),
+      input,
+      output,
+      mode: this.mode()
+    };
+
+    this.history.update((entries) => {
+      const exists = entries.some(
+        (e) => e.input === entry.input && e.output === entry.output && e.mode === entry.mode
+      );
+      if (exists) {
+        return entries;
+      }
+      return [entry, ...entries].slice(0, 10);
+    });
+  }
+
+  formatTimestamp(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) {
+      return 'Just now';
+    } else if (minutes < 60) {
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (hours < 24) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else if (days < 7) {
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
   }
 }

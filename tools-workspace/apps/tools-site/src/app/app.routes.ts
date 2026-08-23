@@ -61,111 +61,6 @@ export const appRoutes: Routes = [
         loadComponent: () =>
           import('@tools-workspace/text-utilities').then(m => m.CodeMergeComponent), // This is a standalone component
       },
-      {
-        path: 'url-encode-and-decode',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.UrlEncodeAndDecodeComponent),
-      },
-      {
-        path: 'unicode-escape-unescape',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.UnicodeEscapeUnescapeComponent),
-      },
-      {
-        path: 'html-tag-stripper',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.HtmlTagStripperComponent),
-      },
-      {
-        path: 'sort-lines',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.SortLinesComponent),
-      },
-      {
-        path: 'trim-normalize-whitespace',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.TrimNormalizeWhitespaceComponent),
-      },
-      {
-        path: 'find-and-replace',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.FindAndReplaceComponent),
-      },
-      {
-        path: 'line-number-tool',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.LineNumberToolComponent),
-      },
-      {
-        path: 'split-join-text',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.SplitJoinTextComponent),
-      },
-      {
-        path: 'regex-tester',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.RegexTesterComponent),
-      },
-      {
-        path: 'text-similarity',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.TextSimilarityComponent),
-      },
-      {
-        path: 'invisible-character-detector',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.InvisibleCharacterDetectorComponent),
-      },
-      {
-        path: 'word-wrap-unwrap',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.WordWrapUnwrapComponent),
-      },
-      {
-        path: 'extract-emails-urls',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.ExtractEmailsUrlsComponent),
-      },
-      {
-        path: 'json-string-escape-unescape',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.JsonStringEscapeUnescapeComponent),
-      },
-      {
-        path: 'hex-encode-decode',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.HexEncodeDecodeComponent),
-      },
-      {
-        path: 'rot13-cipher',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.Rot13CipherComponent),
-      },
-      {
-        path: 'binary-text-converter',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.BinaryTextConverterComponent),
-      },
-      {
-        path: 'morse-code-converter',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.MorseCodeConverterComponent),
-      },
-      {
-        path: 'readability-analyzer',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.ReadabilityAnalyzerComponent),
-      },
-      {
-        path: 'keyword-density',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.KeywordDensityComponent),
-      },
-      {
-        path: 'pako-encode-and-decode',
-        loadComponent: () =>
-          import('@tools-workspace/text-utilities').then(m => m.PakoEncodeAndDecodeComponent),
-      },
     ],
   },
   {
@@ -370,13 +265,11 @@ export const appRoutes: Routes = [
         loadComponent: () =>
           import('@tools-workspace/pdf-tools').then(m => m.MergePdfsComponent),
       },
-      { path: 'merge-pdf', redirectTo: 'merge-pdfs', pathMatch: 'full' },
       {
         path: 'split-pdfs',
         loadComponent: () =>
           import('@tools-workspace/pdf-tools').then(m => m.SplitPdfsComponent),
       },
-      { path: 'split-pdf', redirectTo: 'split-pdfs', pathMatch: 'full' },
       {
         path: 'delete-pages',
         loadComponent: () =>
@@ -472,53 +365,6 @@ export const appRoutes: Routes = [
         loadComponent: () =>
           import('@tools-workspace/pdf-tools').then(m => m.FlattenPdfFormsComponent),
       },
-      {
-        path: 'html-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.HtmlToPdfComponent),
-      },
-      {
-        path: 'tables-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.TablesToPdfComponent),
-      },
-      {
-        path: 'charts-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.ChartsToPdfComponent),
-      },
-      {
-        path: 'resume-generator',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.ResumeGeneratorComponent),
-      },
-      {
-        path: 'invoice-generator',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.InvoiceGeneratorComponent),
-      },
-      {
-        path: 'image-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.ImageToPdfComponent),
-      },
-      {
-        path: 'add-page-numbers',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.AddPageNumbersComponent),
-      },
-      {
-        path: 'barcode-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.BarcodeToPdfComponent),
-      },
-      {
-        path: 'qr-code-to-pdf',
-        loadComponent: () =>
-          import('@tools-workspace/pdf-tools').then(m => m.QrCodeToPdfComponent),
-      },
-      { path: 'highlight-pdf', redirectTo: 'highlight-text', pathMatch: 'full' },
-      { path: 'fill-pdf-form', redirectTo: 'fill-pdf-forms', pathMatch: 'full' },
     ],
   },
   {

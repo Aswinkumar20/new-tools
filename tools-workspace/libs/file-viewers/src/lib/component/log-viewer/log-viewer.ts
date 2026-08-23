@@ -1,74 +1,72 @@
 import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
-  ElementRef,
-  EventEmitter,
-  HostListener,
-  Inject,
-  Input,
-  OnDestroy,
   OnInit,
+  OnDestroy,
+  AfterViewInit,
+  Input,
   Output,
-  PLATFORM_ID,
+  EventEmitter,
   ViewChild,
-  inject
+  ElementRef,
+  ChangeDetectorRef,
+  ChangeDetectionStrategy,
+  HostListener,
+  PLATFORM_ID,
+  Inject
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation } from '@tools-workspace/features-home';
 import { Subject, combineLatest, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { fvCopyText } from '../../shared/fv-clipboard.util';
-import type { FvRelatedToolLink } from '../../shared/fv-tool-suggestion.model';
-import {
-  LOG_ACCEPT_ATTR,
-  LOG_AUTO_SCROLL_DELAY_MS,
-  LOG_CHART_RENDER_DELAY_MS,
-  LOG_RELATED_TOOLS,
-  LOG_SCROLL_BOTTOM_THRESHOLD_PX,
-  LOG_SCROLL_TOP_BUTTON_THRESHOLD_PX,
-  LOG_SEARCH_DEBOUNCE_MS
-} from '../../constants/log-viewer.constants';
-import { LogViewerService } from '../../services/log-viewer.service';
-import type { LogEntry, LogFilter, LogStats } from '../../types/log-viewer.types';
-import { LogLevel } from '../../types/log-viewer.types';
-import {
-  buildLogLevelChartConfig,
-  formatLogLevelPercentage,
-  formatLogTimestamp,
-  getLogLevelClass,
-  getLogLevelColor,
-  getLogLevelIcon,
-  isValidLogFile,
-  loadChartJsLibrary,
-  previewLogMessage,
-  resolveLogSuggestion
-} from '../../utils/log-viewer.utils';
+import { LogEntry, LogLevel, LogFilter, LogStats } from './log-entry.model';
+import { LogViewerService } from './log-viewer.service';
+
+declare const Chart: {
+  new (ctx: CanvasRenderingContext2D, config: any): {
+    destroy(): void;
+    update(): void;
+  };
+};
+
+// Load Chart.js dynamically
+async function loadChartJs(): Promise<typeof Chart> {
+  if (typeof window === 'undefined') {
+    throw new TypeError('Chart.js can only be loaded in browser environment');
+  }
+
+  if ((window as any).Chart) {
+    return (window as any).Chart;
+  }
+
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+  document.head.appendChild(script);
+
+  return new Promise((resolve, reject) => {
+    script.onload = () => {
+      const ChartLib = (window as any).Chart;
+      resolve(ChartLib);
+    };
+    script.onerror = () => reject(new Error('Failed to load Chart.js library'));
+  });
+}
 
 @Component({
   selector: 'lib-log-viewer',
   standalone: true,
   templateUrl: './log-viewer.html',
   styleUrls: ['./log-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, FormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [LogViewerService]
 })
 export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
-  readonly LogLevel = LogLevel;
-  readonly acceptAttr = LOG_ACCEPT_ATTR;
-  readonly relatedTools: ReadonlyArray<FvRelatedToolLink> = LOG_RELATED_TOOLS;
-
   @Input() logs: string[] | LogEntry[] = [];
   @Input() title?: string;
-  @Input() autoScroll = true;
-  @Input() liveMode = false;
+  @Input() autoScroll: boolean = true;
+  @Input() liveMode: boolean = false;
   @Input() theme: 'light' | 'dark' = 'light';
-  @Input() compact = false;
+  @Input() compact: boolean = false;
 
   @Output() filtered = new EventEmitter<LogEntry[]>();
   @Output() logSelected = new EventEmitter<LogEntry>();
@@ -77,38 +75,39 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('statsChart') statsChart!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
+  // Parsed log entries
   allLogEntries: LogEntry[] = [];
   filteredLogEntries: LogEntry[] = [];
   displayedLogEntries: LogEntry[] = [];
 
+  // Filter state
   filter: LogFilter = {
     searchText: '',
     levels: [],
     regexEnabled: false
   };
 
+  // UI state
   searchText$ = new Subject<string>();
-  searchText = '';
+  searchText: string = '';
   selectedLevels = new Set<LogLevel>();
-  showFilters = false;
-  showStats = false;
-  showAbout = false;
-  isDarkTheme = false;
+  showFilters: boolean = false;
+  showStats: boolean = false;
+  showAbout: boolean = false;
+  isDarkTheme: boolean = false;
   stats: LogStats | null = null;
-  chartInstance: { destroy(): void; resize?: () => void } | null = null;
+  chartInstance: any = null;
 
-  showDropZone = false;
-  loading = false;
-  errorMessage = '';
-  loadedFileName = '';
-  loadedFileContent = '';
-  wordWrap = true;
-  dismissedSuggestionId: string | null = null;
+  // File upload
+  showDropZone: boolean = false;
+  loading: boolean = false;
+  errorMessage: string = '';
 
-  scrollPosition = 0;
-  isAtBottom = true;
-  showScrollToTop = false;
-  showScrollToBottom = false;
+  // Scroll state
+  scrollPosition: number = 0;
+  isAtBottom: boolean = true;
+  showScrollToTop: boolean = false;
+  showScrollToBottom: boolean = false;
 
   private destroy$ = new Subject<void>();
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
@@ -116,27 +115,9 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private readonly logService: LogViewerService,
     private readonly cdr: ChangeDetectorRef,
-    @Inject(PLATFORM_ID) private readonly platformId: object
+    @Inject(PLATFORM_ID) private readonly platformId: Object
   ) {
     this.isDarkTheme = this.theme === 'dark';
-  }
-
-  get allLevels(): LogLevel[] {
-    return Object.values(LogLevel);
-  }
-
-  get primarySuggestion() {
-    const suggestion = resolveLogSuggestion({
-      hasLogs: this.allLogEntries.length > 0,
-      hasError: !!this.errorMessage,
-      errorCount: this.getLevelCount(LogLevel.ERROR) + this.getLevelCount(LogLevel.FATAL),
-      regexEnabled: this.filter.regexEnabled,
-      searchText: this.searchText
-    });
-    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
-      return null;
-    }
-    return suggestion;
   }
 
   ngOnInit(): void {
@@ -147,7 +128,10 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     if (isPlatformBrowser(this.platformId)) {
-      loadChartJsLibrary().catch(() => undefined);
+      // Load Chart.js for analytics
+      loadChartJs().catch(err => {
+        console.warn('Failed to load Chart.js:', err);
+      });
     }
   }
 
@@ -158,33 +142,31 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cleanup();
   }
 
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId = suggestionId;
-    this.cdr.markForCheck();
-  }
-
   @HostListener('window:resize')
   onResize(): void {
     this.cdr.markForCheck();
     if (this.chartInstance && this.statsChart?.nativeElement) {
       setTimeout(() => {
-        this.chartInstance?.resize?.();
-      }, LOG_CHART_RENDER_DELAY_MS);
+        this.chartInstance?.resize();
+      }, 100);
     }
   }
 
   setupFiltering(): void {
-    combineLatest([this.searchText$.pipe(debounceTime(LOG_SEARCH_DEBOUNCE_MS), distinctUntilChanged())])
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.applyFilters();
-      });
+    combineLatest([
+      this.searchText$.pipe(
+        debounceTime(300),
+        distinctUntilChanged()
+      )
+    ]).pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      this.applyFilters();
+    });
   }
 
   setupDragAndDrop(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -211,7 +193,7 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.showDropZone = false;
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
-      void this.loadLogFile(files[0]);
+      this.loadLogFile(files[0]);
     }
   }
 
@@ -222,12 +204,12 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      void this.loadLogFile(input.files[0]);
+      this.loadLogFile(input.files[0]);
     }
   }
 
   async loadLogFile(file: File): Promise<void> {
-    if (!isValidLogFile(file)) {
+    if (!file.name.toLowerCase().endsWith('.log') && file.type !== 'text/plain') {
       this.errorMessage = 'Please select a valid log file (.log or .txt)';
       this.cdr.markForCheck();
       return;
@@ -235,17 +217,13 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.loading = true;
     this.errorMessage = '';
-    this.dismissedSuggestionId = null;
     this.cdr.markForCheck();
 
     try {
       const content = await file.text();
-      this.loadedFileName = file.name;
-      this.loadedFileContent = content;
-      this.logs = content.split('\n');
+      const lines = content.split('\n');
+      this.logs = lines;
       this.processLogs();
-      this.loading = false;
-      this.cdr.markForCheck();
     } catch (error) {
       this.errorMessage = `Failed to load file: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.loading = false;
@@ -262,7 +240,8 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    if (typeof this.logs[0] === 'string') {
+    // Convert string[] to LogEntry[] if needed
+    if (this.logs.length > 0 && typeof this.logs[0] === 'string') {
       this.allLogEntries = this.logService.parseLogs(this.logs as string[]);
     } else {
       this.allLogEntries = this.logs as LogEntry[];
@@ -271,8 +250,9 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.calculateStats();
     this.applyFilters();
 
+    // Auto-scroll to bottom if enabled
     if (this.autoScroll) {
-      setTimeout(() => this.scrollToBottom(), LOG_AUTO_SCROLL_DELAY_MS);
+      setTimeout(() => this.scrollToBottom(), 100);
     }
   }
 
@@ -302,9 +282,9 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   selectAllLevels(): void {
-    for (const level of Object.values(LogLevel)) {
+    Object.values(LogLevel).forEach(level => {
       this.selectedLevels.add(level);
-    }
+    });
     this.applyFilters();
   }
 
@@ -319,28 +299,10 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.applyFilters();
   }
 
-  clearAll(): void {
-    this.allLogEntries = [];
-    this.filteredLogEntries = [];
-    this.displayedLogEntries = [];
-    this.logs = [];
-    this.loadedFileName = '';
-    this.loadedFileContent = '';
-    this.stats = null;
-    this.searchText = '';
-    this.searchText$.next('');
-    this.selectedLevels.clear();
-    this.errorMessage = '';
-    this.loading = false;
-    this.dismissedSuggestionId = null;
-    this.destroyChart();
-    this.cdr.markForCheck();
-  }
-
   calculateStats(): void {
     this.stats = this.logService.calculateStats(this.filteredLogEntries);
     if (this.showStats && this.stats) {
-      setTimeout(() => void this.renderStatsChart(), LOG_CHART_RENDER_DELAY_MS);
+      setTimeout(() => this.renderStatsChart(), 100);
     }
   }
 
@@ -350,16 +312,63 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     try {
-      const ChartLib = await loadChartJsLibrary();
+      const ChartLib = await loadChartJs();
       const ctx = this.statsChart.nativeElement.getContext('2d');
-      if (!ctx) {
-        return;
-      }
+      if (!ctx) return;
 
+      // Destroy previous chart
       this.destroyChart();
-      this.chartInstance = new ChartLib(ctx, buildLogLevelChartConfig(this.stats));
-    } catch {
-      // Chart is optional analytics; keep log viewing usable without it
+
+      const levelColors: Record<LogLevel, string> = {
+        [LogLevel.FATAL]: '#d32f2f',
+        [LogLevel.ERROR]: '#f44336',
+        [LogLevel.WARN]: '#ff9800',
+        [LogLevel.INFO]: '#2196f3',
+        [LogLevel.DEBUG]: '#4caf50',
+        [LogLevel.TRACE]: '#9e9e9e',
+        [LogLevel.UNKNOWN]: '#757575'
+      };
+
+      // Level distribution chart
+      const levelData = Object.entries(this.stats.byLevel)
+        .filter(([_, count]) => count > 0)
+        .map(([level, count]) => ({
+          level: level as LogLevel,
+          count
+        }));
+
+      this.chartInstance = new ChartLib(ctx, {
+        type: 'bar',
+        data: {
+          labels: levelData.map(d => d.level),
+          datasets: [{
+            label: 'Log Count',
+            data: levelData.map(d => d.count),
+            backgroundColor: levelData.map(d => levelColors[d.level]),
+            borderColor: levelData.map(d => levelColors[d.level]),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to render chart:', error);
     }
   }
 
@@ -384,7 +393,7 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   toggleStats(): void {
     this.showStats = !this.showStats;
     if (this.showStats) {
-      setTimeout(() => void this.renderStatsChart(), LOG_CHART_RENDER_DELAY_MS);
+      setTimeout(() => this.renderStatsChart(), 100);
     } else {
       this.destroyChart();
     }
@@ -396,50 +405,19 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  toggleWordWrap(): void {
-    this.wordWrap = !this.wordWrap;
-    this.cdr.markForCheck();
-  }
-
-  downloadFile(): void {
-    if (!this.loadedFileContent && this.allLogEntries.length === 0) {
-      return;
-    }
-
-    const content =
-      this.loadedFileContent || this.allLogEntries.map((entry) => entry.raw).join('\n');
-    const fileName = this.loadedFileName || 'log-export.log';
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    try {
-      URL.revokeObjectURL(url);
-    } catch {
-      // Ignore revoke failures in test environments
-    }
-    this.toast.info(`Downloaded ${fileName}`);
-  }
-
   onScroll(event: Event): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
-
+    if (!isPlatformBrowser(this.platformId)) return;
+    
     const target = event.target as HTMLElement;
-    if (!target) {
-      return;
-    }
-
-    const scrollTop = target.scrollTop || 0;
-    const scrollHeight = target.scrollHeight || 0;
-    const clientHeight = target.clientHeight || 0;
+    if (!target) return;
+    
+    const scrollTop = target.scrollTop || (target as any).scrollTop || 0;
+    const scrollHeight = target.scrollHeight || (target as any).scrollHeight || 0;
+    const clientHeight = target.clientHeight || (target as any).clientHeight || 0;
 
     this.scrollPosition = scrollTop;
-    this.isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_SCROLL_BOTTOM_THRESHOLD_PX;
-    this.showScrollToTop = scrollTop > LOG_SCROLL_TOP_BUTTON_THRESHOLD_PX;
+    this.isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+    this.showScrollToTop = scrollTop > 500;
     this.showScrollToBottom = !this.isAtBottom && scrollHeight > clientHeight;
     this.cdr.markForCheck();
   }
@@ -450,7 +428,7 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       if (element.scrollTo) {
         element.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        element.scrollTop = 0;
+        (element as any).scrollTop = 0;
       }
     }
   }
@@ -462,7 +440,7 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       if (element.scrollTo) {
         element.scrollTo({ top: scrollHeight, behavior: 'smooth' });
       } else {
-        element.scrollTop = scrollHeight;
+        (element as any).scrollTop = scrollHeight;
       }
       this.isAtBottom = true;
       this.showScrollToBottom = false;
@@ -479,7 +457,12 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async copyLogLine(entry: LogEntry, event: Event): Promise<void> {
     event.stopPropagation();
-    await fvCopyText(this.toast, entry.raw, 'Log line');
+    try {
+      await navigator.clipboard.writeText(entry.raw);
+      // Show feedback (you could add a toast notification here)
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
   }
 
   selectLogEntry(entry: LogEntry): void {
@@ -487,26 +470,52 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getLogLevelClass(level: LogLevel): string {
-    return getLogLevelClass(level);
+    return `log-level-${level.toLowerCase()}`;
   }
 
   getLogLevelColor(level: LogLevel): string {
-    return getLogLevelColor(level);
+    const colors: Record<LogLevel, string> = {
+      [LogLevel.FATAL]: '#d32f2f',
+      [LogLevel.ERROR]: '#f44336',
+      [LogLevel.WARN]: '#ff9800',
+      [LogLevel.INFO]: '#2196f3',
+      [LogLevel.DEBUG]: '#4caf50',
+      [LogLevel.TRACE]: '#9e9e9e',
+      [LogLevel.UNKNOWN]: '#757575'
+    };
+    return colors[level] || colors[LogLevel.UNKNOWN];
   }
 
   getLogLevelIcon(level: LogLevel): string {
-    return getLogLevelIcon(level);
+    const icons: Record<LogLevel, string> = {
+      [LogLevel.FATAL]: '🔴',
+      [LogLevel.ERROR]: '❌',
+      [LogLevel.WARN]: '⚠️',
+      [LogLevel.INFO]: 'ℹ️',
+      [LogLevel.DEBUG]: '🔍',
+      [LogLevel.TRACE]: '📝',
+      [LogLevel.UNKNOWN]: '❓'
+    };
+    return icons[level] || icons[LogLevel.UNKNOWN];
   }
 
   formatTimestamp(date: Date): string {
-    return formatLogTimestamp(date);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(date);
   }
 
-  previewMessage(message: string): string {
-    return previewLogMessage(message);
+  get allLevels(): LogLevel[] {
+    return Object.values(LogLevel);
   }
 
-  trackByEntryId(_index: number, entry: LogEntry): string {
+  trackByEntryId(index: number, entry: LogEntry): string {
     return entry.id;
   }
 
@@ -515,13 +524,12 @@ export class LogViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   getLevelPercentage(level: LogLevel): string {
-    return formatLogLevelPercentage(this.stats, level);
+    if (!this.stats || this.stats.total === 0) return '0%';
+    return ((this.stats.byLevel[level] / this.stats.total) * 100).toFixed(1) + '%';
   }
 
   cleanup(): void {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
+    if (!isPlatformBrowser(this.platformId)) return;
 
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.removeEventListener(eventName, this.preventDefaultsFn, false);

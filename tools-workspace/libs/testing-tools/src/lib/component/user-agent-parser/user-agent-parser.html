@@ -1,261 +1,137 @@
-<div class="ctl tt">
-  <lib-navigation></lib-navigation>
+<div class="uap">
+  <div class="uap__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>User Agent Parser</h1>
-        <p>Inspect browser user agent strings — detect browser, OS, device, engine, and bots.</p>
+  <section class="uap__hero">
+    <div class="uap__badge">Testing toolkit</div>
+    <h1>User Agent Parser</h1>
+    <p>
+      Inspect browser user agent strings. Detect browser, OS, device type, engine, and whether the user agent looks like
+      a bot.
+    </p>
+
+    @if (parsed(); as p) {
+      <div class="uap__hero-meta">
+        <div>
+          <span class="uap__meta-label">Browser</span>
+          <strong>{{ p.browser || 'Unknown' }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">OS</span>
+          <strong>{{ p.os || 'Unknown' }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">Device</span>
+          <strong class="uap__device uap__device--{{ p.deviceType }}">{{ p.deviceType | titlecase }}</strong>
+        </div>
+        <div>
+          <span class="uap__meta-label">Bot</span>
+          <strong [class.uap__meta-value--bot]="p.isBot">{{ p.isBot ? 'Yes' : 'No' }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="uap__hero-meta uap__hero-meta--placeholder">
+        Use the current browser user agent or paste a custom string below, then click \"Parse\".
+      </div>
+    }
+  </section>
+
+  <div class="uap__board" [formGroup]="form">
+    <section class="uap__panel uap__panel--input">
+      <header class="uap__card-header">
+        <div>
+          <h2>User agent</h2>
+          <p>Capture or paste a user agent string.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="parse()">Parse</button>
       </header>
 
-      <div class="ctl__stats" aria-label="Parsed user agent statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ parsed()?.browser || '—' }}</span>
-          <span class="ctl__stat-label">Browser</span>
+      @if (errors().length) {
+        <div class="uap__alert uap__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ parsed()?.os || '—' }}</span>
-          <span class="ctl__stat-label">OS</span>
+      }
+
+      @if (warnings().length) {
+        <div class="uap__alert uap__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ parsed() ? (parsed()!.deviceType | titlecase) : '—' }}</span>
-          <span class="ctl__stat-label">Device</span>
+      }
+
+      <label class="uap__toggle">
+        <input type="checkbox" formControlName="useCurrent" (change)="populateCurrentUA()" />
+        <div>
+          <strong>Use current browser user agent</strong>
+          <span>Automatically populate the field with this browser's user agent.</span>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ parsed()?.isBot ? 'Yes' : hasParsed() ? 'No' : '—' }}</span>
-          <span class="ctl__stat-label">Bot</span>
-        </div>
+      </label>
+
+      <div class="uap__input-area">
+        <label for="ua" class="uap__label">User agent string</label>
+        <textarea
+          id="ua"
+          class="uap__textarea"
+          formControlName="userAgent"
+          rows="4"
+          spellcheck="false"
+        ></textarea>
       </div>
-    </div>
+    </section>
 
-    <div class="tt-workflow" aria-label="Parser actions">
-      <div class="tt-workflow__group tt-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="parse()"
-          [disabled]="!hasInput()"
-          aria-label="Parse user agent"
-          appTooltip="Parse user agent"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Parse</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="populateCurrentUA()"
-          aria-label="Use current browser UA"
-          appTooltip="Use current browser UA"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/search.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Current</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clear()"
-          [disabled]="!hasInput() && !hasParsed()"
-          aria-label="Clear all"
-          appTooltip="Clear all"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-    </div>
+    <section class="uap__panel uap__panel--details">
+      <header class="uap__card-header">
+        <div>
+          <h2>Details</h2>
+          <p>Parsed user agent information.</p>
+        </div>
+      </header>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor tt-editor-panel">
-          <header class="ctl__editor-head">
-            <span>User agent</span>
-            <div class="ctl__editor-actions">
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyInput()"
-                [disabled]="!hasInput()"
-                aria-label="Copy user agent"
-                appTooltip="Copy user agent"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
+      @if (hasParsed() && parsed(); as p) {
+        <div class="uap__details-grid">
+          <div class="uap__detail">
+            <span class="uap__detail-label">Browser</span>
+            <strong>{{ p.browser || 'Unknown' }}</strong>
+            <small *ngIf="p.browserVersion">Version: {{ p.browserVersion }}</small>
+          </div>
 
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
+          <div class="uap__detail">
+            <span class="uap__detail-label">Operating system</span>
+            <strong>{{ p.os || 'Unknown' }}</strong>
+            <small *ngIf="p.osVersion">Version: {{ p.osVersion }}</small>
+          </div>
 
-          @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning" role="status">
-              <ul>
-                @for (message of warnings(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
+          <div class="uap__detail">
+            <span class="uap__detail-label">Rendering engine</span>
+            <strong>{{ p.engine || 'Unknown' }}</strong>
+          </div>
 
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="uap__suggest" aria-label="Suggested next step">
-              <div class="uap__suggest-body">
-                <p class="uap__suggest-title">{{ suggestion.title }}</p>
-                <p class="uap__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="uap__suggest-actions">
-                <a class="uap__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="uap__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
+          <div class="uap__detail">
+            <span class="uap__detail-label">Device type</span>
+            <strong class="uap__device uap__device--{{ p.deviceType }}">{{ p.deviceType | titlecase }}</strong>
+          </div>
 
-          <label class="sr-only" for="ua">User agent string</label>
-          <textarea
-            id="ua"
-            class="ctl__textarea ctl__textarea--mono"
-            formControlName="userAgent"
-            (input)="onInputChange()"
-            rows="1"
-            spellcheck="false"
-            placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64)…"></textarea>
+          <div class="uap__detail">
+            <span class="uap__detail-label">Looks like bot</span>
+            <strong [class.uap__meta-value--bot]="p.isBot">{{ p.isBot ? 'Yes' : 'No' }}</strong>
+          </div>
+        </div>
+
+        <section class="uap__raw">
+          <h3>Raw user agent</h3>
+          <pre class="uap__raw-text">{{ p.raw }}</pre>
         </section>
-
-        <section class="ctl__editor ctl__editor--output tt-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Parsed details</span>
-            <div class="ctl__editor-actions">
-              @if (hasParsed()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyOutput()"
-                [disabled]="!hasParsed()"
-                aria-label="Copy parsed details"
-                appTooltip="Copy parsed details"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (hasParsed() && parsed(); as p) {
-            <div class="ctl__editor-body uap-details">
-              <div class="uap-grid">
-                <div class="uap-detail">
-                  <span>Browser</span>
-                  <strong>{{ p.browser || 'Unknown' }}</strong>
-                  @if (p.browserVersion) {
-                    <small>v{{ p.browserVersion }}</small>
-                  }
-                </div>
-                <div class="uap-detail">
-                  <span>Operating system</span>
-                  <strong>{{ p.os || 'Unknown' }}</strong>
-                  @if (p.osVersion) {
-                    <small>v{{ p.osVersion }}</small>
-                  }
-                </div>
-                <div class="uap-detail">
-                  <span>Rendering engine</span>
-                  <strong>{{ p.engine || 'Unknown' }}</strong>
-                </div>
-                <div class="uap-detail">
-                  <span>Device type</span>
-                  <strong class="uap-device--{{ p.deviceType }}">{{ p.deviceType | titlecase }}</strong>
-                </div>
-                <div class="uap-detail">
-                  <span>Looks like bot</span>
-                  <strong [class.uap-bot]="p.isBot">{{ p.isBot ? 'Yes' : 'No' }}</strong>
-                </div>
-              </div>
-              <div class="uap-raw">
-                <h3>Raw user agent</h3>
-                <pre class="ctl__code">{{ p.raw }}</pre>
-              </div>
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Paste a user agent string — parsing runs automatically as you type.</p>
-            </div>
-          }
-        </section>
-      </div>
-
-      <details class="tt-options-flyout">
-        <summary class="tt-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="tt-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar tt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Parser options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="useCurrent" (change)="onUseCurrentChange()" />
-                <div>
-                  <strong>Use current browser UA</strong>
-                  <span>Populate with this browser's user agent on toggle.</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body uap__related">
-              <ul class="uap__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="uap__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Parsing runs <strong>locally</strong> — strings never leave your browser.</p>
-            </div>
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>Detection is heuristic — verify critical cases manually.</p>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Click <strong>Current</strong> to load this browser's user agent, or paste a custom string.</li>
-        <li>Parsing runs automatically as you type.</li>
-        <li>Review browser, OS, device, engine, and bot detection in the output panel.</li>
-        <li>Use copy icons to grab the raw UA or formatted details.</li>
-      </ul>
-    </details>
-  </main>
+      } @else {
+        <div class="uap__empty">Parsed details will appear here after parsing a user agent string.</div>
+      }
+    </section>
+  </div>
 </div>

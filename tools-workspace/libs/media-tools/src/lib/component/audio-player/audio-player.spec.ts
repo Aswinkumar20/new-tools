@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { mtToolTestProviders } from '../../shared/mt-tool-test.utils';
 import { AudioPlayerComponent } from './audio-player';
 
 describe('AudioPlayerComponent', () => {
@@ -8,8 +7,7 @@ describe('AudioPlayerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AudioPlayerComponent],
-      providers: mtToolTestProviders(),
+      imports: [AudioPlayerComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(AudioPlayerComponent);

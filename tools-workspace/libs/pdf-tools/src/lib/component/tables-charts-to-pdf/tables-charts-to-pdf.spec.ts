@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { TablesChartsToPdfComponent } from './tables-charts-to-pdf';
 
 describe('TablesChartsToPdfComponent', () => {
@@ -8,8 +7,7 @@ describe('TablesChartsToPdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TablesChartsToPdfComponent],
-      providers: pdfToolTestProviders(),
+      imports: [TablesChartsToPdfComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(TablesChartsToPdfComponent);

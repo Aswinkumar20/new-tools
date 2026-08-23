@@ -8,7 +8,6 @@ export class TooltipDirective implements OnInit, OnDestroy {
   @Input('appTooltip') tooltipText: string = '';
   @Input() tooltipPosition: 'top' | 'bottom' | 'left' | 'right' = 'top';
   @Input() tooltipDelay: number = 0;
-  @Input() tooltipMultiline = false;
 
   private tooltipElement: HTMLElement | null = null;
   private showTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -30,40 +29,30 @@ export class TooltipDirective implements OnInit, OnDestroy {
     this.removeTooltip();
   }
 
-  @HostListener('mouseenter')
-  onMouseEnter(): void {
+  @HostListener('mouseenter', ['$event'])
+  onMouseEnter(event: MouseEvent): void {
     if (!this.tooltipElement || !this.tooltipText) return;
     
     this.clearTimeouts();
     
     this.showTimeout = setTimeout(() => {
-      this.showTooltip();
+      this.showTooltip(event);
     }, this.tooltipDelay);
   }
 
   @HostListener('mouseleave')
   onMouseLeave(): void {
-    this.scheduleHide();
-  }
-
-  @HostListener('focus')
-  onFocus(): void {
-    if (!this.tooltipElement || !this.tooltipText) return;
     this.clearTimeouts();
-    this.showTimeout = setTimeout(() => {
-      this.showTooltip();
-    }, this.tooltipDelay);
+    
+    this.hideTimeout = setTimeout(() => {
+      this.hideTooltip();
+    }, 100); // Small delay for smooth transition
   }
 
-  @HostListener('blur')
-  onBlur(): void {
-    this.scheduleHide();
-  }
-
-  @HostListener('mousemove')
-  onMouseMove(): void {
+  @HostListener('mousemove', ['$event'])
+  onMouseMove(event: MouseEvent): void {
     if (this.isVisible && this.tooltipElement) {
-      this.updateTooltipPosition();
+      this.updateTooltipPosition(event);
     }
   }
 
@@ -101,14 +90,7 @@ export class TooltipDirective implements OnInit, OnDestroy {
     this.renderer.setStyle(this.tooltipElement, 'color', textColor);
     this.renderer.setStyle(this.tooltipElement, 'font-size', '0.75rem');
     this.renderer.setStyle(this.tooltipElement, 'font-weight', '500');
-    if (this.tooltipMultiline) {
-      this.renderer.setStyle(this.tooltipElement, 'white-space', 'normal');
-      this.renderer.setStyle(this.tooltipElement, 'max-width', '280px');
-      this.renderer.setStyle(this.tooltipElement, 'line-height', '1.45');
-      this.renderer.setStyle(this.tooltipElement, 'text-align', 'left');
-    } else {
-      this.renderer.setStyle(this.tooltipElement, 'white-space', 'nowrap');
-    }
+    this.renderer.setStyle(this.tooltipElement, 'white-space', 'nowrap');
     this.renderer.setStyle(this.tooltipElement, 'border-radius', '6px');
     this.renderer.setStyle(this.tooltipElement, 'box-shadow', '0 4px 12px rgba(0, 0, 0, 0.25)');
     this.renderer.setStyle(this.tooltipElement, 'letter-spacing', '0.02em');
@@ -119,10 +101,10 @@ export class TooltipDirective implements OnInit, OnDestroy {
     this.renderer.setStyle(this.tooltipElement, 'transform', this.getInitialTransform());
   }
 
-  private showTooltip(): void {
+  private showTooltip(event: MouseEvent): void {
     if (!this.tooltipElement) return;
 
-    this.updateTooltipPosition();
+    this.updateTooltipPosition(event);
     
     // Force reflow to ensure position is set before showing
     const _ = this.tooltipElement.offsetHeight;
@@ -155,7 +137,7 @@ export class TooltipDirective implements OnInit, OnDestroy {
     this.isVisible = false;
   }
 
-  private updateTooltipPosition(): void {
+  private updateTooltipPosition(event: MouseEvent): void {
     if (!this.tooltipElement) return;
 
     const rect = this.el.nativeElement.getBoundingClientRect();
@@ -215,14 +197,6 @@ export class TooltipDirective implements OnInit, OnDestroy {
       default:
         return 'translateY(-4px)';
     }
-  }
-
-  private scheduleHide(): void {
-    this.clearTimeouts();
-
-    this.hideTimeout = setTimeout(() => {
-      this.hideTooltip();
-    }, 100);
   }
 
   private clearTimeouts(): void {

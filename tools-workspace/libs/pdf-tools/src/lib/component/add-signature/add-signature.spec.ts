@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { AddSignatureComponent } from './add-signature';
 
 describe('AddSignatureComponent', () => {
@@ -8,12 +7,12 @@ describe('AddSignatureComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AddSignatureComponent],
-      providers: pdfToolTestProviders(),
+      imports: [AddSignatureComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(AddSignatureComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
   it('should create', () => {

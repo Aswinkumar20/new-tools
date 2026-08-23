@@ -1,364 +1,299 @@
-<div class="ctl dc">
+<div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>CSV ⇄ JSON Converter</h1>
-        <p>Convert CSV to JSON and back — flexible delimiters, headers, and one-click export.</p>
-      </header>
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">CSV ⇄ JSON Converter</h1>
+    <p class="hero__subtitle">
+      Convert CSV files into clean JSON payloads and export JSON arrays back to CSV with flexible delimiter
+      control, auto-detection, and one-click sharing tools. Perfect for data engineers, analysts, and
+      developers working across formats.
+    </p>
+    <div class="hero__callouts">
+      <article class="callout" *ngFor="let callout of callouts">
+        <h3>{{ callout.title }}</h3>
+        <p>{{ callout.detail }}</p>
+      </article>
+    </div>
+  </header>
 
-      <div class="ctl__stats" aria-label="Conversion statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value" [title]="conversionMode === 'csv-to-json' ? 'CSV → JSON' : 'JSON → CSV'">
-            {{ conversionMode === 'csv-to-json' ? 'CSV→JSON' : 'JSON→CSV' }}
-          </span>
-          <span class="ctl__stat-label">Mode</span>
+  <section class="workspace">
+    <div class="workspace__top">
+      <div class="workspace__title">
+        <h2>Bidirectional conversion</h2>
+        <p>{{ modeDescription }}</p>
+      </div>
+
+      <div class="workspace__metrics">
+        <div>
+          <strong>Rows</strong>
+          <span>{{ metrics.rows | number }}</span>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ metrics.rows | number }}</span>
-          <span class="ctl__stat-label">Rows</span>
+        <div>
+          <strong>Columns</strong>
+          <span>{{ metrics.columns | number }}</span>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ metrics.columns | number }}</span>
-          <span class="ctl__stat-label">Cols</span>
+        <div>
+          <strong>Payload size</strong>
+          <span>{{ metrics.sizeLabel }}</span>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ metrics.sizeLabel }}</span>
-          <span class="ctl__stat-label">Size</span>
+        <div>
+          <strong>Active input</strong>
+          <span>{{ metrics.selection }}</span>
         </div>
       </div>
     </div>
 
-    <div class="dc-workflow" aria-label="Conversion controls">
-      <div class="dc-workflow__group dc-workflow__group--files">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="uploadFile()"
-          aria-label="Upload file"
-          appTooltip="Upload file"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="downloadResult()"
-          [disabled]="!resultOutput"
-          aria-label="Download result"
-          appTooltip="Download result"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="resetWorkspace()"
-          aria-label="Reset sample"
-          appTooltip="Reset sample"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-      </div>
-
-      <span class="dc-workflow__divider" aria-hidden="true"></span>
-
-      <div class="dc-workflow__group dc-workflow__group--mode" role="group" aria-label="Conversion direction">
-        <button
-          type="button"
-          class="dc-chip"
-          [class.dc-chip--active]="conversionMode === 'csv-to-json'"
-          [attr.aria-pressed]="conversionMode === 'csv-to-json'"
-          (click)="onModeChange('csv-to-json')"
-          appTooltip="CSV to JSON"
-          tooltipPosition="bottom">
-          CSV → JSON
-        </button>
-        <button
-          type="button"
-          class="dc-chip"
-          [class.dc-chip--active]="conversionMode === 'json-to-csv'"
-          [attr.aria-pressed]="conversionMode === 'json-to-csv'"
-          (click)="onModeChange('json-to-csv')"
-          appTooltip="JSON to CSV"
-          tooltipPosition="bottom">
-          JSON → CSV
-        </button>
-      </div>
-
-      <span class="dc-workflow__divider" aria-hidden="true"></span>
-
-      <div class="dc-workflow__group dc-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="convert()"
-          aria-label="Convert"
-          appTooltip="Convert"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <polyline points="17 1 21 5 17 9" />
-            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-            <polyline points="7 23 3 19 7 15" />
-            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-          </svg>
-          <span class="ctl__tool-btn-label">Convert</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split" aria-label="Source and converted output">
-        <section
-          class="ctl__editor dc-editor-panel"
-          [class.ctl__editor--dragging]="isDragOver"
-          (dragenter)="onDragEnter($event)"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)">
-          <header class="ctl__editor-head">
-            <span>{{ conversionMode === 'csv-to-json' ? 'CSV input' : 'JSON input' }}</span>
-            <div class="ctl__editor-actions">
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyInput()"
-                [disabled]="!(conversionMode === 'csv-to-json' ? csvInput : jsonInput)"
-                aria-label="Copy input"
-                appTooltip="Copy input"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-
-          @if (primarySuggestion; as suggestion) {
-            <aside class="cj__suggest" aria-label="Suggested next step">
-              <div class="cj__suggest-body">
-                <p class="cj__suggest-title">{{ suggestion.title }}</p>
-                <p class="cj__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="cj__suggest-actions">
-                <a class="cj__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button type="button" class="cj__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
-              </div>
-            </aside>
-          }
-
-          <div class="ctl__editor-wrap">
-            <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
-              <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
-            </div>
-            <textarea
-              *ngIf="conversionMode === 'csv-to-json'; else jsonEditor"
-              id="csv-input"
-              class="ctl__textarea ctl__textarea--mono"
-              spellcheck="false"
-              [(ngModel)]="csvInput"
-              (ngModelChange)="onCsvInputChange($event)"
-              (scroll)="onEditorScroll($event)"
-              rows="1"
-              placeholder="id,name,email&#10;1,Alex,alex@example.com"
-              #csvTextarea></textarea>
-            <ng-template #jsonEditor>
-              <textarea
-                id="json-input"
-                class="ctl__textarea ctl__textarea--mono"
-                spellcheck="false"
-                [(ngModel)]="jsonInput"
-                (ngModelChange)="onJsonInputChange($event)"
-                (scroll)="onEditorScroll($event)"
-                rows="1"
-                placeholder='[ { "id": 1, "name": "Alex" } ]'
-                #jsonTextarea></textarea>
-            </ng-template>
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card editor-card">
+          <div class="mode-toggle" role="tablist" aria-label="Conversion direction">
+            <button
+              *ngFor="let mode of modes"
+              class="mode-toggle__option"
+              type="button"
+              role="tab"
+              [attr.aria-selected]="conversionMode === mode.id"
+              [class.mode-toggle__option--active]="conversionMode === mode.id"
+              (click)="onModeChange(mode.id)"
+            >
+              <span class="mode-toggle__label">{{ mode.label }}</span>
+              <span class="mode-toggle__description">{{ mode.description }}</span>
+            </button>
           </div>
-        </section>
 
-        <section class="ctl__editor ctl__editor--output dc-editor-panel">
-          <header class="ctl__editor-head">
-            <span>{{ conversionMode === 'csv-to-json' ? 'JSON output' : 'CSV output' }}</span>
-            <div class="ctl__editor-actions">
-              @if (resultOutput && conversionStatus.status === 'success') {
-                <span class="ctl__editor-badge">Ready</span>
-              }
+          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128190;</div>
+            <div class="dropzone__text">
+              <strong>Drop {{ conversionMode === 'csv-to-json' ? 'CSV' : 'JSON' }} here</strong>
+              <span>Or upload from your device. Content stays in this browser tab.</span>
+            </div>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost">
+                <input
+                  type="file"
+                  accept=".csv,.json,text/csv,application/json"
+                  (change)="onFileInputChange($event)"
+                />
+                Upload
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
+            </div>
+          </div>
+
+          <textarea
+            *ngIf="conversionMode === 'csv-to-json'; else jsonEditor"
+            class="editor editor--csv"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="csvInput"
+            (ngModelChange)="onCsvInputChange($event)"
+            placeholder="id,name,email&#10;1,Alex,alex@example.com"
+          ></textarea>
+          <ng-template #jsonEditor>
+            <textarea
+              class="editor editor--json"
+              rows="18"
+              spellcheck="false"
+              [(ngModel)]="jsonInput"
+              (ngModelChange)="onJsonInputChange($event)"
+              placeholder='[ { "id": 1, "name": "Alex" } ]'
+            ></textarea>
+          </ng-template>
+
+          <div class="editor-card__controls" *ngIf="conversionMode === 'csv-to-json'">
+            <div class="controls">
+              <div class="controls__group">
+                <label for="delimiter" class="controls__label">Delimiter</label>
+                <select id="delimiter" [(ngModel)]="csvDelimiter">
+                  <option *ngFor="let option of delimiterOptions" [value]="option">
+                    {{ option === '\t' ? 'Tab (\\t)' : option }}
+                  </option>
+                </select>
+              </div>
+              <div class="controls__group">
+                <label for="quote" class="controls__label">Quote character</label>
+                <input
+                  id="quote"
+                  type="text"
+                  maxlength="1"
+                  [(ngModel)]="csvQuote"
+                  placeholder='"'
+                />
+              </div>
+              <div class="controls__group">
+                <label for="lineEnding" class="controls__label">Line endings</label>
+                <select id="lineEnding" [(ngModel)]="csvLineEnding">
+                  <option *ngFor="let option of lineEndingOptions" [value]="option.id">{{ option.label }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="toggles">
+              <label class="toggle">
+                <input type="checkbox" [checked]="csvHasHeader" (change)="toggleHeaderUsage()" />
+                <span>First row contains headers</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" [checked]="csvTrimWhitespace" (change)="toggleTrim()" />
+                <span>Trim whitespace around values</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" [checked]="csvSkipEmptyLines" (change)="toggleSkipEmptyLines()" />
+                <span>Skip empty lines</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="editor-card__controls" *ngIf="conversionMode === 'json-to-csv'">
+            <div class="controls">
+              <div class="controls__group">
+                <label for="jsonLineEnding" class="controls__label">Line endings</label>
+                <select id="jsonLineEnding" [(ngModel)]="csvLineEnding">
+                  <option *ngFor="let option of lineEndingOptions" [value]="option.id">{{ option.label }}</option>
+                </select>
+              </div>
+              <div class="controls__group">
+                <label for="outputDelimiter" class="controls__label">Delimiter</label>
+                <select id="outputDelimiter" [(ngModel)]="csvDelimiter">
+                  <option *ngFor="let option of delimiterOptions" [value]="option">
+                    {{ option === '\t' ? 'Tab (\\t)' : option }}
+                  </option>
+                </select>
+              </div>
+              <div class="controls__group">
+                <label for="jsonQuote" class="controls__label">Quote character</label>
+                <input id="jsonQuote" type="text" maxlength="1" [(ngModel)]="csvQuote" />
+              </div>
+            </div>
+            <div class="toggles">
+              <label class="toggle">
+                <input type="checkbox" [checked]="jsonPrettyPrint" (change)="togglePrettyPrint()" />
+                <span>Pretty print JSON preview</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleSortKeys()" />
+                <span>Sort keys when converting</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" [checked]="csvIncludeHeader" (change)="toggleIncludeHeader()" />
+                <span>Include header row in CSV</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="convert()">
+              Convert {{ conversionMode === 'csv-to-json' ? 'to JSON' : 'to CSV' }}
+            </button>
+            <button class="btn btn-secondary" type="button" (click)="resetWorkspace()">Reload sample</button>
+          </div>
+        </div>
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory; trackBy: trackByHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card results-card">
+          <header class="card__header">
+            <div>
+              <h2>Conversion result</h2>
+              <p class="results-card__caption">{{ conversionStatus.message }}</p>
+            </div>
+            <div class="card__actions">
               <button
+                class="btn btn-ghost"
                 type="button"
-                class="ctl__icon-btn"
-                (click)="copyResult()"
                 [disabled]="!resultOutput"
-                aria-label="Copy output"
-                appTooltip="Copy output"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                (click)="copyResult()"
+              >
+                {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+              </button>
+              <button
+                class="btn btn-ghost"
+                type="button"
+                [disabled]="!resultOutput"
+                (click)="downloadResult()"
+              >
+                Download
               </button>
             </div>
           </header>
-          @if (conversionStatus.status === 'error') {
-            <div class="ctl__alert ctl__alert--error" role="alert">{{ conversionStatus.message }}</div>
-          }
-          @if (resultOutput && conversionStatus.status !== 'error') {
-            <div class="ctl__editor-wrap">
-              <div class="ctl__line-numbers" #outputLineNumbers aria-hidden="true">
-                <span *ngFor="let line of resultLines" class="ctl__line-number">{{ line }}</span>
-              </div>
-              <textarea
-                id="csv-output"
-                class="ctl__textarea ctl__textarea--mono ctl__textarea--output"
-                readonly
-                spellcheck="false"
-                [value]="resultOutput"
-                (scroll)="onResultsScroll($event)"
-                rows="1"
-                aria-label="Conversion result"
-                #resultsTextarea></textarea>
-            </div>
-          } @else if (conversionStatus.status !== 'error') {
-            <div class="ctl__empty" aria-live="polite">
+
+          <div
+            class="status-badge"
+            [class.status-badge--success]="conversionStatus.status === 'success'"
+            [class.status-badge--error]="conversionStatus.status === 'error'"
+          >
+            <span *ngIf="conversionStatus.status === 'success'">Success</span>
+            <span *ngIf="conversionStatus.status === 'error'">Needs attention</span>
+            <span *ngIf="conversionStatus.status === 'idle'">Queued</span>
+          </div>
+
+          <div class="results-card__preview" *ngIf="resultOutput; else emptyResult">
+            <pre>{{ resultOutput }}</pre>
+          </div>
+          <ng-template #emptyResult>
+            <div class="results-card__empty">
               <p>Run a conversion to inspect the output here.</p>
             </div>
-          }
-        </section>
+          </ng-template>
+        </div>
       </div>
-
-            <details class="dc-options-flyout">
-        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Conversion options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="delimiterSelect">
-              <span>Delimiter</span>
-              <select id="delimiterSelect" [(ngModel)]="csvDelimiter">
-                <option *ngFor="let option of delimiterOptions" [value]="option">
-                  {{ option === '\t' ? 'Tab (\\t)' : option }}
-                </option>
-              </select>
-            </label>
-            <label class="ctl__field" for="quoteChar">
-              <span>Quote character</span>
-              <input id="quoteChar" type="text" maxlength="1" [(ngModel)]="csvQuote" placeholder='"' />
-            </label>
-            <label class="ctl__field" for="lineEnding">
-              <span>Line endings</span>
-              <select id="lineEnding" [(ngModel)]="csvLineEnding">
-                <option *ngFor="let option of lineEndingOptions" [value]="option.id">{{ option.label }}</option>
-              </select>
-            </label>
-            @if (conversionMode === 'csv-to-json') {
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="csvHasHeader" (change)="toggleHeaderUsage()" />
-                <div>
-                  <strong>First row contains headers</strong>
-                  <span>Use the first CSV row as JSON property names.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="csvTrimWhitespace" (change)="toggleTrim()" />
-                <div>
-                  <strong>Trim whitespace</strong>
-                  <span>Strip spaces around field values.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="csvSkipEmptyLines" (change)="toggleSkipEmptyLines()" />
-                <div>
-                  <strong>Skip empty lines</strong>
-                  <span>Ignore blank rows during parsing.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="jsonPrettyPrint" (change)="togglePrettyPrint()" />
-                <div>
-                  <strong>Pretty print JSON</strong>
-                  <span>Format output with indentation.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleSortKeys()" />
-                <div>
-                  <strong>Sort keys</strong>
-                  <span>Alphabetize object keys in output.</span>
-                </div>
-              </label>
-            } @else {
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="csvIncludeHeader" (change)="toggleIncludeHeader()" />
-                <div>
-                  <strong>Include header row</strong>
-                  <span>Write column names as the first CSV row.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="jsonPrettyPrint" (change)="togglePrettyPrint()" />
-                <div>
-                  <strong>Pretty print JSON preview</strong>
-                  <span>Format JSON before converting.</span>
-                </div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="jsonSortKeys" (change)="toggleSortKeys()" />
-                <div>
-                  <strong>Sort keys</strong>
-                  <span>Order columns alphabetically.</span>
-                </div>
-              </label>
-            }
-          </div>
-        </div>
-
-        <div class="ctl__info">
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Conversion runs <strong>locally</strong> — data never leaves your browser.</p>
-          </div>
-          <div class="ctl__info-item">
-            <span class="ctl__info-dot"></span>
-            <p>Use <strong>Upload</strong> or drag-and-drop for large files.</p>
-          </div>
-        </div>
-
-        <div class="ctl__panel">
-          <header class="ctl__panel-head"><span>Related tools</span></header>
-          <div class="ctl__panel-body cj__related">
-            <ul class="cj__related-list">
-              @for (tool of relatedTools; track tool.path) {
-                <li>
-                  <a class="cj__related-link" [routerLink]="tool.path">
-                    <strong>{{ tool.label }}</strong>
-                    <span>{{ tool.description }}</span>
-                  </a>
-                </li>
-              }
-            </ul>
-          </div>
-        </div>
-      </aside>
-      </details>
     </div>
+  </section>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
+  <section class="info-grid">
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li *ngFor="let step of usageSteps">{{ step }}</li>
+      </ol>
+      <p class="info-card__tip">Switch modes without leaving the page to reverse your conversion instantly.</p>
+    </article>
+
+    <article class="info-card">
+      <h2>Best practices</h2>
       <ul>
-        <li>Choose <strong>CSV → JSON</strong> or <strong>JSON → CSV</strong> in the workflow bar.</li>
-        <li>Paste, type, or upload data in the input editor.</li>
-        <li>Adjust delimiter and header options, then click <strong>Convert</strong>.</li>
-        <li>Use copy icons on each editor or download the result.</li>
+        <li>Keep CSV headers concise and unique to ensure valid JSON keys.</li>
+        <li>Convert nested JSON to a flat structure before exporting to CSV.</li>
+        <li>Use tabs or pipes when your data includes commas inside fields.</li>
+        <li>Validate converted payloads by re-importing them for a quick sanity check.</li>
       </ul>
-    </details>
-  </main>
+    </article>
+
+    <article class="info-card">
+      <h2>Format insights</h2>
+      <ul>
+        <li>Auto-detect line endings to match your target OS without guesswork.</li>
+        <li>Trim whitespace for cleaner diffs across source control.</li>
+        <li>Pretty print JSON previews to confirm structure before export.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Archive the generated CSV or JSON using the download action.</li>
+      <li>Share conversion results with teammates using the copy shortcut.</li>
+      <li>Explore JSON tree visualisation tools to validate nested payloads.</li>
+    </ul>
+  </section>
 </div>

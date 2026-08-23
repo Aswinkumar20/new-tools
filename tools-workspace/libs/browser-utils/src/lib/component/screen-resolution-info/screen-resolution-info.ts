@@ -1,97 +1,78 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnDestroy,
-  PLATFORM_ID,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { buCopyText } from '../../shared/bu-clipboard.util';
-import { buDownloadJson, buDownloadTimestamp } from '../../shared/bu-download.util';
-import { SCREEN_RELATED_TOOLS } from '../../constants/screen-resolution.constants';
-import type { BuRelatedToolLink, BuToolSuggestion } from '../../shared/bu-tool-suggestion.model';
-import type { ScreenInfo } from '../../types/screen-resolution.types';
-import {
-  createEmptyScreenInfo,
-  formatAspectRatio,
-  formatOrientationLabel,
-  formatScreenMetricsText,
-  isRetinaDisplay,
-  readScreenInfo,
-  resolveScreenSuggestion
-} from '../../utils/screen-resolution.utils';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Navigation } from '@tools-workspace/features-home';
+
+interface ScreenInfo {
+  viewportWidth: number;
+  viewportHeight: number;
+  screenWidth: number;
+  screenHeight: number;
+  devicePixelRatio: number;
+  colorDepth: number | null;
+  orientationType: 'portrait' | 'landscape' | 'unknown';
+  orientationAngle: number | null;
+  aspectRatio: number;
+}
 
 @Component({
   selector: 'lib-screen-resolution-info',
   standalone: true,
   templateUrl: './screen-resolution-info.html',
   styleUrls: ['./screen-resolution-info.scss'],
-  imports: [RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ScreenResolutionInfoComponent implements OnDestroy {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
-  private readonly platformId = inject(PLATFORM_ID);
-  private readonly isBrowser = isPlatformBrowser(this.platformId);
-
-  readonly relatedTools: ReadonlyArray<BuRelatedToolLink> = SCREEN_RELATED_TOOLS;
-  readonly formatOrientation = formatOrientationLabel;
-  readonly formatAspect = formatAspectRatio;
-
-  readonly info = signal<ScreenInfo>(
-    this.isBrowser ? readScreenInfo(window) : createEmptyScreenInfo()
-  );
-  readonly dismissedSuggestionId = signal<string | null>(null);
-
-  readonly isRetina = computed(() => isRetinaDisplay(this.info().devicePixelRatio));
-
-  readonly primarySuggestion = computed<BuToolSuggestion | null>(() => {
-    const suggestion = resolveScreenSuggestion(this.info());
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
+  readonly info = signal<ScreenInfo>(this.getInfo());
 
   private readonly onResize = () => {
-    this.info.set(readScreenInfo(window));
+    this.info.set(this.getInfo());
   };
 
   constructor() {
-    if (this.isBrowser) {
-      window.addEventListener('resize', this.onResize, { passive: true });
-    }
+    window.addEventListener('resize', this.onResize, { passive: true });
   }
 
   ngOnDestroy(): void {
-    if (this.isBrowser) {
-      window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  readonly isRetina = computed(() => (this.info().devicePixelRatio ?? 1) > 1);
+
+  private getInfo(): ScreenInfo {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const screenWidth = window.screen.width;
+    const screenHeight = window.screen.height;
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    const colorDepth = window.screen.colorDepth || null;
+    const orientation = (screen.orientation || (screen as any).mozOrientation || (screen as any).msOrientation) as
+      | ScreenOrientation
+      | undefined;
+
+    let orientationType: ScreenInfo['orientationType'] = 'unknown';
+    let orientationAngle: number | null = null;
+
+    if (orientation && 'type' in orientation) {
+      const type = orientation.type;
+      orientationType = type.includes('landscape') ? 'landscape' : type.includes('portrait') ? 'portrait' : 'unknown';
+      orientationAngle = orientation.angle ?? null;
+    } else {
+      orientationType = viewportWidth >= viewportHeight ? 'landscape' : 'portrait';
     }
-  }
 
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
-  }
+    const aspectRatio = viewportHeight ? viewportWidth / viewportHeight : 0;
 
-  copyMetrics(): void {
-    buCopyText(this.toast, formatScreenMetricsText(this.info()), 'Display metrics');
-  }
-
-  copyJson(): void {
-    buCopyText(this.toast, JSON.stringify(this.info(), null, 2), 'Display metrics JSON');
-  }
-
-  downloadJson(): void {
-    try {
-      buDownloadJson(this.info(), `screen-resolution-${buDownloadTimestamp()}.json`);
-      this.toast.success('Display metrics downloaded');
-    } catch {
-      this.toast.error('Could not download display metrics');
-    }
+    return {
+      viewportWidth,
+      viewportHeight,
+      screenWidth,
+      screenHeight,
+      devicePixelRatio,
+      colorDepth,
+      orientationType,
+      orientationAngle,
+      aspectRatio
+    };
   }
 }

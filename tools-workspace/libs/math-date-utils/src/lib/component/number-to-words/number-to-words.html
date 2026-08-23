@@ -1,224 +1,198 @@
-<div class="ctl md">
-  <lib-navigation></lib-navigation>
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Number to Words</h1>
-        <p>Transform numbers into formatted words across locales and styles.</p>
+<div class="ntw">
+  <div class="ntw__nav-shell">
+    <lib-navigation></lib-navigation>
+  </div>
+
+  <section class="ntw__hero">
+    <div class="ntw__badge">Words engine</div>
+    <h1>Number to Words Studio</h1>
+    <p>
+      Transform any number into beautifully formatted words, switch locales instantly, and output currencies, ordinals,
+      or custom sentence cases in one unified workspace.
+    </p>
+
+    <div class="ntw__actions">
+      <button type="button" class="btn btn--primary" (click)="copyToClipboard()">Copy wording</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
+    </div>
+
+    <div class="ntw__meta">
+      <span><strong>{{ badgeMeta().locale }}</strong> locale</span>
+      <span><strong>{{ badgeMeta().format }}</strong> output</span>
+      <span><strong>{{ badgeMeta().historyCount }}</strong> recent runs</span>
+    </div>
+
+    @if (statusMessage()) {
+      <div class="ntw__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="ntw__layout">
+    <section class="ntw__card ntw__card--form">
+      <header class="ntw__card-header">
+        <h2>Number input</h2>
+        <button type="button" class="btn-icon" aria-label="Convert now" (click)="submitForm()">↻</button>
       </header>
-      <div class="ctl__stats" aria-label="Conversion statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ badgeMeta().locale }}</span>
-          <span class="ctl__stat-label">Locale</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ badgeMeta().format }}</span>
-          <span class="ctl__stat-label">Format</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ badgeMeta().historyCount }}</span>
-          <span class="ctl__stat-label">History</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ formattedOutput() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="md-workflow" aria-label="Conversion actions">
-      <div class="md-workflow__group md-workflow__group--actions">
-        <button type="button" class="ctl__tool-btn" (click)="submitForm()" appTooltip="Convert" tooltipPosition="bottom" aria-label="Convert">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Convert</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" appTooltip="Reset" tooltipPosition="bottom" aria-label="Reset">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-      </div>
-    </div>
+      <div class="ntw__card-body">
+        <form class="ntw__form" [formGroup]="form" (ngSubmit)="submitForm()">
+          <div class="ntw__form-row">
+            <label for="numericInput">Enter number</label>
+            <div class="ntw__input-wrap">
+              <input
+                id="numericInput"
+                type="text"
+                placeholder="Paste or type a number..."
+                formControlName="numericInput"
+                [attr.aria-invalid]="form.get('numericInput')!.invalid || null"
+              />
+              <button type="submit" class="btn btn--primary">Convert</button>
+            </div>
+            <p class="ntw__helper">
+              Supports negatives and up to 6 decimal places. Max safe integer range enforced.
+            </p>
+            @if (errorMessage()) {
+              <p class="ntw__error">{{ errorMessage() }}</p>
+            }
+          </div>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor md-editor-panel">
-          <header class="ctl__editor-head"><span>Input</span></header>
-          <div class="ctl__editor-body ctl__settings">
-            <label class="ctl__field" for="numericInput">
-              <span>Number</span>
-              <input id="numericInput" type="text" formControlName="numericInput" placeholder="Paste or type a number…" />
-            </label>
-            <label class="ctl__field" for="localeSelect">
-              <span>Locale</span>
+          <div class="ntw__grid ntw__grid--cols">
+            <div class="ntw__form-row">
+              <label for="localeSelect">Locale</label>
               <select id="localeSelect" formControlName="locale">
                 @for (locale of locales; track trackLocale($index, locale)) {
-                  <option [value]="locale.id">{{ locale.label }}</option>
+                  <option [value]="locale.id">
+                    {{ locale.label }}
+                  </option>
                 }
               </select>
-            </label>
-            <label class="ctl__field" for="caseSelect">
-              <span>Case style</span>
+              <p class="ntw__helper">Example: {{ selectedLocale().sample }}</p>
+            </div>
+
+            <div class="ntw__form-row">
+              <label for="caseSelect">Case style</label>
               <select id="caseSelect" formControlName="caseStyle">
                 @for (style of caseStyles; track trackCaseStyle($index, style)) {
-                  <option [value]="style.id">{{ style.label }}</option>
+                  <option [value]="style.id">
+                    {{ style.label }}
+                  </option>
                 }
               </select>
-            </label>
-            <div class="ntw__formats" role="group" aria-label="Number format">
+              <p class="ntw__helper">{{ selectedCaseDescription() }}</p>
+            </div>
+          </div>
+
+          <div class="ntw__form-row">
+            <span class="ntw__label">Output format</span>
+            <div class="ntw__format-group">
               @for (option of formats; track trackFormat($index, option)) {
                 <button
                   type="button"
-                  class="ntw__format"
-                  [class.ntw__format--active]="formSnapshot().format === option.id"
-                  [attr.aria-pressed]="formSnapshot().format === option.id"
-                  (click)="setFormat(option.id)">
-                  {{ option.icon }} {{ option.label }}
+                  class="ntw__format-tile"
+                  [class.is-active]="form.get('format')!.value === option.id"
+                  (click)="setFormat(option.id)"
+                >
+                  <span class="ntw__format-icon">{{ option.icon }}</span>
+                  <span class="ntw__format-title">{{ option.label }}</span>
+                  <small>{{ option.description }}</small>
                 </button>
               }
             </div>
-            @if (isCurrencyFormat()) {
-              <label class="ctl__field" for="currencySelect">
-                <span>Currency</span>
-                <select id="currencySelect" formControlName="currency">
-                  @for (currency of availableCurrencies(); track trackCurrency($index, currency)) {
-                    <option [value]="currency.code">{{ currency.label }}</option>
-                  }
-                </select>
-              </label>
-            }
-            <label class="ctl__toggle">
+          </div>
+
+          @if (isCurrencyFormat()) {
+            <div class="ntw__currency-panel">
+              <div class="ntw__grid ntw__grid--cols">
+                <div class="ntw__form-row">
+                  <label for="currencySelect">Currency</label>
+                  <select id="currencySelect" formControlName="currency">
+                    @for (currency of availableCurrencies(); track trackCurrency($index, currency)) {
+                      <option [value]="currency.code">
+                        {{ currency.label }} ({{ currency.symbol }})
+                      </option>
+                    }
+                  </select>
+                </div>
+
+                <div class="ntw__form-row ntw__toggle">
+                  <label>
+                    <input type="checkbox" formControlName="showCurrencySymbol" />
+                    <span>Include currency symbol</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" formControlName="includeCents" />
+                    <span>Convert minor units</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          }
+
+          <div class="ntw__toggle-group">
+            <label>
               <input type="checkbox" formControlName="includeAnd" />
-              <div>
-                <strong>Use "and"</strong>
-                <span>Between large segments.</span>
-              </div>
+              <span>Use "and" between large segments</span>
             </label>
-            @if (errorMessage()) {
-              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
+            <label>
+              <input type="checkbox" formControlName="handleNegative" />
+              <span>Prefix negative numbers</span>
+            </label>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="ntw__card ntw__card--output">
+      <header class="ntw__card-header">
+        <h2>Output preview</h2>
+        <div class="ntw__chip">{{ formatLabel() }}</div>
+      </header>
+      <div class="ntw__card-body ntw__card-body--scroll">
+        <textarea readonly [value]="formattedOutput()" placeholder="Converted words will appear here..."></textarea>
+        @if (!formattedOutput()) {
+          <div class="ntw__empty">Start by entering a number to generate wording.</div>
+        }
+        <div class="ntw__samples">
+          <span class="ntw__samples-label">Quick samples</span>
+          <div class="ntw__samples-wrap">
+            @for (sample of sampleNumbers; track trackSample($index, sample)) {
+              <button type="button" class="chip" (click)="applySample(sample)">
+                {{ sample.label }}
+              </button>
             }
           </div>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output md-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Output</span>
-            <div class="ctl__editor-actions">
-              @if (formattedOutput()) {
-                <span class="ctl__editor-badge">{{ formatLabel() }}</span>
-              }
-              <button type="button" class="ctl__icon-btn" (click)="copyToClipboard()" [disabled]="!formattedOutput()" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="ntw__suggest" aria-label="Suggested next step">
-              <div class="ntw__suggest-body">
-                <p class="ntw__suggest-title">{{ suggestion.title }}</p>
-                <p class="ntw__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="ntw__suggest-actions">
-                <a class="ntw__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="ntw__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-
-          @if (formattedOutput()) {
-            <div class="ctl__editor-body" aria-live="polite">
-              <p class="ntw__output">{{ formattedOutput() }}</p>
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Enter a number to convert to words.</p>
-            </div>
-          }
-        </section>
+        </div>
       </div>
+    </section>
 
-      <details class="md-options-flyout">
-        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Samples and history">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Samples</header>
-            <div class="ctl__panel-body">
-              <div class="ntw__samples">
-                @for (sample of sampleNumbers; track trackSample($index, sample)) {
-                  <button type="button" class="ntw__sample" (click)="applySample(sample)">
-                    <strong>{{ sample.label }}</strong>
-                    <small>{{ sample.value }}</small>
-                  </button>
-                }
+    <section class="ntw__card ntw__card--history">
+      <header class="ntw__card-header">
+        <h2>Recent conversions</h2>
+        <span class="ntw__history-count">{{ historyEntries().length }}</span>
+      </header>
+      <div class="ntw__card-body ntw__card-body--scroll">
+        <ul class="ntw__history-list">
+          @for (entry of historyEntries(); track trackHistory($index, entry)) {
+            <li>
+              <div class="ntw__history-meta">
+                <span class="ntw__history-input">{{ entry.input }}</span>
+                <span class="ntw__history-tags">
+                  {{ entry.locale }} · {{ entry.format }} · {{ entry.caseStyle }}
+                </span>
               </div>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
-              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!historyEntries().length" appTooltip="Clear history" tooltipPosition="bottom" aria-label="Clear history">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+              <p class="ntw__history-preview">{{ entry.text }}</p>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
               </button>
-            </header>
-            <div class="ctl__panel-body">
-              @if (historyEntries().length > 0) {
-                <ul class="ntw__history">
-                  @for (entry of historyEntries(); track trackHistory($index, entry)) {
-                    <li>
-                      <button type="button" class="ntw__history-item" (click)="restoreHistory(entry)">
-                        <strong>{{ entry.text }}</strong>
-                        <span>{{ entry.input }} · {{ entry.locale }}</span>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <div class="ctl__panel-empty"><p>Conversions appear here.</p></div>
-              }
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body ntw__related">
-              <ul class="ntw__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="ntw__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Enter a number and pick locale, case, and format.</li>
-        <li>Output updates automatically — copy from toolbar or output panel.</li>
-        <li>Use samples or restore from history.</li>
-      </ul>
-    </details>
-  </main>
+            </li>
+          }
+          @if (historyEntries().length === 0) {
+            <li class="ntw__history-empty">
+              Conversions will be stored here for quick reuse.
+            </li>
+          }
+        </ul>
+      </div>
+    </section>
+  </div>
 </div>

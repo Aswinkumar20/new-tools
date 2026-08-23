@@ -1,229 +1,234 @@
-<div class="ctl ic">
-  <lib-navigation></lib-navigation>
+<div class="ir">
+  <div class="ir__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Image Resizer</h1>
-        <p>Resize, reformat, and optimise images in your browser — download ready-to-use assets instantly.</p>
+  <section class="ir__hero">
+    <div class="ir__badge">Media toolkit</div>
+    <h1>Image Resizer & Optimiser</h1>
+    <p>
+      Resize, reformat, and optimise images directly in your browser. Drag an image, pick dimensions or presets, and
+      download the ready-to-use asset instantly.
+    </p>
+
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <div class="ir__hero-meta">
+        <div>
+          <span class="ir__meta-label">Selected file</span>
+          <strong>{{ file.name }}</strong>
+        </div>
+        <div>
+          <span class="ir__meta-label">Size</span>
+          <strong>{{ formatBytes(file.size) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ir__hero-meta ir__hero-meta--placeholder">
+        Drop an image or browse to begin – supports PNG, JPEG, WebP, HEIC and RAW formats.
+      </div>
+    }
+  </section>
+
+  <div class="ir__workspace" [formGroup]="form">
+    <section class="ir__panel ir__panel--upload">
+      <header class="ir__card-header">
+        <div>
+          <h2>Upload & configure</h2>
+          <p>Select an image, adjust dimensions, lock aspect ratio, and choose export format.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Resize statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ selectedFile()?.name ?? '—' }}</span>
-          <span class="ctl__stat-label">File</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ form.controls.width.value ?? '—' }}×{{ form.controls.height.value ?? '—' }}</span>
-          <span class="ctl__stat-label">Target</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.format.value.split('/')[1].toUpperCase() }}</span>
-          <span class="ctl__stat-label">Format</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ history().length }}</span>
-          <span class="ctl__stat-label">History</span>
+      <div
+        class="ir__dropzone"
+        [class.ir__dropzone--active]="dragActive()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
+        <p>or drop here · Max file size {{ formatBytes(35 * 1024 * 1024) }}</p>
+      </div>
+
+      <div class="ir__form-grid">
+        <label class="ir__input" for="ir-width">
+          <span>Width (px)</span>
+          <input id="ir-width" type="number" min="1" [max]="8000" formControlName="width" (input)="onDimensionInput('width')" />
+        </label>
+
+        <label class="ir__input" for="ir-height">
+          <span>Height (px)</span>
+          <input id="ir-height" type="number" min="1" [max]="8000" formControlName="height" (input)="onDimensionInput('height')" />
+        </label>
+
+        <label class="ir__toggle">
+          <input type="checkbox" formControlName="keepAspect" />
+          <span>Lock aspect ratio</span>
+        </label>
+
+        <label class="ir__input" for="ir-interpolation">
+          <span>Interpolation</span>
+          <select id="ir-interpolation" formControlName="interpolation">
+            <option value="smooth">Smooth (quality)</option>
+            <option value="pixelated">Pixelated (retro)</option>
+          </select>
+        </label>
+
+        <label class="ir__input" for="ir-background">
+          <span>Background colour</span>
+          <input id="ir-background" type="text" placeholder="#ffffff or rgba(255,255,255,0.5)" formControlName="background" />
+          <small>Optional – used when shrinking transparent images.</small>
+        </label>
+
+        <label class="ir__input" for="ir-format">
+          <span>Export format</span>
+          <select id="ir-format" formControlName="format">
+            <option value="image/png">PNG (lossless)</option>
+            <option value="image/jpeg">JPEG (balanced)</option>
+            <option value="image/webp">WebP (modern)</option>
+          </select>
+        </label>
+
+        <label class="ir__input" for="ir-quality">
+          <span>Quality</span>
+          <input id="ir-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
+          <small>Applies to JPEG / WebP exports only.</small>
+        </label>
+
+        <label class="ir__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember conversions this session</span>
+        </label>
+      </div>
+
+      <div class="ir__presets">
+        <h3>Quick presets</h3>
+        <div class="ir__preset-list">
+          @for (preset of presets; track preset.label) {
+            <button type="button" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </button>
+          }
         </div>
       </div>
-    </div>
 
-    <div class="ic-workflow" aria-label="Resizer actions">
-      <div class="ic-workflow__group ic-workflow__group--actions">
-        <input #fileInput id="ir-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
-        <button type="button" class="ctl__tool-btn" (click)="fileInput.click()" aria-label="Upload" appTooltip="Upload image" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
+      <div class="ir__actions">
+        <button type="button" class="btn btn--primary" (click)="resize()" [disabled]="!canResize() || isProcessing()">
+          {{ isProcessing() ? 'Resizing…' : 'Resize image' }}
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="resize()" [disabled]="!canResize() || isProcessing()" aria-label="Resize" appTooltip="Resize image" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">{{ isProcessing() ? '…' : 'Resize' }}</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="download()" [disabled]="!result()" aria-label="Download" appTooltip="Download resized" tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!selectedFile()" aria-label="Clear" appTooltip="Clear all" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
+        <button type="button" class="btn btn--ghost" (click)="clear()" [disabled]="!selectedFile()">Clear</button>
       </div>
-    </div>
+    </section>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ic-editor-panel" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-          <header class="ctl__editor-head"><span>Original</span></header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="ires__suggest" aria-label="Suggested next step">
-              <div class="ires__suggest-body">
-                <p class="ires__suggest-title">{{ suggestion.title }}</p>
-                <p class="ires__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="ires__suggest-actions">
-                <a class="ires__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="ires__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (errors().length || warnings().length) {
-            @if (errors().length) {
-              <div class="ctl__alert ctl__alert--error" role="alert">
-                <ul>
-                  @for (m of errors(); track m) {
-                    <li>{{ m }}</li>
-                  }
-                </ul>
-              </div>
+    <section class="ir__panel ir__panel--preview">
+      <header class="ir__card-header">
+        <div>
+          <h2>Preview & stats</h2>
+          <p>Check the preview and compare original vs resized dimensions.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ir__alert ir__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
             }
-            @if (warnings().length) {
-              <div class="ctl__alert ctl__alert--warning">
-                <ul>
-                  @for (m of warnings(); track m) {
-                    <li>{{ m }}</li>
-                  }
-                </ul>
-              </div>
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ir__alert ir__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
             }
-          }
-          @if (isProcessing()) {
-            <div class="ctl__empty"><p>Processing…</p></div>
-          } @else if (previewUrl()) {
-            <div class="ctl__editor-body ires__preview-wrap">
-              <img [src]="previewUrl()" alt="Original" class="ict-preview-img" />
-            </div>
-          } @else {
-            <div class="ctl__editor-body">
-              <button type="button" class="ict-dropzone" [class.ict-dropzone--active]="dragActive()" (click)="fileInput.click()">
-                <p>Drop an image or click to browse</p>
-                <p>Max {{ formatBytes(maxFileSize) }}</p>
+          </ul>
+        </div>
+      }
+
+      @if (previewUrl()) {
+        <figure class="ir__preview">
+          <img [src]="previewUrl()" alt="Original preview" />
+        </figure>
+      } @else {
+        <div class="ir__empty">Image preview will appear once a file is loaded.</div>
+      }
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ir__stats">
+          <div>
+            <span>Original</span>
+            <strong>{{ current.originalDimensions.width }} × {{ current.originalDimensions.height }}</strong>
+          </div>
+          <div>
+            <span>Resized</span>
+            <strong>{{ current.resizedDimensions.width }} × {{ current.resizedDimensions.height }}</strong>
+          </div>
+          <div>
+            <span>Size</span>
+            <strong>{{ formatBytes(current.originalSize) }} → {{ formatBytes(current.resizedSize) }}</strong>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="ir__panel ir__panel--output">
+      <header class="ir__card-header">
+        <div>
+          <h2>Download & share</h2>
+          <p>Grab your resized asset and reuse the conversion later.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ir__result-preview">
+          <img [src]="current.previewUrl" alt="Resized preview" />
+        </div>
+
+        <div class="ir__actions">
+          <button type="button" class="btn btn--primary" (click)="download()">Download</button>
+          <a class="btn btn--ghost" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
+        </div>
+      } @else {
+        <div class="ir__empty">Resize an image to see the output preview and download link.</div>
+      }
+    </section>
+
+    <section class="ir__panel ir__panel--history">
+      <header class="ir__card-header">
+        <div>
+          <h2>Conversion history</h2>
+          <p>Review past conversions during this session.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ir__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <div>
+                <strong>{{ entry.name ?? 'Untitled' }}</strong>
+                <span>{{ entry.originalDimensions }} → {{ entry.resizedDimensions }} · {{ entry.format }}</span>
+                <span>{{ entry.sizeDiff }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                Remove
               </button>
-            </div>
+            </li>
           }
-        </section>
-
-        <section class="ctl__editor ctl__editor--output ic-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Resized output</span>
-            @if (result()) {
-              <span class="ctl__editor-badge">Ready</span>
-            }
-          </header>
-          @if (result(); as current) {
-            <div class="ctl__editor-body ires__output-wrap">
-              <img [src]="current.previewUrl" alt="Resized" class="ict-preview-img" />
-              <p class="ires__output-meta">
-                {{ current.originalDimensions.width }}×{{ current.originalDimensions.height }} →
-                {{ current.resizedDimensions.width }}×{{ current.resizedDimensions.height }}
-              </p>
-            </div>
-          } @else {
-            <div class="ctl__empty"><p>Resize an image to see the output preview.</p></div>
-          }
-        </section>
-      </div>
-
-      <details class="ic-options-flyout">
-        <summary class="ic-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ic-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ic-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Resize options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Dimensions</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="ir-width">
-                <span>Width (px)</span>
-                <input id="ir-width" type="number" min="1" max="8000" formControlName="width" (input)="onDimensionInput('width')" />
-              </label>
-              <label class="ctl__field" for="ir-height">
-                <span>Height (px)</span>
-                <input id="ir-height" type="number" min="1" max="8000" formControlName="height" (input)="onDimensionInput('height')" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="keepAspect" />
-                <div><strong>Lock aspect ratio</strong></div>
-              </label>
-              <label class="ctl__field" for="ir-interpolation">
-                <span>Interpolation</span>
-                <select id="ir-interpolation" formControlName="interpolation">
-                  <option value="smooth">Smooth</option>
-                  <option value="pixelated">Pixelated</option>
-                </select>
-              </label>
-              <label class="ctl__field" for="ir-background">
-                <span>Background</span>
-                <input id="ir-background" type="text" placeholder="#ffffff" formControlName="background" />
-              </label>
-              <label class="ctl__field" for="ir-format">
-                <span>Format</span>
-                <select id="ir-format" formControlName="format">
-                  <option value="image/png">PNG</option>
-                  <option value="image/jpeg">JPEG</option>
-                  <option value="image/webp">WebP</option>
-                </select>
-              </label>
-              <label class="ctl__field" for="ir-quality">
-                <span>Quality</span>
-                <input id="ir-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="rememberHistory" />
-                <div><strong>Remember history</strong></div>
-              </label>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Presets</header>
-            <div class="ctl__panel-body">
-              @for (preset of presets; track preset.label) {
-                <button type="button" class="ctl__tool-btn ires__preset-btn" (click)="applyPreset(preset)">
-                  {{ preset.label }}
-                </button>
-              }
-            </div>
-          </div>
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Resizing runs <strong>locally</strong> in your browser.</p>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body ires__related">
-              <ul class="ires__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="ires__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Upload an image and set target dimensions or pick a preset.</li>
-        <li>Lock aspect ratio to maintain proportions while resizing.</li>
-        <li>Download the resized image when the output preview is ready.</li>
-      </ul>
-    </details>
-  </main>
+        </ul>
+      } @else {
+        <div class="ir__empty">Enable history tracking to build a session log.</div>
+      }
+    </section>
+  </div>
 </div>

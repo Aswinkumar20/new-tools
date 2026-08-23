@@ -1,295 +1,496 @@
-<div class="ctl pt">
-  <lib-navigation></lib-navigation>
+<div class="main-container">
+  <div class="top-navigation">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Merge PDFs</h1>
-        <p>Combine multiple PDF files into one document — reorder, preview, and download locally.</p>
-      </header>
-
-      <div class="ctl__stats" aria-label="Merge statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFiles.length }}</span>
-          <span class="ctl__stat-label">Files</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ totalPages }}</span>
-          <span class="ctl__stat-label">Pages</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFiles.length ? formatTotalSize() : '—' }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ mergedPdfPreview ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Preview</span>
+  <div class="container">
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="header-content">
+        <h2>Merge PDFs</h2>
+        <p class="subtitle">Combine multiple PDF files into one document easily</p>
+        <div class="header-meta">
+          <span>Upload Multiple PDFs</span>
+          <span>Drag & Drop Support</span>
+          <span>Reorder Pages</span>
+          <span>Merge & Download</span>
         </div>
       </div>
     </div>
 
-    <div class="pt-workflow" aria-label="Merge actions">
-      <div class="pt-workflow__group pt-workflow__group--actions">
-      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" aria-label="Add PDFs" appTooltip="Add PDFs" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Add</span>
-      </button>
-      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="mergePdfs()" [disabled]="!canMerge" aria-label="Merge PDFs" appTooltip="Merge PDFs" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" />
-        </svg>
-        <span class="ctl__tool-btn-label">{{ loading ? 'Merging…' : 'Merge' }}</span>
-      </button>
-      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadMergedPdf()" [disabled]="!canDownloadMerged" aria-label="Download merged PDF" appTooltip="Download merged PDF" tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        <span class="ctl__tool-btn-label">Download</span>
-      </button>
-      <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="!canClearAll" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
+    <!-- Stats Strip -->
+    <div class="insight-strip" *ngIf="pdfFiles.length > 0">
+      <div class="insight-card">
+        <span class="insight-label">PDFs Added</span>
+        <span class="insight-value">{{ pdfFiles.length }}</span>
+        <span class="insight-hint">Files ready to merge</span>
+      </div>
+      <div class="insight-card">
+        <span class="insight-label">Total Pages</span>
+        <span class="insight-value">{{ totalPages }}</span>
+        <span class="insight-hint">Combined page count</span>
+      </div>
+      <div class="insight-card">
+        <span class="insight-label">Total Size</span>
+        <span class="insight-value">{{ formatTotalSize() }}</span>
+        <span class="insight-hint">Combined file size</span>
       </div>
     </div>
-    <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
 
-    @if (pdfFiles.length) {
-      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsMoreFiles" role="status">
-        <span class="pt-setup-banner__step">{{ needsMoreFiles ? 'Step 1' : 'Tip' }}</span>
-        <p class="pt-setup-banner__text">{{ mergeSetupHint }}</p>
-        @if (pdfFiles.length >= 1) {
-          <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
-        }
-      </div>
-    }
-
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor pt-editor-panel">
-          <header class="ctl__editor-head">
-            <span>PDF files</span>
-            <div class="ctl__editor-actions">
-              <button type="button" class="pt-icon-btn" (click)="openFileDialog()" aria-label="Browse files" appTooltip="Browse files" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="16" height="16" />
-              </button>
+    <!-- Main Content -->
+    <div class="content-layout">
+      <!-- Left Panel: File Upload & List -->
+      <div class="left-panel">
+        <section class="upload-section panel-card">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Upload PDFs</h3>
+              <p>Select multiple PDF files to merge</p>
             </div>
-          </header>
+            <button class="btn-link" (click)="openFileDialog()" *ngIf="pdfFiles.length === 0">Browse</button>
+            <button class="btn-link" (click)="openFileDialog()" *ngIf="pdfFiles.length > 0">Add More</button>
+          </div>
 
-          @if (!pdfFiles.length) {
+          <div class="panel-card-body">
+            <input
+              #fileInput
+              type="file"
+              multiple
+              accept=".pdf,application/pdf"
+              (change)="onFileSelected($event)"
+              class="file-input"
+              hidden>
+
             <button
               type="button"
-              class="ctl-pdf__drop"
-              [class.ctl-pdf__drop--active]="showDropZone"
+              class="drop-zone"
+              [class.active]="showDropZone"
               (dragenter)="onDragEnter($event)"
               (dragover)="onDragOver($event)"
               (dragleave)="onDragLeave($event)"
               (drop)="onDrop($event)"
-              (click)="openFileDialog()">
-              <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
-              <p><strong>Drop PDF files here</strong> or click to browse</p>
-              <p>Max 100 MB per file · multiple files supported</p>
+              (click)="openFileDialog()"
+              *ngIf="pdfFiles.length === 0">
+              <div class="drop-zone-content">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <p class="drop-zone-text">Click to browse or drag and drop PDF files here</p>
+                <p class="drop-zone-formats">Supported: PDF files (Max 100MB per file)</p>
+              </div>
             </button>
-          } @else {
-            <ul class="ctl-pdf__file-list">
-              @for (file of pdfFiles; track file.name; let i = $index) {
-                <li
-                  class="ctl-pdf__file-item"
-                  draggable="true"
-                  (dragstart)="onFileDragStart($event, i)"
-                  (dragend)="onFileDragEnd($event)"
-                  (dragover)="onFileDragOver($event)"
-                  (drop)="onFileDrop($event, i)">
-                  <span class="ctl-pdf__file-name">
-                    {{ file.name }}
-                    @if (file.needsPassword) { 🔒 }
-                  </span>
-                  <span class="ctl-pdf__file-meta">{{ formatFileSize(file.size) }} · {{ file.pageCount || '?' }} pg</span>
-                  <div class="ctl-pdf__page-nav">
-                    <button type="button" class="pt-icon-btn" (click)="moveFileUp(i)" [disabled]="loading || i === 0" aria-label="Move up" appTooltip="Move up" tooltipPosition="bottom">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
-                    </button>
-                    <button type="button" class="pt-icon-btn" (click)="moveFileDown(i)" [disabled]="loading || i === pdfFiles.length - 1" aria-label="Move down" appTooltip="Move down" tooltipPosition="bottom">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-                    </button>
-                    <button type="button" class="pt-icon-btn" (click)="removeFile(i)" [disabled]="loading" aria-label="Remove file" appTooltip="Remove file" tooltipPosition="bottom">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+
+            <div class="quick-add-zone" *ngIf="pdfFiles.length > 0">
+              <button
+                type="button"
+                class="btn-add-more"
+                (click)="openFileDialog()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add More PDFs
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- PDF Files List -->
+        <section class="files-list-section panel-card" *ngIf="pdfFiles.length > 0">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>PDF Files ({{ pdfFiles.length }})</h3>
+              <p>Drag to reorder or remove files</p>
+            </div>
+            <button class="btn-link danger" (click)="clearAll()">Clear All</button>
+          </div>
+
+          <div class="panel-card-body">
+            <div class="files-list">
+              <div
+                *ngFor="let file of pdfFiles; let i = index"
+                class="file-item"
+                draggable="true"
+                (dragstart)="onFileDragStart($event, i)"
+                (dragend)="onFileDragEnd($event)"
+                (dragover)="onFileDragOver($event)"
+                (drop)="onFileDrop($event, i)"
+                [class.dragging]="isDragging(i)">
+                <div class="file-item-content">
+                  <div class="drag-handle">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="9" cy="12" r="1"></circle>
+                      <circle cx="9" cy="5" r="1"></circle>
+                      <circle cx="9" cy="19" r="1"></circle>
+                      <circle cx="15" cy="12" r="1"></circle>
+                      <circle cx="15" cy="5" r="1"></circle>
+                      <circle cx="15" cy="19" r="1"></circle>
+                    </svg>
+                  </div>
+
+                  <div class="file-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                  </div>
+
+                  <div class="file-info">
+                    <p class="file-name">
+                      {{ file.name }}
+                      <span class="password-badge" *ngIf="file.needsPassword" title="Password protected">🔒</span>
+                      <span class="password-badge error" *ngIf="file.passwordError" title="Incorrect password">⚠️</span>
+                    </p>
+                    <div class="file-meta">
+                      <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                      <span class="file-pages" *ngIf="file.pageCount">• {{ file.pageCount }} page{{ file.pageCount !== 1 ? 's' : '' }}</span>
+                      <span class="password-required-text" *ngIf="file.needsPassword && !file.pdfDoc">• Password required</span>
+                    </div>
+                  </div>
+
+                  <div class="file-actions">
+                    <div class="reorder-buttons">
+                      <button
+                        class="btn-icon-small"
+                        (click)="moveFileUp(i)"
+                        [disabled]="loading || i === 0"
+                        title="Move Up">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
+                      </button>
+                      <button
+                        class="btn-icon-small"
+                        (click)="moveFileDown(i)"
+                        [disabled]="loading || i === pdfFiles.length - 1"
+                        title="Move Down">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+                    <button
+                      class="btn-icon-small danger"
+                      (click)="removeFile(i)"
+                      [disabled]="loading"
+                      title="Remove">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
                     </button>
                   </div>
-                </li>
-              }
-            </ul>
-          }
-        </section>
-
-        <section class="ctl__editor ctl__editor--output pt-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Preview</span>
-            @if (mergedPdfPreview) {
-              <div class="ctl-pdf__page-nav">
-                <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
-                </button>
-                <input type="number" class="ctl-pdf__page-input" [ngModel]="previewPage" (ngModelChange)="goToPreviewPage($event)" [min]="1" [max]="totalPages" />
-                <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
-                </button>
-                <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                  </svg>
-                </button>
+                </div>
               </div>
-            }
-          </header>
-          @if (mergedPdfPreview && !loading) {
-            <div class="ctl-pdf__canvas-wrap">
-              <canvas #previewCanvas class="ctl-pdf__canvas"></canvas>
             </div>
-          } @else {
-            <div class="ctl__empty"><p>Merge at least two PDFs to preview the combined document.</p></div>
-          }
+          </div>
         </section>
       </div>
 
-            <div
-              #optionsFlyout
-              class="pt-options-flyout pt-options-flyout--inline"
-              [class.pt-options-flyout--open]="optionsPanelOpen"
-              [class.pt-options-flyout--attention]="needsMoreFiles">
-        <button
-          type="button"
-          class="pt-options-flyout__trigger"
-          [class.pt-options-flyout__trigger--attention]="needsMoreFiles"
-          [attr.aria-expanded]="optionsPanelOpen"
-          (click)="toggleOptionsPanel()"
-          appTooltip="Output filename and merge options"
-          tooltipPosition="left">
-          <svg class="pt-options-flyout__chevron" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Configuration</span>
-          @if (needsMoreFiles) {
-            <span class="pt-options-flyout__badge" aria-hidden="true">!</span>
-          }
-        </button>
-        <button type="button" class="pt-options-flyout__backdrop" aria-label="Close configuration panel" appTooltip="Close configuration" tooltipPosition="left" (click)="optionsPanelOpen = false"></button>
-        <aside class="pt-config-panel pt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Merge configuration">
-          <header class="pt-config-panel__head">
-            <div class="pt-config-panel__head-row">
-              <div class="pt-config-panel__head-brand">
-                <span class="pt-config-panel__icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                    <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                    <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
-                    <line x1="17" y1="16" x2="23" y2="16" />
-                  </svg>
-                </span>
-                <h2 class="pt-config-panel__bar-title">Configuration</h2>
+      <!-- Right Panel: Merge Controls & Preview -->
+      <div class="right-panel">
+        <section class="merge-controls-section panel-card" *ngIf="pdfFiles.length > 0">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Merge Options</h3>
+              <p>Configure your merged PDF</p>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <div class="merge-options">
+              <div class="option-item">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="preserveBookmarks"
+                    [disabled]="loading">
+                  <span>Preserve bookmarks</span>
+                </label>
+                <p class="option-hint">Keep bookmarks from source PDFs</p>
               </div>
-              <button type="button" class="pt-config-panel__close" (click)="optionsPanelOpen = false" aria-label="Close configuration">×</button>
+
+              <div class="option-item">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="removeDuplicatePages"
+                    [disabled]="loading">
+                  <span>Remove duplicate pages</span>
+                </label>
+                <p class="option-hint">Skip pages that appear multiple times</p>
+              </div>
+
+              <div class="option-item">
+                <label for="output-filename">Output filename:</label>
+                <input
+                  id="output-filename"
+                  type="text"
+                  [(ngModel)]="outputFilename"
+                  placeholder="merged-document.pdf"
+                  class="text-input"
+                  [disabled]="loading">
+              </div>
             </div>
-            <p class="pt-config-panel__desc">Set merge options and output filename.</p>
-          </header>
-          <div class="pt-config-panel__scroll">
-            <div class="pt-config-panel__sections">
-              <section class="pt-config-panel__section">
-                <h3 class="pt-config-panel__section-title">Merge options</h3>
-                <label class="ctl__toggle">
-                  <input type="checkbox" [(ngModel)]="preserveBookmarks" [disabled]="loading" />
-                  <div><strong>Preserve bookmarks</strong><span>Keep bookmarks from source PDFs.</span></div>
-                </label>
-                <label class="ctl__toggle">
-                  <input type="checkbox" [(ngModel)]="removeDuplicatePages" [disabled]="loading" />
-                  <div><strong>Remove duplicate pages</strong><span>Skip repeated page dimensions.</span></div>
-                </label>
-              </section>
-              <section class="pt-config-panel__section pt-config-panel__section--output">
-                <h3 class="pt-config-panel__section-title">Output file</h3>
-                <label class="pt-config-field">
-                  <span class="pt-config-field__label">Filename</span>
-                  <input class="pt-config-input" type="text" [(ngModel)]="outputFilename" placeholder="merged-document.pdf" [disabled]="loading" />
-                </label>
-              </section>
-            </div>
-          </div>
-          <div class="pt-config-panel__trust" role="note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            <span>Processed locally in your browser</span>
-          </div>
-          @if (hasFilesNeedingPassword()) {
-            <div class="pt-config-panel__foot">
-              <p class="pt-config-panel__meta">
-                <span>Some files need a <strong>password</strong> before merging.</span>
+
+            <div class="merge-actions">
+              <button
+                class="btn-primary merge-btn"
+                (click)="mergePdfs()"
+                [disabled]="loading || pdfFiles.length < 2 || hasFilesNeedingPassword()">
+                <span *ngIf="!loading">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                  </svg>
+                  Merge PDFs
+                </span>
+                <span *ngIf="loading">Merging...</span>
+              </button>
+              
+              <p class="merge-hint" *ngIf="pdfFiles.length < 2">
+                Add at least 2 PDF files to merge
+              </p>
+              <p class="merge-hint error" *ngIf="hasFilesNeedingPassword() && pdfFiles.length >= 2">
+                Some PDF files require passwords. Please unlock them first.
               </p>
             </div>
-          }
-        </aside>
+          </div>
+        </section>
+
+        <!-- Preview Section -->
+        <section class="preview-section panel-card" *ngIf="mergedPdfPreview && !loading">
+          <div class="panel-card-header">
+            <div class="panel-title">
+              <h3>Merged Preview</h3>
+              <p>Page {{ previewPage }} of {{ totalPages }}</p>
+            </div>
+            <div class="preview-header-actions">
+              <div class="page-controls">
+                <button
+                  class="btn-icon"
+                  (click)="previousPreviewPage()"
+                  [disabled]="previewPage <= 1"
+                  title="Previous Page">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+                <input
+                  type="number"
+                  [ngModel]="previewPage"
+                  (ngModelChange)="goToPreviewPage($event)"
+                  [min]="1"
+                  [max]="totalPages"
+                  class="page-input">
+                <button
+                  class="btn-icon"
+                  (click)="nextPreviewPage()"
+                  [disabled]="previewPage >= totalPages"
+                  title="Next Page">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+              <button
+                class="btn-primary download-preview-btn"
+                (click)="downloadMergedPdf()"
+                title="Download Merged PDF">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download PDF
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-card-body">
+            <div class="preview-info-banner" *ngIf="mergedPdfPreview">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <span>Review your merged PDF below. Use the download button above to save it.</span>
+            </div>
+            <div class="pdf-preview-container">
+              <canvas
+                #previewCanvas
+                class="pdf-preview-canvas"></canvas>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Add two or more PDFs via drag-and-drop or the toolbar.</li>
-        <li>Drag files in the list to set merge order.</li>
-        <li>Click <strong>Merge</strong>, preview pages, then <strong>Download</strong>.</li>
-      </ul>
-    </details>
-  </main>
-
-  <lib-pdf-fullscreen-overlay
-    [open]="previewFullscreen"
-    title="Merged PDF preview"
-    (closed)="closePreviewFullscreen()"
-    (ready)="scheduleRenderPreview()">
-    @if (mergedPdfPreview) {
-      <div pdfFsToolbar class="ctl-pdf__page-nav">
-        <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-        <span class="ctl__editor-badge">{{ previewPage }} / {{ totalPages }}</span>
-        <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
-      </div>
-    }
-  </lib-pdf-fullscreen-overlay>
-
-  @if (loading) {
-    <div class="ctl-pdf__overlay" aria-live="polite">
-      <div class="ctl-pdf__spinner"></div>
+    <!-- Loading Indicator -->
+    <div class="loading-overlay" *ngIf="loading">
+      <div class="spinner"></div>
       <p>{{ loadingMessage }}</p>
     </div>
-  }
 
-  @if (showPasswordDialog) {
-    <div class="ctl-pdf__dialog-layer">
-      <button type="button" class="ctl-pdf__dialog-overlay" (click)="cancelPassword()" aria-label="Close"></button>
-      <div class="ctl-pdf__dialog" tabindex="-1">
-        <div class="ctl-pdf__dialog-head">
-          <h3>Password required</h3>
+    <!-- Error Message -->
+    <div class="error-message" *ngIf="errorMessage">
+      <button class="error-close" (click)="errorMessage = ''">×</button>
+      <p>{{ errorMessage }}</p>
+    </div>
+
+    <!-- Success Message -->
+    <div class="success-message" *ngIf="successMessage">
+      <button class="success-close" (click)="successMessage = ''">×</button>
+      <p>{{ successMessage }}</p>
+    </div>
+
+    <!-- Password Dialog -->
+    <div class="password-dialog-layer" *ngIf="showPasswordDialog">
+      <button
+        type="button"
+        class="password-dialog-overlay"
+        (click)="cancelPassword()"
+        aria-label="Close password dialog"></button>
+      <div
+        class="password-dialog"
+        tabindex="-1"
+        (keydown.enter)="$event.stopPropagation()"
+        (keydown.space)="$event.stopPropagation()">
+        <div class="password-dialog-header">
+          <div class="password-header-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div class="password-header-content">
+            <h3>Password Required</h3>
+            <p class="password-file-name" *ngIf="passwordForFile">{{ passwordForFile.name }}</p>
+          </div>
+          <button class="password-dialog-close" (click)="cancelPassword()" title="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
-        <div class="ctl-pdf__dialog-body">
-          <p>{{ passwordForFile?.name }}</p>
-          <label class="ctl__field">
-            <span>Password</span>
-            <input #passwordInputField id="pdf-password-input" type="password" [(ngModel)]="passwordInput" (keydown)="onPasswordKeydown($event)" placeholder="Enter PDF password" autocomplete="off" />
-          </label>
-          @if (passwordError) {
-            <div class="ctl__alert ctl__alert--error"><p>{{ passwordError }}</p></div>
-          }
-        </div>
-        <div class="ctl-pdf__dialog-actions">
-          <button type="button" class="ctl-pdf__btn" (click)="cancelPassword()">Cancel</button>
-          <button type="button" class="ctl-pdf__btn ctl-pdf__btn--primary" (click)="submitPassword()" [disabled]="!passwordInput.trim()">Unlock</button>
+
+        <div class="password-dialog-content">
+          <p class="password-dialog-message">
+            This PDF file is password protected. Please enter the password to unlock and merge it.
+          </p>
+
+          <div class="password-input-group">
+            <label for="pdf-password-input">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Password:
+            </label>
+            <input
+              #passwordInputField
+              id="pdf-password-input"
+              type="password"
+              [(ngModel)]="passwordInput"
+              (keydown)="onPasswordKeydown($event)"
+              placeholder="Enter PDF password"
+              class="password-input"
+              [class.error]="passwordError"
+              autofocus
+              autocomplete="off">
+            <p class="password-error" *ngIf="passwordError">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              {{ passwordError }}
+            </p>
+          </div>
+
+          <div class="password-dialog-actions">
+            <button class="btn-secondary" (click)="cancelPassword()" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+              Cancel
+            </button>
+            <button class="btn-primary" (click)="submitPassword()" type="button" [disabled]="!passwordInput.trim()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Unlock & Continue
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  }
+
+    <!-- How to Use Section -->
+    <section class="how-to-use-section panel-card">
+      <div class="panel-card-header">
+        <div class="panel-title">
+          <h3>How to Use</h3>
+          <p>Step-by-step guide to merge your PDF documents</p>
+        </div>
+      </div>
+
+      <div class="panel-card-body">
+        <div class="steps-container">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h4>Upload PDF Files</h4>
+              <p>Click the "Browse" button or drag and drop multiple PDF files into the upload area. You can upload as many PDF files as you need. Each file can be up to 100MB in size.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h4>Reorder Files (Optional)</h4>
+              <p>If you want to change the order of PDFs in the merged document, click and drag the files in the list to reorder them. The files will be merged in the order shown in the list.</p>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h4>Configure Options</h4>
+              <p>Choose your merge options:</p>
+              <ul>
+                <li><strong>Preserve bookmarks:</strong> Keep bookmarks from the source PDFs in the merged document.</li>
+                <li><strong>Remove duplicate pages:</strong> Automatically remove pages that appear multiple times across the PDFs.</li>
+                <li><strong>Output filename:</strong> Enter a custom name for your merged PDF file (optional).</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="step-item">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <h4>Merge & Download</h4>
+              <p>Click the "Merge PDFs" button to combine all the uploaded files. Once the merge is complete, your browser will automatically download the merged PDF file. You can also preview the merged document before downloading.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="tips-section">
+          <h4>💡 Tips & Tricks</h4>
+          <ul>
+            <li>You can add more PDFs at any time before merging by clicking "Add More".</li>
+            <li>Remove individual files by clicking the X button next to any file in the list.</li>
+            <li>Use the drag handle (⋮⋮) to reorder files - the merged PDF will follow this order.</li>
+            <li>All processing happens in your browser - your files never leave your device.</li>
+            <li>Large PDFs may take a few moments to process - please be patient.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>

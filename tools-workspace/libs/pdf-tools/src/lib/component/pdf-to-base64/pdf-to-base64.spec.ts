@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { PdfToBase64Component } from './pdf-to-base64';
 
 describe('PdfToBase64Component', () => {
@@ -8,8 +7,7 @@ describe('PdfToBase64Component', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PdfToBase64Component],
-      providers: pdfToolTestProviders(),
+      imports: [PdfToBase64Component]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PdfToBase64Component);

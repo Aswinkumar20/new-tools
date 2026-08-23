@@ -1,69 +1,53 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnDestroy,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import {
-  STOPWATCH_RELATED_TOOLS,
-  STOPWATCH_TICK_MS
-} from '../../constants/stopwatch-timer.constants';
-import { ftCopyText } from '../../shared/ft-clipboard.util';
-import type { FtRelatedToolLink } from '../../shared/ft-tool-suggestion.model';
-import type { LapTime } from '../../types/stopwatch-timer.types';
-import {
-  computeStartTimestamp,
-  computeStopwatchLapStats,
-  createLapEntry,
-  formatLapsCopyText,
-  formatStopwatchLapTime,
-  formatStopwatchTime,
-  resolveStopwatchSuggestion
-} from '../../utils/stopwatch-timer.utils';
+import { Navigation } from '@tools-workspace/features-home';
+
+interface LapTime {
+  lapNumber: number;
+  lapTime: number; // in milliseconds
+  totalTime: number; // in milliseconds
+  timestamp: number;
+}
 
 @Component({
   selector: 'lib-stopwatch-timer',
   standalone: true,
   templateUrl: './stopwatch-timer.html',
   styleUrls: ['./stopwatch-timer.scss'],
-  imports: [CommonModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StopwatchTimerComponent implements OnDestroy {
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
-
-  readonly elapsedTime = signal<number>(0);
+  readonly elapsedTime = signal<number>(0); // in milliseconds
   readonly isRunning = signal(false);
   readonly lapTimes = signal<LapTime[]>([]);
   readonly startTime = signal<number | null>(null);
-  readonly lastLapTime = signal<number>(0);
-  private readonly dismissedSuggestionId = signal<string | null>(null);
+  readonly lastLapTime = signal<number>(0); // in milliseconds
 
   private intervalId: number | null = null;
 
-  readonly relatedTools: ReadonlyArray<FtRelatedToolLink> = STOPWATCH_RELATED_TOOLS;
-
-  readonly formattedTime = computed(() => formatStopwatchTime(this.elapsedTime()));
+  readonly formattedTime = computed(() => this.formatTime(this.elapsedTime()));
   readonly hasLaps = computed(() => this.lapTimes().length > 0);
-  readonly stats = computed(() => computeStopwatchLapStats(this.lapTimes()));
 
-  readonly primarySuggestion = computed(() => {
-    const suggestion = resolveStopwatchSuggestion({
-      isRunning: this.isRunning(),
-      elapsedMs: this.elapsedTime(),
-      lapCount: this.lapTimes().length
-    });
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
+  readonly stats = computed(() => {
+    const laps = this.lapTimes();
+    if (laps.length === 0) {
+      return { count: 0, fastest: 0, slowest: 0, average: 0 };
     }
-    return suggestion;
+
+    const lapDurations = laps.map((lap) => lap.lapTime);
+    const sum = lapDurations.reduce((acc, val) => acc + val, 0);
+    return {
+      count: laps.length,
+      fastest: Math.min(...lapDurations),
+      slowest: Math.max(...lapDurations),
+      average: sum / lapDurations.length
+    };
   });
+
+  constructor() {
+    // Initialize
+  }
 
   ngOnDestroy(): void {
     this.stop();
@@ -77,13 +61,14 @@ export class StopwatchTimerComponent implements OnDestroy {
     this.isRunning.set(true);
     const now = Date.now();
     const elapsed = this.elapsedTime();
-    const start = computeStartTimestamp(now, elapsed);
+    const start = now - elapsed;
     this.startTime.set(start);
 
     this.intervalId = window.setInterval(() => {
       const currentTime = Date.now();
-      this.elapsedTime.set(currentTime - start);
-    }, STOPWATCH_TICK_MS);
+      const elapsed = currentTime - start;
+      this.elapsedTime.set(elapsed);
+    }, 10); // Update every 10ms for smooth display
   }
 
   stop(): void {
@@ -112,37 +97,46 @@ export class StopwatchTimerComponent implements OnDestroy {
     }
 
     const currentTime = this.elapsedTime();
-    const entry = createLapEntry(currentTime, this.lastLapTime(), this.lapTimes().length);
-    this.lapTimes.update((laps) => [entry, ...laps]);
+    const lapTime = currentTime - this.lastLapTime();
+    const lapNumber = this.lapTimes().length + 1;
+
+    this.lapTimes.update((laps) => [
+      {
+        lapNumber,
+        lapTime,
+        totalTime: currentTime,
+        timestamp: Date.now()
+      },
+      ...laps
+    ]);
+
     this.lastLapTime.set(currentTime);
   }
 
   formatTime(milliseconds: number): string {
-    return formatStopwatchTime(milliseconds);
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const ms = Math.floor((milliseconds % 1000) / 10);
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+    }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
   }
 
   formatLapTime(milliseconds: number): string {
-    return formatStopwatchLapTime(milliseconds);
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const ms = Math.floor((milliseconds % 1000) / 10);
+
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
   }
 
   clearLaps(): void {
     this.lapTimes.set([]);
     this.lastLapTime.set(0);
-  }
-
-  async copyTime(): Promise<void> {
-    await ftCopyText(this.toast, this.formattedTime(), 'Time');
-  }
-
-  async copyLaps(): Promise<void> {
-    const text = formatLapsCopyText(this.lapTimes());
-    if (!text) {
-      return;
-    }
-    await ftCopyText(this.toast, text, 'Lap times');
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
   }
 }

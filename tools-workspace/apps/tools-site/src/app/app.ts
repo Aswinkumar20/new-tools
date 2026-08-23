@@ -7,24 +7,21 @@ import { filter } from 'rxjs/operators';
 import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
-import { FooterComponent, StatValueTooltipHostDirective, ToastContainerComponent } from '@tools-workspace/features-home';
+import { FooterComponent } from '@tools-workspace/features-home';
 import { GoogleAnalyticsService } from './services/google-analytics.service';
 import { AutoGATrackerService } from './services/auto-ga-tracker.service';
-import { SeoService } from './services/seo.service';
-import { getSeoMetadataForRoute, getToolSeoEntry } from './config/route-seo.config';
 import { GaScrollDirective } from './directives/ga-scroll.directive';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, FooterComponent, GaScrollDirective, ToastContainerComponent, StatValueTooltipHostDirective],
+  imports: [RouterOutlet, FooterComponent, GaScrollDirective],
   template: `
-    <div class="app-shell" gaScroll appStatValueTooltipHost>
+    <div class="app-shell" gaScroll>
       <main class="app-shell__main">
         <router-outlet></router-outlet>
       </main>
       <lib-footer></lib-footer>
-      <lib-toast-container></lib-toast-container>
     </div>
   `,
   styleUrls: ['./app.scss'],
@@ -38,19 +35,8 @@ export class App implements OnInit, OnDestroy {
     private readonly router: Router,
     @Inject(PLATFORM_ID) private readonly platformId: Object,
     private readonly gaService: GoogleAnalyticsService,
-    private readonly autoTracker: AutoGATrackerService,
-    private readonly seoService: SeoService
+    private readonly autoTracker: AutoGATrackerService // Initialize auto tracker
   ) {
-    // SEO runs on server and client so crawlers/SSR receive per-page metadata
-    this.router.events
-      .pipe(
-        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-        takeUntilDestroyed()
-      )
-      .subscribe((event: NavigationEnd) => {
-        this.updateSeoForRoute(event.urlAfterRedirects);
-      });
-
     if (isPlatformBrowser(this.platformId)) {
       // Track route changes and scroll to top
       this.router.events
@@ -89,13 +75,7 @@ export class App implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Apply SEO for the initial route (SSR + client hydration)
-    this.updateSeoForRoute(this.router.url);
-
     if (isPlatformBrowser(this.platformId)) {
-      // Apply theme immediately on app load
-      this.applyThemeOnInit();
-      
       this.currentPath = this.router.url;
       this.pageStartTime = Date.now();
 
@@ -113,20 +93,6 @@ export class App implements OnInit, OnDestroy {
 
       // Track Core Web Vitals if available
       this.trackCoreWebVitals();
-    }
-  }
-
-  private applyThemeOnInit(): void {
-    // Load theme preference and apply immediately
-    const savedTheme = localStorage.getItem('theme');
-    const root = document.documentElement;
-    
-    if (savedTheme) {
-      root.setAttribute('data-theme', savedTheme);
-    } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
     }
   }
 
@@ -228,38 +194,5 @@ export class App implements OnInit, OnDestroy {
       return parts[parts.length - 1];
     }
     return undefined;
-  }
-
-  /**
-   * Update SEO metadata for a route
-   */
-  private updateSeoForRoute(url: string): void {
-    const cleanUrl = url.split('?')[0];
-    const seoMetadata = getSeoMetadataForRoute(cleanUrl);
-
-    if (!seoMetadata) {
-      return;
-    }
-
-    if (cleanUrl === '/tools/home') {
-      seoMetadata.structuredData = this.seoService.generateWebsiteStructuredData();
-    } else {
-      const entry = getToolSeoEntry(cleanUrl);
-      const toolName = entry?.name || seoMetadata.title?.split(' - ')[0] || 'Tool';
-      const breadcrumbs = [
-        { name: 'Home', url: '/tools/home' },
-        ...(entry?.category
-          ? [{ name: entry.category, url: `/${entry.categorySlug}` }]
-          : []),
-        { name: toolName, url: cleanUrl },
-      ];
-
-      seoMetadata.structuredData = [
-        this.seoService.generateToolStructuredData(toolName, seoMetadata.description || '', cleanUrl),
-        this.seoService.generateBreadcrumbStructuredData(breadcrumbs),
-      ];
-    }
-
-    this.seoService.updateMetadata(seoMetadata);
   }
 }

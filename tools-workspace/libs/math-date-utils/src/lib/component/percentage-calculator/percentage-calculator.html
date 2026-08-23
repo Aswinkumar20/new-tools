@@ -1,268 +1,235 @@
-<div class="ctl md">
-  <lib-navigation></lib-navigation>
+<div class="pc">
+  <div class="pc__nav-shell">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Percentage Calculator</h1>
-        <p>Compute discounts, markups, change, and proportions with step-by-step breakdowns.</p>
-      </header>
+  <section class="pc__hero">
+    <div class="pc__badge">Percent toolkit</div>
+    <h1>Percentage Calculator Suite</h1>
+    <p>
+      Compute discounts, markups, change, and relative proportions with precision. Save scenarios, visualize changes,
+      and keep every step transparent.
+    </p>
 
-      <div class="ctl__stats" aria-label="Calculation statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ activeMode().icon }}</span>
-          <span class="ctl__stat-label">Mode</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ formattedResult() || '—' }}</span>
-          <span class="ctl__stat-label">Result</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ history().length }}</span>
-          <span class="ctl__stat-label">History</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ activeMode().label }}</span>
-          <span class="ctl__stat-label">Type</span>
-        </div>
-      </div>
+    <div class="pc__actions">
+      <button type="button" class="btn btn--primary" (click)="copyResult()">Copy result</button>
+      <button type="button" class="btn btn--ghost" (click)="clearHistory()">Clear history</button>
     </div>
 
-    <div class="md-workflow" aria-label="Calculator actions">
-      <div class="md-workflow__group md-workflow__group--actions">
-        <button type="button" class="ctl__tool-btn" (click)="submit()" aria-label="Calculate" appTooltip="Calculate" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Calculate</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="copyResult()" [disabled]="!formattedResult()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="resetToDefault()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-      </div>
+    <div class="pc__meta">
+      <span><strong>{{ activeMode().label }}</strong> mode</span>
+      <span><strong>{{ history().length }}</strong> recent runs</span>
+      <span><strong>{{ formattedResult() || '—' }}</strong> latest output</span>
     </div>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor md-editor-panel">
-          <header class="ctl__editor-head"><span>Inputs</span></header>
-          <div class="ctl__editor-body ctl__settings">
-            <div class="pc__modes" role="group" aria-label="Calculation mode">
-              @for (mode of modes; track trackMode($index, mode)) {
-                <button
-                  type="button"
-                  class="pc__mode"
-                  [class.pc__mode--active]="formSnapshot().mode === mode.id"
-                  [attr.aria-pressed]="formSnapshot().mode === mode.id"
-                  (click)="setMode(mode.id)">
-                  <span>{{ mode.icon }}</span> {{ mode.label }}
-                </button>
-              }
-            </div>
-            @if (requiresBaseValue()) {
-              <label class="ctl__field" for="baseValue">
-                <span>Base value</span>
-                <input id="baseValue" type="text" formControlName="baseValue" />
-              </label>
-            }
-            @if (requiresPercentageValue()) {
-              <label class="ctl__field" for="percentageValue">
-                <span>Percentage (%)</span>
-                <input id="percentageValue" type="text" formControlName="percentageValue" />
-              </label>
-            }
-            @if (requiresResultValue()) {
-              <label class="ctl__field" for="resultValue">
-                <span>Result value</span>
-                <input id="resultValue" type="text" formControlName="resultValue" />
-              </label>
-            }
-            @if (requiresIncreaseDecreaseValue()) {
-              <label class="ctl__field" for="increaseDecreaseValue">
-                <span>Increase/decrease</span>
-                <input id="increaseDecreaseValue" type="text" formControlName="increaseDecreaseValue" />
-              </label>
-            }
-            <label class="ctl__field" for="decimalPlaces">
-              <span>Decimal places</span>
-              <input id="decimalPlaces" type="number" min="0" max="8" formControlName="decimalPlaces" />
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="showSteps" />
-              <div>
-                <strong>Show steps</strong>
-                <span>Display calculation steps.</span>
-              </div>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="roundResult" />
-              <div>
-                <strong>Round result</strong>
-                <span>Round to decimal places.</span>
-              </div>
-            </label>
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="includeDifference" />
-              <div>
-                <strong>Include difference</strong>
-                <span>Show change amount.</span>
-              </div>
-            </label>
-            @if (errorMessage()) {
-              <div class="ctl__alert ctl__alert--error" role="alert">{{ errorMessage() }}</div>
-            }
+    @if (statusMessage()) {
+      <div class="pc__status">{{ statusMessage() }}</div>
+    }
+  </section>
+
+  <div class="pc__layout">
+    <div class="pc__workspace">
+      <section class="pc__card pc__card--summary">
+        <header class="pc__summary-header">
+          <div>
+            <span class="pc__summary-pill">{{ activeMode().icon }} {{ activeMode().label }}</span>
+            <h2>Result overview</h2>
+            <p>{{ activeMode().description }}</p>
           </div>
-        </section>
+          <button type="button" class="btn btn--ghost btn--small" (click)="submit()">Recalculate</button>
+        </header>
 
-        <section class="ctl__editor ctl__editor--output md-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Result</span>
-            <div class="ctl__editor-actions">
-              @if (result()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button type="button" class="ctl__icon-btn" (click)="copyResult()" [disabled]="!formattedResult()" aria-label="Copy result" appTooltip="Copy result" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
+        @if (result()) {
+          <div class="pc__summary-body">
+            <div class="pc__headline">
+              <span>Current result</span>
+              <strong>{{ formattedResult() }}</strong>
             </div>
-          </header>
 
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="pc__suggest" aria-label="Suggested next step">
-              <div class="pc__suggest-body">
-                <p class="pc__suggest-title">{{ suggestion.title }}</p>
-                <p class="pc__suggest-reason">{{ suggestion.reason }}</p>
+            <div class="pc__metric-grid">
+              <div class="pc__metric">
+                <span>Base value</span>
+                <strong>{{ result()?.baseValue | number:'1.0-4' }}</strong>
               </div>
-              <div class="pc__suggest-actions">
-                <a class="pc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="pc__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
+              <div class="pc__metric">
+                <span>Percentage</span>
+                <strong>{{ result()?.percentageValue | number:'1.0-4' }}%</strong>
               </div>
-            </aside>
-          }
-
-          @if (result()) {
-            <div class="ctl__editor-body pc__results" aria-live="polite">
-              <div class="pc__headline">
+              <div class="pc__metric">
                 <span>Result</span>
-                <strong>{{ formattedResult() }}</strong>
+                <strong>{{ result()?.value | number:'1.0-4' }}</strong>
               </div>
-              <div class="pc__grid">
-                <div class="pc__metric">
-                  <span>Base</span>
-                  <strong>{{ result()?.baseValue | number:'1.0-4' }}</strong>
+              @if (differenceResult()) {
+                <div class="pc__metric pc__metric--accent">
+                  <span>Difference</span>
+                  <strong>{{ differenceResult() }}</strong>
                 </div>
-                <div class="pc__metric">
-                  <span>Percent</span>
-                  <strong>{{ result()?.percentageValue | number:'1.0-4' }}%</strong>
+              }
+            </div>
+
+            @if (chartData()) {
+              <div class="pc__chart pc__chart--compact">
+                <div class="pc__chart-slice pc__chart-slice--base" [style.flex]="chartData()!.slices[0].value">
+                  Base {{ chartData()!.slices[0].value | number:'1.0-2' }}
                 </div>
-                <div class="pc__metric">
-                  <span>Value</span>
-                  <strong>{{ result()?.value | number:'1.0-4' }}</strong>
+                <div class="pc__chart-slice pc__chart-slice--change" [style.flex]="chartData()!.slices[1].value">
+                  Change {{ chartData()!.slices[1].value | number:'1.0-2' }}
                 </div>
-                @if (differenceResult()) {
-                  <div class="pc__metric pc__metric--accent">
-                    <span>Diff</span>
-                    <strong>{{ differenceResult() }}</strong>
-                  </div>
-                }
               </div>
-              @if (displaySteps().length > 0 && formSnapshot().showSteps) {
-                <ol class="pc__steps">
+            }
+
+            @if (displaySteps().length > 0 && form.get('showSteps')?.value) {
+              <div class="pc__steps">
+                <h3>How we got here</h3>
+                <ol>
                   @for (step of displaySteps(); track trackStep($index, step)) {
                     <li>{{ step }}</li>
                   }
                 </ol>
-              }
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Enter values to preview your calculation.</p>
-            </div>
-          }
-        </section>
-      </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="pc__empty">Enter values to preview your calculation summary.</div>
+        }
+      </section>
 
-      <details class="md-options-flyout">
-        <summary class="md-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="md-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar md-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Presets and history">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Quick presets</header>
-            <div class="ctl__panel-body">
-              <div class="pc__presets">
-                @for (preset of presets; track trackPreset($index, preset)) {
-                  <button type="button" class="pc__preset" (click)="applyPreset(preset)">
-                    <strong>{{ preset.label }}</strong>
-                    <small>{{ getModeLabel(preset.mode) }}</small>
-                  </button>
+      <section class="pc__card pc__card--interaction">
+        <header class="pc__card-header">
+          <div>
+            <h2>Choose scenario & inputs</h2>
+            <p>Switch modes and supply the numbers you know. Results update instantly.</p>
+          </div>
+        </header>
+
+        <div class="pc__mode-switch">
+          @for (mode of modes; track trackMode($index, mode)) {
+            <button
+              type="button"
+              class="pc__mode-chip"
+              [class.is-active]="form.get('mode')?.value === mode.id"
+              (click)="setMode(mode.id)"
+            >
+              <span class="pc__mode-icon">{{ mode.icon }}</span>
+              {{ mode.label }}
+            </button>
+          }
+        </div>
+
+        <form class="pc__form" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="pc__inputs">
+            @if (requiresBaseValue()) {
+              <div class="pc__input">
+                <label for="baseValue">Base value</label>
+                <input id="baseValue" type="text" formControlName="baseValue" placeholder="Enter base amount" />
+                <small>Starting figure used in the calculation.</small>
+              </div>
+            }
+
+            @if (requiresPercentageValue()) {
+              <div class="pc__input">
+                <label for="percentageValue">Percentage (%)</label>
+                <input id="percentageValue" type="text" formControlName="percentageValue" placeholder="Enter percent" />
+                <small>How much of the base to apply.</small>
+              </div>
+            }
+
+            @if (requiresResultValue()) {
+              <div class="pc__input">
+                <label for="resultValue">Result value</label>
+                <input id="resultValue" type="text" formControlName="resultValue" placeholder="Enter result amount" />
+                <small>The outcome you already know.</small>
+              </div>
+            }
+
+            @if (requiresIncreaseDecreaseValue()) {
+              <div class="pc__input">
+                <label for="increaseDecreaseValue">Increase / decrease value</label>
+                <input
+                  id="increaseDecreaseValue"
+                  type="text"
+                  formControlName="increaseDecreaseValue"
+                  placeholder="Enter difference"
+                />
+                <small>The change to add or subtract.</small>
+              </div>
+            }
+          </div>
+
+          <div class="pc__controls">
+            <div class="pc__input pc__input--compact">
+              <label for="decimalPlaces">Decimal places</label>
+              <input id="decimalPlaces" type="number" formControlName="decimalPlaces" min="0" max="6" step="1" />
+            </div>
+
+            <details class="pc__advanced">
+              <summary>Advanced options</summary>
+              <div class="pc__advanced-grid">
+                @for (option of advancedOptions; track option.id) {
+                  <label>
+                    <input type="checkbox" [formControlName]="option.id" />
+                    <div>
+                      <strong>{{ option.label }}</strong>
+                      <small>{{ option.description }}</small>
+                    </div>
+                  </label>
                 }
               </div>
-            </div>
+            </details>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
-              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!history().length" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-              </button>
-            </header>
-            <div class="ctl__panel-body">
-              @if (history().length > 0) {
-                <ul class="pc__history">
-                  @for (entry of history(); track trackHistory($index, entry)) {
-                    <li>
-                      <button type="button" class="pc__history-item" (click)="restoreHistory(entry)">
-                        <strong>{{ getModeLabel(entry.mode) }} · {{ formatDisplay(entry.value, entry.decimalPlaces, entry.roundResult) }}</strong>
-                        <span>{{ entry.timestamp | date:'short' }}</span>
-                      </button>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <div class="ctl__panel-empty"><p>Run a calculation to populate history.</p></div>
-              }
-            </div>
+
+          @if (errorMessage()) {
+            <div class="pc__error">{{ errorMessage() }}</div>
+          }
+
+          <div class="pc__form-actions">
+            <button type="submit" class="btn btn--primary">Calculate</button>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body pc__related">
-              <ul class="pc__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="pc__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
+        </form>
+      </section>
     </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Pick a calculation mode and enter the required values.</li>
-        <li>Results update automatically — toggle steps for a breakdown.</li>
-        <li>Copy the result or restore past calculations from history.</li>
-      </ul>
-    </details>
-  </main>
+    <div class="pc__supplement">
+      <section class="pc__card pc__card--presets">
+        <header class="pc__card-header">
+          <h2>Quick presets</h2>
+        </header>
+        <div class="pc__preset-grid">
+          @for (preset of presets; track trackPreset($index, preset)) {
+            <button type="button" class="pc__preset-tile" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <small>{{ getModeLabel(preset.mode) }}</small>
+            </button>
+          }
+        </div>
+      </section>
+
+      <section class="pc__card pc__card--history">
+        <header class="pc__card-header">
+          <h2>History</h2>
+          <span class="pc__history-count">{{ history().length }}</span>
+        </header>
+        <div class="pc__history-list">
+          @for (entry of history(); track trackHistory($index, entry)) {
+            <article>
+              <div class="pc__history-head">
+                <span class="pc__history-title">{{ getModeLabel(entry.mode) }}</span>
+                <time>{{ entry.timestamp | date:'short' }}</time>
+              </div>
+              <p class="pc__history-result">{{ formatDisplay(entry.value, entry.decimalPlaces, entry.roundResult) }}</p>
+              <div class="pc__history-meta">
+                Base {{ entry.baseValue | number:'1.0-2' }} · Percentage {{ entry.percentageValue | number:'1.0-2' }}
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="restoreHistory(entry)">
+                Restore
+              </button>
+            </article>
+          }
+          @if (history().length === 0) {
+            <div class="pc__empty">Run a calculation to populate history.</div>
+          }
+        </div>
+      </section>
+    </div>
+  </div>
 </div>

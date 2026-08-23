@@ -1,70 +1,88 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
-import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ddCopyText } from '../../shared/dd-clipboard.util';
-import type { DdRelatedToolLink } from '../../shared/dd-tool-suggestion.model';
-import { HTTP_HEADER_RELATED_TOOLS } from '../../constants/http-header-decoder.constants';
-import type {
-  DecodedHeader,
-  HeaderCategory,
-  HeaderHistoryEntry,
-  HeaderInputMode
-} from '../../types/http-header-decoder.types';
-import {
-  decodeHttpHeaders,
-  exportHeadersAsJson,
-  exportHeadersAsRaw,
-  formatRelativeTimestamp,
-  getCategoryColor,
-  getCategoryLabel,
-  getHeaderCategories,
-  getHeadersByCategory,
-  prependHeaderHistory,
-  resolveHttpHeaderSuggestion
-} from '../../utils/http-header-decoder.utils';
+
+interface DecodedHeader {
+  key: string;
+  value: string;
+  description?: string;
+  category: 'general' | 'request' | 'response' | 'entity' | 'cors' | 'custom';
+}
+
+interface HistoryEntry {
+  timestamp: number;
+  headers: DecodedHeader[];
+  rawInput: string;
+}
 
 type HeaderDecoderFormGroup = FormGroup<{
-  inputMode: FormControl<HeaderInputMode>;
+  inputMode: FormControl<'raw' | 'keyvalue'>;
   rawHeaders: FormControl<string>;
   rememberHistory: FormControl<boolean>;
 }>;
+
+const HEADER_DESCRIPTIONS: Record<string, string> = {
+  'content-type': 'Specifies the media type of the resource',
+  'content-length': 'Indicates the size of the entity-body',
+  'content-encoding': 'Specifies what content codings have been applied',
+  'content-language': 'Describes the natural language(s) of the intended audience',
+  'content-location': 'Indicates an alternate location for the returned entity',
+  'content-disposition': 'Indicates how the content should be displayed',
+  'accept': 'Specifies which content types the client can understand',
+  'accept-encoding': 'Specifies which content encodings the client can understand',
+  'accept-language': 'Specifies which languages the client can understand',
+  'authorization': 'Contains credentials for authenticating the client',
+  'cache-control': 'Specifies directives for caching mechanisms',
+  'connection': 'Controls whether the network connection stays open',
+  'cookie': 'Contains stored HTTP cookies',
+  'date': 'The date and time at which the message was originated',
+  'etag': 'Entity tag for the requested variant',
+  'expires': 'Gives the date/time after which the response is considered stale',
+  'host': 'Specifies the domain name of the server',
+  'if-modified-since': 'Makes the request conditional',
+  'if-none-match': 'Makes the request conditional',
+  'last-modified': 'The date and time at which the origin server believes the variant was last modified',
+  'location': 'Used in redirection, or when a new resource has been created',
+  'referer': 'The address of the previous web page',
+  'server': 'Contains information about the software used by the origin server',
+  'set-cookie': 'Sends cookies from the server to the user agent',
+  'user-agent': 'Contains a characteristic string that allows the network protocol peers to identify the application',
+  'x-forwarded-for': 'Identifies the originating IP address of a client',
+  'x-forwarded-proto': 'Identifies the protocol (HTTP or HTTPS)',
+  'x-real-ip': 'Identifies the real IP address of the client',
+  'access-control-allow-origin': 'Specifies which origins can access the resource',
+  'access-control-allow-methods': 'Specifies the methods allowed when accessing the resource',
+  'access-control-allow-headers': 'Specifies which headers can be used during the request',
+  'access-control-expose-headers': 'Specifies which headers can be exposed to the client',
+  'access-control-max-age': 'Indicates how long the results of a preflight request can be cached',
+  'access-control-allow-credentials': 'Indicates whether the response can be shared with credentials'
+};
 
 @Component({
   selector: 'lib-http-header-decoder',
   standalone: true,
   templateUrl: './http-header-decoder.html',
   styleUrls: ['./http-header-decoder.scss'],
-  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HttpHeaderDecoderComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
 
   readonly form: HeaderDecoderFormGroup = this.fb.group({
-    inputMode: this.fb.control<HeaderInputMode>('raw', { nonNullable: true }),
+    inputMode: this.fb.control<'raw' | 'keyvalue'>('raw', { nonNullable: true }),
     rawHeaders: this.fb.control('', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly relatedTools: ReadonlyArray<DdRelatedToolLink> = HTTP_HEADER_RELATED_TOOLS;
   readonly errors = signal<string[]>([]);
   readonly warnings = signal<string[]>([]);
   readonly decodedHeaders = signal<DecodedHeader[]>([]);
-  readonly history = signal<HeaderHistoryEntry[]>([]);
-  private readonly dismissedSuggestionId = signal<string | null>(null);
+  readonly history = signal<HistoryEntry[]>([]);
 
   readonly hasHistory = computed(() => this.history().length > 0);
   readonly hasDecodedHeaders = computed(() => this.decodedHeaders().length > 0);
@@ -72,25 +90,13 @@ export class HttpHeaderDecoderComponent {
   readonly corsHeadersCount = computed(() =>
     this.decodedHeaders().filter((h) => h.category === 'cors').length
   );
-  readonly primarySuggestion = computed(() => {
-    const suggestion = resolveHttpHeaderSuggestion(this.decodedHeaders());
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
 
   constructor() {
     this.form.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.dismissedSuggestionId.set(null);
         this.decodeHeaders();
       });
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
   }
 
   decodeHeaders(): void {
@@ -105,9 +111,15 @@ export class HttpHeaderDecoderComponent {
     }
 
     try {
-      const { headers, warnings } = decodeHttpHeaders(rawHeaders, inputMode);
+      let headers: DecodedHeader[] = [];
+
+      if (inputMode === 'raw') {
+        headers = this.parseRawHeaders(rawHeaders);
+      } else {
+        headers = this.parseKeyValueHeaders(rawHeaders);
+      }
+
       this.decodedHeaders.set(headers);
-      this.warnings.set(warnings);
 
       if (this.form.controls.rememberHistory.value) {
         this.addToHistory(headers, rawHeaders);
@@ -119,8 +131,76 @@ export class HttpHeaderDecoderComponent {
     }
   }
 
+  private parseRawHeaders(raw: string): DecodedHeader[] {
+    const lines = raw.split('\n').map((line) => line.trim()).filter((line) => line);
+    const headers: DecodedHeader[] = [];
+
+    for (const line of lines) {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex === -1) {
+        continue;
+      }
+
+      const key = line.slice(0, colonIndex).trim();
+      const value = line.slice(colonIndex + 1).trim();
+
+      if (key && value) {
+        headers.push(this.createDecodedHeader(key, value));
+      }
+    }
+
+    return headers;
+  }
+
+  private parseKeyValueHeaders(input: string): DecodedHeader[] {
+    // Try to parse as JSON first
+    try {
+      const json = JSON.parse(input);
+      const headers: DecodedHeader[] = [];
+
+      for (const [key, value] of Object.entries(json)) {
+        if (typeof value === 'string') {
+          headers.push(this.createDecodedHeader(key, value));
+        }
+      }
+
+      return headers;
+    } catch {
+      // If not JSON, try key:value format
+      return this.parseRawHeaders(input);
+    }
+  }
+
+  private createDecodedHeader(key: string, value: string): DecodedHeader {
+    const lowerKey = key.toLowerCase();
+    let category: DecodedHeader['category'] = 'custom';
+    let description: string | undefined;
+
+    // Determine category
+    if (lowerKey.startsWith('access-control-')) {
+      category = 'cors';
+    } else if (['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location', 'content-disposition'].includes(lowerKey)) {
+      category = 'entity';
+    } else if (['accept', 'accept-encoding', 'accept-language', 'authorization', 'cookie', 'host', 'referer', 'user-agent'].includes(lowerKey)) {
+      category = 'request';
+    } else if (['cache-control', 'connection', 'date', 'etag', 'expires', 'last-modified', 'location', 'server', 'set-cookie'].includes(lowerKey)) {
+      category = 'response';
+    } else if (['connection', 'date', 'pragma', 'trailer', 'transfer-encoding', 'upgrade', 'via', 'warning'].includes(lowerKey)) {
+      category = 'general';
+    }
+
+    // Get description
+    description = HEADER_DESCRIPTIONS[lowerKey];
+
+    return {
+      key,
+      value,
+      description,
+      category
+    };
+  }
+
   clear(): void {
-    this.dismissedSuggestionId.set(null);
     this.form.patchValue({
       rawHeaders: ''
     });
@@ -129,7 +209,7 @@ export class HttpHeaderDecoderComponent {
     this.warnings.set([]);
   }
 
-  applyHistory(entry: HeaderHistoryEntry): void {
+  applyHistory(entry: HistoryEntry): void {
     this.form.patchValue({
       rawHeaders: entry.rawInput
     });
@@ -143,50 +223,102 @@ export class HttpHeaderDecoderComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  formatTimestamp(timestamp: number): string {
-    return formatRelativeTimestamp(timestamp);
-  }
-
-  getCategoryLabel(category: HeaderCategory): string {
-    return getCategoryLabel(category);
-  }
-
-  getCategoryColor(category: HeaderCategory): string {
-    return getCategoryColor(category);
-  }
-
-  async copyToClipboard(text: string, label: string): Promise<void> {
-    const ok = await ddCopyText(this.toast, text, label);
-    if (ok) {
-      this.errors.set([]);
-    } else {
-      this.errors.set([`Unable to copy ${label} to clipboard.`]);
-    }
-  }
-
-  exportAsJson(): string {
-    return exportHeadersAsJson(this.decodedHeaders());
-  }
-
-  exportAsRaw(): string {
-    return exportHeadersAsRaw(this.decodedHeaders());
-  }
-
-  getCategories(): HeaderCategory[] {
-    return getHeaderCategories(this.decodedHeaders());
-  }
-
-  getHeadersByCategory(category: HeaderCategory): DecodedHeader[] {
-    return getHeadersByCategory(this.decodedHeaders(), category);
-  }
-
   private addToHistory(headers: DecodedHeader[], rawInput: string): void {
-    const entry: HeaderHistoryEntry = {
+    const entry: HistoryEntry = {
       timestamp: Date.now(),
       headers,
       rawInput
     };
 
-    this.history.update((entries) => prependHeaderHistory(entries, entry));
+    this.history.update((entries) => {
+      const exists = entries.some((e) => e.rawInput === entry.rawInput);
+      if (exists) {
+        return entries;
+      }
+      return [entry, ...entries].slice(0, 10);
+    });
+  }
+
+  formatTimestamp(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) {
+      return 'Just now';
+    } else if (minutes < 60) {
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (hours < 24) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else if (days < 7) {
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleDateString();
+    }
+  }
+
+  getCategoryLabel(category: DecodedHeader['category']): string {
+    const labels: Record<DecodedHeader['category'], string> = {
+      general: 'General',
+      request: 'Request',
+      response: 'Response',
+      entity: 'Entity',
+      cors: 'CORS',
+      custom: 'Custom'
+    };
+    return labels[category];
+  }
+
+  getCategoryColor(category: DecodedHeader['category']): string {
+    const colors: Record<DecodedHeader['category'], string> = {
+      general: '#6b7280',
+      request: '#007bff',
+      response: '#28a745',
+      entity: '#ffc107',
+      cors: '#dc3545',
+      custom: '#9ca3af'
+    };
+    return colors[category];
+  }
+
+  copyToClipboard(text: string, label: string): void {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        // Success
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
+  }
+
+  exportAsJson(): string {
+    const headers = this.decodedHeaders();
+    const json: Record<string, string> = {};
+    for (const header of headers) {
+      json[header.key] = header.value;
+    }
+    return JSON.stringify(json, null, 2);
+  }
+
+  exportAsRaw(): string {
+    const headers = this.decodedHeaders();
+    return headers.map((h) => `${h.key}: ${h.value}`).join('\n');
+  }
+
+  getCategories(): DecodedHeader['category'][] {
+    const categories = new Set<DecodedHeader['category']>();
+    for (const header of this.decodedHeaders()) {
+      categories.add(header.category);
+    }
+    return Array.from(categories);
+  }
+
+  getHeadersByCategory(category: DecodedHeader['category']): DecodedHeader[] {
+    return this.decodedHeaders().filter((h) => h.category === category);
   }
 }

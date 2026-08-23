@@ -1,164 +1,125 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="st">
+  <div class="st__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Stopwatch Timer</h1>
-        <p>Track elapsed time with lap recording and statistics.</p>
+  <section class="st__hero">
+    <div class="st__badge">Fun tools</div>
+    <h1>Stopwatch Timer</h1>
+    <p>
+      Track time with precision. Start, pause, and reset the stopwatch. Record lap times and view statistics for your
+      timing sessions.
+    </p>
+
+    <div class="st__hero-meta">
+      <div>
+        <span class="st__meta-label">Status</span>
+        <strong>{{ isRunning() ? 'Running' : 'Stopped' }}</strong>
+      </div>
+      <div>
+        <span class="st__meta-label">Laps</span>
+        <strong>{{ lapTimes().length }}</strong>
+      </div>
+      @if (hasLaps()) {
+        <div>
+          <span class="st__meta-label">Fastest lap</span>
+          <strong>{{ formatLapTime(stats().fastest) }}</strong>
+        </div>
+        <div>
+          <span class="st__meta-label">Average lap</span>
+          <strong>{{ formatLapTime(stats().average) }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="st__board">
+    <section class="st__panel st__panel--timer">
+      <header class="st__card-header">
+        <div>
+          <h2>Stopwatch</h2>
+          <p>Track elapsed time with precision.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Stopwatch statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ isRunning() ? 'Run' : 'Stop' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ lapTimes().length }}</span>
-          <span class="ctl__stat-label">Laps</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasLaps() ? formatLapTime(stats().fastest) : '—' }}</span>
-          <span class="ctl__stat-label">Fast</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasLaps() ? formatLapTime(stats().average) : '—' }}</span>
-          <span class="ctl__stat-label">Avg</span>
+      <div class="st__timer-container">
+        <div class="st__timer-display">
+          <div class="st__timer-time">{{ formattedTime() }}</div>
+          <div class="st__timer-status">{{ isRunning() ? 'Running' : 'Stopped' }}</div>
         </div>
       </div>
-    </div>
 
-    <div class="ft-workflow" aria-label="Stopwatch controls">
-      <div class="ft-workflow__group ft-workflow__group--actions">
+      <div class="st__timer-controls">
         @if (isRunning()) {
-          <button type="button" class="ctl__tool-btn" (click)="pause()" appTooltip="Pause" tooltipPosition="bottom" aria-label="Pause">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            <span class="ctl__tool-btn-label">Pause</span>
-          </button>
-          <button type="button" class="ctl__tool-btn" (click)="lap()" appTooltip="Record lap" tooltipPosition="bottom" aria-label="Record lap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-            <span class="ctl__tool-btn-label">Lap</span>
-          </button>
+          <button type="button" class="btn btn--primary btn--large" (click)="pause()">Pause</button>
+          <button type="button" class="btn btn--ghost" (click)="lap()">Lap</button>
         } @else {
-          <button type="button" class="ctl__tool-btn" (click)="start()" appTooltip="Start" tooltipPosition="bottom" aria-label="Start">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <span class="ctl__tool-btn-label">Start</span>
-          </button>
-          <button type="button" class="ctl__tool-btn" (click)="lap()" [disabled]="elapsedTime() === 0" appTooltip="Record lap" tooltipPosition="bottom" aria-label="Record lap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-            <span class="ctl__tool-btn-label">Lap</span>
-          </button>
+          <button type="button" class="btn btn--primary btn--large" (click)="start()">Start</button>
+          <button type="button" class="btn btn--ghost" (click)="lap()" [disabled]="elapsedTime() === 0">Lap</button>
         }
-        <button type="button" class="ctl__tool-btn" (click)="reset()" appTooltip="Reset" tooltipPosition="bottom" aria-label="Reset">
-          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="copyTime()" [disabled]="elapsedTime() === 0" appTooltip="Copy time" tooltipPosition="bottom" aria-label="Copy time">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
+        <button type="button" class="btn btn--ghost" (click)="reset()">Reset</button>
       </div>
-    </div>
+    </section>
 
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ctl__editor--merged">
-          <header class="ctl__editor-head">
-            <span>Elapsed time</span>
-            <div class="ctl__editor-actions">
-              <button type="button" class="ctl__icon-btn" (click)="copyTime()" [disabled]="elapsedTime() === 0" appTooltip="Copy time" tooltipPosition="bottom" aria-label="Copy elapsed time">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="st__suggest" aria-label="Suggested next step">
-              <div class="st__suggest-body">
-                <p class="st__suggest-title">{{ suggestion.title }}</p>
-                <p class="st__suggest-reason">{{ suggestion.reason }}</p>
+    <section class="st__panel st__panel--laps">
+      <header class="st__card-header">
+        <div>
+          <h2>Lap Times</h2>
+          <p>Recorded lap times and statistics.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn--ghost btn--small"
+          (click)="clearLaps()"
+          [disabled]="!hasLaps()"
+        >
+          Clear
+        </button>
+      </header>
+
+      @if (hasLaps()) {
+        <div class="st__stats">
+          <div class="st__stat-item">
+            <span class="st__stat-label">Total Laps</span>
+            <strong class="st__stat-value">{{ stats().count }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Fastest</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().fastest) }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Slowest</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().slowest) }}</strong>
+          </div>
+          <div class="st__stat-item">
+            <span class="st__stat-label">Average</span>
+            <strong class="st__stat-value">{{ formatLapTime(stats().average) }}</strong>
+          </div>
+        </div>
+
+        <ul class="st__laps-list">
+          @for (lap of lapTimes(); track lap.timestamp) {
+            <li class="st__lap-item" [class.st__lap-item--fastest]="lap.lapTime === stats().fastest"
+                [class.st__lap-item--slowest]="lap.lapTime === stats().slowest">
+              <div class="st__lap-number">Lap {{ lap.lapNumber }}</div>
+              <div class="st__lap-times">
+                <div class="st__lap-time">
+                  <span class="st__lap-label">Lap:</span>
+                  <strong>{{ formatLapTime(lap.lapTime) }}</strong>
+                </div>
+                <div class="st__lap-total">
+                  <span class="st__lap-label">Total:</span>
+                  <strong>{{ formatTime(lap.totalTime) }}</strong>
+                </div>
               </div>
-              <div class="st__suggest-actions">
-                <a class="st__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="st__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
+            </li>
           }
-          <div
-            class="ctl__editor-body st-display"
-            role="timer"
-            [attr.aria-label]="'Elapsed ' + formattedTime()"
-            [attr.aria-live]="isRunning() ? 'off' : 'polite'">
-            <span class="st-display__time">{{ formattedTime() }}</span>
-            <span class="st-display__status">{{ isRunning() ? 'Running' : 'Stopped' }}</span>
-          </div>
-        </section>
-      </div>
-
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Lap times">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              Lap times
-              <button type="button" class="ctl__icon-btn" (click)="copyLaps()" [disabled]="!hasLaps()" appTooltip="Copy laps" tooltipPosition="bottom" aria-label="Copy laps">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="14" height="14" />
-              </button>
-            </header>
-            @if (hasLaps()) {
-              <div class="ctl__panel-body">
-                <ul class="st-laps">
-                  @for (lap of lapTimes(); track lap.timestamp) {
-                    <li [class.st-laps__fastest]="lap.lapTime === stats().fastest" [class.st-laps__slowest]="lap.lapTime === stats().slowest">
-                      <span class="st-laps__num">Lap {{ lap.lapNumber }}</span>
-                      <span class="st-laps__lap">{{ formatLapTime(lap.lapTime) }}</span>
-                      <span class="st-laps__total">{{ formatTime(lap.totalTime) }}</span>
-                    </li>
-                  }
-                </ul>
-              </div>
-            } @else {
-              <div class="ctl__panel-empty"><p>Record laps while the stopwatch runs.</p></div>
-            }
-          </div>
-          <button type="button" class="ctl__tool-btn st-clear" (click)="clearLaps()" [disabled]="!hasLaps()">Clear laps</button>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body st__related">
-              <ul class="st__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="st__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Start the stopwatch, then tap <strong>Lap</strong> to record split times.</li>
-        <li>Copy the elapsed time or full lap list with the copy icons.</li>
-        <li>Fastest and slowest laps are highlighted in the sidebar.</li>
-      </ul>
-    </details>
-  </main>
+        </ul>
+      } @else {
+        <div class="st__empty">
+          <p>No lap times recorded yet. Click "Lap" to record lap times while the stopwatch is running.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

@@ -1,177 +1,205 @@
-<div class="ctl cf">
-  <lib-navigation></lib-navigation>
+<div class="hte">
+  <div class="hte__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>HTML Table Exporter</h1>
-        <p>Parse HTML tables and export to CSV, JSON, TSV, XML, or Markdown.</p>
+  <section class="hte__hero">
+    <div class="hte__badge">Code toolkit</div>
+    <h1>HTML Table Exporter</h1>
+    <p>
+      Export HTML tables to various formats including CSV, JSON, TSV, XML, and Markdown. Parse HTML tables and convert
+      them to your preferred format for data analysis, import into spreadsheets, or use in other applications.
+    </p>
+
+    @if (hasTableData()) {
+      <div class="hte__hero-meta">
+        <div>
+          <span class="hte__meta-label">Rows</span>
+          <strong>{{ rowCount() }}</strong>
+        </div>
+        <div>
+          <span class="hte__meta-label">Columns</span>
+          <strong>{{ columnCount() }}</strong>
+        </div>
+        <div>
+          <span class="hte__meta-label">Format</span>
+          <strong>{{ exportFormat().toUpperCase() }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="hte__hero-meta hee__hero-meta--placeholder">
+        Paste an HTML table and select an export format to convert it instantly.
+      </div>
+    }
+  </section>
+
+  <div class="hte__board">
+    <section class="hte__panel hee__panel--input">
+      <header class="hte__card-header">
+        <div>
+          <h2>HTML table input</h2>
+          <p>Paste or type your HTML table code here.</p>
+        </div>
+        <div class="hte__header-actions">
+          <button type="button" class="btn btn--ghost btn--small" (click)="loadSample()">Load sample</button>
+          <button type="button" class="btn btn--ghost btn--small" (click)="clear()">Clear</button>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Export statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasTableData() ? rowCount() : '—' }}</span>
-          <span class="ctl__stat-label">Rows</span>
+      @if (errors().length) {
+        <div class="hte__alert hee__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasTableData() ? columnCount() : '—' }}</span>
-          <span class="ctl__stat-label">Cols</span>
+      }
+
+      <div class="hte__editor-container">
+        <textarea
+          class="hte__editor"
+          [value]="htmlInput()"
+          (input)="onInputChange($any($event.target).value)"
+          placeholder="<table>&#10;  <thead>&#10;    <tr>&#10;      <th>Column 1</th>&#10;      <th>Column 2</th>&#10;    </tr>&#10;  </thead>&#10;  <tbody>&#10;    <tr>&#10;      <td>Data 1</td>&#10;      <td>Data 2</td>&#10;    </tr>&#10;  </tbody>&#10;</table>"
+          spellcheck="false"
+        ></textarea>
+      </div>
+    </section>
+
+    <section class="hte__panel hee__panel--options">
+      <header class="hte__card-header">
+        <div>
+          <h2>Export options</h2>
+          <p>Configure export format and settings.</p>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ exportFormat().toUpperCase() }}</span>
-          <span class="ctl__stat-label">Format</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasExportResult() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
+      </header>
+
+      <div class="hte__format-selector">
+        <h3>Export format</h3>
+        <div class="hte__format-buttons">
+          <button
+            type="button"
+            class="hte__format-btn"
+            [class.hte__format-btn--active]="exportFormat() === 'csv'"
+            (click)="onFormatChange('csv')"
+          >
+            CSV
+          </button>
+          <button
+            type="button"
+            class="hte__format-btn"
+            [class.hte__format-btn--active]="exportFormat() === 'json'"
+            (click)="onFormatChange('json')"
+          >
+            JSON
+          </button>
+          <button
+            type="button"
+            class="hte__format-btn"
+            [class.hte__format-btn--active]="exportFormat() === 'tsv'"
+            (click)="onFormatChange('tsv')"
+          >
+            TSV
+          </button>
+          <button
+            type="button"
+            class="hte__format-btn"
+            [class.hte__format-btn--active]="exportFormat() === 'xml'"
+            (click)="onFormatChange('xml')"
+          >
+            XML
+          </button>
+          <button
+            type="button"
+            class="hte__format-btn"
+            [class.hte__format-btn--active]="exportFormat() === 'markdown'"
+            (click)="onFormatChange('markdown')"
+          >
+            Markdown
+          </button>
         </div>
       </div>
-    </div>
 
-    <div class="cf-workflow" aria-label="Exporter actions">
-      <div class="cf-workflow__group cf-workflow__group--actions">
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load sample" tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span class="ctl__tool-btn-label">Sample</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="downloadExport()" [disabled]="!hasExportResult()" aria-label="Download export" appTooltip="Download" tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!htmlInput() && !hasExportResult()" aria-label="Clear all" appTooltip="Clear all" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>HTML table input</span>
-            <div class="ctl__editor-actions">
-              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!htmlInput()" aria-label="Copy input" appTooltip="Copy input" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>@for (message of errors(); track message) { <li>{{ message }}</li> }</ul>
-            </div>
-          }
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="hte__suggest" aria-label="Suggested next step">
-              <div class="hte__suggest-body">
-                <p class="hte__suggest-title">{{ suggestion.title }}</p>
-                <p class="hte__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="hte__suggest-actions">
-                <a class="hte__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button type="button" class="hte__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
-              </div>
-            </aside>
-          }
-
-          <label class="sr-only" for="hte-html-input">HTML table input</label>
-          <textarea id="hte-html-input" class="ctl__textarea ctl__textarea--mono" [value]="htmlInput()" (input)="onInputChange($any($event.target).value)" rows="1" spellcheck="false" placeholder="&lt;table&gt;…&lt;/table&gt;"></textarea>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output cf-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Exported output</span>
-            <div class="ctl__editor-actions">
-              @if (hasExportResult()) { <span class="ctl__editor-badge">Ready</span> }
-              <button type="button" class="ctl__icon-btn" (click)="copyOutput()" [disabled]="!hasExportResult()" aria-label="Copy output" appTooltip="Copy output" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (hasExportResult()) {
-            <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly rows="1" [value]="exportResult()!.content" aria-label="Exported content"></textarea>
-          } @else {
-            <div class="ctl__empty" aria-live="polite"><p>Paste a table to see exported output here.</p></div>
-          }
-        </section>
-      </div>
-
-      <details class="cf-options-flyout">
-        <summary class="cf-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="cf-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar cf-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Export options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Export format</header>
-            <div class="ctl__settings">
-              <label class="ctl__field">
-                <span>Format</span>
-                <select [value]="exportFormat()" (change)="onFormatChange($any($event.target).value)">
-                  <option value="csv">CSV</option>
-                  <option value="json">JSON</option>
-                  <option value="tsv">TSV</option>
-                  <option value="xml">XML</option>
-                  <option value="markdown">Markdown</option>
-                </select>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" [checked]="includeHeaders()" (change)="includeHeaders.set($any($event.target).checked); export()" />
-                <div><strong>Include headers</strong><span>Include table header row in export.</span></div>
-              </label>
-            </div>
+      <div class="hte__options-grid">
+        <label class="hte__toggle">
+          <input type="checkbox" [checked]="includeHeaders()" (change)="includeHeaders.set($any($event.target).checked); export()" />
+          <div>
+            <strong>Include headers</strong>
+            <span>Include table headers in the export</span>
           </div>
+        </label>
+      </div>
+    </section>
 
-          @if (hasTableData()) {
-            <div class="ctl__panel">
-              <header class="ctl__panel-head">Table preview</header>
-              <div class="ctl__panel-body hte-preview">
-                <table>
-                  @if (includeHeaders() && tableData()!.headers.length) {
-                    <thead><tr>@for (header of tableData()!.headers; track header + $index) { <th>{{ header }}</th> }</tr></thead>
+    @if (hasTableData()) {
+      <section class="hte__panel hee__panel--preview">
+        <header class="hte__card-header">
+          <div>
+            <h2>Table preview</h2>
+            <p>Preview of the parsed table data.</p>
+          </div>
+        </header>
+
+        <div class="hte__preview-container">
+          <table class="hte__preview-table">
+            @if (includeHeaders() && tableData()!.headers.length > 0) {
+              <thead>
+                <tr>
+                  @for (header of tableData()!.headers; track header + $index) {
+                    <th>{{ header }}</th>
                   }
-                  <tbody>
-                    @for (row of tableData()!.rows; track $index) {
-                      <tr>@for (cell of row; track $index) { <td>{{ cell }}</td> }</tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          }
+                </tr>
+              </thead>
+            }
+            <tbody>
+              @for (row of tableData()!.rows; track $index) {
+                <tr>
+                  @for (cell of row; track $index) {
+                    <td>{{ cell }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
 
-          <div class="ctl__panel">
-            <header class="ctl__panel-head"><span>Related tools</span></header>
-            <div class="ctl__panel-body hte__related">
-              <ul class="hte__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="hte__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
+    <section class="hte__panel hee__panel--output">
+      <header class="hte__card-header">
+        <div>
+          <h2>Exported output</h2>
+          <p>{{ exportFormat().toUpperCase() }} format ready to copy or download.</p>
+        </div>
+        @if (hasExportResult()) {
+          <div class="hte__header-actions">
+            <button
+              type="button"
+              class="btn btn--primary btn--small"
+              (click)="copyToClipboard(exportResult()!.content, 'Export')"
+            >
+              Copy
+            </button>
+            <button type="button" class="btn btn--ghost btn--small" (click)="downloadExport()">Download</button>
           </div>
-        </aside>
-      </details>
-    </div>
+        }
+      </header>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Paste an HTML <strong>&lt;table&gt;</strong> in the input editor.</li>
-        <li>Choose export format and options in the sidebar.</li>
-        <li>Use copy icons to grab input or exported output.</li>
-        <li>Click <strong>Download</strong> to save the export file.</li>
-      </ul>
-    </details>
-  </main>
+      @if (hasExportResult()) {
+        @let result = exportResult()!;
+        <div class="hte__editor-container">
+          <textarea class="hte__editor hee__editor--output" [value]="result.content" readonly spellcheck="false"></textarea>
+        </div>
+
+        <div class="hte__output-stats">
+          <span>{{ result.content.length }} characters</span>
+          <span>{{ result.content.split('\n').length }} lines</span>
+          <span>{{ getExportSize(result.content) }}</span>
+        </div>
+      } @else {
+        <div class="hte__empty">Parse a table to see exported output here.</div>
+      }
+    </section>
+  </div>
 </div>

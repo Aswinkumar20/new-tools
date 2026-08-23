@@ -1,329 +1,312 @@
-<div class="ctl ic">
-  <lib-navigation></lib-navigation>
+<div class="cp">
+  <div class="cp__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Color Picker</h1>
-        <p>Pick colors visually or enter values — convert between HEX, RGB, and HSL instantly.</p>
+  <section class="cp__hero">
+    <div class="cp__badge">Color toolkit</div>
+    <h1>Color Picker</h1>
+    <p>
+      Pick colors visually with an interactive color picker, or enter values directly. Convert between HEX, RGB, HSL
+      formats instantly with live preview and quick copy actions.
+    </p>
+
+    @if (result()) {
+      @let current = result()!;
+      <div class="cp__hero-meta">
+        <div>
+          <span class="cp__meta-label">HEX</span>
+          <strong>{{ current.hex }}</strong>
+        </div>
+        <div>
+          <span class="cp__meta-label">RGB</span>
+          <strong>rgb({{ current.rgb.r }}, {{ current.rgb.g }}, {{ current.rgb.b }})</strong>
+        </div>
+        <div>
+          <span class="cp__meta-label">HSL</span>
+          <strong>hsl({{ current.hsl.h }}°, {{ current.hsl.s }}%, {{ current.hsl.l }}%)</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="cp__hero-meta cp__hero-meta--placeholder">
+        Use the interactive color picker or enter values to see color conversions and preview instantly.
+      </div>
+    }
+  </section>
+
+  <div class="cp__board" [formGroup]="form">
+    <section class="cp__panel cp__panel--picker">
+      <header class="cp__card-header">
+        <div>
+          <h2>Visual picker</h2>
+          <p>Click or drag on the color picker to select colors.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Color statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ result()?.hex ?? form.controls.hex.value }}</span>
-          <span class="ctl__stat-label">HEX</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ result() ? 'Valid' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ form.controls.alpha.value }}</span>
-          <span class="ctl__stat-label">Alpha</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ history().length }}</span>
-          <span class="ctl__stat-label">History</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="ic-workflow" aria-label="Picker actions">
-      <div class="ic-workflow__group ic-workflow__group--actions">
-        <button type="button" class="ctl__tool-btn" (click)="clear()" aria-label="Reset" appTooltip="Reset" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ict-editor--canvas ic-editor-panel">
-          <header class="ctl__editor-head"><span>Color picker</span></header>
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="cp__suggest" aria-label="Suggested next step">
-              <div class="cp__suggest-body">
-                <p class="cp__suggest-title">{{ suggestion.title }}</p>
-                <p class="cp__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="cp__suggest-actions">
-                <a class="cp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="cp__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          <div class="ctl__editor-body">
-            <div class="ict-picker-wrap">
-              <canvas
-                #pickerCanvas
-                class="ict-picker-canvas"
-                width="300"
-                height="300"
-                tabindex="0"
-                aria-label="Color picker canvas"
-                (click)="onPickerClick($event)"
-                (mousedown)="isPickerActive.set(true)"
-                (mousemove)="onPickerDrag($event)"
-                (mouseup)="isPickerActive.set(false)"
-                (mouseleave)="isPickerActive.set(false)"></canvas>
-              <canvas
-                #hueCanvas
-                class="ict-hue-canvas"
-                width="30"
-                height="300"
-                tabindex="0"
-                aria-label="Hue slider"
-                (click)="onHueClick($event)"
-                (mousedown)="isHueActive.set(true)"
-                (mousemove)="onHueDrag($event)"
-                (mouseup)="isHueActive.set(false)"
-                (mouseleave)="isHueActive.set(false)"></canvas>
-            </div>
-            @if (result(); as current) {
-              <div class="ict-color-grid cp-swatch-row">
-                <div class="ict-color-swatch" [style.background-color]="current.hex"></div>
-                <div class="ict-color-swatch" [style.background-color]="formatRgba(current)"></div>
-                <div class="ict-color-swatch" [style.background-color]="formatHsla(current)"></div>
-              </div>
+      @if (errors().length) {
+        <div class="cp__alert cp__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
             }
-          </div>
-        </section>
+          </ul>
+        </div>
+      }
 
-        <section class="ctl__editor ctl__editor--output ic-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Formatted output</span>
-            @if (result()) {
-              <span class="ctl__editor-badge">Ready</span>
-            }
-          </header>
-          @if (result(); as current) {
-            <div class="ict-format-list">
-              <div class="ict-format-row">
-                <div class="ict-format-head">
-                  <span>HEX</span>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="copyToClipboard(current.hex, 'HEX')"
-                    aria-label="Copy HEX"
-                    appTooltip="Copy HEX"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                  </button>
-                </div>
-                <code>{{ current.hex }}</code>
-              </div>
-              <div class="ict-format-row">
-                <div class="ict-format-head">
-                  <span>RGB</span>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="copyToClipboard(formatRgb(current.rgb), 'RGB')"
-                    aria-label="Copy RGB"
-                    appTooltip="Copy RGB"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                  </button>
-                </div>
-                <code>{{ formatRgb(current.rgb) }}</code>
-              </div>
-              <div class="ict-format-row">
-                <div class="ict-format-head">
-                  <span>RGBA</span>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="copyToClipboard(formatRgba(current), 'RGBA')"
-                    aria-label="Copy RGBA"
-                    appTooltip="Copy RGBA"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                  </button>
-                </div>
-                <code>{{ formatRgba(current) }}</code>
-              </div>
-              <div class="ict-format-row">
-                <div class="ict-format-head">
-                  <span>HSL</span>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="copyToClipboard(formatHsl(current), 'HSL')"
-                    aria-label="Copy HSL"
-                    appTooltip="Copy HSL"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                  </button>
-                </div>
-                <code>{{ formatHsl(current) }}</code>
-              </div>
-              <div class="ict-format-row">
-                <div class="ict-format-head">
-                  <span>HSLA</span>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="copyToClipboard(formatHsla(current), 'HSLA')"
-                    aria-label="Copy HSLA"
-                    appTooltip="Copy HSLA"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                  </button>
-                </div>
-                <code>{{ formatHsla(current) }}</code>
-              </div>
-            </div>
-          } @else {
-            <div class="ctl__empty"><p>Pick a color to see formatted outputs.</p></div>
-          }
-        </section>
+      <div class="cp__picker-container">
+        <canvas
+          #pickerCanvas
+          class="cp__picker-canvas"
+          width="300"
+          height="300"
+          tabindex="0"
+          aria-label="Color picker canvas"
+          (click)="onPickerClick($event)"
+          (mousedown)="isPickerActive.set(true)"
+          (mousemove)="onPickerDrag($event)"
+          (mouseup)="isPickerActive.set(false)"
+          (mouseleave)="isPickerActive.set(false)"
+          (keydown)="onPickerClick($event)"
+        ></canvas>
+        <canvas
+          #hueCanvas
+          class="cp__hue-canvas"
+          width="30"
+          height="300"
+          tabindex="0"
+          aria-label="Hue slider canvas"
+          (click)="onHueClick($event)"
+          (mousedown)="isHueActive.set(true)"
+          (mousemove)="onHueDrag($event)"
+          (mouseup)="isHueActive.set(false)"
+          (mouseleave)="isHueActive.set(false)"
+          (keydown)="onHueClick($event)"
+        ></canvas>
       </div>
 
-      <details class="ic-options-flyout">
-        <summary class="ic-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ic-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ic-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Picker options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Values</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="cp-native">
-                <span>Native picker</span>
-                <input type="color" id="cp-native" [value]="result()?.hex ?? '#007bff'" (change)="onColorPickerChange($event)" />
-              </label>
-              <label class="ctl__field" for="cp-hex">
-                <span>HEX</span>
-                <input id="cp-hex" type="text" formControlName="hex" placeholder="#007bff" maxlength="7" (input)="onColorInputChange()" />
-              </label>
-              <div class="ict-rgb-row">
-                <label class="ctl__field" for="cp-red"><span>R</span><input id="cp-red" type="number" min="0" max="255" formControlName="red" /></label>
-                <label class="ctl__field" for="cp-green"><span>G</span><input id="cp-green" type="number" min="0" max="255" formControlName="green" /></label>
-                <label class="ctl__field" for="cp-blue"><span>B</span><input id="cp-blue" type="number" min="0" max="255" formControlName="blue" /></label>
-              </div>
-              <div class="ict-rgb-row">
-                <label class="ctl__field" for="cp-hue"><span>H</span><input id="cp-hue" type="number" min="0" max="360" formControlName="hue" /></label>
-                <label class="ctl__field" for="cp-saturation"><span>S</span><input id="cp-saturation" type="number" min="0" max="100" formControlName="saturation" /></label>
-                <label class="ctl__field" for="cp-lightness"><span>L</span><input id="cp-lightness" type="number" min="0" max="100" formControlName="lightness" /></label>
-              </div>
-              <label class="ctl__field" for="cp-alpha">
-                <span>Alpha</span>
-                <input id="cp-alpha" type="number" min="0" max="1" step="0.01" formControlName="alpha" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="rememberHistory" />
-                <div><strong>Remember history</strong><span>Store recent colors locally.</span></div>
-              </label>
+      <div class="cp__native-picker">
+        <label class="cp__input" for="cp-native">
+          <span>Native color picker</span>
+          <input type="color" id="cp-native" [value]="result()?.hex ?? '#007bff'" (change)="onColorPickerChange($event)" />
+        </label>
+      </div>
+    </section>
+
+    <section class="cp__panel cp__panel--controls">
+      <header class="cp__card-header">
+        <div>
+          <h2>Color inputs</h2>
+          <p>Enter values directly or adjust sliders.</p>
+        </div>
+      </header>
+
+      <div class="cp__input-group">
+        <label class="cp__input" for="cp-hex">
+          <span>HEX color</span>
+          <input id="cp-hex" type="text" formControlName="hex" placeholder="#007bff" maxlength="7" (input)="onColorInputChange()" />
+        </label>
+
+        <div class="cp__rgb-group">
+          <label class="cp__input" for="cp-red">
+            <span>Red (0–255)</span>
+            <input id="cp-red" type="number" min="0" max="255" formControlName="red" />
+          </label>
+
+          <label class="cp__input" for="cp-green">
+            <span>Green (0–255)</span>
+            <input id="cp-green" type="number" min="0" max="255" formControlName="green" />
+          </label>
+
+          <label class="cp__input" for="cp-blue">
+            <span>Blue (0–255)</span>
+            <input id="cp-blue" type="number" min="0" max="255" formControlName="blue" />
+          </label>
+        </div>
+
+        <div class="cp__hsl-group">
+          <label class="cp__input" for="cp-hue">
+            <span>Hue (0–360)</span>
+            <input id="cp-hue" type="number" min="0" max="360" formControlName="hue" />
+          </label>
+
+          <label class="cp__input" for="cp-saturation">
+            <span>Saturation (0–100)</span>
+            <input id="cp-saturation" type="number" min="0" max="100" formControlName="saturation" />
+          </label>
+
+          <label class="cp__input" for="cp-lightness">
+            <span>Lightness (0–100)</span>
+            <input id="cp-lightness" type="number" min="0" max="100" formControlName="lightness" />
+          </label>
+        </div>
+
+        <label class="cp__input" for="cp-alpha">
+          <span>Alpha (0–1)</span>
+          <input id="cp-alpha" type="number" min="0" max="1" step="0.01" formControlName="alpha" />
+          <small>Opacity level for RGBA/HSLA formats.</small>
+        </label>
+
+        <label class="cp__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember color history</span>
+        </label>
+      </div>
+
+      <div class="cp__actions">
+        <button type="button" class="btn btn--primary" (click)="clear()">Reset</button>
+      </div>
+    </section>
+
+    <section class="cp__panel cp__panel--preview">
+      <header class="cp__card-header">
+        <div>
+          <h2>Color preview</h2>
+          <p>Visual representation in different formats.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="cp__preview-container">
+          <div class="cp__preview-box" [style.background-color]="current.hex"></div>
+          <div class="cp__preview-box" [style.background-color]="`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`"></div>
+          <div class="cp__preview-box" [style.background-color]="`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`"></div>
+        </div>
+
+        <div class="cp__preview-labels">
+          <span>HEX</span>
+          <span>RGBA</span>
+          <span>HSLA</span>
+        </div>
+      } @else {
+        <div class="cp__empty">Pick a color to see the preview.</div>
+      }
+    </section>
+
+    <section class="cp__panel cp__panel--output">
+      <header class="cp__card-header">
+        <div>
+          <h2>Formatted output</h2>
+          <p>Copy any format to your clipboard with a single click.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="cp__output-list">
+          <div class="cp__output-item">
+            <div class="cp__output-header">
+              <strong>HEX</strong>
+              <button type="button" class="btn btn--ghost btn--small" (click)="copyToClipboard(current.hex, 'HEX')">Copy</button>
             </div>
+            <code>{{ current.hex }}</code>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Presets</header>
-            <div class="ctl__panel-body">
-              <div class="ict-preset-grid">
-                @for (preset of presets; track preset.hex) {
-                  <button
-                    type="button"
-                    class="ict-preset-swatch"
-                    [style.background-color]="preset.hex"
-                    (click)="applyPreset(preset)"
-                    [attr.aria-label]="preset.label"
-                    appTooltip="{{ preset.label }}"
-                    tooltipPosition="bottom">
-                    <span>{{ preset.label }}</span>
-                  </button>
-                }
-              </div>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
+
+          <div class="cp__output-item">
+            <div class="cp__output-header">
+              <strong>RGB</strong>
               <button
                 type="button"
-                class="ctl__icon-btn"
-                (click)="clearHistory()"
-                [disabled]="!hasHistory()"
-                aria-label="Clear history"
-                appTooltip="Clear history"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                class="btn btn--ghost btn--small"
+                (click)="copyToClipboard(`rgb(${current.rgb.r}, ${current.rgb.g}, ${current.rgb.b})`, 'RGB')"
+              >
+                Copy
               </button>
-            </header>
-            <div class="ctl__panel-body">
-              @if (hasHistory()) {
-                <ul class="ict-history-list">
-                  @for (entry of history(); track entry.timestamp) {
-                    <li class="ict-history-item">
-                      <button type="button" class="ict-history-btn" (click)="applyHistory(entry)">
-                        <div class="ict-history-swatch" [style.background-color]="entry.hex"></div>
-                        <div>
-                          <strong>{{ entry.hex }}</strong><br />
-                          <span>{{ entry.rgb }}</span>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        class="ctl__icon-btn"
-                        (click)="removeHistoryEntry(entry.timestamp)"
-                        aria-label="Remove"
-                        appTooltip="Remove"
-                        tooltipPosition="bottom">
-                        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-                      </button>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <div class="ctl__panel-empty"><p>Enable history to keep recent colors.</p></div>
-              }
             </div>
+            <code>rgb({{ current.rgb.r }}, {{ current.rgb.g }}, {{ current.rgb.b }})</code>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body cp__related">
-              <ul class="cp__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="cp__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Click or drag on the picker canvas to select a color.</li>
-        <li>Adjust hue on the vertical slider or enter values in the sidebar.</li>
-        <li>Copy any format from the output panel using the copy icons.</li>
-      </ul>
-    </details>
-  </main>
+          <div class="cp__output-item">
+            <div class="cp__output-header">
+              <strong>RGBA</strong>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="copyToClipboard(`rgba(${current.rgba.r}, ${current.rgba.g}, ${current.rgba.b}, ${current.rgba.a})`, 'RGBA')"
+              >
+                Copy
+              </button>
+            </div>
+            <code>rgba({{ current.rgba.r }}, {{ current.rgba.g }}, {{ current.rgba.b }}, {{ current.rgba.a }})</code>
+          </div>
+
+          <div class="cp__output-item">
+            <div class="cp__output-header">
+              <strong>HSL</strong>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="copyToClipboard(`hsl(${current.hsl.h}, ${current.hsl.s}%, ${current.hsl.l}%)`, 'HSL')"
+              >
+                Copy
+              </button>
+            </div>
+            <code>hsl({{ current.hsl.h }}, {{ current.hsl.s }}%, {{ current.hsl.l }}%)</code>
+          </div>
+
+          <div class="cp__output-item">
+            <div class="cp__output-header">
+              <strong>HSLA</strong>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="copyToClipboard(`hsla(${current.hsla.h}, ${current.hsla.s}%, ${current.hsla.l}%, ${current.hsla.a})`, 'HSLA')"
+              >
+                Copy
+              </button>
+            </div>
+            <code>hsla({{ current.hsla.h }}, {{ current.hsla.s }}%, {{ current.hsla.l }}%, {{ current.hsla.a }})</code>
+          </div>
+        </div>
+      } @else {
+        <div class="cp__empty">Pick a color to see formatted outputs.</div>
+      }
+    </section>
+
+    <section class="cp__panel cp__panel--presets">
+      <header class="cp__card-header">
+        <div>
+          <h2>Color presets</h2>
+          <p>Quick access to common colors.</p>
+        </div>
+      </header>
+
+      <div class="cp__preset-list">
+        @for (preset of presets; track preset.hex) {
+          <button type="button" class="cp__preset-item" (click)="applyPreset(preset)" [style.background-color]="preset.hex">
+            <span class="cp__preset-label">{{ preset.label }}</span>
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="cp__panel cp__panel--history">
+      <header class="cp__card-header">
+        <div>
+          <h2>Color history</h2>
+          <p>Quick access to recently picked colors.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">Clear</button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="cp__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="cp__history-item">
+                <div class="cp__history-preview" [style.background-color]="entry.hex"></div>
+                <div class="cp__history-details">
+                  <strong>{{ entry.hex }}</strong>
+                  <span>{{ entry.rgb }}</span>
+                </div>
+              </button>
+              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">Remove</button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="cp__empty">Enable history tracking to keep a list of recent colors.</div>
+      }
+    </section>
+  </div>
 </div>

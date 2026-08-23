@@ -1,208 +1,177 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="tst">
+  <div class="tst__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Typing Speed Test</h1>
-        <p>Measure your words per minute and accuracy — type the sample text as fast as you can.</p>
+  <section class="tst__hero">
+    <div class="tst__badge">Fun tools</div>
+    <h1>Typing Speed Test</h1>
+    <p>
+      Test your typing speed and accuracy. Type the displayed text as quickly and accurately as possible. Track your
+      progress and improve your typing skills.
+    </p>
+
+    <div class="tst__hero-meta">
+      <div>
+        <span class="tst__meta-label">WPM</span>
+        <strong>{{ currentStats().wpm }}</strong>
+      </div>
+      <div>
+        <span class="tst__meta-label">Accuracy</span>
+        <strong>{{ currentStats().accuracy }}%</strong>
+      </div>
+      <div>
+        <span class="tst__meta-label">Time</span>
+        <strong>{{ formatTime(elapsedTime()) }}</strong>
+      </div>
+      @if (hasResults()) {
+        <div>
+          <span class="tst__meta-label">Best WPM</span>
+          <strong>{{ bestWPM() }}</strong>
+        </div>
+        <div>
+          <span class="tst__meta-label">Average WPM</span>
+          <strong>{{ averageWPM() }}</strong>
+        </div>
+      }
+    </div>
+  </section>
+
+  <div class="tst__board">
+    <section class="tst__panel tst__panel--test">
+      <header class="tst__card-header">
+        <div>
+          <h2>Typing Test</h2>
+          <p>Type the text below as quickly and accurately as possible.</p>
+        </div>
+        <div class="tst__header-actions">
+          <select
+            class="tst__text-select"
+            [value]="selectedTextIndex()"
+            (change)="loadText(+$any($event.target).value)"
+            [disabled]="isActive()"
+          >
+            @for (text of SAMPLE_TEXTS; track $index) {
+              <option [value]="$index">Text {{ $index + 1 }}</option>
+            }
+          </select>
+          <button type="button" class="btn btn--ghost btn--small" (click)="reset()" [disabled]="!isActive() && typedText().length === 0">
+            Reset
+          </button>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Typing statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ currentStats().wpm }}</span>
-          <span class="ctl__stat-label">WPM</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ currentStats().accuracy }}%</span>
-          <span class="ctl__stat-label">Acc</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ formatTime(elapsedTime()) }}</span>
-          <span class="ctl__stat-label">Time</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasResults() ? bestWPM() : '—' }}</span>
-          <span class="ctl__stat-label">Best</span>
+      <div class="tst__text-container">
+        <div class="tst__text-display">
+          @for (char of currentText(); track $index) {
+            <span
+              class="tst__char"
+              [class.tst__char--current]="$index === typedText().length"
+              [class]="getCharacterClass($index)"
+            >
+              {{ char === ' ' ? '·' : char }}
+            </span>
+          }
         </div>
       </div>
-    </div>
 
-    <div class="ft-workflow" aria-label="Test actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
-        <select
-          class="ctl__tool-btn tst-select"
-          [value]="selectedTextIndex()"
-          (change)="loadText(+$any($event.target).value)"
-          [disabled]="isActive()"
-          aria-label="Sample text">
-          @for (text of sampleTexts; track $index) {
-            <option [value]="$index">Text {{ $index + 1 }}</option>
-          }
-        </select>
+      <div class="tst__input-container">
+        <textarea
+          class="tst__input"
+          [value]="typedText()"
+          (input)="onInput($event)"
+          [disabled]="isComplete()"
+          placeholder="Start typing here..."
+          rows="4"
+        ></textarea>
+      </div>
+
+      @if (isComplete()) {
+        <div class="tst__completion">
+          <div class="tst__completion-title">Test Complete!</div>
+          <div class="tst__completion-stats">
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">WPM</span>
+              <strong class="tst__completion-value">{{ currentStats().wpm }}</strong>
+            </div>
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">Accuracy</span>
+              <strong class="tst__completion-value">{{ currentStats().accuracy }}%</strong>
+            </div>
+            <div class="tst__completion-stat">
+              <span class="tst__completion-label">Time</span>
+              <strong class="tst__completion-value">{{ formatTime(elapsedTime()) }}</strong>
+            </div>
+          </div>
+        </div>
+      }
+
+      <div class="tst__live-stats">
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Characters</span>
+          <strong>{{ currentStats().characters }}</strong>
+        </div>
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Correct</span>
+          <strong>{{ currentStats().correct }}</strong>
+        </div>
+        <div class="tst__stat-item">
+          <span class="tst__stat-label">Incorrect</span>
+          <strong>{{ currentStats().incorrect }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="tst__panel tst__panel--results">
+      <header class="tst__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Your recent typing test results.</p>
+        </div>
         <button
           type="button"
-          class="ctl__tool-btn"
-          (click)="reset()"
-          [disabled]="!isActive() && typedText().length === 0"
-          appTooltip="Reset test"
-          tooltipPosition="bottom"
-          aria-label="Reset test">
-          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
+          class="btn btn--ghost btn--small"
           (click)="clearResults()"
           [disabled]="!hasResults()"
-          appTooltip="Clear results"
-          tooltipPosition="bottom"
-          aria-label="Clear results">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
+        >
+          Clear
         </button>
-      </div>
-    </div>
+      </header>
 
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ft-editor-panel">
-          <header class="ctl__editor-head"><span>Sample text</span></header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="tst__suggest" aria-label="Suggested next step">
-              <div class="tst__suggest-body">
-                <p class="tst__suggest-title">{{ suggestion.title }}</p>
-                <p class="tst__suggest-reason">{{ suggestion.reason }}</p>
+      @if (hasResults()) {
+        <ul class="tst__results-list">
+          @for (result of testResults(); track result.timestamp) {
+            <li class="tst__result-item">
+              <div class="tst__result-header">
+                <div class="tst__result-wpm">{{ result.wpm }} WPM</div>
+                <div class="tst__result-time">{{ formatTime(result.time) }}</div>
               </div>
-              <div class="tst__suggest-actions">
-                <a class="tst__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="tst__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
+              <div class="tst__result-details">
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Accuracy:</span>
+                  <strong>{{ result.accuracy }}%</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Characters:</span>
+                  <strong>{{ result.characters }}</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Correct:</span>
+                  <strong class="tst__result-correct">{{ result.correct }}</strong>
+                </div>
+                <div class="tst__result-detail">
+                  <span class="tst__result-label">Incorrect:</span>
+                  <strong class="tst__result-incorrect">{{ result.incorrect }}</strong>
+                </div>
               </div>
-            </aside>
+            </li>
           }
-          <div class="ctl__editor-body tst-sample" aria-label="Text to type">
-            @for (char of currentText(); track $index) {
-              <span [class]="getCharacterClass($index)">{{ char === ' ' ? '·' : char }}</span>
-            }
-          </div>
-        </section>
-        <section class="ctl__editor ft-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Your input</span>
-            <button
-              type="button"
-              class="ctl__icon-btn"
-              (click)="copyTypedText()"
-              [disabled]="!typedText()"
-              appTooltip="Copy typed text"
-              tooltipPosition="bottom"
-              aria-label="Copy typed text">
-              <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          <label class="sr-only" for="tst-input">Type here</label>
-          <textarea
-            id="tst-input"
-            class="ctl__textarea"
-            [value]="typedText()"
-            (input)="onInput($event)"
-            [disabled]="isComplete()"
-            rows="1"
-            placeholder="Start typing here…"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"></textarea>
-          @if (isComplete()) {
-            <div class="ctl__alert ctl__alert--success tst-done" role="status">
-              Test complete — {{ currentStats().wpm }} WPM at {{ currentStats().accuracy }}% accuracy
-            </div>
-          }
-        </section>
-      </div>
-
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Test results">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              Results
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyResults()"
-                [disabled]="!hasResults()"
-                appTooltip="Copy results"
-                tooltipPosition="bottom"
-                aria-label="Copy results">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="14" height="14" />
-              </button>
-            </header>
-            @if (hasResults()) {
-              <div class="ctl__panel-body">
-                <ul class="tst-results">
-                  @for (result of testResults(); track result.timestamp) {
-                    <li>
-                      <strong>{{ result.wpm }} WPM</strong>
-                      <span>{{ result.accuracy }}% · {{ formatTime(result.time) }}</span>
-                      <span class="tst-results__detail">{{ result.correct }}/{{ result.characters }} correct</span>
-                    </li>
-                  }
-                </ul>
-              </div>
-            } @else {
-              <div class="ctl__panel-empty"><p>Complete a test to see results.</p></div>
-            }
-          </div>
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>
-                Chars: <strong>{{ currentStats().characters }}</strong> · Correct:
-                <strong>{{ currentStats().correct }}</strong> · Errors:
-                <strong>{{ currentStats().incorrect }}</strong>
-              </p>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body tst__related">
-              <ul class="tst__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="tst__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Choose a sample text, then start typing — the timer begins on your first keystroke.</li>
-        <li>Green highlights are correct; red marks mistakes in real time.</li>
-        <li>Finish the full passage to save your score to the results panel.</li>
-      </ul>
-    </details>
-  </main>
+        </ul>
+      } @else {
+        <div class="tst__empty">
+          <p>Complete a typing test to see your results here.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

@@ -1,206 +1,132 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="tzc">
+  <div class="tzc__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Timezone Converter</h1>
-        <p>Convert dates and times between timezones with offset details.</p>
+  <section class="tzc__hero">
+    <div class="tzc__badge">Fun tools</div>
+    <h1>Timezone Converter</h1>
+    <p>
+      Convert dates and times between different timezones. Select a source timezone and target timezone to see the
+      converted time with offset information.
+    </p>
+
+    @if (hasConversion() && convertedTime(); as conversion) {
+      <div class="tzc__hero-meta">
+        <div>
+          <span class="tzc__meta-label">Source</span>
+          <strong>{{ conversion.source.timezone }}</strong>
+        </div>
+        <div>
+          <span class="tzc__meta-label">Target</span>
+          <strong>{{ conversion.target.timezone }}</strong>
+        </div>
+        <div>
+          <span class="tzc__meta-label">Difference</span>
+          <strong>{{ conversion.difference }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="tzc__hero-meta tzc__hero-meta--placeholder">
+        Select date/time and timezones below to see the conversion.
+      </div>
+    }
+  </section>
+
+  <div class="tzc__board" [formGroup]="form">
+    <section class="tzc__panel tzc__panel--input">
+      <header class="tzc__card-header">
+        <div>
+          <h2>Input</h2>
+          <p>Enter date and time, select source and target timezones.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="useCurrentTime()">Use Current Time</button>
       </header>
 
-      <div class="ctl__stats" aria-label="Conversion statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasConversion() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
+      <div class="tzc__form">
+        <div class="tzc__field">
+          <label for="dateTime" class="tzc__label">Date & Time</label>
+          <input
+            id="dateTime"
+            type="datetime-local"
+            class="tzc__input"
+            formControlName="dateTime"
+          />
+          <small class="tzc__hint">Select the date and time to convert.</small>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value" [title]="convertedTime()?.difference ?? ''">{{ hasConversion() ? (convertedTime()?.difference ?? '—') : '—' }}</span>
-          <span class="ctl__stat-label">Diff</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ timezones.length }}</span>
-          <span class="ctl__stat-label">Zones</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ form.controls.sourceTimezone.value ? 'Set' : '—' }}</span>
-          <span class="ctl__stat-label">Source</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="ft-workflow" aria-label="Converter actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="useCurrentTime()"
-          aria-label="Use current time"
-          appTooltip="Use current time"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <span class="ctl__tool-btn-label">Now</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="swapTimezones()"
-          aria-label="Swap timezones"
-          appTooltip="Swap timezones"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 5h18"/><polyline points="7 23 3 19 7 15"/><path d="M21 19H3"/></svg>
-          <span class="ctl__tool-btn-label">Swap</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ft-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Input</span>
-          </header>
-          <div class="ctl__editor-body ctl__settings">
-            <label class="ctl__field" for="dateTime">
-              <span>Date &amp; time</span>
-              <input id="dateTime" type="datetime-local" formControlName="dateTime" />
-            </label>
-            <label class="ctl__field" for="sourceTimezone">
-              <span>Source timezone</span>
-              <select id="sourceTimezone" formControlName="sourceTimezone">
-                @for (tz of timezones; track tz.value) {
-                  <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
-                }
-              </select>
-            </label>
-            <label class="ctl__field" for="targetTimezone">
-              <span>Target timezone</span>
-              <select id="targetTimezone" formControlName="targetTimezone">
-                @for (tz of timezones; track tz.value) {
-                  <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
-                }
-              </select>
-            </label>
-          </div>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output ft-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Conversion</span>
-            <div class="ctl__editor-actions">
-              @if (hasConversion()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyOutput()"
-                [disabled]="!hasConversion()"
-                aria-label="Copy conversion"
-                appTooltip="Copy conversion"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyTargetTime()"
-                [disabled]="!hasConversion()"
-                aria-label="Copy target time"
-                appTooltip="Copy target time"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="tzc__suggest" aria-label="Suggested next step">
-              <div class="tzc__suggest-body">
-                <p class="tzc__suggest-title">{{ suggestion.title }}</p>
-                <p class="tzc__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="tzc__suggest-actions">
-                <a class="tzc__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="tzc__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (hasConversion() && convertedTime(); as conversion) {
-            <div class="ctl__editor-body tzc-cards" aria-live="polite">
-              <div class="tzc-card">
-                <span class="tzc-card__label">Source</span>
-                <strong class="tzc-card__time">{{ conversion.source.time }}</strong>
-                <span class="tzc-card__meta">{{ conversion.source.timezone }}</span>
-                <span class="tzc-card__offset">{{ conversion.source.offset }}</span>
-              </div>
-              <div class="tzc-arrow" aria-hidden="true">→</div>
-              <div class="tzc-card tzc-card--target">
-                <span class="tzc-card__label">Target</span>
-                <strong class="tzc-card__time">{{ conversion.target.time }}</strong>
-                <span class="tzc-card__meta">{{ conversion.target.timezone }}</span>
-                <span class="tzc-card__offset">{{ conversion.target.offset }}</span>
-              </div>
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Select date/time and timezones to see the conversion.</p>
-            </div>
-          }
-        </section>
-      </div>
-
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Conversion info">
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Conversions update <strong>live</strong> as you change inputs.</p>
-            </div>
-            @if (hasConversion() && convertedTime(); as conversion) {
-              <div class="ctl__info-item">
-                <span class="ctl__info-dot"></span>
-                <p>Time difference: <strong>{{ conversion.difference }}</strong></p>
-              </div>
+        <div class="tzc__field">
+          <label for="sourceTimezone" class="tzc__label">Source Timezone</label>
+          <select id="sourceTimezone" class="tzc__select" formControlName="sourceTimezone">
+            @for (tz of timezones; track tz.value) {
+              <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
             }
+          </select>
+          <small class="tzc__hint">The timezone of the input date/time.</small>
+        </div>
+
+        <div class="tzc__field">
+          <div class="tzc__field-header">
+            <label for="targetTimezone" class="tzc__label">Target Timezone</label>
+            <button
+              type="button"
+              class="tzc__swap-btn"
+              (click)="swapTimezones()"
+              title="Swap timezones"
+            >
+              ⇄ Swap
+            </button>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body tzc__related">
-              <ul class="tzc__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="tzc__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
+          <select id="targetTimezone" class="tzc__select" formControlName="targetTimezone">
+            @for (tz of timezones; track tz.value) {
+              <option [value]="tz.value">{{ tz.label }} ({{ tz.offset }})</option>
+            }
+          </select>
+          <small class="tzc__hint">The timezone to convert to.</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="tzc__panel tzc__panel--result">
+      <header class="tzc__card-header">
+        <div>
+          <h2>Conversion</h2>
+          <p>Converted time and timezone information.</p>
+        </div>
+      </header>
+
+      @if (hasConversion() && convertedTime(); as conversion) {
+        <div class="tzc__conversion-container">
+          <div class="tzc__time-card tzc__time-card--source">
+            <div class="tzc__time-label">Source Time</div>
+            <div class="tzc__time-value">{{ conversion.source.time }}</div>
+            <div class="tzc__timezone-info">
+              <div class="tzc__timezone-name">{{ conversion.source.timezone }}</div>
+              <div class="tzc__timezone-offset">{{ conversion.source.offset }}</div>
             </div>
           </div>
-        </aside>
-      </details>
-    </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Pick a date/time and source timezone, then choose a target timezone.</li>
-        <li>Use <strong>Now</strong> to fill in the current local time.</li>
-        <li>Swap flips source and target; copy icons grab the full conversion or target time.</li>
-      </ul>
-    </details>
-  </main>
+          <div class="tzc__arrow">→</div>
+
+          <div class="tzc__time-card tzc__time-card--target">
+            <div class="tzc__time-label">Target Time</div>
+            <div class="tzc__time-value">{{ conversion.target.time }}</div>
+            <div class="tzc__timezone-info">
+              <div class="tzc__timezone-name">{{ conversion.target.timezone }}</div>
+              <div class="tzc__timezone-offset">{{ conversion.target.offset }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tzc__difference">
+          <div class="tzc__difference-label">Time Difference</div>
+          <div class="tzc__difference-value">{{ conversion.difference }}</div>
+        </div>
+      } @else {
+        <div class="tzc__empty">
+          <p>Enter date/time and select timezones to see the conversion.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

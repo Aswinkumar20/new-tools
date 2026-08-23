@@ -1,252 +1,226 @@
-<div class="ctl fv" [class.dark-theme]="isDarkTheme" [class.light-theme]="!isDarkTheme" [class.compact]="compact">
+<div class="main-container" [class.dark-theme]="isDarkTheme" [class.light-theme]="!isDarkTheme" [class.compact]="compact">
   <lib-navigation></lib-navigation>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Log Viewer</h1>
-        <p>View, search, and analyze log files with level filtering, regex search, and analytics.</p>
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Log viewer & analyzer</p>
+          <h1>{{ title || 'View, search, and analyze log files' }}</h1>
+          <p class="strapline">
+            Advanced filtering, analytics, and real-time search with automatic log level detection and color-coded entries.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Regex search</span>
+          <span class="meta-pill">Level filtering</span>
+          <span class="meta-pill">Analytics</span>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Log statistics" *ngIf="stats; else emptyStats">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats.total }}</span>
-          <span class="ctl__stat-label">Total</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ filteredLogEntries.length }}</span>
-          <span class="ctl__stat-label">Shown</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ getLevelCount(LogLevel.ERROR) + getLevelCount(LogLevel.FATAL) }}</span>
-          <span class="ctl__stat-label">Errors</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ getLevelCount(LogLevel.WARN) }}</span>
-          <span class="ctl__stat-label">Warnings</span>
-        </div>
-      </div>
-      <ng-template #emptyStats>
-        <div class="ctl__stats" aria-label="Log statistics">
-          <div class="ctl__stat"><span class="ctl__stat-value">—</span><span class="ctl__stat-label">Total</span></div>
-          <div class="ctl__stat"><span class="ctl__stat-value">—</span><span class="ctl__stat-label">Shown</span></div>
-          <div class="ctl__stat"><span class="ctl__stat-value">—</span><span class="ctl__stat-label">Errors</span></div>
-          <div class="ctl__stat"><span class="ctl__stat-value">—</span><span class="ctl__stat-label">Warnings</span></div>
-        </div>
-      </ng-template>
-    </div>
-
-    <div class="fv-workflow" aria-label="Log viewer controls">
-      <div class="fv-workflow__group fv-workflow__group--files">
-        <label class="ctl__tool-btn" aria-label="Upload log file" appTooltip="Upload log file" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" [accept]="acceptAttr" (change)="onFileSelected($event)" />
-        </label>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="downloadFile()"
-          [disabled]="allLogEntries.length === 0"
-          aria-label="Download log file"
-          appTooltip="Download log file"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="clearAll()"
-          [disabled]="allLogEntries.length === 0"
-          aria-label="Clear all logs"
-          appTooltip="Clear all logs"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-
-      @if (allLogEntries.length > 0) {
-        <span class="fv-workflow__divider" aria-hidden="true"></span>
-
-        <div class="fv-workflow__group fv-workflow__group--search" role="search" aria-label="Search logs">
+      <section class="insight-card upload-card">
+        <header class="insight-header">
+          <h2>Load log files</h2>
+          <p>Drop files or browse to start analyzing logs instantly.</p>
+        </header>
+        <div class="insight-body">
           <input
-            type="text"
-            [value]="searchText"
-            (input)="onSearchChange($any($event.target).value)"
-            placeholder="Search logs (supports regex)"
-            class="search-input fv-workflow__search"
-            aria-label="Search logs" />
+            #fileInput
+            type="file"
+            accept=".log,.txt,text/plain"
+            (change)="onFileSelected($event)"
+            class="file-input"
+            hidden>
+
           <button
             type="button"
-            class="fv-icon-btn"
-            [class.active]="filter.regexEnabled"
-            (click)="filter.regexEnabled = !filter.regexEnabled"
-            aria-label="Toggle regex search"
-            appTooltip="Toggle regex search"
-            tooltipPosition="bottom">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polyline points="4 7 4 4 20 4 20 7" />
-              <line x1="9" y1="20" x2="15" y2="20" />
-              <line x1="12" y1="4" x2="12" y2="20" />
-            </svg>
+            class="drop-zone"
+            [class.active]="showDropZone"
+            (dragenter)="onDragEnter()"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+            (click)="openFileDialog()"
+            aria-label="Upload log files">
+            <div class="drop-zone-content">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p class="drop-zone-text">Click to browse or drag and drop log files here</p>
+              <p class="drop-zone-formats">Supported: .log, .txt files</p>
+            </div>
           </button>
+
+          <div class="upload-actions">
+            <button class="btn-primary" (click)="openFileDialog()">
+              <span>Select Log File</span>
+            </button>
+            <p class="upload-hint">Files stay on your device—perfect for secure log analysis.</p>
+          </div>
         </div>
+      </section>
+    </section>
 
-        <span class="fv-workflow__divider" aria-hidden="true"></span>
-
-        <div class="fv-workflow__group fv-workflow__group--levels" role="group" aria-label="Filter by log level">
-          <button
-            *ngFor="let level of allLevels"
-            type="button"
-            class="fv-icon-btn fv-level-btn"
-            [class.active]="selectedLevels.has(level)"
-            [style.border-color]="selectedLevels.has(level) ? getLogLevelColor(level) : null"
-            (click)="toggleLevel(level)"
-            [attr.aria-label]="'Toggle ' + level + ' logs'"
-            [attr.aria-pressed]="selectedLevels.has(level)"
-            [appTooltip]="'Toggle ' + level + ' logs'"
-            tooltipPosition="bottom">
-            <span class="fv-level-btn__icon" aria-hidden="true">{{ getLogLevelIcon(level) }}</span>
-          </button>
+    <aside class="workspace-secondary">
+      <div class="editor-toolbar log-toolbar" aria-label="Log viewer controls">
+        <div class="toolbar-stats" aria-label="Log statistics" *ngIf="stats">
+          <div class="stat-chip">
+            <span class="stat-label">Total entries</span>
+            <span class="stat-value">{{ stats.total }}</span>
+          </div>
+          <div class="stat-chip" *ngFor="let level of allLevels" [style.color]="getLogLevelColor(level)">
+            <span class="stat-label">{{ level }}</span>
+            <span class="stat-value">{{ getLevelCount(level) }}</span>
+          </div>
         </div>
+      </div>
 
-        <span class="fv-workflow__divider" aria-hidden="true"></span>
-
-        <div class="fv-viewer-controls fv-workflow__group fv-workflow__group--view" role="group" aria-label="Log view options">
-          <button
-            type="button"
-            class="fv-icon-btn"
-            [class.active]="showFilters"
-            (click)="toggleFilters()"
-            aria-label="Toggle level filters panel"
-            appTooltip="Toggle level filters panel"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            [class.active]="showStats"
-            (click)="toggleStats()"
-            aria-label="Toggle analytics"
-            appTooltip="Toggle analytics"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            [class.active]="liveMode"
-            (click)="liveMode = !liveMode"
-            aria-label="Toggle live mode"
-            appTooltip="Toggle live mode"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <polygon points="10 8 16 12 10 16 10 8" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            [class.active]="wordWrap"
-            (click)="toggleWordWrap()"
-            aria-label="Toggle word wrap"
-            appTooltip="Toggle word wrap"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M3 6h18" />
-              <path d="M3 12h15a3 3 0 1 1 0 6h-4" />
-              <polyline points="14 15 17 18 14 21" />
-              <line x1="3" y1="18" x2="10" y2="18" />
-            </svg>
-          </button>
-        </div>
-      }
-    </div>
-
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor ctl__editor--merged fv-viewer-panel log-viewer-panel" aria-label="Log entries">
-          <header class="ctl__editor-head">
-            <span>Log entries</span>
+      <div class="viewer-shell log-shell">
+        <section class="panel panel-viewer">
+          <header class="panel-header">
+            <div>
+              <h2>Log viewer</h2>
+              <p *ngIf="allLogEntries.length > 0">{{ filteredLogEntries.length }} of {{ allLogEntries.length }} entries displayed</p>
+              <p *ngIf="allLogEntries.length === 0">Upload log files to start viewing and analyzing them.</p>
+            </div>
+            <div class="panel-actions viewer-controls" *ngIf="allLogEntries.length > 0">
+              <div class="viewer-zoom-controls-inline">
+                <button
+                  class="btn-icon"
+                  [class.active]="showFilters"
+                  (click)="toggleFilters()"
+                  title="Toggle Filters">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                  </svg>
+                </button>
+                <button
+                  class="btn-icon"
+                  [class.active]="showStats"
+                  (click)="toggleStats()"
+                  title="Toggle Analytics">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                  </svg>
+                </button>
+                <button
+                  class="btn-icon"
+                  [class.active]="autoScroll"
+                  (click)="autoScroll = !autoScroll"
+                  title="Auto-scroll">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <button
+                  class="btn-icon"
+                  [class.active]="liveMode"
+                  (click)="liveMode = !liveMode"
+                  title="Live Mode">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </header>
 
-          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner" aria-hidden="true"></div><p>Loading log file…</p></div>
-          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p></div>
+          <div class="loading" *ngIf="loading">
+            <div class="spinner"></div>
+            <p>Loading log file...</p>
+          </div>
 
-          <aside class="lv__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
-            <div class="lv__suggest-body">
-              <p class="lv__suggest-title">{{ suggestion.title }}</p>
-              <p class="lv__suggest-reason">{{ suggestion.reason }}</p>
+          <div class="error-message" *ngIf="errorMessage">
+            <p>{{ errorMessage }}</p>
+          </div>
+
+          <div class="viewer-content" *ngIf="allLogEntries.length > 0">
+            <!-- Search Box -->
+            <div class="search-toolbar">
+              <div class="search-box">
+                <input
+                  type="text"
+                  [value]="searchText"
+                  (input)="onSearchChange($any($event.target).value)"
+                  placeholder="Search logs (supports regex)"
+                  class="search-input">
+                <button
+                  class="btn-icon"
+                  [class.active]="filter.regexEnabled"
+                  (click)="filter.regexEnabled = !filter.regexEnabled"
+                  title="Enable Regex">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                    <line x1="9" y1="20" x2="15" y2="20"></line>
+                    <line x1="12" y1="4" x2="12" y2="20"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="lv__suggest-actions">
-              <a class="lv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button
-                type="button"
-                class="lv__suggest-dismiss"
-                (click)="dismissSuggestion(suggestion.id)"
-                aria-label="Dismiss suggestion">
-                Dismiss
-              </button>
-            </div>
-          </aside>
 
-          <div class="fv-viewer-body" *ngIf="allLogEntries.length > 0">
-            @if (loadedFileName) {
-              <header class="fv-viewer-bar">
-                <p class="fv-viewer-bar__name" [title]="loadedFileName">{{ loadedFileName }}</p>
-                <p class="fv-viewer-bar__hint">{{ filteredLogEntries.length }} of {{ allLogEntries.length }} entries shown</p>
-              </header>
-            }
-
+            <!-- Filters Panel -->
             <div class="filters-panel" *ngIf="showFilters">
               <div class="filters-content">
                 <div class="filter-group">
-                  <label>Filter by level:</label>
+                  <label>Filter by Level:</label>
                   <div class="level-filters">
-                    <button *ngFor="let level of allLevels" class="level-filter-btn" [class.active]="selectedLevels.has(level)" [style.border-color]="getLogLevelColor(level)" (click)="toggleLevel(level)">
+                    <button
+                      *ngFor="let level of allLevels"
+                      class="level-filter-btn"
+                      [class.active]="selectedLevels.has(level)"
+                      [style.border-color]="getLogLevelColor(level)"
+                      (click)="toggleLevel(level)">
                       <span class="level-icon">{{ getLogLevelIcon(level) }}</span>
                       <span>{{ level }}</span>
                       <span class="level-count" *ngIf="stats">{{ getLevelCount(level) }}</span>
                     </button>
                   </div>
                   <div class="filter-actions">
-                    <button class="btn-link" type="button" (click)="selectAllLevels()">Select all</button>
-                    <button class="btn-link" type="button" (click)="clearFilters()">Clear filters</button>
+                    <button class="btn-link" (click)="selectAllLevels()">Select All</button>
+                    <button class="btn-link" (click)="clearFilters()">Clear Filters</button>
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- Analytics Panel -->
             <div class="analytics-panel" *ngIf="showStats && stats">
               <div class="analytics-content">
-                <h3>Log statistics</h3>
+                <h3>Log Statistics</h3>
                 <div class="stats-grid">
                   <div class="stat-card" *ngFor="let level of allLevels" [style.border-color]="getLogLevelColor(level)">
-                    <div class="stat-card-header"><span class="stat-level-icon">{{ getLogLevelIcon(level) }}</span><span class="stat-level-name">{{ level }}</span></div>
+                    <div class="stat-card-header">
+                      <span class="stat-level-icon">{{ getLogLevelIcon(level) }}</span>
+                      <span class="stat-level-name">{{ level }}</span>
+                    </div>
                     <div class="stat-card-value">{{ getLevelCount(level) }}</div>
-                    <div class="stat-card-percentage" *ngIf="stats.total > 0">{{ getLevelPercentage(level) }}</div>
+                    <div class="stat-card-percentage" *ngIf="stats.total > 0">
+                      {{ getLevelPercentage(level) }}
+                    </div>
                   </div>
                 </div>
-                <div class="chart-container" *ngIf="stats"><canvas #statsChart></canvas></div>
+                <div class="chart-container" *ngIf="stats">
+                  <canvas #statsChart></canvas>
+                </div>
               </div>
             </div>
 
-            <div class="log-container" #logContainer [class.log-container--nowrap]="!wordWrap" (scroll)="onScroll($event)">
-              <div *ngFor="let entry of displayedLogEntries; trackBy: trackByEntryId" class="log-entry" [class.expanded]="entry.expanded" [class.multi-line]="entry.isMultiLine" (click)="selectLogEntry(entry)" [attr.data-level]="entry.level">
+            <!-- Log Content Container -->
+            <div 
+              class="log-container"
+              #logContainer
+              (scroll)="onScroll($event)">
+              <div 
+                *ngFor="let entry of displayedLogEntries; trackBy: trackByEntryId"
+                class="log-entry"
+                [class.expanded]="entry.expanded"
+                [class.multi-line]="entry.isMultiLine"
+                (click)="selectLogEntry(entry)"
+                [attr.data-level]="entry.level">
                 <div class="log-entry-header" (click)="entry.isMultiLine && toggleLogEntry(entry)">
                   <div class="log-entry-meta">
                     <span class="log-level-badge" [style.background-color]="getLogLevelColor(entry.level)">
@@ -254,22 +228,31 @@
                       <span class="level-text">{{ entry.level }}</span>
                     </span>
                     <span class="log-line-number" *ngIf="!compact">#{{ entry.lineNumber }}</span>
-                    <span class="log-timestamp" *ngIf="entry.timestamp && !compact">{{ formatTimestamp(entry.timestamp) }}</span>
-                    <button type="button" class="btn-icon-small" (click)="copyLogLine(entry, $event)" aria-label="Copy log line" appTooltip="Copy log line" tooltipPosition="top">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    <span class="log-timestamp" *ngIf="entry.timestamp && !compact">
+                      {{ formatTimestamp(entry.timestamp) }}
+                    </span>
+                    <button
+                      class="btn-icon-small"
+                      (click)="copyLogLine(entry, $event)"
+                      title="Copy to clipboard">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                       </svg>
                     </button>
-                    <button type="button" class="btn-icon-small expand-btn" *ngIf="entry.isMultiLine" (click)="toggleLogEntry(entry); $event.stopPropagation()" aria-label="Expand or collapse log entry" appTooltip="Expand or collapse" tooltipPosition="top">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <polyline *ngIf="!entry.expanded" points="6 9 12 15 18 9" />
-                        <polyline *ngIf="entry.expanded" points="18 15 12 9 6 15" />
+                    <button
+                      class="btn-icon-small expand-btn"
+                      *ngIf="entry.isMultiLine"
+                      (click)="toggleLogEntry(entry); $event.stopPropagation()"
+                      title="Expand/Collapse">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline *ngIf="!entry.expanded" points="6 9 12 15 18 9"></polyline>
+                        <polyline *ngIf="entry.expanded" points="18 15 12 9 6 15"></polyline>
                       </svg>
                     </button>
                   </div>
                   <div class="log-entry-preview">
-                    <span class="log-message">{{ previewMessage(entry.message) }}</span>
+                    <span class="log-message">{{ entry.message.length > 200 ? (entry.message | slice:0:200) + '...' : entry.message }}</span>
                   </div>
                 </div>
                 <div class="log-entry-content" *ngIf="entry.isMultiLine && entry.expanded">
@@ -278,66 +261,99 @@
               </div>
             </div>
 
-            <button type="button" class="fab fab-top" *ngIf="showScrollToTop" (click)="scrollToTop()" aria-label="Scroll to top" appTooltip="Scroll to top" tooltipPosition="left">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <polyline points="18 15 12 9 6 15" />
+            <!-- Floating Action Buttons -->
+            <button
+              class="fab fab-top"
+              *ngIf="showScrollToTop"
+              (click)="scrollToTop()"
+              title="Scroll to Top">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="18 15 12 9 6 15"></polyline>
               </svg>
             </button>
-            <button type="button" class="fab fab-bottom" *ngIf="showScrollToBottom" (click)="scrollToBottom()" aria-label="Scroll to bottom" appTooltip="Scroll to bottom" tooltipPosition="left">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9" />
+            <button
+              class="fab fab-bottom"
+              *ngIf="showScrollToBottom"
+              (click)="scrollToBottom()"
+              title="Scroll to Bottom">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
             </button>
           </div>
 
-          <button
-            type="button"
-            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
-            *ngIf="allLogEntries.length === 0 && !loading"
-            [class.fv-dropzone--active]="showDropZone"
-            (click)="openFileDialog()"
-            aria-label="Upload log files by clicking or dragging files here">
-            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
-            <p class="fv-dropzone__title">Drop log files here or <strong>browse files</strong></p>
-            <p class="fv-dropzone__formats">.log, .txt · files stay on your device</p>
-          </button>
+          <div class="empty-gallery" *ngIf="allLogEntries.length === 0 && !loading">
+            <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p>No log file loaded</p>
+            <p class="hint">Upload a log file using the panel above or drag and drop it anywhere on the page</p>
+          </div>
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Log settings">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Settings</header>
-          <div class="ctl__settings">
-            <label class="ctl__toggle"><input type="checkbox" [checked]="filter.regexEnabled" (change)="filter.regexEnabled = !filter.regexEnabled" /><div><strong>Regex search</strong><span>Enable pattern matching in search.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="autoScroll" (change)="autoScroll = !autoScroll" /><div><strong>Auto-scroll</strong><span>Follow new entries at the bottom.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="liveMode" (change)="liveMode = !liveMode" /><div><strong>Live mode</strong><span>Track streaming log updates.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="wordWrap" (change)="toggleWordWrap()" /><div><strong>Word wrap</strong><span>Wrap long log lines.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="compact" (change)="compact = !compact" /><div><strong>Compact view</strong><span>Hide line numbers and timestamps.</span></div></label>
-            <label class="ctl__toggle"><input type="checkbox" [checked]="isDarkTheme" (change)="isDarkTheme = !isDarkTheme" /><div><strong>Dark theme</strong><span>Switch to dark log colors.</span></div></label>
-          </div>
-        </div>
-        <div class="ctl__panel lv__related">
-          <header class="ctl__panel-head">Related tools</header>
-          <ul class="lv__related-list">
-            <li *ngFor="let tool of relatedTools">
-              <a class="lv__related-link" [routerLink]="tool.path">
-                <strong>{{ tool.label }}</strong>
-                <span>{{ tool.description }}</span>
-              </a>
-            </li>
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Pro tips</h2>
+          <p>Level up your log analysis workflow.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Use regex search for complex pattern matching across log entries.</li>
+            <li>Filter by log level to focus on errors or warnings quickly.</li>
+            <li>Enable auto-scroll to track live log streams in real-time.</li>
+            <li>View analytics to understand log distribution and patterns.</li>
+            <li>Copy individual log lines for sharing or documentation.</li>
           </ul>
         </div>
-        <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Logs are analyzed <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
-      </aside>
-    </div>
+      </section>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Upload .log or .txt files for automatic level detection.</li>
-        <li>Filter by level and use regex search for complex patterns.</li>
-        <li>View analytics to understand log distribution.</li>
-      </ul>
-    </details>
-  </main>
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our log viewer.</p>
+        </header>
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              Log Viewer is a high-performance tool for viewing, searching, and analyzing log files. It automatically 
+              detects log levels, extracts timestamps, and provides powerful filtering and analytics capabilities.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>Automatic detection</strong>
+                <p>Detects log levels (DEBUG, INFO, WARN, ERROR, FATAL) automatically.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Real-time search</strong>
+                <p>Search with regex support for complex pattern matching.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Level filtering</strong>
+                <p>Filter by log level and date range for focused analysis.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Analytics</strong>
+                <p>View statistics and charts for log distribution insights.</p>
+              </div>
+            </div>
+
+            <div class="use-cases">
+              <strong>Perfect for:</strong>
+              <ul class="tip-list">
+                <li>Debugging application errors</li>
+                <li>Monitoring system logs</li>
+                <li>Analyzing log patterns</li>
+                <li>Tracking live log streams</li>
+                <li>Security log analysis</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
 </div>

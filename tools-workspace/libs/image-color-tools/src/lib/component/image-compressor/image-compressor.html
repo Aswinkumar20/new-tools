@@ -1,244 +1,228 @@
-<div class="ctl ic">
-  <lib-navigation></lib-navigation>
+<div class="ic">
+  <div class="ic__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Image Compressor</h1>
-        <p>Optimise image size and format in your browser — adjust quality, resize, and export instantly.</p>
+  <section class="ic__hero">
+    <div class="ic__badge">Media toolkit</div>
+    <h1>Image Compressor</h1>
+    <p>
+      Optimise image size and format directly in your browser. Adjust quality, resize, and export with a single click.
+      Ideal for speeding up websites, sharing assets, and trimming email attachments.
+    </p>
+
+    @if (selectedFile()) {
+      @let file = selectedFile()!;
+      <div class="ic__hero-meta">
+        <div>
+          <span class="ic__meta-label">Selected file</span>
+          <strong>{{ file.name }}</strong>
+        </div>
+        <div>
+          <span class="ic__meta-label">Size</span>
+          <strong>{{ formatBytes(file.size) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="ic__hero-meta ic__hero-meta--placeholder">
+        Drop an image or browse to start compressing. Supports PNG, JPEG, HEIC, WebP, and RAW formats.
+      </div>
+    }
+  </section>
+
+  <div class="ic__workspace" [formGroup]="form">
+    <section class="ic__panel ic__panel--upload">
+      <header class="ic__card-header">
+        <div>
+          <h2>Upload & configure</h2>
+          <p>Pick an image, tweak quality, resize dimensions, and optional metadata controls.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Compression statistics">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ selectedFile()?.name ?? '—' }}</span>
-          <span class="ctl__stat-label">File</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ selectedFile() ? formatBytes(selectedFile()!.size) : '—' }}</span>
-          <span class="ctl__stat-label">Original</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ result() ? formatBytes(result()!.compressedSize) : '—' }}</span>
-          <span class="ctl__stat-label">Compressed</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ result() ? ((1 - result()!.reduction) * 100 | number: '1.0-0') + '%' : '—' }}</span>
-          <span class="ctl__stat-label">Saved</span>
+      <div
+        class="ic__dropzone"
+        [class.ic__dropzone--active]="dragActive()"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <input #fileInput type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
+        <button type="button" class="btn btn--primary" (click)="fileInput.click()">Choose image</button>
+        <p>or drag & drop here · Max file size {{ formatBytes(45 * 1024 * 1024) }}</p>
+      </div>
+
+      <div class="ic__form-grid">
+        <label class="ic__input" for="ic-quality">
+          <span>Quality (0.1 – 1)</span>
+          <input id="ic-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
+          <small>Lower values reduce file size, higher values preserve detail.</small>
+        </label>
+
+        <label class="ic__input" for="ic-format">
+          <span>Export format</span>
+          <select id="ic-format" formControlName="format">
+            <option value="image/jpeg">JPEG (widely supported)</option>
+            <option value="image/webp">WebP (modern)</option>
+            <option value="image/png">PNG (lossless)</option>
+          </select>
+        </label>
+
+        <label class="ic__input" for="ic-width">
+          <span>Resize width</span>
+          <input id="ic-width" type="number" min="1" [max]="8000" formControlName="resizeWidth" (input)="onDimensionInput('width')" />
+        </label>
+
+        <label class="ic__input" for="ic-height">
+          <span>Resize height</span>
+          <input id="ic-height" type="number" min="1" [max]="8000" formControlName="resizeHeight" (input)="onDimensionInput('height')" />
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="keepAspect" />
+          <span>Lock aspect ratio</span>
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="stripMetadata" />
+          <span>Strip metadata (EXIF, GPS)</span>
+        </label>
+
+        <label class="ic__toggle">
+          <input type="checkbox" formControlName="rememberHistory" />
+          <span>Remember session history</span>
+        </label>
+      </div>
+
+      <div class="ic__presets">
+        <h3>Quick presets</h3>
+        <div class="ic__preset-list">
+          @for (preset of presets; track preset.label) {
+            <button type="button" (click)="applyPreset(preset)">
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.description }}</span>
+            </button>
+          }
         </div>
       </div>
-    </div>
 
-    <div class="ic-workflow" aria-label="Compressor actions">
-      <div class="ic-workflow__group ic-workflow__group--actions">
-        <input #fileInput id="ic-file-input" type="file" accept="image/*" (change)="handleFileInput($event)" hidden />
-        <button type="button" class="ctl__tool-btn" (click)="fileInput.click()" aria-label="Upload image" appTooltip="Upload image" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
+      <div class="ic__actions">
+        <button type="button" class="btn btn--primary" (click)="compress()" [disabled]="!canCompress() || isProcessing()">
+          {{ isProcessing() ? 'Compressing…' : 'Compress image' }}
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="compress()" [disabled]="!canCompress() || isProcessing()" aria-label="Compress" appTooltip="Compress image" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/stats.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">{{ isProcessing() ? '…' : 'Compress' }}</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="download()" [disabled]="!result()" aria-label="Download" appTooltip="Download compressed" tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button type="button" class="ctl__tool-btn" (click)="clear()" [disabled]="!selectedFile()" aria-label="Clear" appTooltip="Clear all" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
+        <button type="button" class="btn btn--ghost" (click)="clear()" [disabled]="!selectedFile()">Clear</button>
       </div>
-    </div>
+    </section>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ic-editor-panel" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-          <header class="ctl__editor-head"><span>Original</span></header>
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="icomp__suggest" aria-label="Suggested next step">
-              <div class="icomp__suggest-body">
-                <p class="icomp__suggest-title">{{ suggestion.title }}</p>
-                <p class="icomp__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="icomp__suggest-actions">
-                <a class="icomp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="icomp__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (errors().length || warnings().length) {
-            @if (errors().length) {
-              <div class="ctl__alert ctl__alert--error" role="alert">
-                <ul>
-                  @for (m of errors(); track m) {
-                    <li>{{ m }}</li>
-                  }
-                </ul>
-              </div>
+    <section class="ic__panel ic__panel--preview">
+      <header class="ic__card-header">
+        <div>
+          <h2>Preview & compare</h2>
+          <p>Compare before/after stats to validate your compression choices.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="ic__alert ic__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
             }
-            @if (warnings().length) {
-              <div class="ctl__alert ctl__alert--warning">
-                <ul>
-                  @for (m of warnings(); track m) {
-                    <li>{{ m }}</li>
-                  }
-                </ul>
-              </div>
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="ic__alert ic__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
             }
-          }
-          @if (isProcessing()) {
-            <div class="ctl__empty"><p>Processing image…</p></div>
-          } @else if (previewUrl()) {
-            <div class="ctl__editor-body icomp__preview-wrap">
-              <img [src]="previewUrl()" alt="Original preview" class="ict-preview-img" />
-            </div>
-          } @else {
-            <div class="ctl__editor-body">
-              <button type="button" class="ict-dropzone" [class.ict-dropzone--active]="dragActive()" (click)="fileInput.click()">
-                <p>Drop an image here or click to browse</p>
-                <p>Max {{ formatBytes(maxFileSize) }}</p>
+          </ul>
+        </div>
+      }
+
+      @if (previewUrl()) {
+        <figure class="ic__preview">
+          <img [src]="previewUrl()" alt="Original preview" />
+        </figure>
+      } @else {
+        <div class="ic__empty">Preview will appear once an image is loaded.</div>
+      }
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ic__stats">
+          <div>
+            <span>Original</span>
+            <strong>{{ current.originalDimensions.width }} × {{ current.originalDimensions.height }}</strong>
+            <small>{{ formatBytes(current.originalSize) }}</small>
+          </div>
+          <div>
+            <span>Compressed</span>
+            <strong>{{ current.compressedDimensions.width }} × {{ current.compressedDimensions.height }}</strong>
+            <small>{{ formatBytes(current.compressedSize) }}</small>
+          </div>
+          <div>
+            <span>Reduction</span>
+            <strong>{{ (1 - current.reduction) * 100 | number: '1.0-0' }}% smaller</strong>
+          </div>
+        </div>
+      }
+    </section>
+
+    <section class="ic__panel ic__panel--output">
+      <header class="ic__card-header">
+        <div>
+          <h2>Download</h2>
+          <p>Save or open your optimised asset.</p>
+        </div>
+      </header>
+
+      @if (result()) {
+        @let current = result()!;
+        <div class="ic__result-preview">
+          <img [src]="current.previewUrl" alt="Compressed preview" />
+        </div>
+
+        <div class="ic__actions">
+          <button type="button" class="btn btn--primary" (click)="download()">Download</button>
+          <a class="btn btn--ghost" [href]="current.downloadUrl" target="_blank" rel="noopener">Open in new tab</a>
+        </div>
+      } @else {
+        <div class="ic__empty">Compress an image to reveal the optimised output.</div>
+      }
+    </section>
+
+    <section class="ic__panel ic__panel--history">
+      <header class="ic__card-header">
+        <div>
+          <h2>Session history</h2>
+          <p>Review recent conversions completed in this session.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="ic__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <div>
+                <strong>{{ entry.name ?? 'Untitled' }}</strong>
+                <span>{{ entry.format }}</span>
+                <span>{{ entry.sizes }}</span>
+                <span>{{ entry.dimensions }}</span>
+              </div>
+              <button type="button" class="btn btn--ghost btn--small" (click)="removeHistoryEntry(entry.timestamp)">
+                Remove
               </button>
-            </div>
+            </li>
           }
-        </section>
-
-        <section class="ctl__editor ctl__editor--output ic-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Compressed output</span>
-            @if (result()) {
-              <span class="ctl__editor-badge">Ready</span>
-            }
-          </header>
-          @if (result(); as current) {
-            <div class="ctl__editor-body icomp__output-wrap">
-              <img [src]="current.previewUrl" alt="Compressed preview" class="ict-preview-img" />
-              <p class="icomp__output-meta">
-                {{ formatBytes(current.originalSize) }} → {{ formatBytes(current.compressedSize) }}
-                · {{ current.compressedDimensions.width }}×{{ current.compressedDimensions.height }}
-              </p>
-            </div>
-          } @else {
-            <div class="ctl__empty"><p>Compress an image to see the optimised output.</p></div>
-          }
-        </section>
-      </div>
-
-      <details class="ic-options-flyout">
-        <summary class="ic-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ic-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ic-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Compression options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="ic-quality">
-                <span>Quality (0.1–1)</span>
-                <input id="ic-quality" type="number" min="0.1" max="1" step="0.01" formControlName="quality" />
-              </label>
-              <label class="ctl__field" for="ic-format">
-                <span>Export format</span>
-                <select id="ic-format" formControlName="format">
-                  <option value="image/jpeg">JPEG</option>
-                  <option value="image/webp">WebP</option>
-                  <option value="image/png">PNG</option>
-                </select>
-              </label>
-              <label class="ctl__field" for="ic-width">
-                <span>Width (px)</span>
-                <input id="ic-width" type="number" min="1" max="8000" formControlName="resizeWidth" (input)="onDimensionInput('width')" />
-              </label>
-              <label class="ctl__field" for="ic-height">
-                <span>Height (px)</span>
-                <input id="ic-height" type="number" min="1" max="8000" formControlName="resizeHeight" (input)="onDimensionInput('height')" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="keepAspect" />
-                <div><strong>Lock aspect ratio</strong></div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="stripMetadata" />
-                <div><strong>Strip metadata</strong></div>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="rememberHistory" />
-                <div><strong>Remember history</strong></div>
-              </label>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Presets</header>
-            <div class="ctl__panel-body">
-              @for (preset of presets; track preset.label) {
-                <button type="button" class="ctl__tool-btn icomp__preset-btn" (click)="applyPreset(preset)">
-                  {{ preset.label }}
-                </button>
-              }
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
-              <button type="button" class="ctl__icon-btn" (click)="clearHistory()" [disabled]="!hasHistory()" aria-label="Clear history" appTooltip="Clear history" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-              </button>
-            </header>
-            <div class="ctl__panel-body">
-              @if (hasHistory()) {
-                <ul class="ict-history-list">
-                  @for (entry of history(); track entry.timestamp) {
-                    <li class="ict-history-item icomp__history-item">
-                      <strong class="icomp__history-name">{{ entry.name ?? 'Untitled' }}</strong>
-                      <span class="icomp__history-meta">{{ entry.format }} · {{ entry.sizes }}</span>
-                    </li>
-                  }
-                </ul>
-              } @else {
-                <div class="ctl__panel-empty"><p>No compression history yet.</p></div>
-              }
-            </div>
-          </div>
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Compression runs <strong>locally</strong> in your browser.</p>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body icomp__related">
-              <ul class="icomp__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="icomp__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Upload or drag an image, then tune quality and dimensions in the sidebar.</li>
-        <li>Click <strong>Compress</strong> to generate the optimised output.</li>
-        <li>Compare original and compressed previews side by side.</li>
-      </ul>
-    </details>
-  </main>
+        </ul>
+      } @else {
+        <div class="ic__empty">Enable history tracking to keep a list of recent compressions.</div>
+      }
+    </section>
+  </div>
 </div>

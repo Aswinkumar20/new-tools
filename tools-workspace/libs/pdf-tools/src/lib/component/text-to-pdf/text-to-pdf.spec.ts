@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { TextToPdfComponent } from './text-to-pdf';
 
 describe('TextToPdfComponent', () => {
@@ -8,8 +7,7 @@ describe('TextToPdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TextToPdfComponent],
-      providers: pdfToolTestProviders(),
+      imports: [TextToPdfComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(TextToPdfComponent);

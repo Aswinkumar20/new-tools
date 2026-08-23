@@ -1,21 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
-import type { PdfToolMode } from '../../shared/pdf.types';
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-add-watermark',
   standalone: true,
-  template: `
-    <lib-pdf-workbench
-      [mode]="mode"
-      [title]="title"
-      [description]="description" />
-  `,
-  imports: [PdfWorkbenchComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './add-watermark.html',
+  styleUrls: ['./add-watermark.scss'],
+  imports: [CommonModule, FormsModule, Navigation]
 })
 export class AddWatermarkComponent {
-  readonly mode: PdfToolMode = 'add-watermark';
-  readonly title = 'Add Watermark to PDF';
-  readonly description = 'Overlay diagonal text watermarks on every page.';
+  constructor() {}
 }

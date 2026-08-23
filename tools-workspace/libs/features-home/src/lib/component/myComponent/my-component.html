@@ -1,441 +1,94 @@
-<div class="home" [class.home--ready]="pageReady">
-  <lib-navigation [reserveSpace]="false"></lib-navigation>
+<div class="homepage">
+  <lib-navigation class="site-navigation"></lib-navigation>
 
-  <main id="main-content" class="home__main" [attr.aria-busy]="!pageReady">
-    <section class="home-hero" aria-labelledby="hero-title">
-      <div class="home-hero__shell">
-        <div class="home-hero__backdrop" aria-hidden="true">
-          <span class="home-hero__type home-hero__type--pdf">PDF</span>
-          <span class="home-hero__type home-hero__type--json">{{ '{ }' }}</span>
-          <span class="home-hero__type home-hero__type--code">&lt;/&gt;</span>
-          <span class="home-hero__type home-hero__type--hash">#</span>
-          <span class="home-hero__type home-hero__type--aa">Aa</span>
-          <span class="home-hero__type home-hero__type--csv">CSV</span>
-          <span class="home-hero__type home-hero__type--zip">ZIP</span>
-          <span class="home-hero__type home-hero__type--qr">QR</span>
-          <span class="home-hero__type home-hero__type--bin">01</span>
-          <span class="home-hero__type home-hero__type--slug">slug</span>
-          <span class="home-hero__type home-hero__type--merge">merge</span>
-          <span class="home-hero__type home-hero__type--xml">XML</span>
-          <span class="home-hero__type home-hero__type--yaml">YAML</span>
-          <span class="home-hero__type home-hero__type--uuid">UUID</span>
-          <span class="home-hero__type home-hero__type--b64">B64</span>
-          <span class="home-hero__type home-hero__type--png">PNG</span>
-          <span class="home-hero__type home-hero__type--gif">GIF</span>
-          <span class="home-hero__type home-hero__type--api">API</span>
-          <span class="home-hero__type home-hero__type--ssl">SSL</span>
-          <span class="home-hero__type home-hero__type--diff">diff</span>
-          <span class="home-hero__type home-hero__type--utf">UTF-8</span>
-          <span class="home-hero__type home-hero__type--md5">MD5</span>
-          <span class="home-hero__type home-hero__type--regex">.*</span>
-          <span class="home-hero__type home-hero__type--brand">easytoolhub</span>
-        </div>
-
-        <div class="home-hero__stage">
-          <div
-            class="home-skeleton home-skeleton--hero"
-            role="status"
-            [attr.aria-hidden]="pageReady"
-            aria-label="Loading homepage">
-            <span class="sr-only">Loading homepage…</span>
-            <div class="home-skeleton__head">
-              <div class="home-skeleton__bone home-skeleton__bone--badge"></div>
-              <div class="home-skeleton__bone home-skeleton__bone--title"></div>
-              <div class="home-skeleton__bone home-skeleton__bone--lead"></div>
-            </div>
-            <div class="home-skeleton__bone home-skeleton__bone--search"></div>
-            <div class="home-skeleton__bone home-skeleton__bone--trust"></div>
-            <div class="home-skeleton__chips" aria-hidden="true">
-              <div class="home-skeleton__bone home-skeleton__bone--chip-label"></div>
-              @for (i of skeletonChipSlots; track i) {
-                <div class="home-skeleton__bone home-skeleton__bone--chip" [style.--stagger]="i * 60 + 'ms'"></div>
-              }
-            </div>
-            <div class="home-skeleton__cats" aria-hidden="true">
-              @for (i of skeletonCategorySlots; track i) {
-                <div class="home-skeleton__bone home-skeleton__bone--cat" [style.--stagger]="i * 50 + 'ms'"></div>
-              }
-            </div>
-            <div class="home-skeleton__popular" aria-hidden="true">
-              <div class="home-skeleton__bone home-skeleton__bone--popular-label"></div>
-              @for (i of skeletonPopularSlots; track i) {
-                <div class="home-skeleton__bone home-skeleton__bone--popular" [style.--stagger]="i * 45 + 'ms'"></div>
-              }
-            </div>
-            <div class="home-skeleton__stats" aria-hidden="true">
-              @for (i of skeletonStatSlots; track i) {
-                <div class="home-skeleton__bone home-skeleton__bone--stat" [style.--stagger]="i * 40 + 'ms'"></div>
-              }
-            </div>
+  <main id="main-content" class="page">
+    <section class="page__intro" aria-labelledby="hero-title">
+      <div class="page__intro-content">
+        <h1 id="hero-title">EasyToolHub</h1>
+        <p class="page__intro-tagline">Launchers, editors, converters, and viewers — organised for instant access.</p>
+        <p class="page__intro-lede">
+          Discover a focused library of everyday utilities spanning text, files, data, media, and developer workflows.
+          Search once, switch tools fast, and stay productive without context switching.
+        </p>
+      </div>
+      <div class="page__intro-actions">
+        <form class="page__search" role="search" (submit)="onSearch($event)">
+          <label class="sr-only" for="homepage-search">Search tools</label>
+          <input
+            id="homepage-search"
+            placeholder="Search by tool or category..."
+            type="search"
+            name="search"
+            [(ngModel)]="searchQuery"
+            (input)="filterCategories()"
+            autocomplete="off" />
+          <button type="submit">Search</button>
+        </form>
+        <div class="page__metrics" aria-label="Platform highlights">
+          <div class="page__metric">
+            <span class="page__metric-value">{{ totalTools }}</span>
+            <span class="page__metric-label">Available tools</span>
           </div>
-
-          <div class="home-hero__live" [attr.aria-hidden]="!pageReady">
-        <header class="home-hero__head home-anim home-anim--1">
-          <p class="home-hero__badge">
-            <span class="home-hero__badge-dot" aria-hidden="true"></span>
-            {{ totalTools }}+ tools · private · free
-          </p>
-          <h1 id="hero-title" class="home-hero__title">
-            What do you need to do?
-          </h1>
-          <p class="home-hero__lead">
-            Search any utility — text, PDF, files, data, and more. Everything runs in your browser.
-          </p>
-        </header>
-
-        <div class="home-search-wrap home-anim home-anim--2">
-          <form
-            class="home-search"
-            role="search"
-            (submit)="onSearch($event)"
-            aria-label="Search tools">
-            <label class="sr-only" for="homepage-search">Search tools</label>
-            <span class="home-search__icon" aria-hidden="true">
-              <img [src]="searchIconUrl" alt="" width="20" height="20" />
-            </span>
-            <input
-              #homepageSearch
-              id="homepage-search"
-              type="search"
-              name="search"
-              [placeholder]="searchPlaceholder"
-              [(ngModel)]="searchQuery"
-              (input)="onSearchInput()"
-              autocomplete="off"
-              aria-label="Search tools and categories"
-              aria-controls="homepage-search-results"
-              [attr.aria-expanded]="searchQuery.trim().length > 0"
-              [attr.aria-autocomplete]="'list'" />
-            @if (searchQuery.trim()) {
-              <span class="home-search__count" aria-live="polite">{{ getVisibleToolCount() }}</span>
-              <button type="button" class="home-search__clear" (click)="clearSearch()" aria-label="Clear search">
-                <span aria-hidden="true">×</span>
-              </button>
-            }
-          </form>
-
-          @if (!searchQuery.trim()) {
-            <p class="home-hero__trust">Files never leave your device.</p>
-          }
-
-          @if (searchQuery.trim()) {
-            <ul
-              id="homepage-search-results"
-              class="home-search-results"
-              role="listbox"
-              aria-label="Search results">
-              @for (result of getSearchResults(); track result.path) {
-                <li role="option">
-                  <button
-                    type="button"
-                    class="home-search-results__item"
-                    (click)="navigateTo(result.path)">
-                    <span class="home-search-results__avatar" aria-hidden="true">
-                      {{ shortToolName(result.name).charAt(0) }}
-                    </span>
-                    <span class="home-search-results__text">
-                      <span class="home-search-results__name">{{ shortToolName(result.name) }}</span>
-                      <span class="home-search-results__category">{{ shortCategoryName(result.category) }}</span>
-                    </span>
-                    <span class="home-search-results__go" aria-hidden="true">→</span>
-                  </button>
-                </li>
-              } @empty {
-                <li class="home-search-results__empty" role="option">
-                  <p>No tools match “{{ searchQuery }}”</p>
-                  <button type="button" class="home-search-results__reset" (click)="clearSearch()">
-                    Clear search
-                  </button>
-                </li>
-              }
-            </ul>
-          }
-        </div>
-
-        @if (!searchQuery.trim()) {
-          <div class="home-hero__hints" aria-label="Popular searches">
-            <span class="home-hero__hints-label">Try</span>
-            @for (suggestion of searchSuggestions; track suggestion; let i = $index) {
-              <button
-                type="button"
-                class="home-hero__hint"
-                [class.home-hero__hint--active]="suggestion === currentSuggestion"
-                [style.--stagger]="i * 40 + 'ms'"
-                (click)="applySuggestion(suggestion)">
-                {{ suggestion }}
-              </button>
-            }
+          <div class="page__metric">
+            <span class="page__metric-value">{{ toolCategories.length }}</span>
+            <span class="page__metric-label">Categories curated</span>
           </div>
-
-          <nav class="home-hero__cats" aria-label="Browse by category">
-            @for (category of featuredCategories; track category.name; let i = $index) {
-              <button
-                type="button"
-                class="home-hero__cat"
-                [attr.data-tint]="i % 6"
-                [class.home-hero__cat--active]="activeCategoryName === category.name"
-                [style.--stagger]="i * 40 + 'ms'"
-                (click)="exploreCategory(category)"
-                [attr.aria-pressed]="activeCategoryName === category.name"
-                [title]="category.name">
-                @if (category.iconUrl) {
-                  <img [src]="category.iconUrl" alt="" width="18" height="18" loading="lazy" />
-                }
-                <span class="home-hero__cat-body">
-                  <span class="home-hero__cat-name">{{ shortCategoryName(category.name) }}</span>
-                  @if (category.description) {
-                    <span class="home-hero__cat-desc">{{ category.description }}</span>
-                  }
-                </span>
-                <span class="home-hero__cat-count">{{ category.subCategories?.length || 0 }}</span>
-              </button>
-            }
-          </nav>
-
-          @if (popularTools.length) {
-            <div class="home-hero__popular-strip">
-              <span class="home-hero__popular-label" id="hero-popular-label">Popular</span>
-              <ul class="home-hero__popular-list" aria-labelledby="hero-popular-label">
-                @for (tool of popularTools.slice(0, 8); track tool.path; let i = $index) {
-                  <li [style.--stagger]="i * 45 + 'ms'">
-                    <button
-                      type="button"
-                      class="home-hero__popular-chip"
-                      (click)="navigateTo(tool.path)"
-                      [title]="tool.name">
-                      {{ shortToolName(tool.name) }}
-                    </button>
-                  </li>
-                }
-              </ul>
-            </div>
-          }
-
-          <ul class="home-hero__bar home-anim home-anim--6" aria-label="Platform stats">
-            <li>
-              <strong>{{ totalTools }}+</strong>
-              <span>tools</span>
-            </li>
-            <li>
-              <strong>{{ toolCategories.length }}</strong>
-              <span>categories</span>
-            </li>
-            <li>
-              <strong>100%</strong>
-              <span>in-browser</span>
-            </li>
-            <li>
-              <strong>Free</strong>
-              <span>no sign-up</span>
-            </li>
-          </ul>
-        }
+          <div class="page__metric">
+            <span class="page__metric-value">{{ weeklyHighlights }}</span>
+            <span class="page__metric-label">Recent updates</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section
-      class="home-catalog"
-      [class.home-catalog--filtered]="!!activeCategoryName"
-      [class.home-catalog--mode-browse]="catalogMode === 'browse'"
-      [class.home-catalog--mode-category]="catalogMode === 'category'"
-      [class.home-catalog--mode-search]="catalogMode === 'search'"
-      aria-labelledby="catalog-title">
-      <div class="home-catalog__stage">
-        <div
-          class="home-skeleton home-skeleton--catalog"
-          role="status"
-          [attr.aria-hidden]="pageReady"
-          aria-label="Loading tool catalog">
-          <span class="sr-only">Loading tool catalog…</span>
-          <div class="home-skeleton__catalog-head" aria-hidden="true">
-            <div class="home-skeleton__bone home-skeleton__bone--h2"></div>
-            <div class="home-skeleton__bone home-skeleton__bone--sub"></div>
-          </div>
-          <div class="home-skeleton__grid" aria-hidden="true">
-            @for (i of skeletonCardSlots; track i) {
-              <div class="home-skeleton__card" [style.--stagger]="i * 50 + 'ms'">
-                <div class="home-skeleton__card-head">
-                  <div class="home-skeleton__bone home-skeleton__bone--icon"></div>
-                  <div class="home-skeleton__card-meta">
-                    <div class="home-skeleton__bone home-skeleton__bone--card-title"></div>
-                    <div class="home-skeleton__bone home-skeleton__bone--card-desc"></div>
-                  </div>
-                  <div class="home-skeleton__bone home-skeleton__bone--count"></div>
-                </div>
-                <div class="home-skeleton__card-tools">
-                  @for (j of skeletonToolLineSlots; track j) {
-                    <div class="home-skeleton__bone home-skeleton__bone--tool"></div>
-                  }
-                </div>
-              </div>
-            }
-          </div>
+    <section class="page__section" aria-labelledby="discover-title">
+      <header class="page__section-header">
+        <div>
+          <h2 id="discover-title">Browse by category</h2>
+          <p>Pick a category to see quick-launch links for the tools you use most.</p>
         </div>
+      </header>
 
-        <div class="home-catalog__live" [attr.aria-hidden]="!pageReady">
-          <div class="home-catalog__header">
-            <h2 id="catalog-title">
-              @switch (catalogMode) {
-                @case ('search') {
-                  Search results
-                }
-                @case ('category') {
-                  {{ activeCategoryName }}
-                }
-                @default {
-                  All Tools
-                }
-              }
-            </h2>
-            <p class="home-catalog__meta" aria-live="polite">
-              @if (searchQuery) {
-                {{ getVisibleToolCount() }} results for “{{ searchQuery }}”
-              } @else if (activeCategoryName) {
-                {{ getVisibleToolCount() }} tools in this category
-              } @else {
-                {{ totalTools }} tools available
-              }
-            </p>
-          </div>
-
-          <div class="home-catalog__toolbar home-catalog__toolbar--sticky">
-            <nav class="home-catalog__filters" aria-label="Filter by category">
-              @for (category of featuredCategories; track category.name; let i = $index) {
-                <button
-                  type="button"
-                  class="home-catalog__filter"
-                  [class.home-catalog__filter--active]="activeCategoryName === category.name"
-                  [attr.data-tint]="i % 6"
-                  [attr.aria-pressed]="activeCategoryName === category.name"
-                  (click)="exploreCategory(category)"
-                  [title]="category.name">
-                  @if (category.iconUrl) {
-                    <img [src]="category.iconUrl" alt="" width="14" height="14" loading="lazy" />
-                  }
-                  <span>{{ shortCategoryName(category.name) }}</span>
-                </button>
-              }
-            </nav>
-            <button
-              type="button"
-              class="home-catalog__clear-all"
-              [class.home-catalog__clear-all--hidden]="!hasActiveCatalogFilter"
-              [attr.tabindex]="hasActiveCatalogFilter ? 0 : -1"
-              [attr.aria-hidden]="!hasActiveCatalogFilter"
-              (click)="clearAllCatalogFilters()">
-              Clear filters
-            </button>
-          </div>
-
-          @if (catalogMode === 'browse' && filteredCategories.length > 0) {
-            <div class="home-catalog__panel home-grid" [attr.data-mode]="catalogMode">
-              @for (category of filteredCategories; track category.name; let i = $index) {
-                <article
-                  class="home-card home-anim home-anim--card"
-                  [class.home-card--active]="activeCategoryName === category.name"
-                  [style.--stagger]="i * 50 + 'ms'">
-                  <button
-                    type="button"
-                    class="home-card__header"
-                    (click)="exploreCategory(category)"
-                    [attr.aria-pressed]="activeCategoryName === category.name"
-                    [title]="'Browse ' + category.name">
-                    <span class="home-card__icon" aria-hidden="true">
-                      <img [src]="category.iconUrl" [alt]="''" width="20" height="20" loading="lazy" />
-                    </span>
-                    <span class="home-card__meta">
-                      <span class="home-card__title">{{ category.name }}</span>
-                      <span class="home-card__desc">{{ category.description }}</span>
-                    </span>
-                    <span class="home-card__count">{{ category.subCategories?.length || 0 }}</span>
-                  </button>
-
-                  @if (category.subCategories?.length) {
-                    <div class="home-card__body">
-                      <ul
-                        class="home-card__tools"
-                        [style.--home-tool-preview-rows]="getToolPreviewRows(category)"
-                        (scroll)="onCategoryToolsScroll(category, $event)">
-                        @for (tool of getDisplayTools(category); track tool.path) {
-                          <li>
-                            <button
-                              type="button"
-                              class="home-card__tool"
-                              (click)="navigateTo(tool.path)"
-                              [appTooltip]="tool.description || ''"
-                              [tooltipMultiline]="!!tool.description"
-                              tooltipPosition="top"
-                              [tooltipDelay]="250">
-                              <span class="home-card__tool-name">{{ shortToolName(tool.name) }}</span>
-                              <span class="home-card__tool-go" aria-hidden="true">→</span>
-                            </button>
-                          </li>
-                        }
-                      </ul>
-                      <div class="home-card__footer">
-                        @if (getRemainingToolCount(category) > 0) {
-                          <button
-                            type="button"
-                            class="home-card__more"
-                            (click)="scrollCategoryTools(category, $event)"
-                            [attr.aria-label]="(isCategoryScrolled(category) ? 'Show fewer tools in ' : 'Show more tools in ') + category.name">
-                            {{ isCategoryScrolled(category) ? 'Show less' : ('Show more (' + getRemainingToolCount(category) + ')') }}
-                          </button>
-                        }
-                      </div>
-                    </div>
-                  } @else {
-                    <p class="home-card__empty">Coming soon</p>
-                  }
-                </article>
-              }
+      <div class="category-grid">
+        <article
+          class="category-card"
+          *ngFor="let category of filteredCategories; trackBy: trackByCategory">
+          <header class="category-card__header">
+            <div class="category-card__heading">
+              <h3>{{ category.name }}</h3>
+              <p>{{ category.description }}</p>
             </div>
-          } @else if (getCatalogListTools().length > 0) {
-            <ul
-              class="home-catalog__panel home-tool-list home-anim home-anim--card"
-              [attr.data-mode]="catalogMode"
-              aria-label="Tool results">
-              @for (tool of getCatalogListTools(); track tool.path; let i = $index) {
-                <li [style.--stagger]="i * 35 + 'ms'">
-                  <button
-                    type="button"
-                    class="home-tool-row"
-                    (click)="navigateTo(tool.path)"
-                    [appTooltip]="tool.description || ''"
-                    [tooltipMultiline]="!!tool.description"
-                    tooltipPosition="top"
-                    [tooltipDelay]="250">
-                    <span class="home-tool-row__avatar" aria-hidden="true">{{ toolInitial(tool.name) }}</span>
-                    <span class="home-tool-row__text">
-                      <span class="home-tool-row__name">{{ shortToolName(tool.name) }}</span>
-                      @if (catalogMode === 'search') {
-                        <span class="home-tool-row__meta">{{ shortCategoryName(tool.category) }}</span>
-                      }
-                    </span>
-                    <span class="home-tool-row__go" aria-hidden="true">→</span>
-                  </button>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="home-catalog__panel home-empty" [attr.data-mode]="catalogMode">
-              <p>No tools found for “{{ searchQuery }}”.</p>
-              <div class="home-empty__actions">
-                <button type="button" (click)="clearSearch()">Clear search</button>
-              </div>
-              <div class="home-empty__suggestions" aria-label="Try searching for">
-                <span class="home-empty__suggestions-label">Try</span>
-                @for (suggestion of searchSuggestions.slice(0, 3); track suggestion) {
-                  <button type="button" class="home-empty__suggestion" (click)="applySuggestion(suggestion)">
-                    {{ suggestion }}
-                  </button>
-                }
-              </div>
-            </div>
-          }
-        </div>
+          </header>
+          <ul class="category-card__list">
+            <li class="category-card__list-item" *ngFor="let tool of category.subCategories; trackBy: trackByTool">
+              <button
+                type="button"
+                class="category-card__item"
+                [attr.title]="tool.description || tool.name"
+                (click)="navigateTo(tool.path)"
+                (keydown.enter)="navigateTo(tool.path)">
+                <span class="category-card__item-name">{{ tool.name }}</span>
+              </button>
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      <p class="page__empty" *ngIf="filteredCategories.length === 0">
+        No tools found. Try a different search term or clear the filter to browse all categories.
+      </p>
+    </section>
+
+    <section class="page__section page__section--highlight" aria-labelledby="highlights-title">
+      <header class="page__section-header">
+        <h2 id="highlights-title">Why teams choose EasyToolHub</h2>
+        <p>Fast, reliable, and ready for every browser your team uses.</p>
+      </header>
+      <div class="highlight-grid">
+        <article class="highlight-card" *ngFor="let highlight of highlights; trackBy: trackByHighlight">
+          <h3>{{ highlight.title }}</h3>
+          <p>{{ highlight.description }}</p>
+        </article>
       </div>
     </section>
   </main>

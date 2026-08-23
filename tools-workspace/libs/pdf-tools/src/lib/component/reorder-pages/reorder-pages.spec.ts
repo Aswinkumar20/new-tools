@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { ReorderPagesComponent } from './reorder-pages';
 
 describe('ReorderPagesComponent', () => {
@@ -8,8 +7,7 @@ describe('ReorderPagesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ReorderPagesComponent],
-      providers: pdfToolTestProviders(),
+      imports: [ReorderPagesComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(ReorderPagesComponent);

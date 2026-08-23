@@ -1,21 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
-import type { PdfToolMode } from '../../shared/pdf.types';
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-annotate-pdf',
   standalone: true,
-  template: `
-    <lib-pdf-workbench
-      [mode]="mode"
-      [title]="title"
-      [description]="description" />
-  `,
-  imports: [PdfWorkbenchComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './annotate-pdf.html',
+  styleUrls: ['./annotate-pdf.scss'],
+  imports: [CommonModule, FormsModule, Navigation]
 })
 export class AnnotatePdfComponent {
-  readonly mode: PdfToolMode = 'annotate-pdf';
-  readonly title = 'Annotate PDF';
-  readonly description = 'Add text annotations anywhere on PDF pages.';
+  constructor() {}
 }

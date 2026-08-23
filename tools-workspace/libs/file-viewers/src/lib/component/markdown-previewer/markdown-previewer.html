@@ -1,284 +1,46 @@
-<div class="ctl fv">
+<div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Markdown Previewer</h1>
-        <p>Preview and render Markdown files with live HTML rendering, zoom, and fullscreen.</p>
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Markdown previewer</p>
+          <h1>Preview and render Markdown files</h1>
+          <p class="strapline">
+            Component coming soon...
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Coming soon</span>
+        </div>
       </header>
+    </section>
 
-      <div class="ctl__stats" aria-label="Markdown statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ loadedFilesCount }}</span>
-          <span class="ctl__stat-label">Files</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ currentFile ? currentFile.lines : '—' }}</span>
-          <span class="ctl__stat-label">Lines</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ zoomLevel }}%</span>
-          <span class="ctl__stat-label">Zoom</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ renderMode }}</span>
-          <span class="ctl__stat-label">Mode</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="fv-workflow" aria-label="Markdown previewer controls">
-      <div class="fv-workflow__group fv-workflow__group--files">
-        <label class="ctl__tool-btn" aria-label="Upload Markdown files" appTooltip="Upload Markdown files" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
-          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
-        </label>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="downloadFile()"
-          [disabled]="!currentFile"
-          aria-label="Download current file"
-          appTooltip="Download current file"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="printFile()"
-          [disabled]="!currentFile"
-          aria-label="Print preview"
-          appTooltip="Print preview"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <polyline points="6 9 6 2 18 2 18 9" />
-            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-            <rect x="6" y="14" width="12" height="8" />
-          </svg>
-          <span class="ctl__tool-btn-label">Print</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn ctl__tool-btn--icon"
-          (click)="clearAll()"
-          [disabled]="markdownFiles.length === 0"
-          aria-label="Clear all files"
-          appTooltip="Clear all files"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
-      </div>
-
-      @if (markdownFiles.length > 0) {
-        <span class="fv-workflow__divider" aria-hidden="true"></span>
-
-        <div class="fv-viewer-controls fv-workflow__group fv-workflow__group--zoom" role="group" aria-label="Zoom controls">
-          <button
-            type="button"
-            class="fv-icon-btn"
-            (click)="zoomOut()"
-            [disabled]="zoomLevel <= minZoom || !currentFile"
-            aria-label="Zoom out"
-            appTooltip="Zoom out"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="8" y1="11" x2="14" y2="11" />
-            </svg>
-          </button>
-          <span class="ctl__editor-badge fv-workflow__zoom" aria-live="polite">{{ zoomLevel }}%</span>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            (click)="zoomIn()"
-            [disabled]="zoomLevel >= maxZoom || !currentFile"
-            aria-label="Zoom in"
-            appTooltip="Zoom in"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="11" y1="8" x2="11" y2="14" />
-              <line x1="8" y1="11" x2="14" y2="11" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            (click)="resetZoom()"
-            [disabled]="zoomLevel === 100 || !currentFile"
-            aria-label="Reset zoom"
-            appTooltip="Reset zoom"
-            tooltipPosition="bottom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="fv-icon-btn"
-            (click)="toggleFullscreen()"
-            [disabled]="!currentFile"
-            [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
-            [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
-            tooltipPosition="bottom">
-            @if (!isFullscreen) {
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-              </svg>
-            } @else {
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-              </svg>
-            }
-          </button>
-        </div>
-      }
-    </div>
-
-    <div class="ctl__workspace">
-      <div class="ctl__editors">
-        <section class="ctl__editor ctl__editor--merged fv-viewer-panel markdown-preview-panel" aria-label="Rendered preview">
-          <header class="ctl__editor-head">
-            <span>Rendered preview</span>
-          </header>
-
-          <div class="fv-loading" *ngIf="loading"><div class="fv-spinner" aria-hidden="true"></div><p>Loading Markdown…</p></div>
-          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert">
-            <p>{{ errorMessage }}</p>
-            <button type="button" class="ctl__icon-btn" (click)="closeError()" aria-label="Dismiss error" appTooltip="Dismiss" tooltipPosition="bottom">×</button>
-          </div>
-
-          <aside class="mp__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
-            <div class="mp__suggest-body">
-              <p class="mp__suggest-title">{{ suggestion.title }}</p>
-              <p class="mp__suggest-reason">{{ suggestion.reason }}</p>
-            </div>
-            <div class="mp__suggest-actions">
-              <a class="mp__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button
-                type="button"
-                class="mp__suggest-dismiss"
-                (click)="dismissSuggestion(suggestion.id)"
-                aria-label="Dismiss suggestion">
-                Dismiss
-              </button>
-            </div>
-          </aside>
-
-          <div class="fv-viewer-body" *ngIf="markdownFiles.length > 0">
-            @if (currentFile) {
-              <header class="fv-viewer-bar">
-                <p class="fv-viewer-bar__name" [title]="currentFile.name">{{ currentFile.name }}</p>
-                <p class="fv-viewer-bar__hint">Scroll to read · Use zoom for comfortable viewing</p>
-              </header>
-            }
-            <div class="markdown-preview-container" #previewContainer>
-              <div class="markdown-preview-content"></div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
-            *ngIf="markdownFiles.length === 0 && !loading"
-            [class.fv-dropzone--active]="showDropZone"
-            (click)="openFileDialog()"
-            aria-label="Upload Markdown files by clicking or dragging files here">
-            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
-            <p class="fv-dropzone__title">Drop Markdown files here or <strong>browse files</strong></p>
-            <p class="fv-dropzone__formats">.md, .markdown · 10&nbsp;MB max</p>
-          </button>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output" *ngIf="currentFile">
-          <header class="ctl__editor-head">
-            <span>Source Markdown</span>
-            <div class="ctl__editor-actions">
-              <span class="ctl__editor-badge">Ready</span>
-              <button type="button" class="ctl__icon-btn" (click)="copyToClipboard()" [disabled]="!currentFile" aria-label="Copy source" appTooltip="Copy source" tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
+    <aside class="workspace-secondary">
+      <div class="viewer-shell markdown-shell">
+        <section class="panel panel-viewer">
+          <header class="panel-header">
+            <div>
+              <h2>Markdown previewer</h2>
+              <p>Component coming soon...</p>
             </div>
           </header>
-          <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly rows="1" [value]="currentFile.content" aria-label="Markdown source"></textarea>
+
+          <div class="viewer-content">
+            <div class="empty-gallery">
+              <svg width="128" height="128" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+              <p>Markdown previewer is under construction</p>
+              <p class="hint">This component will be available shortly.</p>
+            </div>
+          </div>
         </section>
       </div>
-
-      <aside class="ctl__sidebar" aria-label="Files and settings">
-        <div class="ctl__panel" *ngIf="markdownFiles.length > 0">
-          <header class="ctl__panel-head">Files ({{ markdownFiles.length }})</header>
-          <div class="ctl__panel-body">
-            <ul class="fv-files">
-              <li *ngFor="let file of markdownFiles; let i = index">
-                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentFileIndex" (click)="selectFile(i)">
-                  <span class="fv-file__info"><strong>{{ file.name }}</strong><span>{{ formatFileSize(file.size) }} · {{ file.lines }} lines</span></span>
-                </button>
-                <button type="button" class="fv-file-remove" (click)="removeFile(i)" aria-label="Remove file" appTooltip="Remove file" tooltipPosition="left">×</button>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="ctl__panel mp__related">
-          <header class="ctl__panel-head">Related tools</header>
-          <ul class="mp__related-list">
-            <li *ngFor="let tool of relatedTools">
-              <a class="mp__related-link" [routerLink]="tool.path">
-                <strong>{{ tool.label }}</strong>
-                <span>{{ tool.description }}</span>
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div class="ctl__info"><div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Files are rendered <strong>locally</strong> — nothing is uploaded to a server.</p></div></div>
-      </aside>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Upload Markdown files and switch between them in the sidebar.</li>
-        <li>Use zoom controls or fullscreen for comfortable reading.</li>
-        <li>Copy source Markdown from the output panel or download the original.</li>
-      </ul>
-    </details>
-  </main>
-</div>
-
-<div class="fullscreen-overlay" *ngIf="isFullscreen" #fullscreenContainer [class.fullscreen-active]="isFullscreen">
-  <button class="fullscreen-close-btn" (click)="exitFullscreen()" aria-label="Exit fullscreen" appTooltip="Exit fullscreen (Esc)" tooltipPosition="left">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  </button>
-  <div class="fullscreen-preview-container">
-    <div class="fullscreen-preview-content" #fullscreenPreviewContainer></div>
-  </div>
-  <div class="fullscreen-controls-bar" *ngIf="currentFile">
-    <div class="fullscreen-info">
-      <span class="fullscreen-file-name">{{ currentFile.name }}</span>
-      <span class="fullscreen-file-details">{{ formatFileSize(currentFile.size) }} · {{ currentFile.lines }} lines</span>
-    </div>
-    <div class="fullscreen-zoom-controls fv-viewer-controls" role="group" aria-label="Fullscreen zoom controls">
-      <button type="button" class="fv-icon-btn" (click)="zoomOut()" [disabled]="zoomLevel <= minZoom" aria-label="Zoom out" appTooltip="Zoom out" tooltipPosition="top">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-      </button>
-      <span class="ctl__editor-badge zoom-level">{{ zoomLevel }}%</span>
-      <button type="button" class="fv-icon-btn" (click)="zoomIn()" [disabled]="zoomLevel >= maxZoom" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
-      </button>
-      <button type="button" class="fv-icon-btn" (click)="resetZoom()" [disabled]="zoomLevel === 100" aria-label="Reset zoom" appTooltip="Reset zoom" tooltipPosition="top">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /></svg>
-      </button>
-    </div>
+    </aside>
   </div>
 </div>

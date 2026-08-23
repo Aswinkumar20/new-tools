@@ -1,296 +1,289 @@
-<div class="sg">
+<div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <main class="sg__main">
-    <div class="sg__top">
-      <header class="sg__header">
-        <h1>Slug Generator</h1>
-        <p>Convert headlines into clean, URL-friendly slugs — live as you type.</p>
+  <div class="workspace">
+    <section class="workspace-primary">
+      <header class="primary-header">
+        <div class="primary-heading">
+          <p class="eyebrow">Slug generator</p>
+          <h1>Ship URL-friendly titles in one click</h1>
+          <p class="strapline">
+            Convert headlines into clean slugs, preview the final URL, and keep a history of high-performing variants.
+          </p>
+        </div>
+        <div class="primary-meta">
+          <span class="meta-pill">Realtime slugging</span>
+          <span class="meta-pill">Custom separators</span>
+          <span class="meta-pill">History capture</span>
+        </div>
       </header>
 
-      <div class="sg__stats" aria-label="Slug statistics">
-        <div class="sg__stat">
-          <span class="sg__stat-value">{{ inputText.length }}</span>
-          <span class="sg__stat-label">Chars</span>
-        </div>
-        <div class="sg__stat">
-          <span class="sg__stat-value">{{ slug.length }}</span>
-          <span class="sg__stat-label">Slug</span>
-        </div>
-        <div class="sg__stat">
-          <span class="sg__stat-value">{{ slugHistory.length }}</span>
-          <span class="sg__stat-label">History</span>
-        </div>
-        <div class="sg__stat sg__stat--mode">
-          <span class="sg__stat-value" [title]="separatorLabel">{{ separatorLabel }}</span>
-          <span class="sg__stat-label">Sep</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="sg__workflow" aria-label="Slug options">
-      <div class="sg__mode-group" role="group" aria-label="Separator">
-        @for (opt of separatorOptions; track opt.value) {
-          <button
-            type="button"
-            class="sg__chip-btn"
-            [class.sg__chip-btn--active]="separator === opt.value"
-            (click)="setSeparator(opt.value)">
-            {{ opt.label }}
+      <div class="editor-toolbar" aria-label="Slug generator actions">
+        <div class="toolbar-actions">
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="copySlug()"
+                  [disabled]="!slug"
+                  aria-label="Copy generated slug">
+            <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+            <span>Copy slug</span>
           </button>
-        }
+          <button type="button"
+                  class="toolbar-btn"
+                  (click)="clearHistory()"
+                  [disabled]="slugHistory.length === 0"
+                  aria-label="Clear slug history">
+            <img class="btn-icon" src="/assets/icons/undo.svg" alt="" />
+            <span>Clear history</span>
+          </button>
+          <button type="button"
+                  class="toolbar-btn destructive"
+                  (click)="reset()"
+                  [disabled]="!inputText && !slug"
+                  aria-label="Reset slug generator">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Reset</span>
+          </button>
+        </div>
+        <div class="toolbar-stats" aria-label="Slug statistics">
+          <div class="stat-chip">
+            <span class="stat-label">Characters</span>
+            <span class="stat-value">{{ inputText ? inputText.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Slug length</span>
+            <span class="stat-value">{{ slug ? slug.length : 0 }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">History count</span>
+            <span class="stat-value">{{ slugHistory.length }}</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Separator</span>
+            <span class="stat-value">{{ separator }}</span>
+          </div>
+        </div>
       </div>
-      <button
-        type="button"
-        class="sg__chip-btn"
-        (click)="showOptionsPanel = !showOptionsPanel"
-        [class.sg__chip-btn--active]="showOptionsPanel || removeNumbers">
-        Options
-      </button>
-    </div>
 
-    @if (showOptionsPanel) {
-      <section class="sg__options" aria-label="Slug transform options">
-        <label class="sg__toggle">
-          <input type="checkbox" [(ngModel)]="removeNumbers" (ngModelChange)="onOptionsChange()" />
-          <span>Remove numbers from slug</span>
-        </label>
-      </section>
-    }
-
-    <div class="sg__workspace">
-      <div class="sg__editors" aria-label="Source and slug output">
-        <section
-          class="sg__editor"
-          [class.sg__editor--dragover]="isDragOver"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave($event)"
-          (drop)="onDrop($event)">
-          <header class="sg__editor-head" aria-label="Input editor actions">
-            <span class="sg__editor-title">Source headline</span>
-            <div class="sg__toolbar">
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="uploadTextFile()"
-                [disabled]="isReadingFile"
-                aria-label="Upload text file"
-                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="copyInput()"
-                [disabled]="!hasInput"
-                aria-label="Copy source"
-                appTooltip="Copy source"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">Copy</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="undo()"
-                [disabled]="!canUndo"
-                aria-label="Undo"
-                appTooltip="Undo (Ctrl+Z)"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">Undo</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="redo()"
-                [disabled]="!canRedo"
-                aria-label="Redo"
-                appTooltip="Redo (Ctrl+Y)"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/redo.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">Redo</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="clear()"
-                [disabled]="!hasInput && !slug"
-                aria-label="Clear all"
-                appTooltip="Clear all"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">Clear</span>
-              </button>
-            </div>
-          </header>
-
-          @if (primarySuggestion; as suggestion) {
-            <aside class="sg__suggest" aria-label="Suggested next step">
-              <div class="sg__suggest-body">
-                <p class="sg__suggest-title">{{ suggestion.title }}</p>
-                <p class="sg__suggest-reason">{{ suggestion.reason }}</p>
+      <div class="editor-shell">
+        <div class="panel-grid">
+          <section class="panel panel-input">
+            <header class="panel-header">
+              <div>
+                <h2>Source headline</h2>
+                <p>The slug updates as you write. Adjust options on the right to match your routing style.</p>
               </div>
-              <div class="sg__suggest-actions">
-                <a class="sg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="sg__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
+            </header>
+            <label class="sr-only" for="slug-input">Enter text to convert into a slug</label>
+            <textarea id="slug-input"
+                      class="text-area text-area--input"
+                      [(ngModel)]="inputText"
+                      (input)="onInputChange()"
+                      rows="8"
+                      placeholder="Paste a page title, headline, or product name…"></textarea>
+          </section>
+
+          <section class="panel panel-output">
+            <header class="panel-header">
+              <div>
+                <h2>Slug output & options</h2>
+                <p>Tweak separators, strip numbers, and grab the final URL-friendly string.</p>
               </div>
-            </aside>
-          }
-
-          <label class="sr-only" for="slug-input">Enter text to convert into a slug</label>
-          <textarea
-            #inputTextarea
-            id="slug-input"
-            class="sg__textarea"
-            [(ngModel)]="inputText"
-            (input)="onInputChange()"
-            rows="1"
-            placeholder="Paste, type, or drop a text file here…"></textarea>
-        </section>
-
-        <section class="sg__editor sg__editor--output">
-          <header class="sg__editor-head" aria-label="Output editor actions">
-            <div class="sg__editor-head-left">
-              <span class="sg__editor-title">Generated slug</span>
               @if (slug) {
-                <span class="sg__editor-badge">Ready</span>
+                <span class="panel-badge">Ready to copy</span>
               }
-            </div>
-            <div class="sg__toolbar">
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="copySlug()"
-                [disabled]="!slug"
-                aria-label="Copy slug"
-                appTooltip="Copy slug"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">Copy</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="downloadText()"
-                [disabled]="!slug"
-                aria-label="Download TXT"
-                appTooltip="Download TXT"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-                <span class="sg__tool-btn-label">TXT</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="useOutputAsInput()"
-                [disabled]="!slug"
-                aria-label="Use slug as input"
-                appTooltip="Use slug as new input"
-                tooltipPosition="bottom">
-                <span class="sg__tool-btn-label">→ In</span>
-              </button>
-              <button
-                type="button"
-                class="sg__tool-btn"
-                (click)="swapInputOutput()"
-                [disabled]="!slug && !hasInput"
-                aria-label="Swap input and slug"
-                appTooltip="Swap input and slug"
-                tooltipPosition="bottom">
-                <span class="sg__tool-btn-label">⇄ Swap</span>
-              </button>
-            </div>
-          </header>
-          @if (slug) {
-            <textarea
-              id="slug-output"
-              class="sg__textarea sg__textarea--output sg__textarea--mono"
-              readonly
-              rows="1"
-              [value]="slug"
-              aria-label="Generated slug"></textarea>
-            <div class="sg__preview">
-              <code>https://example.com/{{ slug }}</code>
-            </div>
-          } @else {
-            <div class="sg__empty" aria-live="polite">
-              <p>Your slug appears here after you enter a headline.</p>
-            </div>
-          }
-        </section>
-      </div>
+            </header>
 
-      <aside class="sg__sidebar" aria-label="Slug history">
-        <div class="sg__panel sg__panel--history">
-          <header class="sg__panel-head">
-            <span>Recent slugs</span>
-            <div class="sg__panel-actions">
-              @if (slugHistory.length) {
-                <span class="sg__panel-badge">{{ slugHistory.length }}</span>
-              }
-              <button
-                type="button"
-                class="sg__panel-btn"
-                (click)="clearHistory()"
-                [disabled]="slugHistory.length === 0"
-                aria-label="Clear history"
-                appTooltip="Clear history"
-                tooltipPosition="bottom">
-                Clear
-              </button>
+            <div class="output-columns">
+              <div class="option-card">
+                <h3>Transform settings</h3>
+                <div class="option-group">
+                  <label for="separator">Separator</label>
+                  <select id="separator" [(ngModel)]="separator" (change)="onInputChange()">
+                    <option value="-">Hyphen (-)</option>
+                    <option value="_">Underscore (_)</option>
+                    <option value="+">Plus (+)</option>
+                  </select>
+                </div>
+                <div class="option-group toggle">
+                  <label>
+                    <input type="checkbox"
+                           [(ngModel)]="removeNumbers"
+                           (change)="onInputChange()" />
+                    Remove numbers
+                  </label>
+                </div>
+                <p class="hint">
+                  Removing numbers is useful when slugs feed blog URLs where digits are appended separately.
+                </p>
+              </div>
+
+              <div class="result-card">
+                <label for="slug-output">Generated slug</label>
+                <textarea id="slug-output"
+                          class="text-area text-area--output"
+                          readonly
+                          rows="4"
+                          aria-label="Generated slug">{{ slug }}</textarea>
+                <div class="preview-row">
+                  <span class="preview-label">Preview</span>
+                  <code class="preview-url">https://example.com/{{ slug || 'your-slug' }}</code>
+                </div>
+                <div class="copy-row">
+                  <button type="button"
+                          class="toolbar-btn secondary"
+                          (click)="copySlug()"
+                          [disabled]="!slug"
+                          aria-label="Copy slug result">
+                    <img class="btn-icon" src="/assets/icons/copy.svg" alt="" />
+                    <span>Copy slug</span>
+                  </button>
+                  @if (copied) {
+                    <span class="copy-feedback">Copied!</span>
+                  }
+                </div>
+              </div>
             </div>
-          </header>
-          @if (slugHistory.length) {
-            <div class="sg__history">
-              @for (item of slugHistory; track item) {
-                <button type="button" class="sg__history-item" (click)="copyHistoryItem(item)">
-                  <code>{{ item }}</code>
-                </button>
-              }
-            </div>
-          } @else {
-            <div class="sg__panel-empty">
-              <p>Generated slugs are saved here for quick reuse.</p>
-            </div>
-          }
+          </section>
         </div>
 
-        <div class="sg__panel sg__related-panel">
-          <header class="sg__panel-head">
-            <span>Related tools</span>
-          </header>
-          <ul class="sg__related-list">
-            @for (tool of relatedTools; track tool.path) {
-              <li>
-                <a class="sg__related-link" [routerLink]="tool.path">
-                  <strong>{{ tool.label }}</strong>
-                  <span>{{ tool.description }}</span>
-                </a>
-              </li>
-            }
+        <footer class="editor-footer">
+          <div class="editor-metric">
+            <span class="metric-label">Slug casing</span>
+            <span class="metric-value">lowercase</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">Numbers stripped</span>
+            <span class="metric-value">{{ removeNumbers ? 'Yes' : 'No' }}</span>
+          </div>
+          <div class="editor-metric">
+            <span class="metric-label">History stored</span>
+            <span class="metric-value">{{ slugHistory.length }}</span>
+          </div>
+          <button type="button"
+                  class="clear-btn"
+                  (click)="reset()"
+                  [disabled]="!inputText && !slug"
+                  aria-label="Clear slug generator">
+            <img class="btn-icon" src="/assets/icons/clear.svg" alt="" />
+            <span>Clear input</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <aside class="workspace-secondary">
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Recent slugs</h2>
+          <p>The latest unique slugs are stored locally for quick reuse across pages and releases.</p>
+        </header>
+        @if (slugHistory.length > 0) {
+          <div class="history-list" aria-live="polite">
+            <div class="history-item" *ngFor="let s of slugHistory">
+              <code>{{ s }}</code>
+            </div>
+          </div>
+        } @else {
+          <div class="empty-history">
+            <p>No slugs captured yet. Generate your first one to see it here.</p>
+          </div>
+        }
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>Best practices</h2>
+          <p>Keep URLs readable and consistent across marketing, docs, and product sites.</p>
+        </header>
+        <div class="insight-body">
+          <ul class="tip-list">
+            <li>Use hyphens for SEO-friendly slugs; underscores are treated as characters.</li>
+            <li>Strip numbers when release versions belong elsewhere (e.g., metadata fields).</li>
+            <li>Preview final URLs with stakeholders before pushing to production.</li>
           </ul>
         </div>
-      </aside>
-    </div>
+      </section>
 
-    <details class="sg__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Paste, type, <strong>Upload</strong>, or drag &amp; drop in <strong>Source</strong> — the slug updates instantly.</li>
-        <li>Pick a separator in the workflow bar; open <strong>Options</strong> to remove numbers.</li>
-        <li>Use <strong>TXT</strong>, <strong>→ In</strong>, or <strong>⇄ Swap</strong> on the output toolbar.</li>
-        <li>Click a recent slug in the sidebar to copy it.</li>
-        <li><kbd>Ctrl+Z</kbd> / <kbd>Cmd+Z</kbd> undo · <kbd>Ctrl+Y</kbd> / <kbd>Cmd+Shift+Z</kbd> redo.</li>
-      </ul>
-    </details>
-  </main>
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>How to use</h2>
+          <p>Generate URL-friendly slugs from your headlines in just a few steps.</p>
+        </header>
+
+        <div class="insight-body">
+          <ol class="how-to-list">
+            <li>
+              <strong>Enter your headline</strong>
+              <p>Paste or type your page title, headline, or product name in the source field.</p>
+            </li>
+            <li>
+              <strong>Choose separator</strong>
+              <p>Select hyphen (-), underscore (_), or plus (+) as your word separator.</p>
+            </li>
+            <li>
+              <strong>Configure options</strong>
+              <p>Toggle "Remove numbers" if you want to strip digits from the slug.</p>
+            </li>
+            <li>
+              <strong>Preview and copy</strong>
+              <p>See the generated slug and full URL preview, then copy it for use.</p>
+            </li>
+            <li>
+              <strong>Track history</strong>
+              <p>View your recent slugs in the sidebar for quick reuse across projects.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="insight-card">
+        <header class="insight-header">
+          <h2>About this tool</h2>
+          <p>Everything you need to know about our slug generator.</p>
+        </header>
+
+        <div class="insight-body">
+          <div class="about-content">
+            <p>
+              The Slug Generator converts headlines and titles into clean, URL-friendly strings. 
+              It automatically handles lowercase conversion, special character removal, and word 
+              separation, making it perfect for creating SEO-optimized URLs and file names.
+            </p>
+            
+            <div class="feature-grid">
+              <div class="feature-item">
+                <strong>Real-time generation</strong>
+                <p>Watch your slug update instantly as you type or modify settings.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Custom separators</strong>
+                <p>Choose between hyphens, underscores, or plus signs for word separation.</p>
+              </div>
+              <div class="feature-item">
+                <strong>Number removal</strong>
+                <p>Optionally strip numbers when version info belongs in metadata instead.</p>
+              </div>
+              <div class="feature-item">
+                <strong>History tracking</strong>
+                <p>Automatically stores unique slugs locally for quick access and reuse.</p>
+              </div>
+            </div>
+
+            <div class="use-cases">
+              <strong>Perfect for:</strong>
+              <ul class="tip-list">
+                <li>Blog post URLs</li>
+                <li>Product page slugs</li>
+                <li>Documentation paths</li>
+                <li>File naming conventions</li>
+                <li>SEO optimization</li>
+                <li>Content management</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
 </div>

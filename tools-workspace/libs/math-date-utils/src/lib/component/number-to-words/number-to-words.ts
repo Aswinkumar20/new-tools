@@ -1,117 +1,60 @@
 import { CommonModule } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Component, computed, effect, EffectRef, inject, OnDestroy, signal, Signal, WritableSignal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
-import { debounceTime } from 'rxjs';
-import {
-  NUMBER_TO_WORDS_CASE_STYLES,
-  NUMBER_TO_WORDS_DEFAULT_FORM,
-  NUMBER_TO_WORDS_FORMAT_OPTIONS,
-  NUMBER_TO_WORDS_HISTORY_LIMIT,
-  NUMBER_TO_WORDS_INPUT_PATTERN,
-  NUMBER_TO_WORDS_LOCALES,
-  NUMBER_TO_WORDS_RELATED_TOOLS,
-  NUMBER_TO_WORDS_SAMPLES
-} from '../../constants/number-to-words.constants';
-import { mdCopyText } from '../../shared/md-clipboard.util';
-import type { MdRelatedToolLink } from '../../shared/md-tool-suggestion.model';
-import type {
-  CaseStyle,
-  CaseStyleOption,
-  ConversionHistory,
-  ConversionResult,
-  CurrencyCode,
-  CurrencyDefinition,
-  FormatOption,
-  LocaleCode,
-  LocaleDefinition,
-  NumberFormat,
-  NumberToWordsFormGroup,
-  NumberToWordsFormValues,
-  SampleNumber
-} from '../../types/number-to-words.types';
-import {
-  convertNumberToWords,
-  currenciesForLocale,
-  formatOptionLabel,
-  mapConversionError,
-  parseNumberInput,
-  resolveCurrency,
-  resolveLocale,
-  resolveNumberToWordsSuggestion
-} from '../../utils/number-to-words.utils';
+import { Navigation } from '@tools-workspace/features-home';
+import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
 
 @Component({
   selector: 'lib-number-to-words',
   standalone: true,
   templateUrl: './number-to-words.html',
   styleUrls: ['./number-to-words.scss'],
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  imports: [CommonModule, ReactiveFormsModule, Navigation]
 })
-export class NumberToWordsComponent {
+export class NumberToWordsComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
 
-  readonly locales = NUMBER_TO_WORDS_LOCALES;
-  readonly formats = NUMBER_TO_WORDS_FORMAT_OPTIONS;
-  readonly caseStyles = NUMBER_TO_WORDS_CASE_STYLES;
-  readonly sampleNumbers = NUMBER_TO_WORDS_SAMPLES;
-  readonly relatedTools: ReadonlyArray<MdRelatedToolLink> = NUMBER_TO_WORDS_RELATED_TOOLS;
+  private readonly maxHistoryEntries = 12;
+  private readonly conversionSubscription: Subscription;
+  private readonly effectRefs: EffectRef[] = [];
 
-  readonly form: NumberToWordsFormGroup = this.fb.group({
-    numericInput: this.fb.control(NUMBER_TO_WORDS_DEFAULT_FORM.numericInput, [
-      Validators.required,
-      Validators.pattern(NUMBER_TO_WORDS_INPUT_PATTERN)
-    ]),
-    locale: this.fb.control<LocaleCode>(NUMBER_TO_WORDS_DEFAULT_FORM.locale, {
-      nonNullable: true
-    }),
-    format: this.fb.control<NumberFormat>(NUMBER_TO_WORDS_DEFAULT_FORM.format, {
-      nonNullable: true
-    }),
-    currency: this.fb.control<CurrencyCode>(NUMBER_TO_WORDS_DEFAULT_FORM.currency, {
-      nonNullable: true
-    }),
-    showCurrencySymbol: this.fb.control(NUMBER_TO_WORDS_DEFAULT_FORM.showCurrencySymbol, {
-      nonNullable: true
-    }),
-    includeCents: this.fb.control(NUMBER_TO_WORDS_DEFAULT_FORM.includeCents, {
-      nonNullable: true
-    }),
-    caseStyle: this.fb.control<CaseStyle>(NUMBER_TO_WORDS_DEFAULT_FORM.caseStyle, {
-      nonNullable: true
-    }),
-    includeAnd: this.fb.control(NUMBER_TO_WORDS_DEFAULT_FORM.includeAnd, { nonNullable: true }),
-    handleNegative: this.fb.control(NUMBER_TO_WORDS_DEFAULT_FORM.handleNegative, {
-      nonNullable: true
-    })
+  readonly form = this.fb.group({
+    numericInput: this.fb.control('123456.78', [Validators.required, Validators.pattern(/^-?\d+(\.\d{0,6})?$/)]),
+    locale: this.fb.control<LocaleCode>('en-US', { nonNullable: true }),
+    format: this.fb.control<NumberFormat>('cardinal', { nonNullable: true }),
+    currency: this.fb.control<CurrencyCode>('USD', { nonNullable: true }),
+    showCurrencySymbol: this.fb.control(true, { nonNullable: true }),
+    includeCents: this.fb.control(true, { nonNullable: true }),
+    caseStyle: this.fb.control<CaseStyle>('sentence', { nonNullable: true }),
+    includeAnd: this.fb.control(true, { nonNullable: true }),
+    handleNegative: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly result = signal<ConversionResult | null>(null);
+  readonly result: WritableSignal<ConversionResult | null> = signal(null);
+  readonly statusMessage = signal<string | null>(null);
+  readonly isCopySuccess = signal(false);
+  readonly historyEntries: WritableSignal<ConversionHistory[]> = signal([]);
   readonly errorMessage = signal<string | null>(null);
-  readonly historyEntries = signal<ConversionHistory[]>([]);
-  readonly formSnapshot = signal<NumberToWordsFormValues>(this.readFormValues());
-  private readonly dismissedSuggestionId = signal<string | null>(null);
 
-  readonly selectedLocale = computed(() => resolveLocale(this.formSnapshot().locale));
+  readonly locales: LocaleDefinition[] = LOCALES;
+  readonly formats: FormatOption[] = FORMAT_OPTIONS;
+  readonly caseStyles: CaseStyleOption[] = CASE_STYLES;
+  readonly sampleNumbers: SampleNumber[] = SAMPLE_NUMBERS;
 
-  readonly availableCurrencies = computed(() =>
-    currenciesForLocale(this.formSnapshot().locale)
+  readonly selectedLocale: Signal<LocaleDefinition> = computed(
+    () => this.locales.find((item) => item.id === this.form.get('locale')!.value) ?? LOCALES[0]
   );
 
-  readonly formattedOutput = computed(() => this.result()?.text ?? '');
+  readonly availableCurrencies: Signal<CurrencyDefinition[]> = computed(() => {
+    const locale = this.selectedLocale();
+    return CURRENCIES.filter((item) => item.supportedLocales.includes(locale.id));
+  });
 
-  readonly formatLabel = computed(() => formatOptionLabel(this.formSnapshot().format));
+  readonly formattedOutput = computed(() => this.result()?.text ?? '');
+  readonly formatLabel = computed(() => {
+    const format = this.form.get('format')!.value ?? 'cardinal';
+    return FORMAT_OPTIONS.find((item) => item.id === format)?.label ?? 'Cardinal';
+  });
 
   readonly badgeMeta = computed(() => ({
     locale: this.selectedLocale().label,
@@ -119,88 +62,98 @@ export class NumberToWordsComponent {
     historyCount: this.historyEntries().length
   }));
 
-  readonly isCurrencyFormat = computed(() => this.formSnapshot().format === 'currency');
-
-  readonly primarySuggestion = computed(() => {
-    const current = this.result();
-    const snapshot = this.formSnapshot();
-    const parsed = parseNumberInput(snapshot.numericInput);
-    const numericValue = typeof parsed === 'number' ? parsed : 0;
-
-    const suggestion = resolveNumberToWordsSuggestion({
-      hasResult: current !== null,
-      hasError: this.errorMessage() !== null,
-      format: snapshot.format,
-      locale: snapshot.locale,
-      numericInput: snapshot.numericInput,
-      isNegative: numericValue < 0,
-      hasDecimal: snapshot.numericInput.includes('.'),
-      absoluteValue: Math.abs(numericValue)
-    });
-
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
+  readonly isCurrencyFormat = computed(() => this.form.get('format')!.value === 'currency');
+  readonly selectedCaseDescription = computed(() => {
+    const current = this.form.get('caseStyle')!.value ?? 'sentence';
+    return CASE_STYLES.find((style) => style.id === current)?.description ?? '';
   });
 
   constructor() {
-    this.form.valueChanges.pipe(debounceTime(120), takeUntilDestroyed()).subscribe(() => {
-      this.formSnapshot.set(this.readFormValues());
-      this.convert();
-    });
+    this.conversionSubscription = this.form.valueChanges
+      .pipe(debounceTime(120), distinctUntilChanged())
+      .subscribe(() => this.convert());
+
+    this.effectRefs.push(
+      effect(() => {
+        const available = this.availableCurrencies();
+        const current = this.form.get('currency')!.value;
+        if (available.length === 0) {
+          return;
+        }
+
+        if (!available.some((currency) => currency.code === current)) {
+          this.form.patchValue({ currency: available[0].code }, { emitEvent: true });
+        }
+      })
+    );
 
     this.convert();
+  }
+
+  ngOnDestroy(): void {
+    this.conversionSubscription.unsubscribe();
+    for (const ref of this.effectRefs) {
+      ref.destroy();
+    }
   }
 
   applySample(sample: SampleNumber): void {
     this.form.patchValue(
       {
         numericInput: sample.value,
-        format: sample.format ?? this.form.controls.format.value,
-        locale: sample.locale ?? this.form.controls.locale.value,
-        currency: sample.currency ?? this.form.controls.currency.value
+        format: sample.format ?? this.form.get('format')!.value,
+        locale: sample.locale ?? this.form.get('locale')!.value,
+        currency: sample.currency ?? this.form.get('currency')!.value
       },
       { emitEvent: true }
     );
-    this.toast.info(`Sample ${sample.label} applied.`);
+    this.notify(`Sample ${sample.label} applied.`);
   }
 
-  async copyToClipboard(): Promise<void> {
+  copyToClipboard(): void {
     const text = this.formattedOutput();
     if (!text) {
-      this.toast.info('Nothing to copy yet.');
+      this.notify('Nothing to copy yet.');
       return;
     }
-    await mdCopyText(this.toast, text, 'Output');
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          this.isCopySuccess.set(true);
+          this.notify('Copied to clipboard.');
+        })
+        .catch(() => this.copyWithFallback(text));
+      return;
+    }
+
+    this.copyWithFallback(text);
   }
 
   clearHistory(): void {
     this.historyEntries.set([]);
-    this.toast.info('History cleared.');
-  }
-
-  resetToDefault(): void {
-    this.form.patchValue({ ...NUMBER_TO_WORDS_DEFAULT_FORM }, { emitEvent: true });
-    this.toast.info('Reset to default values.');
+    this.notify('History cleared.');
   }
 
   submitForm(): void {
     this.convert();
-    this.toast.info('Conversion refreshed.');
+    this.notify('Conversion refreshed.');
   }
 
   setFormat(format: NumberFormat): void {
-    if (this.form.controls.format.value === format) {
+    if (this.form.get('format')!.value === format) {
       return;
     }
+
     this.form.patchValue({ format }, { emitEvent: true });
   }
 
   setCaseStyle(style: CaseStyle): void {
-    if (this.form.controls.caseStyle.value === style) {
+    if (this.form.get('caseStyle')!.value === style) {
       return;
     }
+
     this.form.patchValue({ caseStyle: style }, { emitEvent: true });
   }
 
@@ -210,7 +163,7 @@ export class NumberToWordsComponent {
         numericInput: entry.input,
         locale: entry.locale,
         format: entry.format,
-        currency: entry.currency ?? this.form.controls.currency.value,
+        currency: entry.currency ?? this.form.get('currency')!.value,
         caseStyle: entry.caseStyle,
         includeAnd: entry.includeAnd,
         handleNegative: entry.handleNegative,
@@ -219,65 +172,64 @@ export class NumberToWordsComponent {
       },
       { emitEvent: true }
     );
-    this.toast.info('History entry restored.');
+    this.notify('History entry restored.');
   }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
-  }
-
-  readonly trackLocale = (_: number, locale: LocaleDefinition): LocaleCode => locale.id;
-  readonly trackFormat = (_: number, option: FormatOption): NumberFormat => option.id;
-  readonly trackCaseStyle = (_: number, option: CaseStyleOption): CaseStyle => option.id;
-  readonly trackCurrency = (_: number, currency: CurrencyDefinition): CurrencyCode => currency.code;
-  readonly trackSample = (_: number, sample: SampleNumber): string => sample.label;
-  readonly trackHistory = (_: number, history: ConversionHistory): string =>
-    `${history.input}-${history.locale}-${history.format}-${history.timestamp}`;
 
   private convert(): void {
-    const snapshot = this.readFormValues();
-    this.errorMessage.set(null);
+    const rawValue = this.form.get('numericInput')!.value ?? '';
+    const locale = this.form.get('locale')!.value ?? 'en-US';
+    const format = this.form.get('format')!.value ?? 'cardinal';
+    const currency = this.form.get('currency')!.value ?? 'USD';
+    const caseStyle = this.form.get('caseStyle')!.value ?? 'sentence';
+    const includeAnd = this.form.get('includeAnd')!.value ?? true;
+    const handleNegative = this.form.get('handleNegative')!.value ?? true;
+    const includeCents = this.form.get('includeCents')!.value ?? true;
+    const showCurrencySymbol = this.form.get('showCurrencySymbol')!.value ?? true;
 
-    const parsed = parseNumberInput(snapshot.numericInput);
+    this.errorMessage.set(null);
+    const parsed = parseInput(rawValue);
+
     if (parsed instanceof Error) {
       this.errorMessage.set(parsed.message);
       this.result.set(null);
       return;
     }
 
-    const localeDefinition = resolveLocale(snapshot.locale);
-    const currencyDefinition = resolveCurrency(snapshot.currency);
+    const localeDefinition = LOCALES.find((item) => item.id === locale) ?? LOCALES[0];
+    const currencyDefinition = CURRENCIES.find((item) => item.code === currency) ?? CURRENCIES[0];
 
     try {
-      const output = convertNumberToWords(parsed, {
+      const converter = new NumberToWordsConverter({
         locale: localeDefinition,
         currency: currencyDefinition,
-        includeAnd: snapshot.includeAnd,
-        includeCents: snapshot.includeCents,
-        handleNegative: snapshot.handleNegative,
-        showCurrencySymbol: snapshot.showCurrencySymbol,
-        caseStyle: snapshot.caseStyle,
-        format: snapshot.format
+        includeAnd,
+        includeCents,
+        handleNegative,
+        showCurrencySymbol,
+        caseStyle,
+        format
       });
+      const output = converter.convert(parsed);
 
-      const conversionResult: ConversionResult = {
+      const result: ConversionResult = {
         text: output,
-        input: snapshot.numericInput,
-        locale: snapshot.locale,
-        format: snapshot.format,
+        input: rawValue,
+        locale: locale,
+        format,
         timestamp: Date.now(),
-        caseStyle: snapshot.caseStyle,
-        includeAnd: snapshot.includeAnd,
-        includeCents: snapshot.includeCents,
-        handleNegative: snapshot.handleNegative,
-        showCurrencySymbol: snapshot.showCurrencySymbol,
+        caseStyle,
+        includeAnd,
+        includeCents,
+        handleNegative,
+        showCurrencySymbol,
         currency: currencyDefinition.code
       };
 
-      this.result.set(conversionResult);
-      this.pushHistory(conversionResult);
+      this.result.set(result);
+      this.pushHistory(result);
     } catch (error) {
-      this.errorMessage.set(mapConversionError(error));
+      const message = error instanceof Error ? error.message : 'Unable to process number.';
+      this.errorMessage.set(message);
       this.result.set(null);
     }
   }
@@ -285,24 +237,515 @@ export class NumberToWordsComponent {
   private pushHistory(entry: ConversionResult): void {
     this.historyEntries.update((current) => {
       const filtered = current.filter(
-        (item) =>
-          !(item.input === entry.input && item.locale === entry.locale && item.format === entry.format)
+        (item) => !(item.input === entry.input && item.locale === entry.locale && item.format === entry.format)
       );
-      return [{ ...entry }, ...filtered].slice(0, NUMBER_TO_WORDS_HISTORY_LIMIT);
+      const next = [{ ...entry }, ...filtered];
+      return next.slice(0, this.maxHistoryEntries);
     });
   }
 
-  private readFormValues(): NumberToWordsFormValues {
-    return {
-      numericInput: this.form.controls.numericInput.value ?? '',
-      locale: this.form.controls.locale.value,
-      format: this.form.controls.format.value,
-      currency: this.form.controls.currency.value,
-      showCurrencySymbol: this.form.controls.showCurrencySymbol.value,
-      includeCents: this.form.controls.includeCents.value,
-      caseStyle: this.form.controls.caseStyle.value,
-      includeAnd: this.form.controls.includeAnd.value,
-      handleNegative: this.form.controls.handleNegative.value
-    };
+  private notify(message: string): void {
+    this.statusMessage.set(message);
+    setTimeout(() => this.statusMessage.set(null), 3500);
   }
+
+  private copyWithFallback(text: string): void {
+    this.isCopySuccess.set(false);
+    this.notify('Clipboard unavailable in this environment.');
+  }
+
+  readonly trackLocale = (_: number, locale: LocaleDefinition) => locale.id;
+  readonly trackFormat = (_: number, option: FormatOption) => option.id;
+  readonly trackCaseStyle = (_: number, option: CaseStyleOption) => option.id;
+  readonly trackCurrency = (_: number, currency: CurrencyDefinition) => currency.code;
+  readonly trackSample = (_: number, sample: SampleNumber) => sample.label;
+  readonly trackHistory = (_: number, history: ConversionHistory) => `${history.input}-${history.locale}-${history.format}-${history.timestamp}`;
+}
+
+type LocaleCode = 'en-US' | 'en-UK' | 'en-IN';
+type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'INR';
+type NumberFormat = 'cardinal' | 'ordinal' | 'currency';
+type CaseStyle = 'sentence' | 'title' | 'upper' | 'lower';
+
+interface FormatOption {
+  id: NumberFormat;
+  label: string;
+  description: string;
+  icon: string;
+}
+
+interface CaseStyleOption {
+  id: CaseStyle;
+  label: string;
+  description: string;
+}
+
+interface LocaleDefinition {
+  id: LocaleCode;
+  label: string;
+  sample: string;
+  groupSeparator: string;
+  decimalSeparator: string;
+  scale: ScaleDefinition;
+  ordinalSupport: boolean;
+}
+
+interface ScaleDefinition {
+  thousands: string[];
+  primaryGroupSize: number;
+  secondaryGroupSize?: number;
+}
+
+interface CurrencyDefinition {
+  code: CurrencyCode;
+  label: string;
+  majorSingular: string;
+  majorPlural: string;
+  minorSingular: string;
+  minorPlural: string;
+  symbol: string;
+  supportedLocales: LocaleCode[];
+}
+
+interface ConversionResult {
+  text: string;
+  input: string;
+  locale: LocaleCode;
+  format: NumberFormat;
+  timestamp: number;
+  caseStyle: CaseStyle;
+  includeAnd: boolean;
+  includeCents: boolean;
+  handleNegative: boolean;
+  showCurrencySymbol: boolean;
+  currency: CurrencyCode;
+}
+
+interface ConversionHistory extends ConversionResult {}
+
+interface SampleNumber {
+  label: string;
+  value: string;
+  format?: NumberFormat;
+  locale?: LocaleCode;
+  currency?: CurrencyCode;
+}
+
+interface ConverterOptions {
+  locale: LocaleDefinition;
+  currency: CurrencyDefinition;
+  includeAnd: boolean;
+  includeCents: boolean;
+  handleNegative: boolean;
+  showCurrencySymbol: boolean;
+  caseStyle: CaseStyle;
+  format: NumberFormat;
+}
+
+const FORMAT_OPTIONS: FormatOption[] = [
+  {
+    id: 'cardinal',
+    label: 'Cardinal',
+    description: 'Standard words, e.g. "one hundred twenty-three"',
+    icon: 'words'
+  },
+  {
+    id: 'ordinal',
+    label: 'Ordinal',
+    description: 'Positions, e.g. "one hundred twenty-third"',
+    icon: 'list'
+  },
+  {
+    id: 'currency',
+    label: 'Currency',
+    description: 'Money format, e.g. "one hundred dollars"',
+    icon: 'currency'
+  }
+];
+
+const CASE_STYLES: CaseStyleOption[] = [
+  { id: 'sentence', label: 'Sentence case', description: 'Capitalise first word only.' },
+  { id: 'title', label: 'Title Case', description: 'Capitalise principal words.' },
+  { id: 'upper', label: 'UPPERCASE', description: 'All letters upper case.' },
+  { id: 'lower', label: 'lowercase', description: 'All letters lower case.' }
+];
+
+const LOCALES: LocaleDefinition[] = [
+  {
+    id: 'en-US',
+    label: 'English (United States)',
+    sample: '1,234,567.89',
+    groupSeparator: ',',
+    decimalSeparator: '.',
+    scale: {
+      thousands: ['', 'thousand', 'million', 'billion', 'trillion', 'quadrillion'],
+      primaryGroupSize: 3,
+      secondaryGroupSize: 3
+    },
+    ordinalSupport: true
+  },
+  {
+    id: 'en-UK',
+    label: 'English (United Kingdom)',
+    sample: '1 234 567.89',
+    groupSeparator: ' ',
+    decimalSeparator: '.',
+    scale: {
+      thousands: ['', 'thousand', 'million', 'billion', 'trillion', 'quadrillion'],
+      primaryGroupSize: 3,
+      secondaryGroupSize: 3
+    },
+    ordinalSupport: true
+  },
+  {
+    id: 'en-IN',
+    label: 'English (India)',
+    sample: '1,23,45,678.90',
+    groupSeparator: ',',
+    decimalSeparator: '.',
+    scale: {
+      thousands: ['', 'thousand', 'lakh', 'crore', 'arab', 'kharab'],
+      primaryGroupSize: 3,
+      secondaryGroupSize: 2
+    },
+    ordinalSupport: true
+  }
+];
+
+const CURRENCIES: CurrencyDefinition[] = [
+  {
+    code: 'USD',
+    label: 'US Dollar',
+    majorSingular: 'dollar',
+    majorPlural: 'dollars',
+    minorSingular: 'cent',
+    minorPlural: 'cents',
+    symbol: '$',
+    supportedLocales: ['en-US', 'en-UK']
+  },
+  {
+    code: 'EUR',
+    label: 'Euro',
+    majorSingular: 'euro',
+    majorPlural: 'euros',
+    minorSingular: 'cent',
+    minorPlural: 'cents',
+    symbol: '€',
+    supportedLocales: ['en-US', 'en-UK']
+  },
+  {
+    code: 'GBP',
+    label: 'Pound Sterling',
+    majorSingular: 'pound',
+    majorPlural: 'pounds',
+    minorSingular: 'penny',
+    minorPlural: 'pence',
+    symbol: '£',
+    supportedLocales: ['en-UK']
+  },
+  {
+    code: 'INR',
+    label: 'Indian Rupee',
+    majorSingular: 'rupee',
+    majorPlural: 'rupees',
+    minorSingular: 'paise',
+    minorPlural: 'paise',
+    symbol: '₹',
+    supportedLocales: ['en-IN']
+  }
+];
+
+const SAMPLE_NUMBERS: SampleNumber[] = [
+  { label: 'Invoice total', value: '482356.71', format: 'currency', locale: 'en-US', currency: 'USD' },
+  { label: 'Lottery prize', value: '305000000', format: 'cardinal', locale: 'en-US' },
+  { label: 'Indian budget', value: '98765432', format: 'currency', locale: 'en-IN', currency: 'INR' },
+  { label: 'Rank position', value: '112', format: 'ordinal', locale: 'en-UK' },
+  { label: 'Negative balance', value: '-4520.5', format: 'currency', locale: 'en-US', currency: 'USD' },
+  { label: 'Scientific', value: '1200000000000', format: 'cardinal', locale: 'en-US' }
+];
+
+class NumberToWordsConverter {
+  private readonly locale: LocaleDefinition;
+  private readonly currency: CurrencyDefinition;
+  private readonly includeAnd: boolean;
+  private readonly includeCents: boolean;
+  private readonly handleNegative: boolean;
+  private readonly showCurrencySymbol: boolean;
+  private readonly caseStyle: CaseStyle;
+  private readonly format: NumberFormat;
+
+  constructor(private readonly options: ConverterOptions) {
+    this.locale = options.locale;
+    this.currency = options.currency;
+    this.includeAnd = options.includeAnd;
+    this.includeCents = options.includeCents;
+    this.handleNegative = options.handleNegative;
+    this.showCurrencySymbol = options.showCurrencySymbol;
+    this.caseStyle = options.caseStyle;
+    this.format = options.format;
+  }
+
+  convert(value: number): string {
+    const isNegative = value < 0;
+    const absoluteValue = Math.abs(value);
+
+    const integerPart = Math.floor(absoluteValue);
+    const decimalPart = Number.parseFloat((absoluteValue - integerPart).toFixed(6));
+
+    let words: string;
+
+    switch (this.format) {
+      case 'ordinal':
+        words = this.convertOrdinal(integerPart, decimalPart);
+        break;
+      case 'currency':
+        words = this.convertCurrency(integerPart, decimalPart);
+        break;
+      default:
+        words = this.convertCardinal(integerPart, decimalPart);
+        break;
+    }
+
+    if (isNegative && this.handleNegative) {
+      words = `negative ${words}`;
+    }
+
+    return applyCaseStyle(words.trim(), this.caseStyle);
+  }
+
+  private convertCardinal(integerPart: number, decimalPart: number): string {
+    const integerWords = this.toWords(integerPart);
+    if (decimalPart === 0) {
+      return integerWords;
+    }
+
+    const decimalWords = decimalDigitsToWords(decimalPart, this.locale);
+    return `${integerWords} point ${decimalWords}`;
+  }
+
+  private convertOrdinal(integerPart: number, decimalPart: number): string {
+    if (decimalPart !== 0) {
+      throw new Error('Ordinals do not support decimal fractions.');
+    }
+
+    const cardinal = this.toWords(integerPart);
+    return convertCardinalToOrdinal(cardinal);
+  }
+
+  private convertCurrency(integerPart: number, decimalPart: number): string {
+    const { majorSingular, majorPlural, minorSingular, minorPlural, symbol } = this.currency;
+    const majorLabel = integerPart === 1 ? majorSingular : majorPlural;
+    const majorWords = integerPart === 0 ? `zero ${majorPlural}` : `${this.toWords(integerPart)} ${majorLabel}`;
+
+    if (!this.includeCents || decimalPart === 0) {
+      return this.showCurrencySymbol ? `${symbol} ${majorWords}` : majorWords;
+    }
+
+    const centsValue = Math.round(decimalPart * 100);
+    const centsLabel = centsValue === 1 ? minorSingular : minorPlural;
+    const centsWords = centsValue === 0 ? `zero ${minorPlural}` : `${this.toWords(centsValue)} ${centsLabel}`;
+
+    const connector = this.includeAnd ? ' and ' : ', ';
+    const phrase = `${majorWords}${connector}${centsWords}`;
+    return this.showCurrencySymbol ? `${symbol} ${phrase}` : phrase;
+  }
+
+  private toWords(value: number): string {
+    if (value === 0) {
+      return 'zero';
+    }
+
+    const parts: string[] = [];
+    const chunks = splitNumberIntoChunks(value, this.locale.scale);
+
+    for (const chunk of chunks) {
+      if (chunk.value === 0) {
+        continue;
+      }
+
+      const chunkWords = convertChunkToWords(chunk.value);
+      const scaleWord = this.locale.scale.thousands[chunk.scaleIndex] ?? '';
+      const segment = scaleWord ? `${chunkWords} ${scaleWord}` : chunkWords;
+      parts.push(segment.trim());
+    }
+
+    const connector = this.includeAnd ? ' and ' : ' ';
+    const ordered = [...parts].reverse().filter((segment) => segment.length > 0);
+    const combined = ordered.join(connector);
+    return combined
+      .split(/\s+/)
+      .filter((segment) => segment.length > 0)
+      .join(' ')
+      .trim();
+  }
+}
+
+interface Chunk {
+  value: number;
+  scaleIndex: number;
+}
+
+function splitNumberIntoChunks(value: number, scale: ScaleDefinition): Chunk[] {
+  const chunks: Chunk[] = [];
+  let remaining = value;
+  let index = 0;
+
+  while (remaining > 0) {
+    const groupSize =
+      index === 0 ? scale.primaryGroupSize : scale.secondaryGroupSize ?? scale.primaryGroupSize;
+    const divisor = Math.pow(10, groupSize);
+    const chunkValue = remaining % divisor;
+    remaining = Math.floor(remaining / divisor);
+
+    chunks.push({
+      value: chunkValue,
+      scaleIndex: index
+    });
+
+    index += 1;
+  }
+
+  return chunks;
+}
+
+const ONES = [
+  '',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+  'fourteen',
+  'fifteen',
+  'sixteen',
+  'seventeen',
+  'eighteen',
+  'nineteen'
+];
+
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+function convertChunkToWords(value: number): string {
+  if (value === 0) {
+    return '';
+  }
+
+  if (value < 20) {
+    return ONES[value];
+  }
+
+  if (value < 100) {
+    const ten = Math.floor(value / 10);
+    const unit = value % 10;
+    if (unit === 0) {
+      return TENS[ten];
+    }
+
+    return `${TENS[ten]}-${ONES[unit]}`;
+  }
+
+  const hundred = Math.floor(value / 100);
+  const remainder = value % 100;
+  const hundredPart = `${ONES[hundred]} hundred`;
+  if (remainder === 0) {
+    return hundredPart;
+  }
+
+  return `${hundredPart} ${convertChunkToWords(remainder)}`;
+}
+
+function convertCardinalToOrdinal(cardinal: string): string {
+  const words = cardinal.trim().split(/\s+/);
+  if (words.length === 0) {
+    return cardinal;
+  }
+
+  const lastWord = words.pop()!;
+  const ordinalWord = convertWordToOrdinal(lastWord);
+  words.push(ordinalWord);
+  return words.join(' ');
+}
+
+function convertWordToOrdinal(word: string): string {
+  const specialOrdinals: Record<string, string> = {
+    one: 'first',
+    two: 'second',
+    three: 'third',
+    five: 'fifth',
+    eight: 'eighth',
+    nine: 'ninth',
+    twelve: 'twelfth'
+  };
+
+  if (specialOrdinals[word]) {
+    return specialOrdinals[word];
+  }
+
+  if (word.endsWith('y')) {
+    return `${word.slice(0, -1)}ieth`;
+  }
+
+  if (word.endsWith('teen')) {
+    return `${word}th`;
+  }
+
+  if (word.endsWith('ty')) {
+    return `${word.slice(0, -2)}tieth`;
+  }
+
+  if (word.includes('-')) {
+    const [tens, units] = word.split('-');
+    return `${tens}-${convertWordToOrdinal(units)}`;
+  }
+
+  return `${word}th`;
+}
+
+function decimalDigitsToWords(decimal: number, locale: LocaleDefinition): string {
+  const digits = decimal.toString().split('.')[1] ?? '';
+  const words = digits.split('').map((digit) => ONES[Number.parseInt(digit, 10)]);
+  return words.join(' ');
+}
+
+function applyCaseStyle(value: string, style: CaseStyle): string {
+  switch (style) {
+    case 'upper':
+      return value.toUpperCase();
+    case 'lower':
+      return value.toLowerCase();
+    case 'title':
+      return value
+        .split(/\s+/)
+        .map((word: string) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+        .join(' ');
+    default:
+      return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+}
+
+function parseInput(value: string): number | Error {
+  if (!value.trim()) {
+    return new Error('Enter a number to convert.');
+  }
+
+  const normalised = value.split(',').join('').trim();
+  const parsed = Number(normalised);
+
+  if (!Number.isFinite(parsed)) {
+    return new Error('Number is too large to convert.');
+  }
+
+  if (Math.abs(parsed) > Number.MAX_SAFE_INTEGER) {
+    return new Error('Number exceeds the supported safe range.');
+  }
+
+  return parsed;
 }

@@ -1,21 +1,15 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
-import type { PdfToolMode } from '../../shared/pdf.types';
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 
 @Component({
   selector: 'lib-delete-pages',
   standalone: true,
-  template: `
-    <lib-pdf-workbench
-      [mode]="mode"
-      [title]="title"
-      [description]="description" />
-  `,
-  imports: [PdfWorkbenchComponent],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './delete-pages.html',
+  styleUrls: ['./delete-pages.scss'],
+  imports: [CommonModule, FormsModule, Navigation]
 })
 export class DeletePagesComponent {
-  readonly mode: PdfToolMode = 'delete-pages';
-  readonly title = 'Delete PDF Pages';
-  readonly description = 'Remove selected pages from a PDF and download the cleaned document.';
+  constructor() {}
 }

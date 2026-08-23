@@ -1,301 +1,237 @@
-<div class="ctl dd">
-  <lib-navigation></lib-navigation>
+<div class="hhd">
+  <div class="hhd__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>HTTP Header Decoder</h1>
-        <p>
-          Decode and analyze HTTP headers. Parse raw headers or key-value pairs, view descriptions, categorize headers, and
-          export in various formats.
-        </p>
+  <section class="hhd__hero">
+    <div class="hhd__badge">Dev toolkit</div>
+    <h1>HTTP Header Decoder</h1>
+    <p>
+      Decode and analyze HTTP headers. Parse raw headers or key-value pairs, view descriptions, categorize headers, and
+      export in various formats.
+    </p>
+
+    @if (hasDecodedHeaders()) {
+      <div class="hhd__hero-meta">
+        <div>
+          <span class="hhd__meta-label">Headers</span>
+          <strong>{{ headerCount() }}</strong>
+        </div>
+        <div>
+          <span class="hhd__meta-label">CORS headers</span>
+          <strong>{{ corsHeadersCount() }}</strong>
+        </div>
+        <div>
+          <span class="hhd__meta-label">Ready</span>
+          <strong>✓</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="hhd__hero-meta hhd__hero-meta--placeholder">
+        Enter HTTP headers to decode and analyze them.
+      </div>
+    }
+  </section>
+
+  <div class="hhd__board" [formGroup]="form">
+    <section class="hhd__panel hhd__panel--input">
+      <header class="hhd__card-header">
+        <div>
+          <h2>Input headers</h2>
+          <p>Enter HTTP headers in raw or key-value format.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Header decoder statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDecodedHeaders() ? headerCount() : '—' }}</span>
-          <span class="ctl__stat-label">Headers</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDecodedHeaders() ? corsHeadersCount() : '—' }}</span>
-          <span class="ctl__stat-label">CORS</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDecodedHeaders() ? getCategories().length : '—' }}</span>
-          <span class="ctl__stat-label">Categories</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasDecodedHeaders() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="dd-workflow" aria-label="Decoder actions"><div class="dd-workflow__group dd-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="decodeHeaders()"
-        aria-label="Decode headers"
-        appTooltip="Decode headers"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        <span class="ctl__tool-btn-label">Decode</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        aria-label="Clear all"
-        appTooltip="Clear all"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Clear</span>
-      </button>
-      @if (hasDecodedHeaders()) {
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="copyToClipboard(exportAsJson(), 'JSON')"
-          aria-label="Copy JSON"
-          appTooltip="Copy JSON"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy JSON</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="copyToClipboard(exportAsRaw(), 'Raw')"
-          aria-label="Copy raw"
-          appTooltip="Copy raw"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy raw</span>
-        </button>
-      }
-    </div>
-    </div>
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor dd-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Input headers</span>
-          </header>
-
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (warnings().length) {
-            <div class="ctl__alert ctl__alert--warning" role="status">
-              <ul>
-                @for (message of warnings(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="hhd__suggest" aria-label="Suggested next step">
-              <div class="hhd__suggest-body">
-                <p class="hhd__suggest-title">{{ suggestion.title }}</p>
-                <p class="hhd__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="hhd__suggest-actions">
-                <a class="hhd__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button type="button" class="hhd__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
-              </div>
-            </aside>
-          }
-
-          <label class="sr-only" for="rawHeaders">Headers</label>
-          <textarea
-            id="rawHeaders"
-            class="ctl__textarea ctl__textarea--mono"
-            formControlName="rawHeaders"
-            placeholder="Content-Type: application/json&#10;Authorization: Bearer token&#10;Accept: application/json"
-            rows="1"
-            spellcheck="false"
-          ></textarea>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output dd-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Decoded headers</span>
-            @if (hasDecodedHeaders()) {
-              <span class="ctl__editor-badge">{{ headerCount() }}</span>
-            }
-          </header>
-
-          @if (hasDecodedHeaders()) {
-            <div class="ctl__editor-body hhd__headers-list">
-              @for (header of decodedHeaders(); track header.key + header.value) {
-                <div class="hhd__header-item" [style.border-left-color]="getCategoryColor(header.category)">
-                  <div class="hhd__header-header">
-                    <div class="hhd__header-key-group">
-                      <strong class="hhd__header-key">{{ header.key }}</strong>
-                      <span class="hhd__header-category" [style.background-color]="getCategoryColor(header.category)">
-                        {{ getCategoryLabel(header.category) }}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="copyToClipboard(`${header.key}: ${header.value}`, 'Header')"
-                      aria-label="Copy header"
-                      appTooltip="Copy header"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </div>
-                  <div class="hhd__header-value">
-                    <code>{{ header.value }}</code>
-                  </div>
-                  @if (header.description) {
-                    <div class="hhd__header-description">
-                      <small>{{ header.description }}</small>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          } @else {
-            <div class="ctl__empty">
-              <p>Enter headers and decode to see analyzed results.</p>
-            </div>
-          }
-        </section>
-      </div>
-
-            <details class="dd-options-flyout">
-        <summary class="dd-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>More</span>
-        </summary>
-        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Preferences and history">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Preferences</header>
-          <div class="ctl__settings">
-            <div class="ctl__field">
-              <span>Input mode</span>
-              <select id="inputMode" formControlName="inputMode">
-                <option value="raw">Raw headers (key: value format)</option>
-                <option value="keyvalue">Key-value pairs (JSON)</option>
-              </select>
-            </div>
-
-            <label class="ctl__toggle">
-              <input type="checkbox" formControlName="rememberHistory" />
-              <div>
-                <strong>Remember history</strong>
-                <span>Keep track of recent decoded headers</span>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        @if (hasDecodedHeaders()) {
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Categories</header>
-            <div class="hhd__categories-list">
-              @for (category of getCategories(); track category) {
-                @let categoryHeaders = getHeadersByCategory(category);
-                <div class="hhd__category-group">
-                  <h3 class="hhd__category-title" [style.color]="getCategoryColor(category)">
-                    {{ getCategoryLabel(category) }} ({{ categoryHeaders.length }})
-                  </h3>
-                  <div class="hhd__category-headers">
-                    @for (header of categoryHeaders; track header.key) {
-                      <div class="hhd__category-header-item">
-                        <strong>{{ header.key }}:</strong>
-                        <code>{{ header.value }}</code>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-            </div>
-          </div>
-        }
-
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">
-            <span>History</span>
-            <button
-              type="button"
-              class="ctl__icon-btn"
-              (click)="clearHistory()"
-              [disabled]="!hasHistory()"
-              aria-label="Clear history"
-              appTooltip="Clear history"
-              tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
-            </button>
-          </header>
-          @if (hasHistory()) {
-            <ul class="hhd__history-list">
-              @for (entry of history(); track entry.timestamp) {
-                <li>
-                  <button type="button" (click)="applyHistory(entry)" class="hhd__history-item">
-                    <div class="hhd__history-info">
-                      <strong>{{ entry.headers.length }} headers</strong>
-                      <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                      <code class="hhd__history-preview">{{ entry.rawInput.substring(0, 100) }}{{ entry.rawInput.length > 100 ? '...' : '' }}</code>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    class="ctl__icon-btn"
-                    (click)="removeHistoryEntry(entry.timestamp)"
-                    aria-label="Remove entry"
-                    appTooltip="Remove entry"
-                    tooltipPosition="bottom">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  </button>
-                </li>
-              }
-            </ul>
-          } @else {
-            <div class="ctl__empty"><p>Enable history to keep recent decoded headers.</p></div>
-          }
-        </div>
-
-        <div class="ctl__panel hhd__related">
-          <header class="ctl__panel-head">Related tools</header>
-          <ul class="hhd__related-list">
-            @for (tool of relatedTools; track tool.path) {
-              <li>
-                <a class="hhd__related-link" [routerLink]="tool.path">
-                  <strong>{{ tool.label }}</strong>
-                  <span>{{ tool.description }}</span>
-                </a>
-              </li>
+      @if (errors().length) {
+        <div class="hhd__alert hhd__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
             }
           </ul>
         </div>
-      </aside>
-      </details>
-    </div>
+      }
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Paste headers in raw <strong>key: value</strong> format or as a JSON object.</li>
-        <li>Decoding runs automatically as you type — or tap <strong>Decode</strong>.</li>
-        <li>Review descriptions, categories, and per-header copy actions in the output panel.</li>
-        <li>Export as JSON or raw text from the toolbar.</li>
-      </ul>
-    </details>
-  </main>
+      @if (warnings().length) {
+        <div class="hhd__alert hhd__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="hhd__settings-grid">
+        <div class="hhd__setting-group">
+          <label for="inputMode" class="hhd__label">Input mode</label>
+          <select id="inputMode" class="hhd__select" formControlName="inputMode">
+            <option value="raw">Raw headers (key: value format)</option>
+            <option value="keyvalue">Key-value pairs (JSON)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="hhd__setting-group">
+        <label for="rawHeaders" class="hhd__label">Headers</label>
+        <textarea
+          id="rawHeaders"
+          class="hhd__textarea"
+          formControlName="rawHeaders"
+          placeholder="Content-Type: application/json&#10;Authorization: Bearer token&#10;Accept: application/json"
+          rows="10"
+        ></textarea>
+        <small>
+          @if (form.controls.inputMode.value === 'raw') {
+            Enter headers in "key: value" format, one per line
+          } @else {
+            Enter headers as JSON object: {{ '{' }}"key": "value"{{ '}' }}
+          }
+        </small>
+      </div>
+
+      <label class="hhd__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent decoded headers</span>
+        </div>
+      </label>
+
+      <div class="hhd__actions">
+        <button type="button" class="btn btn--primary" (click)="decodeHeaders()">Decode Headers</button>
+        <button type="button" class="btn btn--ghost" (click)="clear()">Clear</button>
+      </div>
+    </section>
+
+    <section class="hhd__panel hhd__panel--output">
+      <header class="hhd__card-header">
+        <div>
+          <h2>Decoded headers</h2>
+          <p>Analyzed headers with descriptions and categories.</p>
+        </div>
+        @if (hasDecodedHeaders()) {
+          <div class="hhd__export-actions">
+            <button
+              type="button"
+              class="btn btn--ghost btn--small"
+              (click)="copyToClipboard(exportAsJson(), 'JSON')"
+            >
+              Copy JSON
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost btn--small"
+              (click)="copyToClipboard(exportAsRaw(), 'Raw')"
+            >
+              Copy Raw
+            </button>
+          </div>
+        }
+      </header>
+
+      @if (hasDecodedHeaders()) {
+        <div class="hhd__headers-list">
+          @for (header of decodedHeaders(); track header.key + header.value) {
+            <div class="hhd__header-item" [style.border-left-color]="getCategoryColor(header.category)">
+              <div class="hhd__header-header">
+                <div class="hhd__header-key-group">
+                  <strong class="hhd__header-key">{{ header.key }}</strong>
+                  <span class="hhd__header-category" [style.background-color]="getCategoryColor(header.category)">
+                    {{ getCategoryLabel(header.category) }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn--ghost btn--small"
+                  (click)="copyToClipboard(`${header.key}: ${header.value}`, 'Header')"
+                >
+                  Copy
+                </button>
+              </div>
+              <div class="hhd__header-value">
+                <code>{{ header.value }}</code>
+              </div>
+              @if (header.description) {
+                <div class="hhd__header-description">
+                  <small>{{ header.description }}</small>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="hhd__empty">Enter headers above and click "Decode Headers" to see decoded information.</div>
+      }
+    </section>
+
+    <section class="hhd__panel hhd__panel--categories">
+      <header class="hhd__card-header">
+        <div>
+          <h2>Header categories</h2>
+          <p>Headers grouped by category.</p>
+        </div>
+      </header>
+
+      @if (hasDecodedHeaders()) {
+        <div class="hhd__categories-list">
+          @for (category of getCategories(); track category) {
+            @let categoryHeaders = getHeadersByCategory(category);
+            <div class="hhd__category-group">
+              <h3 class="hhd__category-title" [style.color]="getCategoryColor(category)">
+                {{ getCategoryLabel(category) }} ({{ categoryHeaders.length }})
+              </h3>
+              <div class="hhd__category-headers">
+                @for (header of categoryHeaders; track header.key) {
+                  <div class="hhd__category-header-item">
+                    <strong>{{ header.key }}:</strong>
+                    <code>{{ header.value }}</code>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="hhd__empty">Decode headers to see them grouped by category.</div>
+      }
+    </section>
+
+    <section class="hhd__panel hhd__panel--history">
+      <header class="hhd__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently decoded headers.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="hhd__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="hhd__history-item">
+                <div class="hhd__history-info">
+                  <strong>{{ entry.headers.length }} headers</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                  <code class="hhd__history-preview">{{ entry.rawInput.substring(0, 100) }}{{ entry.rawInput.length > 100 ? '...' : '' }}</code>
+                </div>
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="hhd__empty">Enable history tracking to keep a list of recent decoded headers.</div>
+      }
+    </section>
+  </div>
 </div>

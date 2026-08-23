@@ -1,270 +1,133 @@
-<div class="ctl st">
-  <lib-navigation></lib-navigation>
+<div class="hg">
+  <div class="hg__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Hash Generator</h1>
-        <p>Generate cryptographic hashes for text using SHA-256, SHA-384, or SHA-512.</p>
+  <section class="hg__hero">
+    <div class="hg__badge">Security toolkit</div>
+    <h1>Hash Generator</h1>
+    <p>
+      Generate cryptographic hashes for text using modern algorithms. Great for quickly checking digests, verifying data
+      integrity, or testing API signatures.
+    </p>
+
+    @if (hasResult() && result(); as r) {
+      <div class="hg__hero-meta">
+        <div>
+          <span class="hg__meta-label">Algorithm</span>
+          <strong>{{ r.algorithm | uppercase }}</strong>
+        </div>
+        <div>
+          <span class="hg__meta-label">Hash length</span>
+          <strong>{{ r.lengthBits }} bits</strong>
+        </div>
+        <div>
+          <span class="hg__meta-label">Input length</span>
+          <strong>{{ form.controls.input.value.length }} chars</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="hg__hero-meta hg__hero-meta--placeholder">
+        Type text below, choose an algorithm, and click \"Generate\" to see the hash.
+      </div>
+    }
+  </section>
+
+  <div class="hg__board" [formGroup]="form">
+    <section class="hg__panel hg__panel--input">
+      <header class="hg__card-header">
+        <div>
+          <h2>Input</h2>
+          <p>Text to hash and options.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
       </header>
 
-      <div class="ctl__stats" aria-label="Hash statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ formSnapshot().input.length }}</span>
-          <span class="ctl__stat-label">Input</span>
+      @if (errors().length) {
+        <div class="hg__alert hg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ formSnapshot().algorithm | uppercase }}</span>
-          <span class="ctl__stat-label">Algo</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasResult() ? result()!.lengthBits : '—' }}</span>
-          <span class="ctl__stat-label">Bits</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasResult() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
-    </div>
+      }
 
-    <div class="st-workflow" aria-label="Hash actions">
-      <div class="st-workflow__group st-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="generate()"
-          [disabled]="!hasInput()"
-          aria-label="Generate hash"
-          appTooltip="Generate hash"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="9" x2="20" y2="9" />
-            <line x1="4" y1="15" x2="20" y2="15" />
-            <line x1="10" y1="3" x2="8" y2="21" />
-            <line x1="16" y1="3" x2="14" y2="21" />
-          </svg>
-          <span class="ctl__tool-btn-label">Generate</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clear()"
-          [disabled]="!hasInput() && !hasResult()"
-          aria-label="Clear all"
-          appTooltip="Clear all"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
+      <div class="hg__input-area">
+        <label for="input" class="hg__label">Text</label>
+        <textarea
+          id="input"
+          class="hg__textarea"
+          formControlName="input"
+          rows="6"
+          spellcheck="false"
+          placeholder="Enter the text you want to hash"
+        ></textarea>
       </div>
-    </div>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor st-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Input text</span>
-            <div class="ctl__editor-actions">
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyInput()"
-                [disabled]="!hasInput()"
-                aria-label="Copy input"
-                appTooltip="Copy input"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="hg__suggest" aria-label="Suggested next step">
-              <div class="hg__suggest-body">
-                <p class="hg__suggest-title">{{ suggestion.title }}</p>
-                <p class="hg__suggest-reason">{{ suggestion.reason }}</p>
+      <div class="hg__settings">
+        <div class="hg__setting-group">
+          <label for="algorithm" class="hg__label">Algorithm</label>
+          <select id="algorithm" class="hg__select" formControlName="algorithm">
+            <option value="sha256">SHA-256</option>
+            <option value="sha384">SHA-384</option>
+            <option value="sha512">SHA-512</option>
+            <option value="md5">MD5 (disabled)</option>
+            <option value="sha1">SHA-1 (disabled)</option>
+          </select>
+          <small class="hg__hint">MD5 and SHA-1 are not generated in this demo.</small>
+        </div>
+
+        <div class="hg__setting-group">
+          <label for="outputFormat" class="hg__label">Output format</label>
+          <select id="outputFormat" class="hg__select" formControlName="outputFormat">
+            <option value="hex">Hex</option>
+            <option value="base64">Base64</option>
+            <option value="both">Hex &amp; Base64</option>
+          </select>
+        </div>
+
+        <label class="hg__toggle">
+          <input type="checkbox" formControlName="uppercase" />
+          <div>
+            <strong>Uppercase hex</strong>
+            <span>Render hexadecimal hash in uppercase.</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <section class="hg__panel hg__panel--output">
+      <header class="hg__card-header">
+        <div>
+          <h2>Hash output</h2>
+          <p>Copy-ready hash values.</p>
+        </div>
+      </header>
+
+      @if (hasResult() && result(); as r) {
+        <div class="hg__output-section">
+          @if (form.controls.outputFormat.value === 'hex' || form.controls.outputFormat.value === 'both') {
+            <div class="hg__output-block">
+              <div class="hg__output-header">
+                <span class="hg__output-label">Hex</span>
               </div>
-              <div class="hg__suggest-actions">
-                <a class="hg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="hg__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
+              <pre class="hg__code">{{ displayHex() }}</pre>
+            </div>
+          }
+
+          @if (form.controls.outputFormat.value === 'base64' || form.controls.outputFormat.value === 'both') {
+            <div class="hg__output-block">
+              <div class="hg__output-header">
+                <span class="hg__output-label">Base64</span>
               </div>
-            </aside>
-          }
-          <label class="sr-only" for="hash-input">Text to hash</label>
-          <textarea
-            id="hash-input"
-            class="ctl__textarea ctl__textarea--mono"
-            formControlName="input"
-            rows="1"
-            spellcheck="false"
-            placeholder="Enter the text you want to hash"></textarea>
-        </section>
-
-        <section class="ctl__editor ctl__editor--output st-editor-panel">
-          <header class="ctl__editor-head">
-            <span>Hash output</span>
-            <div class="ctl__editor-actions">
-              @if (hasResult()) {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button
-                type="button"
-                class="ctl__icon-btn"
-                (click)="copyOutput()"
-                [disabled]="!hasResult()"
-                aria-label="Copy hash output"
-                appTooltip="Copy hash output"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
-            </div>
-          </header>
-          @if (hasResult() && result(); as r) {
-            <div class="ctl__editor-body hg-output" aria-live="polite">
-              @if (formSnapshot().outputFormat === 'hex' || formSnapshot().outputFormat === 'both') {
-                <div class="hg-block">
-                  <div class="hg-block-head">
-                    <span>Hex</span>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="copyHex()"
-                      aria-label="Copy hex hash"
-                      appTooltip="Copy hex"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </div>
-                  <pre class="ctl__code">{{ displayHex() }}</pre>
-                </div>
-              }
-              @if (formSnapshot().outputFormat === 'base64' || formSnapshot().outputFormat === 'both') {
-                <div class="hg-block">
-                  <div class="hg-block-head">
-                    <span>Base64</span>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="copyBase64()"
-                      aria-label="Copy base64 hash"
-                      appTooltip="Copy base64"
-                      tooltipPosition="bottom">
-                      <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                    </button>
-                  </div>
-                  <pre class="ctl__code">{{ r.base64 }}</pre>
-                </div>
-              }
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Hash output will appear here after you generate.</p>
+              <pre class="hg__code">{{ r.base64 }}</pre>
             </div>
           }
-        </section>
-      </div>
-
-      <details class="st-options-flyout">
-        <summary class="st-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" />
-            <line x1="4" y1="10" x2="4" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12" y2="3" />
-            <line x1="20" y1="21" x2="20" y2="16" />
-            <line x1="20" y1="12" x2="20" y2="3" />
-            <line x1="1" y1="14" x2="7" y2="14" />
-            <line x1="9" y1="8" x2="15" y2="8" />
-            <line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button
-          type="button"
-          class="st-options-flyout__backdrop"
-          aria-label="Close options panel"
-          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar st-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Hash options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="algorithm">
-                <span>Algorithm</span>
-                <select id="algorithm" formControlName="algorithm">
-                  @for (option of algorithmOptions; track option.value) {
-                    <option [value]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-              </label>
-              <label class="ctl__field" for="outputFormat">
-                <span>Output format</span>
-                <select id="outputFormat" formControlName="outputFormat">
-                  @for (option of outputFormatOptions; track option.value) {
-                    <option [value]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="uppercase" />
-                <div>
-                  <strong>Uppercase hex</strong>
-                  <span>Render hexadecimal hash in uppercase.</span>
-                </div>
-              </label>
-            </div>
-          </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body hg__related">
-              <ul class="hg__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="hg__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Hashing runs <strong>locally</strong> via the Web Crypto API.</p>
-            </div>
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>MD5 and SHA-1 are not available in this browser demo.</p>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Enter text in the input editor and choose an algorithm in the sidebar.</li>
-        <li>Click <strong>Generate</strong> to compute the hash using Web Crypto.</li>
-        <li>Copy hex or base64 output using the per-section copy icons.</li>
-        <li>Toggle uppercase hex for checksums that require capital letters.</li>
-      </ul>
-    </details>
-  </main>
+        </div>
+      } @else {
+        <div class="hg__empty">Hash output will appear here after you generate a hash.</div>
+      }
+    </section>
+  </div>
 </div>

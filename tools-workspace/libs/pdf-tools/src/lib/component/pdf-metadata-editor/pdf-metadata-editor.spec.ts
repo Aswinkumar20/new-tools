@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { PdfMetadataEditorComponent } from './pdf-metadata-editor';
 
 describe('PdfMetadataEditorComponent', () => {
@@ -8,8 +7,7 @@ describe('PdfMetadataEditorComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PdfMetadataEditorComponent],
-      providers: pdfToolTestProviders(),
+      imports: [PdfMetadataEditorComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PdfMetadataEditorComponent);

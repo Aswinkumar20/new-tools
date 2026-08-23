@@ -1,33 +1,18 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { map, startWith } from 'rxjs/operators';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { buCopyText } from '../../shared/bu-clipboard.util';
-import {
-  COOKIE_DEFAULT_FORM_VALUES,
-  COOKIE_RELATED_TOOLS,
-  COOKIE_SAME_SITE_OPTIONS
-} from '../../constants/cookie-editor.constants';
-import type { BuRelatedToolLink, BuToolSuggestion } from '../../shared/bu-tool-suggestion.model';
-import type { CookieEntry, CookieFormValues, CookieSameSite } from '../../types/cookie-editor.types';
-import {
-  buildCookieDeleteString,
-  buildCookieSetString,
-  filterCookieEntries,
-  formatCookieValuePreview,
-  parseDocumentCookies,
-  resolveCookieSuggestion,
-  serializeAllCookies,
-  serializeCookieLine
-} from '../../utils/cookie-editor.utils';
+import { Navigation } from '@tools-workspace/features-home';
+
+interface CookieEntry {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  expires?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: 'Strict' | 'Lax' | 'None';
+}
 
 type CookieFormGroup = FormGroup<{
   name: FormControl<string>;
@@ -36,7 +21,7 @@ type CookieFormGroup = FormGroup<{
   path: FormControl<string>;
   daysToExpire: FormControl<number | null>;
   secure: FormControl<boolean>;
-  sameSite: FormControl<CookieSameSite>;
+  sameSite: FormControl<'Strict' | 'Lax' | 'None'>;
 }>;
 
 @Component({
@@ -44,82 +29,75 @@ type CookieFormGroup = FormGroup<{
   standalone: true,
   templateUrl: './cookie-editor.html',
   styleUrls: ['./cookie-editor.scss'],
-  imports: [ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class CookieEditorComponent {
-  private readonly formBuilder = inject(FormBuilder);
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
+  private readonly fb = inject(FormBuilder);
 
-  readonly sameSiteOptions = COOKIE_SAME_SITE_OPTIONS;
-  readonly relatedTools: ReadonlyArray<BuRelatedToolLink> = COOKIE_RELATED_TOOLS;
-  readonly formatValue = formatCookieValuePreview;
-
-  readonly form: CookieFormGroup = this.formBuilder.group({
-    name: this.formBuilder.control(COOKIE_DEFAULT_FORM_VALUES.name, { nonNullable: true }),
-    value: this.formBuilder.control(COOKIE_DEFAULT_FORM_VALUES.value, { nonNullable: true }),
-    domain: this.formBuilder.control(COOKIE_DEFAULT_FORM_VALUES.domain, { nonNullable: true }),
-    path: this.formBuilder.control(COOKIE_DEFAULT_FORM_VALUES.path, { nonNullable: true }),
-    daysToExpire: this.formBuilder.control<number | null>(COOKIE_DEFAULT_FORM_VALUES.daysToExpire, {
-      nonNullable: true
-    }),
-    secure: this.formBuilder.control(COOKIE_DEFAULT_FORM_VALUES.secure, { nonNullable: true }),
-    sameSite: this.formBuilder.control<CookieSameSite>(COOKIE_DEFAULT_FORM_VALUES.sameSite, {
-      nonNullable: true
-    })
+  readonly form: CookieFormGroup = this.fb.group({
+    name: this.fb.control('', { nonNullable: true }),
+    value: this.fb.control('', { nonNullable: true }),
+    domain: this.fb.control('', { nonNullable: true }),
+    path: this.fb.control('/', { nonNullable: true }),
+    daysToExpire: this.fb.control<number | null>(7, { nonNullable: true }),
+    secure: this.fb.control(false, { nonNullable: true }),
+    sameSite: this.fb.control<'Strict' | 'Lax' | 'None'>('Lax', { nonNullable: true })
   });
 
   readonly errors = signal<string[]>([]);
   readonly cookies = signal<CookieEntry[]>(this.readCookies());
-  readonly filterQuery = signal('');
+  readonly filterQuery = signal<string>('');
   readonly editingCookie = signal<string | null>(null);
-  readonly dismissedSuggestionId = signal<string | null>(null);
 
-  private readonly formSnapshot = toSignal(
-    this.form.valueChanges.pipe(
-      startWith(undefined),
-      map(() => this.form.getRawValue())
-    ),
-    { initialValue: this.form.getRawValue() }
-  );
-
-  readonly filteredCookies = computed(() =>
-    filterCookieEntries(this.cookies(), this.filterQuery())
-  );
+  readonly filteredCookies = computed(() => {
+    const query = this.filterQuery().toLowerCase().trim();
+    if (!query) return this.cookies();
+    return this.cookies().filter(
+      (c) => c.name.toLowerCase().includes(query) || c.value.toLowerCase().includes(query)
+    );
+  });
 
   readonly hasCookies = computed(() => this.cookies().length > 0);
   readonly cookieCount = computed(() => this.cookies().length);
 
-  readonly needsSecureForSameSiteNone = computed(() => {
-    const values = this.formSnapshot();
-    return values.sameSite === 'None' && !values.secure;
-  });
-
-  readonly primarySuggestion = computed<BuToolSuggestion | null>(() => {
-    const suggestion = resolveCookieSuggestion(this.formSnapshot(), this.cookieCount());
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
-
-  refreshCookies(): void {
+  refresh(): void {
     this.errors.set([]);
     this.cookies.set(this.readCookies());
     this.editingCookie.set(null);
   }
 
-  /** Template-compatible alias preserving existing call sites. */
-  refresh(): void {
-    this.refreshCookies();
-  }
-
   private readCookies(): CookieEntry[] {
-    if (typeof document === 'undefined') {
+    if (!document.cookie) {
       return [];
     }
-    return parseDocumentCookies(document.cookie);
+    const entries: CookieEntry[] = [];
+    const cookieStrings = document.cookie.split(';');
+
+    for (const cookieStr of cookieStrings) {
+      const trimmed = cookieStr.trim();
+      if (!trimmed) continue;
+
+      const equalIndex = trimmed.indexOf('=');
+      if (equalIndex === -1) continue;
+
+      const name = trimmed.substring(0, equalIndex).trim();
+      const value = trimmed.substring(equalIndex + 1).trim();
+
+      try {
+        entries.push({
+          name: decodeURIComponent(name),
+          value: decodeURIComponent(value)
+        });
+      } catch {
+        entries.push({
+        name,
+          value
+    });
+      }
+    }
+
+    return entries;
   }
 
   loadCookie(cookie: CookieEntry): void {
@@ -137,21 +115,46 @@ export class CookieEditorComponent {
 
   saveCookie(): void {
     this.errors.set([]);
-    const values = this.form.getRawValue();
-    const wasEditing = !!this.editingCookie();
+    const { name, value, domain, path, daysToExpire, secure, sameSite } = this.form.getRawValue();
 
-    if (!values.name.trim()) {
+    if (!name.trim()) {
       this.errors.set(['Cookie name cannot be empty.']);
       return;
     }
 
+    const parts: string[] = [];
+    parts.push(`${encodeURIComponent(name.trim())}=${encodeURIComponent(value)}`);
+
+    if (domain.trim()) {
+      parts.push(`Domain=${domain.trim()}`);
+    }
+
+    if (path.trim()) {
+      parts.push(`Path=${path.trim()}`);
+    }
+
+    if (daysToExpire !== null && Number.isFinite(daysToExpire) && daysToExpire > 0) {
+      const date = new Date();
+      date.setTime(date.getTime() + daysToExpire * 24 * 60 * 60 * 1000);
+      parts.push(`Expires=${date.toUTCString()}`);
+    } else if (daysToExpire === null || daysToExpire === 0) {
+      // Session cookie - no expires
+    }
+
+    if (secure) {
+      parts.push('Secure');
+    }
+
+    if (sameSite) {
+      parts.push(`SameSite=${sameSite}`);
+    }
+
     try {
-      document.cookie = buildCookieSetString(values);
-      this.refreshCookies();
+    document.cookie = parts.join('; ');
+    this.refresh();
       this.clearEditor();
-      this.toast.success(wasEditing ? 'Cookie updated' : 'Cookie created');
-    } catch (error) {
-      this.errors.set([error instanceof Error ? error.message : 'Failed to set cookie.']);
+    } catch (e) {
+      this.errors.set([e instanceof Error ? e.message : 'Failed to set cookie.']);
     }
   }
 
@@ -160,50 +163,52 @@ export class CookieEditorComponent {
     const path = this.form.controls.path.value || '/';
     const domain = this.form.controls.domain.value;
 
-    document.cookie = buildCookieDeleteString(name, path, domain);
-    this.refreshCookies();
+    const parts: string[] = [`${encodeURIComponent(name)}=`, 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'];
+    if (path) {
+      parts.push(`Path=${path}`);
+    }
+    if (domain) {
+      parts.push(`Domain=${domain}`);
+    }
+
+    document.cookie = parts.join('; ');
+    this.refresh();
     if (this.editingCookie() === name) {
       this.clearEditor();
     }
-    this.toast.info(`Deleted cookie “${name}”`);
   }
 
   clearEditor(): void {
-    this.form.reset({ ...COOKIE_DEFAULT_FORM_VALUES });
+    this.form.reset({
+      name: '',
+      value: '',
+      domain: '',
+      path: '/',
+      daysToExpire: 7,
+      secure: false,
+      sameSite: 'Lax'
+    });
     this.editingCookie.set(null);
   }
 
   deleteAllCookies(): void {
     this.errors.set([]);
-    const path = this.form.controls.path.value || '/';
-    const domain = this.form.controls.domain.value;
     const cookies = this.cookies();
-
     for (const cookie of cookies) {
-      document.cookie = buildCookieDeleteString(cookie.name, path, domain);
+      this.deleteCookie(cookie.name);
     }
+    this.refresh();
+  }
 
-    this.refreshCookies();
-    this.clearEditor();
-    if (cookies.length) {
-      this.toast.info('All visible cookies deleted');
+  formatValue(value: string): string {
+    if (value.length > 100) {
+      return value.substring(0, 100) + '...';
     }
+    return value;
   }
 
   onFilterChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     this.filterQuery.set(target.value);
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
-  }
-
-  copyCookieValue(cookie: CookieEntry): void {
-    buCopyText(this.toast, serializeCookieLine(cookie), cookie.name);
-  }
-
-  copyAllCookies(): void {
-    buCopyText(this.toast, serializeAllCookies(this.cookies()), 'All cookies');
   }
 }

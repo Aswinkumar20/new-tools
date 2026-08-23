@@ -1,150 +1,127 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  ElementRef,
-  ViewChild,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewChild, WritableSignal, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { AbstractControl, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
-import {
-  FAVICON_ALL_SIZES_STAGGER_MS,
-  FAVICON_DEBOUNCE_MS,
-  FAVICON_DEFAULTS,
-  FAVICON_ERROR,
-  FAVICON_FONT_FAMILIES,
-  FAVICON_INIT_DELAY_MS,
-  FAVICON_RELATED_TOOLS,
-  FAVICON_RETRY_DELAY_MS,
-  FAVICON_SIZES
-} from '../../constants/favicon-generator.constants';
-import { ictCopyText } from '../../shared/ict-clipboard.util';
-import { ictDownloadBlob } from '../../shared/ict-download.util';
-import type { IctRelatedToolLink } from '../../shared/ict-tool-suggestion.model';
-import type {
-  FaviconFormGroup,
-  FaviconFormValues,
-  FaviconFormat,
-  FaviconHistoryEntry,
-  FaviconMode,
-  FaviconResult,
-  FaviconSize
-} from '../../types/favicon-generator.types';
-import { hexColorValidator } from '../../utils/ict-color.utils';
-import {
-  buildFaviconFilename,
-  buildFaviconHtmlCode,
-  createFaviconHistoryEntry,
-  drawEmojiFavicon,
-  drawImageFavicon,
-  drawTextFavicon,
-  prependUniqueFaviconHistory,
-  resolveFaviconSuggestion
-} from '../../utils/favicon-generator.utils';
+
+type FaviconMode = 'text' | 'image' | 'emoji';
+type FaviconSize = 16 | 32 | 48 | 64 | 96 | 128 | 180 | 192 | 512;
+
+interface FaviconResult {
+  dataUrl: string;
+  size: FaviconSize;
+  format: 'png' | 'ico';
+  htmlCode: string;
+}
+
+interface HistoryEntry {
+  timestamp: number;
+  mode: FaviconMode;
+  preview: string;
+  size: FaviconSize;
+}
+
+type FaviconFormGroup = FormGroup<{
+  mode: FormControl<FaviconMode>;
+  text: FormControl<string>;
+  fontSize: FormControl<number>;
+  fontFamily: FormControl<string>;
+  backgroundColor: FormControl<string>;
+  textColor: FormControl<string>;
+  emoji: FormControl<string>;
+  size: FormControl<FaviconSize>;
+  format: FormControl<'png' | 'ico'>;
+  rememberHistory: FormControl<boolean>;
+}>;
+
+const FAVICON_SIZES: FaviconSize[] = [16, 32, 48, 64, 96, 128, 180, 192, 512];
+const FONT_FAMILIES = [
+  'Arial',
+  'Helvetica',
+  'Times New Roman',
+  'Courier New',
+  'Verdana',
+  'Georgia',
+  'Palatino',
+  'Garamond',
+  'Comic Sans MS',
+  'Impact',
+  'Trebuchet MS',
+  'Lucida Console',
+  'Monaco',
+  'Menlo'
+];
 
 @Component({
   selector: 'lib-favicon-generator',
   standalone: true,
   templateUrl: './favicon-generator.html',
   styleUrls: ['./favicon-generator.scss'],
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FaviconGeneratorComponent {
   private readonly fb = inject(FormBuilder);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
 
   @ViewChild('previewCanvas', { static: false }) previewCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput', { static: false }) fileInput!: ElementRef<HTMLInputElement>;
 
   readonly form: FaviconFormGroup = this.fb.group({
-    mode: this.fb.control<FaviconMode>(FAVICON_DEFAULTS.mode, { nonNullable: true }),
-    text: this.fb.control(FAVICON_DEFAULTS.text, {
+    mode: this.fb.control<FaviconMode>('text', { nonNullable: true }),
+    text: this.fb.control('F', {
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(3)]
     }),
-    fontSize: this.fb.control(FAVICON_DEFAULTS.fontSize, {
+    fontSize: this.fb.control(80, {
       nonNullable: true,
       validators: [Validators.min(10), Validators.max(200)]
     }),
-    fontFamily: this.fb.control(FAVICON_DEFAULTS.fontFamily, { nonNullable: true }),
-    backgroundColor: this.fb.control(FAVICON_DEFAULTS.backgroundColor, {
+    fontFamily: this.fb.control('Arial', { nonNullable: true }),
+    backgroundColor: this.fb.control('#007bff', {
       nonNullable: true,
-      validators: [hexColorValidator]
+      validators: [this.hexValidator.bind(this)]
     }),
-    textColor: this.fb.control(FAVICON_DEFAULTS.textColor, {
+    textColor: this.fb.control('#ffffff', {
       nonNullable: true,
-      validators: [hexColorValidator]
+      validators: [this.hexValidator.bind(this)]
     }),
-    emoji: this.fb.control(FAVICON_DEFAULTS.emoji, { nonNullable: true }),
-    size: this.fb.control<FaviconSize>(FAVICON_DEFAULTS.size, { nonNullable: true }),
-    format: this.fb.control<FaviconFormat>(FAVICON_DEFAULTS.format, { nonNullable: true }),
+    emoji: this.fb.control('⭐', { nonNullable: true }),
+    size: this.fb.control<FaviconSize>(32, { nonNullable: true }),
+    format: this.fb.control<'png' | 'ico'>('png', { nonNullable: true }),
     rememberHistory: this.fb.control(true, { nonNullable: true })
   });
 
-  readonly sizes: ReadonlyArray<FaviconSize> = FAVICON_SIZES;
-  readonly fontFamilies: ReadonlyArray<string> = FAVICON_FONT_FAMILIES;
-  readonly relatedTools: ReadonlyArray<IctRelatedToolLink> = FAVICON_RELATED_TOOLS;
-  readonly previewSizes = [16, 32, 48] as const;
-
-  readonly formSnapshot = signal<FaviconFormValues>(this.form.getRawValue());
-  readonly result = signal<FaviconResult | null>(null);
+  readonly sizes = FAVICON_SIZES;
+  readonly fontFamilies = FONT_FAMILIES;
+  readonly result: WritableSignal<FaviconResult | null> = signal(null);
   readonly errors = signal<string[]>([]);
-  readonly history = signal<FaviconHistoryEntry[]>([]);
+  readonly history = signal<HistoryEntry[]>([]);
   readonly uploadedImage = signal<HTMLImageElement | null>(null);
   readonly isProcessing = signal(false);
-  private readonly dismissedSuggestionId = signal<string | null>(null);
 
   readonly hasHistory = computed(() => this.history().length > 0);
-  readonly currentMode = computed(() => this.formSnapshot().mode);
-
-  readonly primarySuggestion = computed(() => {
-    const suggestion = resolveFaviconSuggestion({
-      mode: this.formSnapshot().mode,
-      hasResult: this.result() !== null,
-      hasUploadedImage: this.uploadedImage() !== null,
-      hasError: this.errors().length > 0,
-      historyCount: this.history().length
-    });
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
+  readonly currentMode = computed(() => this.form.controls.mode.value);
 
   constructor() {
     this.form.valueChanges
-      .pipe(
-        debounceTime(FAVICON_DEBOUNCE_MS),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef)
-      )
+      .pipe(debounceTime(200), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.formSnapshot.set(this.form.getRawValue());
         this.generateFavicon();
       });
 
-    setTimeout(() => this.generateFavicon(), FAVICON_INIT_DELAY_MS);
+    // Initial generation
+    setTimeout(() => this.generateFavicon(), 100);
   }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      this.errors.set([FAVICON_ERROR.invalidImage]);
+      this.errors.set(['Please select a valid image file.']);
       return;
     }
 
@@ -154,16 +131,15 @@ export class FaviconGeneratorComponent {
       img.onload = () => {
         this.uploadedImage.set(img);
         this.form.patchValue({ mode: 'image' });
-        this.formSnapshot.set(this.form.getRawValue());
         this.generateFavicon();
       };
       img.onerror = () => {
-        this.errors.set([FAVICON_ERROR.loadImage]);
+        this.errors.set(['Failed to load image.']);
       };
       img.src = e.target?.result as string;
     };
     reader.onerror = () => {
-      this.errors.set([FAVICON_ERROR.readFile]);
+      this.errors.set(['Failed to read file.']);
     };
     reader.readAsDataURL(file);
   }
@@ -171,165 +147,206 @@ export class FaviconGeneratorComponent {
   generateFavicon(): void {
     this.errors.set([]);
     this.isProcessing.set(true);
-    this.formSnapshot.set(this.form.getRawValue());
 
     try {
       const canvas = this.previewCanvas?.nativeElement;
       if (!canvas) {
-        setTimeout(() => this.generateFavicon(), FAVICON_RETRY_DELAY_MS);
+        setTimeout(() => this.generateFavicon(), 100);
         return;
       }
 
-      const {
-        mode,
-        size,
-        format,
-        text,
-        fontSize,
-        fontFamily,
-        backgroundColor,
-        textColor,
-        emoji
-      } = this.form.getRawValue();
-
-      let ctx: CanvasRenderingContext2D | null = null;
-      try {
-        ctx = canvas.getContext('2d');
-      } catch {
-        ctx = null;
-      }
+      const { mode, size, format, text, fontSize, fontFamily, backgroundColor, textColor, emoji } = this.form.getRawValue();
+      const ctx = canvas.getContext('2d');
       if (!ctx) {
-        this.errors.set([FAVICON_ERROR.noCanvas]);
+        this.errors.set(['Canvas context not available.']);
         this.isProcessing.set(false);
         return;
       }
 
+      // Set canvas size (actual pixel dimensions)
       canvas.width = size;
       canvas.height = size;
+      
+      // Set display size for better rendering
       canvas.style.width = `${size}px`;
       canvas.style.height = `${size}px`;
 
+      // Clear canvas
       ctx.clearRect(0, 0, size, size);
+
+      // Fill background
       ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, size, size);
 
       if (mode === 'text') {
-        drawTextFavicon(ctx, size, text, fontSize, fontFamily, textColor);
+        this.drawTextFavicon(ctx, size, text, fontSize, fontFamily, textColor);
       } else if (mode === 'emoji') {
-        drawEmojiFavicon(ctx, size, emoji, fontSize);
+        this.drawEmojiFavicon(ctx, size, emoji, fontSize);
       } else if (mode === 'image') {
         const img = this.uploadedImage();
         if (img) {
-          drawImageFavicon(ctx, size, img);
+          this.drawImageFavicon(ctx, size, img);
         } else {
-          this.errors.set([FAVICON_ERROR.noImage]);
+          this.errors.set(['No image uploaded.']);
           this.isProcessing.set(false);
           return;
         }
       }
 
       const dataUrl = canvas.toDataURL('image/png');
-      const faviconResult: FaviconResult = {
+      const htmlCode = this.generateHtmlCode(dataUrl, size);
+
+      const result: FaviconResult = {
         dataUrl,
         size,
         format,
-        htmlCode: buildFaviconHtmlCode(dataUrl, size)
+        htmlCode
       };
 
-      this.result.set(faviconResult);
+      this.result.set(result);
 
       if (this.form.controls.rememberHistory.value) {
-        this.addToHistory(faviconResult, mode);
+        this.addToHistory(result, mode);
       }
     } catch (error) {
-      this.errors.set([
-        `Failed to generate favicon: ${(error as Error)?.message ?? 'Unknown error'}`
-      ]);
+      this.errors.set([`Failed to generate favicon: ${(error as Error)?.message ?? 'Unknown error'}`]);
     } finally {
       this.isProcessing.set(false);
     }
   }
 
+  private drawTextFavicon(
+    ctx: CanvasRenderingContext2D,
+    size: number,
+    text: string,
+    fontSize: number,
+    fontFamily: string,
+    textColor: string
+  ): void {
+    ctx.fillStyle = textColor;
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, size / 2, size / 2);
+  }
+
+  private drawEmojiFavicon(ctx: CanvasRenderingContext2D, size: number, emoji: string, fontSize: number): void {
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, size / 2, size / 2);
+  }
+
+  private drawImageFavicon(ctx: CanvasRenderingContext2D, size: number, img: HTMLImageElement): void {
+    // Calculate scaling to fit image while maintaining aspect ratio
+    const scale = Math.min(size / img.width, size / img.height);
+    const scaledWidth = img.width * scale;
+    const scaledHeight = img.height * scale;
+    const x = (size - scaledWidth) / 2;
+    const y = (size - scaledHeight) / 2;
+
+    ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+  }
+
+  private generateHtmlCode(dataUrl: string, size: FaviconSize): string {
+    const sizes = size === 32 ? '32x32' : `${size}x${size}`;
+    return `<link rel="icon" type="image/png" sizes="${sizes}" href="${dataUrl}">`;
+  }
+
   downloadFavicon(): void {
     const current = this.result();
-    if (!current) {
-      return;
-    }
+    if (!current) return;
 
     const canvas = this.previewCanvas?.nativeElement;
-    if (!canvas) {
-      return;
-    }
+    if (!canvas) return;
 
     const { format, size } = current;
 
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        this.toast.error('Unable to export favicon');
-        return;
-      }
-      ictDownloadBlob(this.toast, blob, buildFaviconFilename(size, format), 'Favicon');
-    }, 'image/png');
+    if (format === 'png') {
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `favicon-${size}x${size}.png`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } else {
+      // For ICO format, we'll create a simple ICO file
+      // Note: Real ICO support would require a library, but we'll create a PNG with .ico extension
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `favicon-${size}x${size}.ico`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    }
   }
 
   downloadAllSizes(): void {
     const originalSize = this.form.controls.size.value;
     const originalResult = this.result();
 
-    this.toast.info('Downloading all favicon sizes');
-
     FAVICON_SIZES.forEach((size) => {
       this.form.patchValue({ size }, { emitEvent: false });
       setTimeout(() => {
         this.generateFavicon();
         setTimeout(() => {
-          const generated = this.result();
-          if (generated) {
+          const result = this.result();
+          if (result) {
             const canvas = this.previewCanvas?.nativeElement;
             if (canvas) {
               canvas.toBlob((blob) => {
-                if (!blob) {
-                  return;
-                }
-                ictDownloadBlob(
-                  this.toast,
-                  blob,
-                  buildFaviconFilename(size, 'png'),
-                  'Favicon',
-                  { silent: true }
-                );
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = `favicon-${size}x${size}.png`;
+                anchor.click();
+                URL.revokeObjectURL(url);
               }, 'image/png');
             }
           }
-        }, FAVICON_RETRY_DELAY_MS);
-      }, size * FAVICON_ALL_SIZES_STAGGER_MS);
+        }, 100);
+      }, size * 10);
     });
 
+    // Restore original size
     setTimeout(() => {
       this.form.patchValue({ size: originalSize });
-      this.formSnapshot.set(this.form.getRawValue());
       if (originalResult) {
         this.result.set(originalResult);
       }
     }, FAVICON_SIZES.length * 100);
   }
 
-  async copyHtmlCode(): Promise<void> {
+  copyHtmlCode(): void {
     const current = this.result();
-    if (!current) {
-      return;
-    }
-    const ok = await ictCopyText(this.toast, current.htmlCode, 'HTML');
-    if (!ok) {
-      this.errors.set([FAVICON_ERROR.copyHtml]);
-    }
+    if (!current) return;
+
+    navigator.clipboard
+      .writeText(current.htmlCode)
+      .then(() => {
+        // Success - could show toast
+      })
+      .catch(() => {
+        this.errors.set(['Unable to copy HTML code to clipboard.']);
+      });
   }
 
-  async copyToClipboard(value: string, label: string): Promise<void> {
-    const ok = await ictCopyText(this.toast, value, label);
-    if (!ok) {
-      this.errors.set([`Unable to copy ${label} to clipboard.`]);
-    }
+  copyToClipboard(value: string, label: string): void {
+    navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        // Success
+      })
+      .catch(() => {
+        this.errors.set([`Unable to copy ${label} to clipboard.`]);
+      });
   }
 
   clear(): void {
@@ -340,17 +357,16 @@ export class FaviconGeneratorComponent {
       this.fileInput.nativeElement.value = '';
     }
     this.form.patchValue({
-      mode: FAVICON_DEFAULTS.mode,
-      text: FAVICON_DEFAULTS.text,
-      fontSize: FAVICON_DEFAULTS.fontSize,
-      fontFamily: FAVICON_DEFAULTS.fontFamily,
-      backgroundColor: FAVICON_DEFAULTS.backgroundColor,
-      textColor: FAVICON_DEFAULTS.textColor,
-      emoji: FAVICON_DEFAULTS.emoji,
-      size: FAVICON_DEFAULTS.size
+      mode: 'text',
+      text: 'F',
+      fontSize: 80,
+      fontFamily: 'Arial',
+      backgroundColor: '#007bff',
+      textColor: '#ffffff',
+      emoji: '⭐',
+      size: 32
     });
-    this.formSnapshot.set(this.form.getRawValue());
-    setTimeout(() => this.generateFavicon(), FAVICON_INIT_DELAY_MS);
+    setTimeout(() => this.generateFavicon(), 100);
   }
 
   clearHistory(): void {
@@ -361,18 +377,36 @@ export class FaviconGeneratorComponent {
     this.history.update((entries) => entries.filter((entry) => entry.timestamp !== timestamp));
   }
 
-  applyHistory(entry: FaviconHistoryEntry): void {
+  applyHistory(entry: HistoryEntry): void {
     this.form.patchValue({ mode: entry.mode, size: entry.size });
-    this.formSnapshot.set(this.form.getRawValue());
-    setTimeout(() => this.generateFavicon(), FAVICON_INIT_DELAY_MS);
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
+    setTimeout(() => this.generateFavicon(), 100);
   }
 
   private addToHistory(result: FaviconResult, mode: FaviconMode): void {
-    const entry = createFaviconHistoryEntry(result, mode);
-    this.history.update((entries) => prependUniqueFaviconHistory(entries, entry));
+    const entry: HistoryEntry = {
+      timestamp: Date.now(),
+      mode,
+      preview: result.dataUrl,
+      size: result.size
+    };
+    this.history.update((entries) => {
+      const exists = entries.some((e) => e.preview === entry.preview && e.size === entry.size);
+      if (exists) {
+        return entries;
+      }
+      return [entry, ...entries].slice(0, 10);
+    });
+  }
+
+  private hexValidator(control: AbstractControl): { [key: string]: any } | null {
+    const value = (control.value as string)?.trim() || '';
+    if (!value) {
+      return null;
+    }
+    const cleaned = value.replace(/^#/, '');
+    if ((cleaned.length === 3 || cleaned.length === 6) && /^[0-9A-Fa-f]+$/.test(cleaned)) {
+      return null;
+    }
+    return { invalidHex: true };
   }
 }

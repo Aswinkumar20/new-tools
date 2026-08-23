@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { PasswordProtectPdfComponent } from './password-protect-pdf';
 
 describe('PasswordProtectPdfComponent', () => {
@@ -8,8 +7,7 @@ describe('PasswordProtectPdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PasswordProtectPdfComponent],
-      providers: pdfToolTestProviders(),
+      imports: [PasswordProtectPdfComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(PasswordProtectPdfComponent);

@@ -1,204 +1,102 @@
-<div class="ctl bu">
-  <lib-navigation></lib-navigation>
+<div class="sri">
+  <div class="sri__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Screen &amp; Viewport Info</h1>
-        <p>Inspect viewport, screen resolution, pixel ratio, and orientation in real time.</p>
+  <section class="sri__hero">
+    <div class="sri__badge">Browser utilities</div>
+    <h1>Screen & Viewport Info</h1>
+    <p>
+      Inspect your current viewport and screen resolution, device pixel ratio, color depth, and orientation in real-time.
+      Resize the window to see updates instantly.
+    </p>
+
+    <div class="sri__hero-meta">
+      <div>
+        <span class="sri__meta-label">Viewport</span>
+        <strong>{{ info().viewportWidth }} × {{ info().viewportHeight }} px</strong>
+      </div>
+      <div>
+        <span class="sri__meta-label">Screen</span>
+        <strong>{{ info().screenWidth }} × {{ info().screenHeight }} px</strong>
+      </div>
+      <div>
+        <span class="sri__meta-label">Device Pixel Ratio</span>
+        <strong>{{ info().devicePixelRatio }}x {{ isRetina() ? '(Retina)' : '' }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div class="sri__board">
+    <section class="sri__panel sri__panel--metrics">
+      <header class="sri__card-header">
+        <div>
+          <h2>Detailed metrics</h2>
+          <p>Technical details about your display and viewport.</p>
+        </div>
       </header>
 
-      <div class="ctl__stats" aria-label="Display statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ info().viewportWidth }}×{{ info().viewportHeight }}</span>
-          <span class="ctl__stat-label">Viewport</span>
+      <div class="sri__info-grid">
+        <div class="sri__info-item">
+          <span class="sri__info-label">Viewport Width</span>
+          <strong>{{ info().viewportWidth }} px</strong>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ info().screenWidth }}×{{ info().screenHeight }}</span>
-          <span class="ctl__stat-label">Screen</span>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Viewport Height</span>
+          <strong>{{ info().viewportHeight }} px</strong>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ info().devicePixelRatio }}x</span>
-          <span class="ctl__stat-label">DPR</span>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Aspect Ratio</span>
+          <strong>{{ info().aspectRatio | number: '1.2-2' }}:1</strong>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ formatOrientation(info().orientationType) }}</span>
-          <span class="ctl__stat-label">Orient</span>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Screen Width</span>
+          <strong>{{ info().screenWidth }} px</strong>
+        </div>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Screen Height</span>
+          <strong>{{ info().screenHeight }} px</strong>
+        </div>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Color Depth</span>
+          <strong>{{ info().colorDepth ?? 'N/A' }}-bit</strong>
+        </div>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Orientation</span>
+          <strong>{{ info().orientationType | titlecase }}</strong>
+        </div>
+        <div class="sri__info-item">
+          <span class="sri__info-label">Orientation Angle</span>
+          <strong>{{ info().orientationAngle ?? 0 }}°</strong>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="bu-workflow" aria-label="Display actions">
-      <div class="bu-workflow__group bu-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="copyMetrics()"
-          aria-label="Copy all metrics"
-          appTooltip="Copy all metrics"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Copy</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="copyJson()"
-          aria-label="Copy as JSON"
-          appTooltip="Copy as JSON"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">JSON</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="downloadJson()"
-          aria-label="Download metrics as JSON"
-          appTooltip="Download JSON"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/download.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Download</span>
-        </button>
-      </div>
-    </div>
+    <section class="sri__panel sri__panel--preview">
+      <header class="sri__card-header">
+        <div>
+          <h2>Viewport preview</h2>
+          <p>Visual representation of your current viewport.</p>
+        </div>
+      </header>
 
-    <div class="ctl__workspace ctl__workspace--viewer">
-      <section class="ctl__editor bu-viewer-panel">
-        <header class="ctl__editor-head">
-          <span>Detailed metrics</span>
-          @if (isRetina()) {
-            <span class="ctl__editor-badge">Retina</span>
-          }
-        </header>
-
-        @if (primarySuggestion(); as suggestion) {
-          <aside class="sri__suggest" aria-label="Suggested next step">
-            <div class="sri__suggest-body">
-              <p class="sri__suggest-title">{{ suggestion.title }}</p>
-              <p class="sri__suggest-reason">{{ suggestion.reason }}</p>
+      <div class="sri__preview-wrapper">
+        <div class="sri__preview-screen">
+          <div class="sri__preview-viewport">
+            <div class="sri__preview-label sri__preview-label--top">
+              {{ info().viewportWidth }} × {{ info().viewportHeight }} px
             </div>
-            <div class="sri__suggest-actions">
-              <a class="sri__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button
-                type="button"
-                class="sri__suggest-dismiss"
-                (click)="dismissSuggestion(suggestion.id)"
-                aria-label="Dismiss suggestion">
-                Dismiss
-              </button>
+            <div class="sri__preview-label sri__preview-label--side">
+              {{ info().aspectRatio | number: '1.2-2' }}:1
             </div>
-          </aside>
-        }
-
-        <div class="ctl__editor-body sri__info-grid">
-          <div class="sri__info-item">
-            <span class="sri__info-label">Viewport width</span>
-            <strong>{{ info().viewportWidth }} px</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Viewport height</span>
-            <strong>{{ info().viewportHeight }} px</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Aspect ratio</span>
-            <strong>{{ formatAspect(info().aspectRatio) }}:1</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Screen width</span>
-            <strong>{{ info().screenWidth }} px</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Screen height</span>
-            <strong>{{ info().screenHeight }} px</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Color depth</span>
-            <strong>{{ info().colorDepth ?? 'N/A' }}-bit</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Orientation</span>
-            <strong>{{ formatOrientation(info().orientationType) }}</strong>
-          </div>
-          <div class="sri__info-item">
-            <span class="sri__info-label">Orientation angle</span>
-            <strong>{{ info().orientationAngle ?? 0 }}°</strong>
           </div>
         </div>
-      </section>
+      </div>
 
-      <details class="bu-options-flyout">
-        <summary class="bu-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button
-          type="button"
-          class="bu-options-flyout__backdrop"
-          aria-label="Close options panel"
-          (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar bu-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Viewport preview">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Viewport preview</header>
-            <div class="ctl__panel-body sri__preview-wrap">
-              <div class="sri__preview-screen">
-                <div class="sri__preview-viewport">
-                  <div class="sri__preview-label sri__preview-label--top">
-                    {{ info().viewportWidth }} × {{ info().viewportHeight }} px
-                  </div>
-                  <div class="sri__preview-label sri__preview-label--side">
-                    {{ formatAspect(info().aspectRatio) }}:1
-                  </div>
-                </div>
-              </div>
-              <p class="sri__note">
-                Values come from browser APIs and may differ from physical display characteristics due to zoom or scaling.
-              </p>
-            </div>
-          </div>
-
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>Related tools</span>
-            </header>
-            <div class="ctl__panel-body sri__related">
-              <ul class="sri__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="sri__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
-          </div>
-
-          <div class="ctl__info">
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot ctl__info-dot--accent"></span>
-              <p>Resize the window to refresh <strong>viewport</strong> metrics instantly.</p>
-            </div>
-            <div class="ctl__info-item">
-              <span class="ctl__info-dot"></span>
-              <p>DPR above 1 indicates a <strong>high-DPI (Retina)</strong> display.</p>
-            </div>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Resize the browser window to see viewport metrics update instantly.</li>
-        <li>Compare viewport size (CSS pixels) with screen resolution.</li>
-        <li>Copy or download metrics as plain text or JSON for bug reports.</li>
-        <li>Device pixel ratio above 1 indicates a high-DPI (Retina) display.</li>
-      </ul>
-    </details>
-  </main>
+      <p class="sri__note">
+        Values are read from your browser APIs and may differ from physical display characteristics (e.g., scaling or
+        zoom).
+      </p>
+    </section>
+  </div>
 </div>

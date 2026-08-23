@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { AnnotatePdfComponent } from './annotate-pdf';
 
 describe('AnnotatePdfComponent', () => {
@@ -8,8 +7,7 @@ describe('AnnotatePdfComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [AnnotatePdfComponent],
-      providers: pdfToolTestProviders(),
+      imports: [AnnotatePdfComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(AnnotatePdfComponent);

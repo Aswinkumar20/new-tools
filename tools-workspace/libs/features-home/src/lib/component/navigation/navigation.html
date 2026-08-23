@@ -1,23 +1,17 @@
-@if (reserveSpace) {
-  <div class="nav-spacer" aria-hidden="true"></div>
-}
 <header class="nav" [class.nav--open]="isMobileMenuOpen">
   <div class="nav__bar">
-    <div class="nav__inner">
-      <div class="nav__start">
-        <button
-          type="button"
-          class="nav__toggle"
-          aria-label="Toggle navigation menu"
-          [attr.aria-expanded]="isMobileMenuOpen"
-          (click)="toggleMobileMenu()">
-          <span class="nav__toggle-lines"><span></span></span>
-        </button>
-        <button type="button" class="nav__logo" (click)="navigateTo('home', 'home')">
-          <img [src]="iconUrl" alt="" aria-hidden="true" class="nav__logo-icon" />
-          <span class="nav__logo-text">Easy<span class="nav__logo-accent">Tool</span>Hub</span>
-        </button>
-      </div>
+    <div class="nav__brand">
+      <button
+        type="button"
+        class="nav__toggle"
+        aria-label="Toggle navigation menu"
+        [attr.aria-expanded]="isMobileMenuOpen"
+        (click)="toggleMobileMenu()">
+        <span class="nav__toggle-lines"><span></span></span>
+      </button>
+      <!-- <button type="button" class="nav__logo" (click)="navigateTo('home', 'home')">
+        <img [src]="logoUrl" alt="EasyToolHub logo" />
+      </button> -->
 
       <nav class="nav__links" aria-label="Primary navigation">
         <button
@@ -30,84 +24,53 @@
   
         <div
           class="nav__item nav__item--dropdown"
-          (mouseenter)="onDropdownEnter($event)"
-          (mouseleave)="onDropdownLeave($event)">
+          (mouseenter)="onDropdownEnter()"
+          (mouseleave)="onDropdownLeave()">
           <button
-            #categoriesTrigger
             type="button"
             class="nav__link"
-            [class.nav__link--active]="activeLink === 'categories' || isDropdownOpen"
-            (focus)="onDropdownEnter($event)"
+            [class.nav__link--active]="activeLink === 'categories'"
+            (focus)="onDropdownEnter()"
             (click)="toggleCategoriesDropdown()"
             [attr.aria-expanded]="isDropdownOpen">
             Categories
           </button>
-
-          <div
-            class="nav__mega"
-            [class.nav__mega--open]="isDropdownOpen"
-            [ngStyle]="megaMenuStyle"
-            role="dialog"
-            aria-label="Browse categories and tools"
-            [attr.aria-hidden]="!isDropdownOpen">
-            <aside class="nav__mega-aside">
-              <p class="nav__mega-label">Categories</p>
-              <ul class="nav__mega-cats">
-                @for (category of categoriesList; track category.name; let i = $index) {
-                  <li
+  
+          @if (isDropdownOpen) {
+            <div class="nav__mega">
+              <div class="nav__mega-categories">
+                @for (category of categoriesList; track category.name) {
+                  <button
+                    type="button"
+                    class="nav__mega-category"
+                    [class.nav__mega-category--active]="hoveredCategory?.name === category.name"
                     (mouseenter)="hoverMegaCategory(category)"
-                    (focusin)="hoverMegaCategory(category)">
-                    <button
-                      type="button"
-                      class="nav__mega-cat"
-                      [attr.data-tint]="i % 6"
-                      [class.nav__mega-cat--active]="hoveredCategory?.name === category.name"
-                      (mouseenter)="hoverMegaCategory(category)"
-                      (focus)="hoverMegaCategory(category)">
-                      <span class="nav__mega-cat-avatar" aria-hidden="true">
-                        {{ shortCategoryName(category.name).charAt(0) }}
-                      </span>
-                      <span class="nav__mega-cat-name">{{ shortCategoryName(category.name) }}</span>
-                      <span class="nav__mega-cat-count">{{ category.subCategories?.length || 0 }}</span>
-                    </button>
-                  </li>
+                    (focus)="hoverMegaCategory(category)">
+                    <span class="nav__mega-category-name">{{ category.name }}</span>
+                    <span class="nav__mega-category-description">{{ category.description }}</span>
+                  </button>
                 }
-              </ul>
-            </aside>
-
-            <div class="nav__mega-panel">
+              </div>
+  
               @if (hoveredCategory?.subCategories?.length) {
-                <div class="nav__mega-panel-head">
-                  <h2 class="nav__mega-panel-title">{{ shortCategoryName(hoveredCategory.name) }}</h2>
-                  <span class="nav__mega-panel-meta">
-                    {{ hoveredCategory.subCategories.length }} tools
-                  </span>
-                </div>
-                <p class="nav__mega-panel-desc">{{ hoveredCategory.description }}</p>
                 <div class="nav__mega-tools">
                   @for (sub of hoveredCategory.subCategories; track sub.path || sub.name) {
                     <button
                       type="button"
                       class="nav__mega-tool"
                       (click)="navigateTo(sub.path, 'categories')">
-                      <span class="nav__mega-tool-avatar" aria-hidden="true">
-                        {{ shortToolName(sub.name).charAt(0) }}
-                      </span>
-                      <span class="nav__mega-tool-text">
-                        <span class="nav__mega-tool-name">{{ shortToolName(sub.name) }}</span>
-                        <span class="nav__mega-tool-desc">{{ sub.description }}</span>
-                      </span>
-                      <span class="nav__mega-tool-go" aria-hidden="true">→</span>
+                      <span class="nav__mega-tool-name">{{ sub.name }}</span>
+                      <span class="nav__mega-tool-description">{{ sub.description }}</span>
                     </button>
                   }
                 </div>
               } @else {
                 <div class="nav__mega-empty">
-                  <p>Select a category to explore tools</p>
+                  Hover a category to explore its tools.
                 </div>
               }
             </div>
-          </div>
+          }
         </div>
   
         <button
@@ -126,142 +89,8 @@
           Contact
         </button>
       </nav>
-
-    <!-- Search Bar - Only show when not on home page -->
-    @if (!isHomePage) {
-      <div class="nav__search-wrapper">
-        <div class="nav__search-container">
-          <div class="nav__search-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <path d="m21 21-4.35-4.35"></path>
-            </svg>
-          </div>
-          <input
-            type="text"
-            class="nav__search-input"
-            placeholder="Search tools..."
-            [(ngModel)]="searchQuery"
-            (input)="onSearchInput($event)"
-            (focus)="onSearchInput($event)"
-            autocomplete="off"
-            aria-label="Search tools" />
-          @if (searchQuery) {
-            <button
-              type="button"
-              class="nav__search-clear"
-              (click)="searchQuery = ''; searchResults = []; isSearchDropdownOpen = false"
-              aria-label="Clear search">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          }
-        </div>
-
-        @if (isSearchDropdownOpen && searchResults.length > 0) {
-          <div class="nav__search-dropdown">
-            <div class="nav__search-results">
-              @for (result of searchResults; track result.path || result.name) {
-                <button
-                  type="button"
-                  class="nav__search-result"
-                  (click)="onSearchResultClick(result)">
-                  <div class="nav__search-result-content">
-                    <span class="nav__search-result-name">{{ result.name }}</span>
-                    @if (result.description) {
-                      <span class="nav__search-result-description">{{ result.description }}</span>
-                    }
-                    @if (result.category) {
-                      <span class="nav__search-result-category">{{ result.category }}</span>
-                    }
-                  </div>
-                  <svg class="nav__search-result-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m9 18 6-6-6-6"></path>
-                  </svg>
-                </button>
-              }
-            </div>
-          </div>
-        }
-      </div>
-    }
-
-    <div class="nav__actions" *ngIf="false">
-      <!-- Language Dropdown -->
-      <div class="nav__language-wrapper" (mouseleave)="closeLanguageDropdown()">
-        <button
-          type="button"
-          class="nav__language-toggle"
-          [attr.aria-label]="'Select language'"
-          [attr.aria-expanded]="isLanguageDropdownOpen"
-          (click)="toggleLanguageDropdown()"
-          (focus)="toggleLanguageDropdown()">
-          <span class="nav__language-flag">{{ '🌐' }}</span>
-          <span class="nav__language-code">{{ (currentLanguage?.code || 'en').toUpperCase() }}</span>
-          <svg class="nav__language-chevron" [class.nav__language-chevron--open]="isLanguageDropdownOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m6 9 6 6 6-6"></path>
-          </svg>
-        </button>
-        @if (isLanguageDropdownOpen) {
-          <div class="nav__language-dropdown">
-            <div class="nav__language-search">
-              <input
-                type="text"
-                #languageSearch
-                class="nav__language-search-input"
-                placeholder="Search language..."
-                (input)="filterLanguages($event)" />
-            </div>
-            <div class="nav__language-list">
-              @for (language of filteredLanguages || supportedLanguages; track language.code) {
-                <button
-                  type="button"
-                  class="nav__language-option"
-                  [class.nav__language-option--active]="currentLanguage?.code === language.code"
-                  (click)="selectLanguage(language)">
-                  <span class="nav__language-option-flag">{{ language.flag }}</span>
-                  <div class="nav__language-option-info">
-                    <span class="nav__language-option-name">{{ language.nativeName }}</span>
-                    <span class="nav__language-option-english">{{ language.name }}</span>
-                  </div>
-                  @if (currentLanguage?.code === language.code) {
-                    <svg class="nav__language-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M20 6 9 17l-5-5"></path>
-                    </svg>
-                  }
-                </button>
-              }
-            </div>
-          </div>
-        }
-      </div>
-
-      <button
-        type="button"
-        class="nav__theme-toggle"
-        [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        [title]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        (click)="toggleTheme()">
-        <span class="nav__theme-icon" [class.nav__theme-icon--dark]="isDarkMode">
-          <svg *ngIf="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4"></circle>
-            <path d="M12 2v2"></path>
-            <path d="M12 20v2"></path>
-            <path d="m4.93 4.93 1.41 1.41"></path>
-            <path d="m17.66 17.66 1.41 1.41"></path>
-            <path d="M2 12h2"></path>
-            <path d="M20 12h2"></path>
-            <path d="m6.34 17.66-1.41 1.41"></path>
-            <path d="m19.07 4.93-1.41 1.41"></path>
-          </svg>
-          <svg *ngIf="isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </span>
-      </button>
     </div>
+
 
     <div class="nav__auth" *ngIf="false">
       <button
@@ -279,7 +108,6 @@
         Sign Up
       </button>
     </div>
-    </div>
   </div>
 
   @if (isMobileMenuOpen) {
@@ -295,10 +123,9 @@
     [class.nav__drawer--visible]="isMobileMenuOpen"
     aria-label="Mobile navigation">
     <div class="nav__drawer-header">
-      <button type="button" class="nav__logo nav__logo--drawer" (click)="navigateTo('home', 'home')">
-        <img [src]="iconUrl" alt="" aria-hidden="true" class="nav__logo-icon" />
-        <span class="nav__logo-text">Easy<span class="nav__logo-accent">Tool</span>Hub</span>
-      </button>
+      <!-- <button type="button" class="nav__logo nav__logo--drawer" (click)="navigateTo('home', 'home')">
+        <img [src]="logoUrl" alt="EasyToolHub logo" />
+      </button> -->
       <button type="button" class="nav__close" aria-label="Close navigation menu" (click)="closeMobileMenu()">
         <span></span>
         <span></span>
@@ -358,30 +185,19 @@
       </button>
     </nav>
 
-    <div class="nav__drawer-footer">
+    <div class="nav__drawer-footer" *ngIf="false">
       <button
         type="button"
-        class="nav__drawer-theme-toggle"
-        [attr.aria-label]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        [title]="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        (click)="toggleTheme()">
-        <span class="nav__theme-icon" [class.nav__theme-icon--dark]="isDarkMode">
-          <svg *ngIf="!isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="4"></circle>
-            <path d="M12 2v2"></path>
-            <path d="M12 20v2"></path>
-            <path d="m4.93 4.93 1.41 1.41"></path>
-            <path d="m17.66 17.66 1.41 1.41"></path>
-            <path d="M2 12h2"></path>
-            <path d="M20 12h2"></path>
-            <path d="m6.34 17.66-1.41 1.41"></path>
-            <path d="m19.07 4.93-1.41 1.41"></path>
-          </svg>
-          <svg *ngIf="isDarkMode" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-          </svg>
-        </span>
-        <span>{{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}</span>
+        class="nav__drawer-link"
+        [class.nav__drawer-link--active]="activeLink === 'login'"
+        (click)="navigateTo('login', 'login')">
+        Login
+      </button>
+      <button
+        type="button"
+        class="nav__drawer-cta"
+        (click)="navigateTo('signup', 'signup')">
+        Sign Up
       </button>
     </div>
   </aside>

@@ -1,104 +1,54 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnDestroy,
-  computed,
-  inject,
-  signal
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import {
-  POMODORO_DEFAULT_SETTINGS,
-  POMODORO_RELATED_TOOLS,
-  POMODORO_TICK_MS
-} from '../../constants/pomodoro-timer.constants';
-import type { FtRelatedToolLink } from '../../shared/ft-tool-suggestion.model';
-import type {
-  PomodoroFormGroup,
-  PomodoroTimerMode
-} from '../../types/pomodoro-timer.types';
-import {
-  computePomodoroProgress,
-  formatPomodoroClock,
-  getPomodoroCircleCircumference,
-  getPomodoroCircleDashOffset,
-  getPomodoroTotalSeconds,
-  playPomodoroNotificationBeep,
-  pomodoroCompletionToastMessage,
-  pomodoroModeLabel,
-  resolveNextPomodoroMode,
-  resolvePomodoroSuggestion,
-  sessionsUntilLongBreak
-} from '../../utils/pomodoro-timer.utils';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Navigation } from '@tools-workspace/features-home';
+
+type TimerMode = 'work' | 'break' | 'longBreak';
+
+type PomodoroFormGroup = FormGroup<{
+  workMinutes: FormControl<number>;
+  breakMinutes: FormControl<number>;
+  longBreakMinutes: FormControl<number>;
+  longBreakInterval: FormControl<number>;
+}>;
 
 @Component({
   selector: 'lib-pomodoro-timer',
   standalone: true,
   templateUrl: './pomodoro-timer.html',
   styleUrls: ['./pomodoro-timer.scss'],
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, Navigation, TooltipDirective],
+  imports: [CommonModule, ReactiveFormsModule, Navigation],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PomodoroTimerComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
-  private readonly toast = inject(ToastService);
-  readonly assetService = inject(AssetService);
 
   readonly form: PomodoroFormGroup = this.fb.group({
-    workMinutes: this.fb.control(POMODORO_DEFAULT_SETTINGS.workMinutes, { nonNullable: true }),
-    breakMinutes: this.fb.control(POMODORO_DEFAULT_SETTINGS.breakMinutes, { nonNullable: true }),
-    longBreakMinutes: this.fb.control(POMODORO_DEFAULT_SETTINGS.longBreakMinutes, {
-      nonNullable: true
-    }),
-    longBreakInterval: this.fb.control(POMODORO_DEFAULT_SETTINGS.longBreakInterval, {
-      nonNullable: true
-    })
+    workMinutes: this.fb.control(25, { nonNullable: true }),
+    breakMinutes: this.fb.control(5, { nonNullable: true }),
+    longBreakMinutes: this.fb.control(15, { nonNullable: true }),
+    longBreakInterval: this.fb.control(4, { nonNullable: true })
   });
 
-  readonly timeRemaining = signal<number>(
-    getPomodoroTotalSeconds('work', POMODORO_DEFAULT_SETTINGS)
-  );
-  readonly initialTime = signal<number>(
-    getPomodoroTotalSeconds('work', POMODORO_DEFAULT_SETTINGS)
-  );
+  readonly timeRemaining = signal<number>(25 * 60); // in seconds
+  readonly initialTime = signal<number>(25 * 60); // in seconds
   readonly isRunning = signal(false);
-  readonly mode = signal<PomodoroTimerMode>('work');
+  readonly mode = signal<TimerMode>('work');
   readonly completedPomodoros = signal(0);
   readonly currentSession = signal(0);
-  private readonly dismissedSuggestionId = signal<string | null>(null);
+  readonly errors = signal<string[]>([]);
 
   private intervalId: number | null = null;
 
-  readonly relatedTools: ReadonlyArray<FtRelatedToolLink> = POMODORO_RELATED_TOOLS;
-
-  readonly progress = computed(() =>
-    computePomodoroProgress(this.initialTime(), this.timeRemaining())
-  );
+  readonly minutes = computed(() => Math.floor(this.timeRemaining() / 60));
+  readonly seconds = computed(() => this.timeRemaining() % 60);
+  readonly progress = computed(() => {
+    const total = this.initialTime();
+    const remaining = this.timeRemaining();
+    return total > 0 ? ((total - remaining) / total) * 100 : 0;
+  });
   readonly isWorkMode = computed(() => this.mode() === 'work');
   readonly isBreakMode = computed(() => this.mode() === 'break' || this.mode() === 'longBreak');
-  readonly progressRounded = computed(() => Math.round(this.progress()));
-  readonly modeDisplayLabel = computed(() => pomodoroModeLabel(this.mode()));
-  readonly sessionsUntilNextLongBreak = computed(() =>
-    sessionsUntilLongBreak(
-      this.currentSession(),
-      this.form.controls.longBreakInterval.value
-    )
-  );
-
-  readonly primarySuggestion = computed(() => {
-    const suggestion = resolvePomodoroSuggestion({
-      isRunning: this.isRunning(),
-      mode: this.mode(),
-      completedPomodoros: this.completedPomodoros()
-    });
-    if (!suggestion || this.dismissedSuggestionId() === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  });
 
   constructor() {
     this.resetTimer();
@@ -121,7 +71,7 @@ export class PomodoroTimerComponent implements OnDestroy {
         return;
       }
       this.timeRemaining.set(remaining - 1);
-    }, POMODORO_TICK_MS);
+    }, 1000);
   }
 
   pauseTimer(): void {
@@ -148,32 +98,65 @@ export class PomodoroTimerComponent implements OnDestroy {
   }
 
   private completeTimer(): void {
-    const completedMode = this.mode();
     this.stopTimer();
 
-    if (completedMode === 'work') {
+    if (this.mode() === 'work') {
       this.completedPomodoros.update((count) => count + 1);
       this.currentSession.update((session) => session + 1);
 
       const longBreakInterval = this.form.controls.longBreakInterval.value;
-      this.mode.set(
-        resolveNextPomodoroMode('work', this.currentSession(), longBreakInterval)
-      );
+      if (this.currentSession() % longBreakInterval === 0) {
+        this.mode.set('longBreak');
+      } else {
+        this.mode.set('break');
+      }
     } else {
-      this.mode.set(resolveNextPomodoroMode(completedMode, this.currentSession(), 0));
+      this.mode.set('work');
     }
 
     this.resetTimer();
-    playPomodoroNotificationBeep();
-    this.toast.info(pomodoroCompletionToastMessage(completedMode));
+
+    // Play notification sound (if supported)
+    this.playNotification();
+  }
+
+  private playNotification(): void {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    } catch {
+      // Audio not supported or failed
+    }
   }
 
   private getTotalSeconds(): number {
-    return getPomodoroTotalSeconds(this.mode(), this.form.getRawValue());
+    const mode = this.mode();
+    if (mode === 'work') {
+      return this.form.controls.workMinutes.value * 60;
+    } else if (mode === 'longBreak') {
+      return this.form.controls.longBreakMinutes.value * 60;
+    } else {
+      return this.form.controls.breakMinutes.value * 60;
+    }
   }
 
   formatTime(totalSeconds: number): string {
-    return formatPomodoroClock(totalSeconds);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
 
   formatTimeDisplay(): string {
@@ -181,11 +164,13 @@ export class PomodoroTimerComponent implements OnDestroy {
   }
 
   getCircleCircumference(): number {
-    return getPomodoroCircleCircumference();
+    return 2 * Math.PI * 45; // radius is 45
   }
 
   getCircleDashOffset(): number {
-    return getPomodoroCircleDashOffset(this.progress());
+    const circumference = this.getCircleCircumference();
+    const progressPercent = this.progress() / 100;
+    return circumference * (1 - progressPercent);
   }
 
   resetStats(): void {
@@ -199,9 +184,5 @@ export class PomodoroTimerComponent implements OnDestroy {
     if (!this.isRunning()) {
       this.resetTimer();
     }
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId.set(suggestionId);
   }
 }

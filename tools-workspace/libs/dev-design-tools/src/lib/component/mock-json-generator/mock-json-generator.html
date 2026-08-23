@@ -1,326 +1,218 @@
-<div class="ctl dd">
-  <lib-navigation></lib-navigation>
+<div class="mjg">
+  <div class="mjg__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Mock JSON Generator</h1>
-        <p>
-          Generate mock JSON data for testing and development. Define fields with different types, customize values, and
-          generate arrays of objects. Perfect for API testing and frontend development.
-        </p>
-      </header>
+  <section class="mjg__hero">
+    <div class="mjg__badge">Dev toolkit</div>
+    <h1>Mock JSON Generator</h1>
+    <p>
+      Generate mock JSON data for testing and development. Define fields with different types, customize values, and
+      generate arrays of objects. Perfect for API testing and frontend development.
+    </p>
 
-      <div class="ctl__stats" aria-label="JSON generator statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ fieldsFormArray().length }}</span>
-          <span class="ctl__stat-label">Fields</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ form.controls.arrayCount.value }}</span>
-          <span class="ctl__stat-label">Objects</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasGeneratedJson() ? formatBytes(generatedJson().length) : '—' }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ hasGeneratedJson() ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
+    <div class="mjg__hero-meta">
+      <div>
+        <span class="mjg__meta-label">Fields</span>
+        <strong>{{ fieldsFormArray().length }}</strong>
+      </div>
+      <div>
+        <span class="mjg__meta-label">Objects</span>
+        <strong>{{ form.controls.arrayCount.value }}</strong>
+      </div>
+      <div>
+        <span class="mjg__meta-label">Ready</span>
+        <strong>{{ hasGeneratedJson() ? '✓' : '-' }}</strong>
       </div>
     </div>
+  </section>
 
-    <div class="dd-workflow" aria-label="Generator actions"><div class="dd-workflow__group dd-workflow__group--actions">
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="generateJson()"
-        aria-label="Generate JSON"
-        appTooltip="Generate JSON"
-        tooltipPosition="bottom">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        <span class="ctl__tool-btn-label">Generate</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="copyToClipboard(formattedJson(), 'JSON')"
-        [disabled]="!hasGeneratedJson()"
-        aria-label="Copy JSON"
-        appTooltip="Copy JSON"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Copy</span>
-      </button>
-      <button
-        type="button"
-        class="ctl__tool-btn"
-        (click)="clear()"
-        aria-label="Reset"
-        appTooltip="Reset"
-        tooltipPosition="bottom">
-        <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-        <span class="ctl__tool-btn-label">Reset</span>
-      </button>
-    </div>
-    </div>
-    <div class="ctl__workspace ctl__workspace--viewer" [formGroup]="form">
-      <section class="ctl__editor ctl__editor--output dd-viewer-panel">
-        <header class="ctl__editor-head">
-          <span>Generated JSON</span>
-          @if (hasGeneratedJson()) {
-            <div class="ctl__editor-actions">
-              <span class="ctl__editor-badge">Ready</span>
+  <div class="mjg__board" [formGroup]="form">
+    <section class="mjg__panel mjg__panel--builder">
+      <header class="mjg__card-header">
+        <div>
+          <h2>JSON structure builder</h2>
+          <p>Define fields and their types to generate mock data.</p>
+        </div>
+      </header>
+
+      @if (errors().length) {
+        <div class="mjg__alert mjg__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (warnings().length) {
+        <div class="mjg__alert mjg__alert--warning">
+          <ul>
+            @for (message of warnings(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <div class="mjg__settings-grid">
+        <div class="mjg__setting-group">
+          <label for="arrayCount" class="mjg__label">Number of objects</label>
+          <input
+            id="arrayCount"
+            type="number"
+            class="mjg__input"
+            min="1"
+            max="100"
+            formControlName="arrayCount"
+          />
+          <small>Generate multiple objects (1 = single object, >1 = array of objects)</small>
+        </div>
+      </div>
+
+      <div class="mjg__fields-section">
+        <div class="mjg__section-header">
+          <h3>Fields</h3>
+          <button type="button" class="btn btn--ghost btn--small" (click)="addField()">Add field</button>
+        </div>
+
+        <div class="mjg__fields-list">
+          @for (field of fieldsFormArray().controls; track $index; let i = $index) {
+            <div class="mjg__field-item">
+              <input
+                type="text"
+                class="mjg__input mjg__input--field-key"
+                [formControl]="field.controls.key"
+                placeholder="Field name"
+              />
+              <select class="mjg__select mjg__select--field-type" [formControl]="field.controls.type">
+                @for (type of fieldTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+              @if (field.controls.type.value === 'array') {
+                <input
+                  type="number"
+                  class="mjg__input mjg__input--array-length"
+                  [formControl]="field.controls.arrayLength"
+                  min="1"
+                  max="100"
+                  placeholder="Length"
+                  title="Array length"
+                />
+              }
+              @if (field.controls.type.value !== 'array' && field.controls.type.value !== 'object' && field.controls.type.value !== 'null') {
+                <input
+                  type="text"
+                  class="mjg__input mjg__input--field-value"
+                  [formControl]="field.controls.value"
+                  [placeholder]="getFieldPlaceholder(field.controls.type.value)"
+                />
+              }
               <button
                 type="button"
-                class="ctl__icon-btn"
-                (click)="copyToClipboard(formattedJson(), 'JSON')"
-                aria-label="Copy JSON"
-                appTooltip="Copy JSON"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                class="btn btn--ghost btn--small mjg__remove-btn"
+                (click)="removeField(i)"
+                title="Remove field"
+              >
+                ×
               </button>
             </div>
           }
-        </header>
+        </div>
+      </div>
 
-        @if (errors().length) {
-          <div class="ctl__alert ctl__alert--error" role="alert">
-            <ul>
-              @for (message of errors(); track message) {
-                <li>{{ message }}</li>
-              }
-            </ul>
-          </div>
-        }
+      <label class="mjg__toggle">
+        <input type="checkbox" formControlName="rememberHistory" />
+        <div>
+          <strong>Remember history</strong>
+          <span>Keep track of recent mock JSON configurations</span>
+        </div>
+      </label>
 
-        @if (warnings().length) {
-          <div class="ctl__alert ctl__alert--warning" role="status">
-            <ul>
-              @for (message of warnings(); track message) {
-                <li>{{ message }}</li>
-              }
-            </ul>
-          </div>
-        }
+      <div class="mjg__actions">
+        <button type="button" class="btn btn--primary" (click)="generateJson()">Generate JSON</button>
+        <button type="button" class="btn btn--ghost" (click)="clear()">Reset</button>
+      </div>
+    </section>
 
-        @if (primarySuggestion(); as suggestion) {
-          <aside class="mjg__suggest" aria-label="Suggested next step">
-            <div class="mjg__suggest-body">
-              <p class="mjg__suggest-title">{{ suggestion.title }}</p>
-              <p class="mjg__suggest-reason">{{ suggestion.reason }}</p>
-            </div>
-            <div class="mjg__suggest-actions">
-              <a class="mjg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button type="button" class="mjg__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
-            </div>
-          </aside>
-        }
-
+    <section class="mjg__panel mjg__panel--output">
+      <header class="mjg__card-header">
+        <div>
+          <h2>Generated JSON</h2>
+          <p>Copy the generated mock JSON data.</p>
+        </div>
         @if (hasGeneratedJson()) {
-          <div class="ctl__editor-body">
-            <pre class="ctl__code mjg__json"><code>{{ formattedJson() }}</code></pre>
-            <div class="mjg__json-info">
-              <div class="mjg__info-item">
-                <strong>Size</strong>
-                <span>{{ formatBytes(generatedJson().length) }}</span>
-              </div>
-              <div class="mjg__info-item">
-                <strong>Lines</strong>
-                <span>{{ formattedJson().split('\n').length }}</span>
-              </div>
-              <div class="mjg__info-item">
-                <strong>Type</strong>
-                <span>{{ form.controls.arrayCount.value === 1 ? 'Object' : 'Array' }}</span>
-              </div>
-            </div>
-          </div>
-        } @else {
-          <div class="ctl__empty">
-            <p>Configure fields and generate to see mock JSON output.</p>
-          </div>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyToClipboard(formattedJson(), 'JSON')"
+          >
+            Copy JSON
+          </button>
         }
-      </section>
+      </header>
 
-      <section class="dd-primary-panel" aria-label="JSON structure controls">
-        <div class="dd-primary-panel__head">
-          <span>JSON structure</span>
+      @if (hasGeneratedJson()) {
+        <div class="mjg__json-container">
+          <pre class="mjg__json"><code>{{ formattedJson() }}</code></pre>
         </div>
 
-        <div class="dd-primary-panel__grid">
-          <label class="ctl__field" for="arrayCount">
-            <span>Number of objects</span>
-            <input
-              id="arrayCount"
-              type="number"
-              min="1"
-              max="100"
-              formControlName="arrayCount"
-            />
-          </label>
-        </div>
-
-        <div class="mjg__fields-section">
-          <div class="mjg__section-header">
-            <span>Fields</span>
-            <button
-              type="button"
-              class="ctl__icon-btn"
-              (click)="addField()"
-              aria-label="Add field"
-              appTooltip="Add field"
-              tooltipPosition="bottom">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
+        <div class="mjg__json-info">
+          <div class="mjg__info-item">
+            <strong>Size:</strong>
+            <span>{{ formatBytes(generatedJson().length) }}</span>
           </div>
-          <div class="mjg__fields-list">
-            @for (field of fieldsFormArray().controls; track $index; let i = $index) {
-              <div class="mjg__field-item">
-                <input
-                  type="text"
-                  [formControl]="field.controls.key"
-                  placeholder="Field name"
-                />
-                <select [formControl]="field.controls.type">
-                  @for (type of fieldTypes; track type.value) {
-                    <option [value]="type.value">{{ type.label }}</option>
-                  }
-                </select>
-                @if (field.controls.type.value === 'array') {
-                  <select [formControl]="field.controls.value" title="Array item type">
-                    <option value="string">Item: string</option>
-                    <option value="number">Item: number</option>
-                    <option value="boolean">Item: boolean</option>
-                  </select>
-                  <input
-                    type="number"
-                    [formControl]="field.controls.arrayLength"
-                    min="1"
-                    max="100"
-                    placeholder="Length"
-                    title="Array length"
-                  />
-                }
-                @if (field.controls.type.value === 'object') {
-                  <input
-                    type="text"
-                    [formControl]="field.controls.value"
-                    placeholder="Optional object note"
-                    title="Object fields use a simple id/name/value shape"
-                  />
-                }
-                @if (field.controls.type.value !== 'array' && field.controls.type.value !== 'object' && field.controls.type.value !== 'null') {
-                  <input
-                    type="text"
-                    [formControl]="field.controls.value"
-                    [placeholder]="getFieldPlaceholder(field.controls.type.value)"
-                  />
-                }
-                <button
-                  type="button"
-                  class="ctl__icon-btn mjg__remove-btn"
-                  (click)="removeField(i)"
-                  aria-label="Remove field"
-                  appTooltip="Remove field"
-                  tooltipPosition="bottom">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-              </div>
-            }
+          <div class="mjg__info-item">
+            <strong>Lines:</strong>
+            <span>{{ formattedJson().split('\n').length }}</span>
+          </div>
+          <div class="mjg__info-item">
+            <strong>Type:</strong>
+            <span>{{ form.controls.arrayCount.value === 1 ? 'Object' : 'Array' }}</span>
           </div>
         </div>
-      </section>
+      } @else {
+        <div class="mjg__empty">Configure fields and click "Generate JSON" to see the output.</div>
+      }
+    </section>
 
-      <details class="dd-options-flyout">
-        <summary class="dd-options-flyout__trigger" aria-label="Open more panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>More</span>
-        </summary>
-        <button type="button" class="dd-options-flyout__backdrop" aria-label="Close more panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar dd-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="History preferences">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Preferences</header>
-            <div class="ctl__settings">
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="rememberHistory" />
-                <div>
-                  <strong>Remember history</strong>
-                  <span>Keep track of recent mock JSON configurations</span>
+    <section class="mjg__panel mjg__panel--history">
+      <header class="mjg__card-header">
+        <div>
+          <h2>History</h2>
+          <p>Quick access to recently generated mock JSON.</p>
+        </div>
+        <button type="button" class="btn btn--ghost btn--small" (click)="clearHistory()" [disabled]="!hasHistory()">
+          Clear
+        </button>
+      </header>
+
+      @if (hasHistory()) {
+        <ul class="mjg__history-list">
+          @for (entry of history(); track entry.timestamp) {
+            <li>
+              <button type="button" (click)="applyHistory(entry)" class="mjg__history-item">
+                <div class="mjg__history-info">
+                  <strong>{{ entry.fields.length }} fields</strong>
+                  <span>{{ formatTimestamp(entry.timestamp) }}</span>
+                  <code class="mjg__history-preview">{{ entry.generatedJson.substring(0, 80) }}{{ entry.generatedJson.length > 80 ? '...' : '' }}</code>
                 </div>
-              </label>
-            </div>
-          </div>
-
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              <span>History</span>
+              </button>
               <button
                 type="button"
-                class="ctl__icon-btn"
-                (click)="clearHistory()"
-                [disabled]="!hasHistory()"
-                aria-label="Clear history"
-                appTooltip="Clear history"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="16" height="16" />
+                class="btn btn--ghost btn--small"
+                (click)="removeHistoryEntry(entry.timestamp)"
+              >
+                Remove
               </button>
-            </header>
-            @if (hasHistory()) {
-              <ul class="mjg__history-list">
-                @for (entry of history(); track entry.timestamp) {
-                  <li>
-                    <button type="button" (click)="applyHistory(entry)" class="mjg__history-item">
-                      <div class="mjg__history-info">
-                        <strong>{{ entry.fields.length }} fields</strong>
-                        <span>{{ formatTimestamp(entry.timestamp) }}</span>
-                        <code class="mjg__history-preview">{{ entry.generatedJson.substring(0, 80) }}{{ entry.generatedJson.length > 80 ? '...' : '' }}</code>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      class="ctl__icon-btn"
-                      (click)="removeHistoryEntry(entry.timestamp)"
-                      aria-label="Remove entry"
-                      appTooltip="Remove entry"
-                      tooltipPosition="bottom">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
-                  </li>
-                }
-              </ul>
-            } @else {
-              <div class="ctl__empty"><p>Enable history to keep recent mock JSON configurations.</p></div>
-            }
-          </div>
-
-          <div class="ctl__panel mjg__related">
-            <header class="ctl__panel-head">Related tools</header>
-            <ul class="mjg__related-list">
-              @for (tool of relatedTools; track tool.path) {
-                <li>
-                  <a class="mjg__related-link" [routerLink]="tool.path">
-                    <strong>{{ tool.label }}</strong>
-                    <span>{{ tool.description }}</span>
-                  </a>
-                </li>
-              }
-            </ul>
-          </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Define fields and object count in the JSON structure panel below the output.</li>
-        <li>Set 1 object for a single object, or more for an array.</li>
-        <li>JSON generates automatically as you edit — or tap <strong>Generate</strong>.</li>
-        <li>Open <strong>More</strong> for history and preferences.</li>
-      </ul>
-    </details>
-  </main>
+            </li>
+          }
+        </ul>
+      } @else {
+        <div class="mjg__empty">Enable history tracking to keep a list of recent mock JSON configurations.</div>
+      }
+    </section>
+  </div>
 </div>

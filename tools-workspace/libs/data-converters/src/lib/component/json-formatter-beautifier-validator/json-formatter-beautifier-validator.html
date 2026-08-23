@@ -1,252 +1,313 @@
-<div class="ctl dc">
+<div class="main-container">
   <lib-navigation></lib-navigation>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>JSON Formatter & Validator</h1>
-        <p>Clean, validate, and explore JSON with formatting, tree view, and syntax checks.</p>
-      </header>
+  <header class="hero">
+    <div class="hero__eyebrow">Data Converter Suite</div>
+    <h1 class="hero__title">JSON Formatter & Validator</h1>
+    <p class="hero__subtitle">
+      Clean, validate, and explore a single JSON payload with a workspace designed for designers,
+      developers, and data teams. Beautify indentation, surface syntax errors, and inspect the
+      structure without leaving this page.
+    </p>
+    <div class="hero__callouts">
+      <div class="callout" *ngFor="let item of callouts">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.detail }}</p>
+      </div>
+    </div>
+  </header>
 
-      <div class="ctl__stats" aria-label="JSON statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ inputMetrics.lines | number }}</span>
-          <span class="ctl__stat-label">Lines</span>
+  <section class="workspace">
+    <div class="workspace__top" fxLayout="row" fxLayoutAlign="space-between">
+      <div class="workspace__title">
+        <h2>Interactive workspace</h2>
+        <p>Format, validate, and explore JSON side-by-side with the results.</p>
+      </div>
+
+      <div class="workspace__metrics" fxLayout="row" fxLayoutAlign="start stretch">
+        <div>
+          <strong>Characters</strong>
+          <span>{{ inputMetrics.characters | number }}</span>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ inputMetrics.sizeLabel }}</span>
-          <span class="ctl__stat-label">Size</span>
+        <div>
+          <strong>Lines</strong>
+          <span>{{ inputMetrics.lines | number }}</span>
         </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ activeResultTab }}</span>
-          <span class="ctl__stat-label">View</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ validationResult?.status === 'success' ? 'Valid' : validationResult?.status === 'error' ? 'Invalid' : '—' }}</span>
-          <span class="ctl__stat-label">Valid</span>
+        <div>
+          <strong>Payload size</strong>
+          <span>{{ inputMetrics.sizeLabel }}</span>
         </div>
       </div>
     </div>
 
-    <div class="dc-workflow" aria-label="JSON formatter controls">
-      <div class="dc-workflow__group dc-workflow__group--files">
-        <button type="button" class="ctl__tool-btn" (click)="uploadFile()" appTooltip="Upload JSON file" tooltipPosition="bottom" aria-label="Upload JSON file">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Upload</span>
-        </button>
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="resetWorkspace()" appTooltip="Reset sample" tooltipPosition="bottom" aria-label="Reset sample">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Reset</span>
-        </button>
-      </div>
-
-      <span class="dc-workflow__divider" aria-hidden="true"></span>
-
-      <div class="dc-workflow__group dc-workflow__group--actions" role="group" aria-label="JSON actions">
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="formatJson()" appTooltip="Format JSON" tooltipPosition="bottom" aria-label="Format JSON">
-          <img [src]="assetService.getAssetPath('icons/rule.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Format</span>
-        </button>
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="validateJson()" appTooltip="Validate JSON" tooltipPosition="bottom" aria-label="Validate JSON">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          <span class="ctl__tool-btn-label">Validate</span>
-        </button>
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="autoFixJson()" appTooltip="Auto-fix JSON" tooltipPosition="bottom" aria-label="Auto-fix JSON">
-          <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Fix</span>
-        </button>
-      </div>
-
-      <span class="dc-workflow__divider" aria-hidden="true"></span>
-
-      <div class="dc-workflow__group dc-workflow__group--views" role="tablist" aria-label="Result view">
-        @for (tab of resultTabs; track tab.id) {
-          <button
-            type="button"
-            role="tab"
-            class="dc-chip"
-            [class.dc-chip--active]="activeResultTab === tab.id"
-            [attr.aria-selected]="activeResultTab === tab.id"
-            (click)="setActiveResultTab(tab.id)"
-            [appTooltip]="tab.description"
-            tooltipPosition="bottom">
-            {{ tab.label }}
-          </button>
-        }
-      </div>
-    </div>
-
-    <div class="ctl__workspace ctl__workspace--split">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor dc-editor-panel" [class.ctl__editor--dragging]="isDragOver" (dragenter)="onDragEnter($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-          <header class="ctl__editor-head">
-            <span>JSON input</span>
-            <div class="ctl__editor-actions">
-              <button type="button" class="ctl__icon-btn" (click)="copyInput()" [disabled]="!rawInput" appTooltip="Copy input" tooltipPosition="bottom" aria-label="Copy input">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
+    <div class="workspace__content">
+      <div
+        class="workspace__panel workspace__panel--editor"
+        [class.workspace__panel--dragging]="isDragOver"
+        (dragenter)="onDragEnter($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="card editor-card">
+          <div class="dropzone dropzone--inline" [class.dropzone--active]="isDragOver">
+            <div class="dropzone__icon" aria-hidden="true">&#128190;</div>
+            <div class="dropzone__text">
+              <strong>Drop JSON or upload a file</strong>
+              <span>Files stay in your browser. Paste works too.</span>
             </div>
-          </header>
-
-          @if (primarySuggestion; as suggestion) {
-            <aside class="jfv__suggest" aria-label="Suggested next step">
-              <div class="jfv__suggest-body">
-                <p class="jfv__suggest-title">{{ suggestion.title }}</p>
-                <p class="jfv__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="jfv__suggest-actions">
-                <a class="jfv__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button type="button" class="jfv__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">Dismiss</button>
-              </div>
-            </aside>
-          }
-
-          <div class="ctl__editor-wrap">
-            <div class="ctl__line-numbers" #inputLineNumbers aria-hidden="true">
-              <span *ngFor="let line of editorLines" class="ctl__line-number">{{ line }}</span>
+            <div class="dropzone__actions">
+              <label class="btn btn-ghost">
+                <input type="file" accept="application/json,.json" (change)="onFileInputChange($event)" />
+                Upload
+              </label>
+              <button type="button" class="btn btn-link" (click)="resetWorkspace()">Reset sample</button>
             </div>
-            <textarea class="ctl__textarea ctl__textarea--mono" spellcheck="false" [(ngModel)]="rawInput" (ngModelChange)="onRawInputChange($event)" (scroll)="onEditorScroll($event)" rows="1" placeholder='{ "message": "Paste JSON here" }' #editorTextarea></textarea>
           </div>
-        </section>
 
-        <section class="ctl__editor ctl__editor--output dc-editor-panel">
-          <header class="ctl__editor-head">
-            <span>{{ activeResultTab === 'formatted' ? 'Formatted output' : activeResultTab === 'tree' ? 'Tree view' : 'Validation' }}</span>
-            <div class="ctl__editor-actions">
-              @if (formattedOutputAvailable && activeResultTab === 'formatted') {
-                <span class="ctl__editor-badge">Ready</span>
-              }
-              <button type="button" class="ctl__icon-btn" (click)="copyFormatted()" [disabled]="!formattedOutputAvailable" appTooltip="Copy output" tooltipPosition="bottom" aria-label="Copy output">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-              </button>
+          <textarea
+            class="editor"
+            rows="18"
+            spellcheck="false"
+            [(ngModel)]="rawInput"
+            (ngModelChange)="onRawInputChange($event)"
+            placeholder="{ &quot;message&quot;: &quot;Paste JSON here&quot; }"
+          ></textarea>
+
+          <div class="editor-card__controls">
+            <div class="controls">
+              <div class="controls__group">
+                <span class="controls__label">Indentation style</span>
+                <div class="segmented">
+                  <button
+                    class="segmented__option"
+                    type="button"
+                    [class.segmented__option--active]="indentStyle === 'spaces'"
+                    (click)="onIndentStyleChange('spaces')"
+                  >
+                    Spaces
+                  </button>
+                  <button
+                    class="segmented__option"
+                    type="button"
+                    [class.segmented__option--active]="indentStyle === 'tabs'"
+                    (click)="onIndentStyleChange('tabs')"
+                  >
+                    Tabs
+                  </button>
+                </div>
+              </div>
+
+              <div class="controls__group" *ngIf="indentStyle === 'spaces'">
+                <label class="controls__label" for="indentSize">Size: {{ indentSize }} spaces</label>
+                <input
+                  id="indentSize"
+                  type="range"
+                  min="2"
+                  max="8"
+                  step="2"
+                  [ngModel]="indentSize"
+                  (ngModelChange)="onIndentSizeChange($event)"
+                />
+              </div>
             </div>
-          </header>
 
-          @switch (activeResultTab) {
-            @case ('formatted') {
-              @if (formattedOutputAvailable) {
-                <div class="ctl__editor-wrap">
-                  <div class="ctl__line-numbers" #outputLineNumbers aria-hidden="true">
-                    <span *ngFor="let line of formattedLines" class="ctl__line-number">{{ line }}</span>
-                  </div>
-                  <textarea class="ctl__textarea ctl__textarea--mono ctl__textarea--output" readonly spellcheck="false" [value]="formattedOutput" (scroll)="onResultsScroll($event)" rows="1" #resultsTextarea></textarea>
-                </div>
-              } @else {
-                <div class="ctl__empty"><p>Format or beautify JSON to see output here.</p></div>
-              }
-            }
-            @case ('tree') {
-              @if (treeNodes.length) {
-                <div class="ctl__editor-body jfv-tree">
-                  <ng-template #treeNode let-node>
-                    <div class="tree-node" [class.tree-node--expanded]="node.expanded && node.children?.length">
-                      <div class="tree-node__header" [style.paddingLeft.px]="node.level * 20">
-                        <button type="button" class="tree-node__toggle" *ngIf="node.children?.length" (click)="toggleNode(node)" [attr.aria-expanded]="node.expanded">
-                          <span class="tree-node__icon">{{ node.expanded ? '▼' : '▶' }}</span>
-                        </button>
-                        <span class="tree-node__key" *ngIf="node.key">{{ node.key }}</span>
-                        <span class="tree-node__key tree-node__key--root" *ngIf="!node.key">root</span>
-                        <span class="tree-node__type" [class]="'tree-node__type--' + node.type">{{ node.type }}</span>
-                        <span class="tree-node__preview">{{ node.preview }}</span>
-                      </div>
-                      <div class="tree-node__children" *ngIf="node.children?.length && node.expanded">
-                        <ng-container *ngFor="let child of node.children; trackBy: trackByNodeId" [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ $implicit: child }"></ng-container>
-                      </div>
-                    </div>
-                  </ng-template>
-                  <ng-container *ngFor="let node of treeNodes; trackBy: trackByNodeId" [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ $implicit: node }"></ng-container>
-                </div>
-              } @else {
-                <div class="ctl__empty"><p>Format or validate JSON to generate a tree view.</p></div>
-              }
-            }
-            @default {
-              @if (validationResult) {
-                <div class="ctl__editor-body">
-                  <div
-                    class="validation-status"
-                    [class.validation-status--success]="validationResult.status === 'success'"
-                    [class.validation-status--error]="validationResult.status === 'error'"
-                    role="alert"
-                    [attr.aria-live]="validationResult.status === 'error' ? 'assertive' : 'polite'">
-                    <strong>{{ validationResult.status === 'success' ? 'Valid JSON' : 'Syntax error' }}</strong>
-                    <p>{{ validationResult.message }}</p>
-                    @if (validationResult.line) {
-                      <span>Line {{ validationResult.line }}, column {{ validationResult.column }}</span>
-                    }
-                  </div>
-                  @if (validationResult.excerpt) {
-                    <pre class="ctl__code">{{ validationResult.excerpt }}</pre>
-                  }
-                </div>
-              } @else {
-                <div class="ctl__empty"><p>Validate JSON to see syntax feedback.</p></div>
-              }
-            }
-          }
-        </section>
-      </div>
-
-      <details class="dc-options-flyout">
-        <summary class="dc-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" />
-            <line x1="4" y1="10" x2="4" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12" y2="3" />
-            <line x1="20" y1="21" x2="20" y2="16" />
-            <line x1="20" y1="12" x2="20" y2="3" />
-            <line x1="1" y1="14" x2="7" y2="14" />
-            <line x1="9" y1="8" x2="15" y2="8" />
-            <line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="dc-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar dc-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Formatter options">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Options</header>
-          <div class="ctl__settings">
-            <label class="ctl__field" for="indentSelect"><span>Indent size</span>
-              <select id="indentSelect" [ngModel]="indentSize" (ngModelChange)="onIndentSizeChange(+$event)">
-                <option [value]="2">2</option>
-                <option [value]="4">4</option>
-                <option [value]="6">6</option>
-                <option [value]="8">8</option>
-              </select>
+            <label class="toggle">
+              <input type="checkbox" [checked]="autoValidate" (change)="toggleAutoValidate()" />
+              <span>Auto-validate while typing</span>
             </label>
           </div>
+
+          <div class="editor-card__actions">
+            <button class="btn btn-primary" type="button" (click)="formatJson()">Beautify</button>
+            <button class="btn btn-secondary" type="button" (click)="minifyJson()">Minify</button>
+            <button class="btn btn-ghost" type="button" (click)="validateJson()">Validate only</button>
+          </div>
         </div>
-        <div class="ctl__info">
-          <div class="ctl__info-item"><span class="ctl__info-dot ctl__info-dot--accent"></span><p>Processing runs <strong>locally</strong> in your browser.</p></div>
-        </div>
-        <div class="ctl__panel jfv__related">
-          <header class="ctl__panel-head">Related tools</header>
-          <ul class="jfv__related-list">
-            @for (tool of relatedTools; track tool.path) {
-              <li>
-                <a class="jfv__related-link" [routerLink]="tool.path">
-                  <strong>{{ tool.label }}</strong>
-                  <span>{{ tool.description }}</span>
-                </a>
-              </li>
-            }
+
+        <div class="card history-card" *ngIf="operationHistory.length">
+          <header class="card__header">
+            <h2>Recent actions</h2>
+          </header>
+          <ul>
+            <li *ngFor="let entry of operationHistory">
+              <span>{{ entry.label }}</span>
+              <time>{{ entry.timestamp }}</time>
+            </li>
           </ul>
         </div>
-      </aside>
-      </details>
-    </div>
+      </div>
 
-    <details class="ctl__help">
-      <summary>How to use</summary>
+      <div class="workspace__panel workspace__panel--results">
+        <div class="card results-card">
+          <div class="results-card__tabs" role="tablist" aria-label="Result views">
+            <button
+              *ngFor="let tab of resultTabs"
+              type="button"
+              class="results-card__tab"
+              role="tab"
+              [attr.aria-selected]="activeResultTab === tab.id"
+              [class.results-card__tab--active]="activeResultTab === tab.id"
+              (click)="setActiveResultTab(tab.id)"
+            >
+              <span class="results-card__tab-label">{{ tab.label }}</span>
+              <span class="results-card__tab-description">{{ tab.description }}</span>
+            </button>
+          </div>
+
+          <div class="results-card__body" [ngSwitch]="activeResultTab">
+            <ng-container *ngSwitchCase="'formatted'">
+              <div class="results-card__toolbar">
+                <div class="results-card__status">
+                  <strong>Beautified output</strong>
+                  <span *ngIf="lastFormatMode === 'beautify'">Indented with {{ indentLabel.toLowerCase() }}</span>
+                  <span *ngIf="lastFormatMode === 'minify'">Compacted to a single line payload</span>
+                  <span *ngIf="!lastFormatMode">Format your JSON to generate output.</span>
+                </div>
+                <div class="results-card__actions">
+                  <button
+                    class="btn btn-ghost"
+                    type="button"
+                    [disabled]="!formattedOutputAvailable"
+                    (click)="copyFormatted()"
+                  >
+                    {{ copyStatus === 'success' ? 'Copied!' : 'Copy' }}
+                  </button>
+                  <button
+                    class="btn btn-ghost"
+                    type="button"
+                    [disabled]="!formattedOutputAvailable"
+                    (click)="downloadFormatted()"
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+
+              <div class="results-card__preview" *ngIf="formattedOutputAvailable; else formattedEmpty">
+                <pre>{{ formattedOutput }}</pre>
+              </div>
+              <ng-template #formattedEmpty>
+                <div class="results-card__empty">
+                  <p>Beautify or minify your JSON to see the formatted result here.</p>
+                </div>
+              </ng-template>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'tree'">
+              <div class="results-card__tree" *ngIf="treeNodes.length; else emptyTree">
+                <ul class="tree">
+                  <ng-template #treeNode let-node>
+                    <li class="tree__item" [style.paddingLeft.px]="node.level * 16">
+                      <button
+                        type="button"
+                        class="tree__toggle"
+                        *ngIf="node.children?.length"
+                        (click)="toggleNode(node)"
+                        [attr.aria-expanded]="node.expanded"
+                      >
+                        <span *ngIf="node.expanded">&#9662;</span>
+                        <span *ngIf="!node.expanded">&#9656;</span>
+                      </button>
+                      <span class="tree__key">{{ node.key || 'root' }}</span>
+                      <span class="tree__type">{{ node.type }}</span>
+                      <span class="tree__preview">{{ node.preview }}</span>
+                      <span class="tree__meta" *ngIf="node.metadata">{{ node.metadata }}</span>
+                      <ul *ngIf="node.children?.length && node.expanded">
+                        <ng-container
+                          *ngFor="let child of node.children; trackBy: trackByNodeId"
+                          [ngTemplateOutlet]="treeNode"
+                          [ngTemplateOutletContext]="{ $implicit: child }"
+                        ></ng-container>
+                      </ul>
+                    </li>
+                  </ng-template>
+                  <ng-container *ngFor="let node of treeNodes; trackBy: trackByNodeId">
+                    <ng-container [ngTemplateOutlet]="treeNode" [ngTemplateOutletContext]="{ $implicit: node }">
+                    </ng-container>
+                  </ng-container>
+                </ul>
+              </div>
+              <ng-template #emptyTree>
+                <div class="results-card__empty">
+                  <p>Beautify or validate JSON to generate an interactive tree view.</p>
+                </div>
+              </ng-template>
+            </ng-container>
+
+            <ng-container *ngSwitchCase="'validation'">
+              <div
+                class="validation-card__status"
+                [class.validation-card__status--success]="validationResult?.status === 'success'"
+                [class.validation-card__status--error]="validationResult?.status === 'error'"
+              >
+                <strong *ngIf="validationResult?.status === 'success'">Valid JSON</strong>
+                <strong *ngIf="validationResult?.status === 'error'">Syntax error</strong>
+                <p>{{ validationResult?.message || 'Run validation to see syntax feedback.' }}</p>
+                <div class="validation-card__details" *ngIf="validationResult?.line">
+                  <span>Line {{ validationResult?.line }}, column {{ validationResult?.column }}</span>
+                </div>
+              </div>
+
+              <div class="validation-card__excerpt" *ngIf="validationResult?.excerpt">
+                <pre>{{ validationResult?.excerpt }}</pre>
+              </div>
+
+              <div class="results-card__empty" *ngIf="!validationResult">
+                <p>Validate your JSON to reveal syntax hints and structural guidance.</p>
+              </div>
+
+              <div class="results-card__tips">
+                <h3>Validation best practices</h3>
+                <ul>
+                  <li>Keep trailing commas out of JSON—only JSON5 permits them.</li>
+                  <li>Wrap property names and string values in double quotes.</li>
+                  <li>Validate before committing configuration files to version control.</li>
+                  <li>Use minified JSON when transferring data across networks.</li>
+                </ul>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </section>
+
+  <section class="info-grid">
+    <article class="info-card">
+      <h2>About this tool</h2>
+      <p>
+        The JSON Formatter & Validator streamlines the process of preparing JSON payloads for APIs,
+        configuration files, and documentation. Paste raw content or upload a file, then refine it with
+        best-practice formatting controls and a navigable tree view.
+      </p>
+    </article>
+
+    <article class="info-card info-card--usage">
+      <h2>How to use</h2>
+      <ol>
+        <li *ngFor="let step of usageSteps">{{ step }}</li>
+      </ol>
+      <p class="info-card__tip">
+        Tip: Use the tree tab to spot nested structures without scrolling through the entire document.
+      </p>
+    </article>
+
+    <article class="info-card">
+      <h2>Formatter tips</h2>
       <ul>
-        <li>Paste or upload JSON in the input editor.</li>
-        <li>On desktop, input and output appear <strong>side by side</strong> for full vertical height.</li>
-        <li>Click the <strong>Options</strong> button (bottom-right) to adjust indent and settings.</li>
+        <li *ngFor="let tip of formatterTips">{{ tip }}</li>
       </ul>
-    </details>
-  </main>
+    </article>
+  </section>
+
+  <section class="next-steps">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Share the formatted JSON with teammates for quick reviews.</li>
+      <li>Toggle between formatted, tree, and validation views to maintain clean payloads.</li>
+      <li>Download the output to archive the canonical version used in production.</li>
+    </ul>
+  </section>
 </div>

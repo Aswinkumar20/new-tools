@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { pdfToolTestProviders } from '../../shared/pdf-tool-test.utils';
 import { FillPdfFormsComponent } from './fill-pdf-forms';
 
 describe('FillPdfFormsComponent', () => {
@@ -8,8 +7,7 @@ describe('FillPdfFormsComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FillPdfFormsComponent],
-      providers: pdfToolTestProviders(),
+      imports: [FillPdfFormsComponent]
     }).compileComponents();
 
     fixture = TestBed.createComponent(FillPdfFormsComponent);

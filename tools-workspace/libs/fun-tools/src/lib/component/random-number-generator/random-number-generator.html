@@ -1,214 +1,214 @@
-<div class="ctl ft">
-  <lib-navigation></lib-navigation>
+<div class="rng">
+  <div class="rng__nav">
+    <lib-navigation></lib-navigation>
+  </div>
 
-  <main class="ctl__main">
-    <div class="ctl__top">
-      <header class="ctl__header">
-        <h1>Random Number Generator</h1>
-        <p>Generate random integers or decimals within a range — single or batch.</p>
+  <section class="rng__hero">
+    <div class="rng__badge">Fun tools</div>
+    <h1>Random Number Generator</h1>
+    <p>
+      Generate random numbers within a specified range. Choose between integers or decimals, generate single or multiple
+      numbers, and track statistics.
+    </p>
+
+    @if (hasResults()) {
+      <div class="rng__hero-meta">
+        <div>
+          <span class="rng__meta-label">Generated</span>
+          <strong>{{ stats().count }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Min / Max</span>
+          <strong>{{ formatNumber(stats().min) }} / {{ formatNumber(stats().max) }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Average</span>
+          <strong>{{ formatNumber(stats().average) }}</strong>
+        </div>
+        <div>
+          <span class="rng__meta-label">Sum</span>
+          <strong>{{ formatNumber(stats().sum) }}</strong>
+        </div>
+      </div>
+    } @else {
+      <div class="rng__hero-meta rng__hero-meta--placeholder">
+        Configure options below and click "Generate" to create random numbers.
+      </div>
+    }
+  </section>
+
+  <div class="rng__board" [formGroup]="form">
+    <section class="rng__panel rng__panel--options">
+      <header class="rng__card-header">
+        <div>
+          <h2>Options</h2>
+          <p>Configure number generation settings.</p>
+        </div>
+        <button type="button" class="btn btn--primary btn--small" (click)="generate()">Generate</button>
       </header>
 
-      <div class="ctl__stats" aria-label="Result statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ stats().count }}</span>
-          <span class="ctl__stat-label">Total</span>
+      @if (errors().length) {
+        <div class="rng__alert rng__alert--error">
+          <ul>
+            @for (message of errors(); track message) {
+              <li>{{ message }}</li>
+            }
+          </ul>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasResults() ? formatNumber(stats().min) : '—' }}</span>
-          <span class="ctl__stat-label">Min</span>
+      }
+
+      <div class="rng__field rng__field--inline">
+        <div>
+          <label for="min" class="rng__label">Minimum</label>
+          <input
+            id="min"
+            type="number"
+            class="rng__input"
+            formControlName="min"
+            step="any"
+            placeholder="1"
+          />
+          <small class="rng__hint">Minimum value in range.</small>
         </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasResults() ? formatNumber(stats().max) : '—' }}</span>
-          <span class="ctl__stat-label">Max</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasResults() ? formatNumber(stats().average) : '—' }}</span>
-          <span class="ctl__stat-label">Avg</span>
+        <div>
+          <label for="max" class="rng__label">Maximum</label>
+          <input
+            id="max"
+            type="number"
+            class="rng__input"
+            formControlName="max"
+            step="any"
+            placeholder="100"
+          />
+          <small class="rng__hint">Maximum value in range.</small>
         </div>
       </div>
-    </div>
 
-    <div class="ft-workflow" aria-label="Generator actions">
-      <div class="ft-workflow__group ft-workflow__group--actions">
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="generate()"
-          aria-label="Generate numbers"
-          appTooltip="Generate numbers"
-          tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-          <span class="ctl__tool-btn-label">Generate</span>
-        </button>
-        <button
-          type="button"
-          class="ctl__tool-btn"
-          (click)="clearResults()"
-          [disabled]="!hasResults()"
-          aria-label="Clear results"
-          appTooltip="Clear results"
-          tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
-          <span class="ctl__tool-btn-label">Clear</span>
-        </button>
+      <div class="rng__field">
+        <label for="count" class="rng__label">Count</label>
+        <input
+          id="count"
+          type="number"
+          class="rng__input"
+          formControlName="count"
+          min="1"
+          max="1000"
+          placeholder="1"
+        />
+        <small class="rng__hint">Number of random numbers to generate (1-1000).</small>
       </div>
-    </div>
 
-    <div class="ctl__workspace ctl__workspace--split" [formGroup]="form">
-      <div class="ctl__editors ctl__editors--split">
-        <section class="ctl__editor ctl__editor--merged">
-          <header class="ctl__editor-head">
-            <span>Results</span>
-            <div class="ctl__editor-actions">
-              @if (hasResults()) {
-                <span class="ctl__editor-badge">{{ latestResults().length }}</span>
-              }
+      <div class="rng__field">
+        <label class="rng__checkbox-label">
+          <input type="checkbox" class="rng__checkbox" formControlName="integerOnly" />
+          <span>Integer only</span>
+        </label>
+        <small class="rng__hint">Generate only whole numbers (no decimals).</small>
+      </div>
+
+      @if (!form.controls.integerOnly.value) {
+        <div class="rng__field">
+          <label for="decimals" class="rng__label">Decimal Places</label>
+          <input
+            id="decimals"
+            type="number"
+            class="rng__input"
+            formControlName="decimals"
+            min="0"
+            max="10"
+            placeholder="2"
+          />
+          <small class="rng__hint">Number of decimal places (0-10).</small>
+        </div>
+      }
+    </section>
+
+    <section class="rng__panel rng__panel--results">
+      <header class="rng__card-header">
+        <div>
+          <h2>Results</h2>
+          <p>Generated random numbers.</p>
+        </div>
+        <div class="rng__header-actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--small"
+            (click)="clearResults()"
+            [disabled]="!hasResults()"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary btn--small"
+            (click)="copyResults()"
+            [disabled]="!hasResults()"
+          >
+            Copy All
+          </button>
+        </div>
+      </header>
+
+      @if (hasResults() && latestResults().length > 0) {
+        <div class="rng__results-container">
+          @if (latestResults().length === 1) {
+            <div class="rng__single-result">
+              <div class="rng__result-value">{{ formatNumber(latestResults()[0].value) }}</div>
               <button
                 type="button"
-                class="ctl__icon-btn"
-                (click)="copyResults()"
-                [disabled]="!hasResults()"
-                aria-label="Copy all results"
-                appTooltip="Copy all results"
-                tooltipPosition="bottom">
-                <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                class="rng__copy-btn"
+                (click)="copySingle(latestResults()[0].value)"
+                title="Copy number"
+              >
+                Copy
               </button>
             </div>
-          </header>
-          @if (errors().length) {
-            <div class="ctl__alert ctl__alert--error" role="alert">
-              <ul>
-                @for (message of errors(); track message) {
-                  <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-          }
-          @if (primarySuggestion(); as suggestion) {
-            <aside class="rng__suggest" aria-label="Suggested next step">
-              <div class="rng__suggest-body">
-                <p class="rng__suggest-title">{{ suggestion.title }}</p>
-                <p class="rng__suggest-reason">{{ suggestion.reason }}</p>
-              </div>
-              <div class="rng__suggest-actions">
-                <a class="rng__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-                <button
-                  type="button"
-                  class="rng__suggest-dismiss"
-                  (click)="dismissSuggestion(suggestion.id)"
-                  aria-label="Dismiss suggestion">
-                  Dismiss
-                </button>
-              </div>
-            </aside>
-          }
-          @if (hasResults() && latestResults().length > 0) {
-            <div class="ctl__editor-body rng-results" aria-live="polite">
-              @if (latestResults().length === 1) {
-                <div class="rng-single">
-                  <span class="rng-value">{{ formatNumber(latestResults()[0].value) }}</span>
+          } @else {
+            <ul class="rng__results-list">
+              @for (item of latestResults(); track item.timestamp) {
+                <li class="rng__result-item">
+                  <span class="rng__result-value">{{ formatNumber(item.value) }}</span>
                   <button
                     type="button"
-                    class="ctl__icon-btn"
-                    (click)="copySingle(latestResults()[0].value)"
-                    aria-label="Copy number"
-                    appTooltip="Copy number"
-                    tooltipPosition="bottom">
-                    <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
+                    class="rng__copy-btn"
+                    (click)="copySingle(item.value)"
+                    title="Copy number"
+                  >
+                    Copy
                   </button>
-                </div>
-              } @else {
-                <ul class="rng-list">
-                  @for (item of latestResults(); track item.timestamp) {
-                    <li class="rng-item">
-                      <span>{{ formatNumber(item.value) }}</span>
-                      <button
-                        type="button"
-                        class="ctl__icon-btn"
-                        (click)="copySingle(item.value)"
-                        aria-label="Copy number"
-                        appTooltip="Copy number"
-                        tooltipPosition="bottom">
-                        <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="16" height="16" />
-                      </button>
-                    </li>
-                  }
-                </ul>
+                </li>
               }
-            </div>
-          } @else {
-            <div class="ctl__empty" aria-live="polite">
-              <p>Set a range and click Generate to create random numbers.</p>
-            </div>
+            </ul>
           }
-        </section>
-      </div>
+        </div>
 
-      <details class="ft-options-flyout">
-        <summary class="ft-options-flyout__trigger" aria-label="Open options panel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-          </svg>
-          <span>Options</span>
-        </summary>
-        <button type="button" class="ft-options-flyout__backdrop" aria-label="Close options panel" (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside class="ctl__sidebar ft-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Generator options">
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Options</header>
-            <div class="ctl__settings">
-              <label class="ctl__field" for="min">
-                <span>Minimum</span>
-                <input id="min" type="number" formControlName="min" step="any" />
-              </label>
-              <label class="ctl__field" for="max">
-                <span>Maximum</span>
-                <input id="max" type="number" formControlName="max" step="any" />
-              </label>
-              <label class="ctl__field" for="count">
-                <span>Count</span>
-                <input id="count" type="number" formControlName="count" min="1" max="1000" />
-              </label>
-              <label class="ctl__toggle">
-                <input type="checkbox" formControlName="integerOnly" />
-                <div>
-                  <strong>Integer only</strong>
-                  <span>Generate whole numbers without decimals.</span>
-                </div>
-              </label>
-              @if (!form.controls.integerOnly.value) {
-                <label class="ctl__field" for="decimals">
-                  <span>Decimal places</span>
-                  <input id="decimals" type="number" formControlName="decimals" min="0" max="10" />
-                </label>
-              }
-            </div>
+        <div class="rng__stats">
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Count</span>
+            <strong>{{ stats().count }}</strong>
           </div>
-          <div class="ctl__panel">
-            <header class="ctl__panel-head">Related tools</header>
-            <div class="ctl__panel-body rng__related">
-              <ul class="rng__related-list">
-                @for (tool of relatedTools; track tool.path) {
-                  <li>
-                    <a class="rng__related-link" [routerLink]="tool.path">
-                      <strong>{{ tool.label }}</strong>
-                      <span>{{ tool.description }}</span>
-                    </a>
-                  </li>
-                }
-              </ul>
-            </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Minimum</span>
+            <strong>{{ formatNumber(stats().min) }}</strong>
           </div>
-        </aside>
-      </details>
-    </div>
-
-    <details class="ctl__help">
-      <summary>How to use</summary>
-      <ul>
-        <li>Set min, max, and how many numbers to generate (up to 1000).</li>
-        <li>Toggle <strong>Integer only</strong> or specify decimal places.</li>
-        <li>Copy individual numbers or the full batch with the copy icons.</li>
-      </ul>
-    </details>
-  </main>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Maximum</span>
+            <strong>{{ formatNumber(stats().max) }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Average</span>
+            <strong>{{ formatNumber(stats().average) }}</strong>
+          </div>
+          <div class="rng__stat-item">
+            <span class="rng__stat-label">Sum</span>
+            <strong>{{ formatNumber(stats().sum) }}</strong>
+          </div>
+        </div>
+      } @else {
+        <div class="rng__empty">
+          <p>Click "Generate" to create random numbers.</p>
+        </div>
+      }
+    </section>
+  </div>
 </div>

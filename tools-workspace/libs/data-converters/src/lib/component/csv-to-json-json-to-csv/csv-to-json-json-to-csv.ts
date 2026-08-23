@@ -1,63 +1,101 @@
-import { AfterViewInit, Component, ElementRef, ViewChild, inject } from '@angular/core';
-import { DecimalPipe, NgFor, NgIf } from '@angular/common';
+import { Component } from '@angular/core';
+import { CommonModule, NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { dcCopyText } from '../../shared/dc-clipboard.util';
-import { dcDownloadBlob, dcDownloadTimestamp } from '../../shared/dc-download.util';
-import type { DcRelatedToolLink, DcToolSuggestion } from '../../shared/dc-tool-suggestion.model';
-import {
-  CSV_JSON_CALLOUTS,
-  CSV_JSON_DELIMITER_OPTIONS,
-  CSV_JSON_HISTORY_LIMIT,
-  CSV_JSON_LINE_ENDING_OPTIONS,
-  CSV_JSON_MODES,
-  CSV_JSON_RELATED_TOOLS,
-  CSV_JSON_USAGE_STEPS,
-  SAMPLE_CSV,
-  SAMPLE_JSON
-} from '../../constants/csv-to-json-json-to-csv.constants';
-import type {
-  CsvJsonConversionMode,
-  CsvJsonConversionStatus,
-  CsvJsonHistoryEntry,
-  CsvJsonMetricsSummary,
-  CsvLineEnding
-} from '../../types/csv-to-json-json-to-csv.types';
-import {
-  blurActiveElement,
-  buildLineNumberList,
-  computeInputMetrics,
-  convertCsvToJson,
-  convertJsonToCsv,
-  prependCsvJsonHistory,
-  resolveCsvJsonSuggestion
-} from '../../utils/csv-to-json-json-to-csv.utils';
+import { NavigationComponent } from '@tools-workspace/features-home';
+
+type ConversionMode = 'csv-to-json' | 'json-to-csv';
+type CsvLineEnding = 'auto' | 'lf' | 'crlf';
+
+interface HistoryEntry {
+  label: string;
+  timestamp: string;
+}
+
+interface ConversionStatus {
+  status: 'success' | 'error' | 'idle';
+  message: string;
+}
+
+interface CsvParseResult {
+  headers: string[] | null;
+  rows: string[][];
+}
+
+interface MetricsSummary {
+  rows: number;
+  columns: number;
+  sizeLabel: string;
+  selection: string;
+}
+
+const SAMPLE_CSV = `id,name,email,active,created_at
+1,Ada Lovelace,ada@example.com,true,1843-12-10
+2,Alan Turing,alan@example.com,true,1950-06-07
+3,Grace Hopper,grace@example.com,false,1969-03-05`;
+
+const SAMPLE_JSON = `[
+  {
+    "id": 101,
+    "product": "Notebook",
+    "price": 12.5,
+    "inStock": true
+  },
+  {
+    "id": 102,
+    "product": "Pen",
+    "price": 2.25,
+    "inStock": true
+  },
+  {
+    "id": 103,
+    "product": "Ruler",
+    "price": 4.15,
+    "inStock": false
+  }
+]`;
 
 @Component({
   selector: 'lib-csv-to-json-json-to-csv',
   standalone: true,
   templateUrl: './csv-to-json-json-to-csv.html',
   styleUrls: ['./csv-to-json-json-to-csv.scss'],
-  imports: [NgIf, NgFor, DecimalPipe, FormsModule, RouterLink, Navigation, TooltipDirective]
+  imports: [CommonModule, NgIf, NgFor, NgTemplateOutlet, FormsModule, NavigationComponent]
 })
-export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
-  readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
+export class CsvToJsonJsonToCsvComponent {
+  readonly modes: Array<{ id: ConversionMode; label: string; description: string }> = [
+    {
+      id: 'csv-to-json',
+      label: 'CSV → JSON',
+      description: 'Import tabular data and create clean, structured JSON output.'
+    },
+    {
+      id: 'json-to-csv',
+      label: 'JSON → CSV',
+      description: 'Export arrays of objects into spreadsheets with custom delimiters.'
+    }
+  ];
 
-  @ViewChild('inputLineNumbers') inputLineNumbers!: ElementRef<HTMLElement>;
-  @ViewChild('outputLineNumbers') outputLineNumbers!: ElementRef<HTMLElement>;
+  readonly delimiterOptions = [',', ';', '\t', '|'];
+  readonly lineEndingOptions: Array<{ id: CsvLineEnding; label: string }> = [
+    { id: 'auto', label: 'Auto detect' },
+    { id: 'lf', label: 'LF (\\n)' },
+    { id: 'crlf', label: 'CRLF (\\r\\n)' }
+  ];
 
-  private fileInput: HTMLInputElement | null = null;
+  readonly usageSteps = [
+    'Pick the direction you need: CSV → JSON or JSON → CSV.',
+    'Paste or upload your data; configure delimiters, headers, and line endings.',
+    'Run the conversion, then copy or download the result instantly.',
+    'Use the history log to undo mistakes or repeat recent conversions.'
+  ];
 
-  readonly modes = CSV_JSON_MODES;
-  readonly delimiterOptions = [...CSV_JSON_DELIMITER_OPTIONS];
-  readonly lineEndingOptions = CSV_JSON_LINE_ENDING_OPTIONS;
-  readonly usageSteps = CSV_JSON_USAGE_STEPS;
-  readonly callouts = CSV_JSON_CALLOUTS;
-  readonly relatedTools: ReadonlyArray<DcRelatedToolLink> = CSV_JSON_RELATED_TOOLS;
+  readonly callouts = [
+    { title: 'Flexible Delimiters', detail: 'Commas, semicolons, pipes, or tabs—switch instantly.' },
+    { title: 'Header Aware', detail: 'Choose whether CSV rows include headers and detect them safely.' },
+    { title: 'Shareable Output', detail: 'Copy straight to clipboard or download formatted files.' }
+  ];
 
-  conversionMode: CsvJsonConversionMode = 'csv-to-json';
+  conversionMode: ConversionMode = 'csv-to-json';
 
   csvInput = '';
   jsonInput = '';
@@ -74,81 +112,33 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
   jsonSortKeys = false;
   csvIncludeHeader = true;
 
-  conversionStatus: CsvJsonConversionStatus = {
-    status: 'idle',
-    message: 'Ready to convert your data.'
-  };
-  operationHistory: CsvJsonHistoryEntry[] = [];
+  conversionStatus: ConversionStatus = { status: 'idle', message: 'Ready to convert your data.' };
+  operationHistory: HistoryEntry[] = [];
 
-  metrics: CsvJsonMetricsSummary = {
-    rows: 0,
-    columns: 0,
-    sizeLabel: '0 B',
-    selection: 'CSV'
-  };
+  metrics: MetricsSummary = { rows: 0, columns: 0, sizeLabel: '0 B', selection: 'CSV' };
 
   copyStatus: 'idle' | 'success' | 'error' = 'idle';
   isDragOver = false;
-  editorLines: number[] = [];
-  resultLines: number[] = [];
-  dismissedSuggestionId: string | null = null;
 
   constructor() {
     this.loadSample();
-  }
-
-  ngAfterViewInit(): void {
-    this.updateEditorLineNumbers();
-    this.updateResultLineNumbers();
   }
 
   get modeDescription(): string | undefined {
     return this.modes.find((mode) => mode.id === this.conversionMode)?.description;
   }
 
-  get primarySuggestion(): DcToolSuggestion | null {
-    const input = this.conversionMode === 'csv-to-json' ? this.csvInput : this.jsonInput;
-    const suggestion = resolveCsvJsonSuggestion(
-      this.conversionMode,
-      input,
-      this.conversionStatus.status,
-      !!this.resultOutput.trim()
-    );
-    if (!suggestion || this.dismissedSuggestionId === suggestion.id) {
-      return null;
-    }
-    return suggestion;
-  }
-
-  dismissSuggestion(suggestionId: string): void {
-    this.dismissedSuggestionId = suggestionId;
-  }
-
-  onModeChange(mode: CsvJsonConversionMode): void {
+  onModeChange(mode: ConversionMode): void {
     if (this.conversionMode === mode) {
       return;
     }
-
-    blurActiveElement();
     this.conversionMode = mode;
-    this.csvInput = '';
-    this.jsonInput = '';
-    this.resultOutput = '';
-    this.metrics = {
-      rows: 0,
-      columns: 0,
-      sizeLabel: '0 B',
-      selection: mode === 'csv-to-json' ? 'CSV' : 'JSON'
-    };
-    this.operationHistory = [];
-    this.copyStatus = 'idle';
     this.loadSample();
   }
 
   onCsvInputChange(value: string): void {
     this.csvInput = value;
     this.updateMetrics(value, 'CSV');
-    this.updateEditorLineNumbers();
     if (this.conversionMode === 'csv-to-json') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert CSV to JSON.' };
     }
@@ -157,48 +147,9 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
   onJsonInputChange(value: string): void {
     this.jsonInput = value;
     this.updateMetrics(value, 'JSON');
-    this.updateEditorLineNumbers();
     if (this.conversionMode === 'json-to-csv') {
       this.conversionStatus = { status: 'idle', message: 'Ready to convert JSON to CSV.' };
     }
-  }
-
-  onEditorScroll(event: Event): void {
-    const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = this.inputLineNumbers?.nativeElement;
-    if (lineNumbers) {
-      lineNumbers.scrollTop = target.scrollTop;
-    }
-  }
-
-  onResultsScroll(event: Event): void {
-    const target = event.target as HTMLTextAreaElement;
-    const lineNumbers = this.outputLineNumbers?.nativeElement;
-    if (lineNumbers) {
-      lineNumbers.scrollTop = target.scrollTop;
-    }
-  }
-
-  copyInput(): void {
-    const text = this.conversionMode === 'csv-to-json' ? this.csvInput : this.jsonInput;
-    void this.copyText(text, 'Input');
-  }
-
-  uploadFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.onchange = () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) {
-          this.readFile(file);
-        }
-      };
-    }
-    this.fileInput.accept =
-      this.conversionMode === 'csv-to-json' ? '.csv,text/csv' : '.json,application/json';
-    this.fileInput.click();
   }
 
   toggleHeaderUsage(): void {
@@ -226,19 +177,16 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
   }
 
   convert(): void {
-    blurActiveElement();
     this.conversionStatus = { status: 'idle', message: 'Converting…' };
     if (this.conversionMode === 'csv-to-json') {
-      this.applyCsvToJson();
+      this.handleCsvToJson();
     } else {
-      this.applyJsonToCsv();
+      this.handleJsonToCsv();
     }
   }
 
   resetWorkspace(): void {
-    blurActiveElement();
     this.loadSample();
-    this.toast.info('Sample data reloaded');
   }
 
   async copyResult(): Promise<void> {
@@ -248,36 +196,44 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
       return;
     }
 
-    const label = this.conversionMode === 'csv-to-json' ? 'JSON' : 'CSV';
-    const ok = await dcCopyText(this.toast, this.resultOutput, 'Output');
-    if (ok) {
+    try {
+      const navigatorRef = (globalThis as typeof globalThis & { navigator?: Navigator }).navigator;
+      if (!navigatorRef?.clipboard?.writeText) {
+        this.copyStatus = 'error';
+        setTimeout(() => (this.copyStatus = 'idle'), 1500);
+        return;
+      }
+      await navigatorRef.clipboard.writeText(this.resultOutput);
       this.copyStatus = 'success';
-      this.recordHistory(`Copied ${label} result`);
-    } else {
+      setTimeout(() => (this.copyStatus = 'idle'), 1500);
+      this.recordHistory(`Copied ${this.conversionMode === 'csv-to-json' ? 'JSON' : 'CSV'} result`);
+    } catch (error) {
+      console.warn('Unable to copy result to clipboard.', error);
       this.copyStatus = 'error';
+      setTimeout(() => (this.copyStatus = 'idle'), 1500);
     }
-    setTimeout(() => (this.copyStatus = 'idle'), 1500);
   }
 
   downloadResult(): void {
     if (!this.resultOutput.trim()) {
       return;
     }
-
     const mimeType = this.conversionMode === 'csv-to-json' ? 'application/json' : 'text/csv';
+    const blob = new Blob([this.resultOutput], { type: `${mimeType};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date()
+      .toISOString()
+      .split(':')
+      .join('-')
+      .split('.')
+      .join('-');
     const extension = this.conversionMode === 'csv-to-json' ? 'json' : 'csv';
-    const filename = `converted-${dcDownloadTimestamp()}.${extension}`;
-
-    try {
-      dcDownloadBlob(
-        new Blob([this.resultOutput], { type: `${mimeType};charset=utf-8` }),
-        filename
-      );
-      this.recordHistory(`Downloaded ${extension.toUpperCase()} result`);
-      this.toast.success(`${extension.toUpperCase()} downloaded`);
-    } catch {
-      this.toast.error('Could not download result');
-    }
+    link.download = `converted-${timestamp}.${extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    this.recordHistory(`Downloaded ${extension.toUpperCase()} result`);
   }
 
   onFileInputChange(event: Event): void {
@@ -315,84 +271,386 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
     this.readFile(file);
   }
 
-  trackByHistory(_: number, entry: CsvJsonHistoryEntry): string {
+  trackByHistory(_: number, entry: HistoryEntry): string {
     return `${entry.label}-${entry.timestamp}`;
   }
 
-  private async copyText(text: string, label: string): Promise<void> {
-    if (!text.trim()) {
+  private handleCsvToJson(): void {
+    if (!this.csvInput.trim()) {
+      this.conversionStatus = {
+        status: 'error',
+        message: 'Paste or upload CSV content to convert it into JSON.'
+      };
       return;
     }
-    await dcCopyText(this.toast, text, label);
-  }
 
-  private applyCsvToJson(): void {
-    const outcome = convertCsvToJson(
-      this.csvInput,
-      {
-        delimiter: this.csvDelimiter,
-        quote: this.csvQuote || '"',
-        hasHeader: this.csvHasHeader,
-        trim: this.csvTrimWhitespace,
-        skipEmpty: this.csvSkipEmptyLines,
-        lineEnding: this.csvLineEnding
-      },
-      this.jsonPrettyPrint,
-      this.jsonSortKeys
+    const parsed = this.parseCsv(this.csvInput, {
+      delimiter: this.csvDelimiter,
+      quote: this.csvQuote || '"',
+      hasHeader: this.csvHasHeader,
+      trim: this.csvTrimWhitespace,
+      skipEmpty: this.csvSkipEmptyLines,
+      lineEnding: this.csvLineEnding
+    });
+
+    if ('error' in parsed) {
+      this.conversionStatus = {
+        status: 'error',
+        message: parsed.error
+      };
+      return;
+    }
+
+    const { headers, rows } = parsed;
+    let json: unknown;
+    if (headers) {
+      json = rows.map((row) => {
+        const entry: Record<string, unknown> = {};
+        headers.forEach((header, index) => {
+          entry[header] = row[index] ?? '';
+        });
+        return entry;
+      });
+      this.metrics = {
+        rows: rows.length,
+        columns: headers.length,
+        sizeLabel: this.formatBytes(new Blob([JSON.stringify(json)]).size),
+        selection: 'JSON'
+      };
+    } else {
+      json = rows;
+      this.metrics = {
+        rows: rows.length,
+        columns: rows[0]?.length ?? 0,
+        sizeLabel: this.formatBytes(new Blob([JSON.stringify(json)]).size),
+        selection: 'JSON'
+      };
+    }
+
+    const replacer = this.jsonSortKeys ? this.sortObjectKeys : undefined;
+    this.resultOutput = JSON.stringify(
+      json,
+      replacer,
+      this.jsonPrettyPrint ? 2 : undefined
     );
-
-    if (!outcome.ok) {
-      this.conversionStatus = { status: 'error', message: outcome.message };
-      this.resultOutput = '';
-      this.updateResultLineNumbers();
-      return;
-    }
-
-    this.resultOutput = outcome.output;
-    this.metrics = outcome.metrics;
-    this.updateResultLineNumbers();
-    this.conversionStatus = { status: 'success', message: outcome.message };
+    this.conversionStatus = {
+      status: 'success',
+      message: `Converted CSV to JSON (${rows.length} rows).`
+    };
     this.recordHistory('Converted CSV to JSON');
   }
 
-  private applyJsonToCsv(): void {
-    const outcome = convertJsonToCsv(this.jsonInput, this.csvLineEnding, {
-      delimiter: this.csvDelimiter,
-      quote: this.csvQuote || '"',
-      includeHeader: this.csvIncludeHeader,
-      sortKeys: this.jsonSortKeys,
-      trimWhitespace: this.csvTrimWhitespace
-    });
-
-    if (!outcome.ok) {
-      this.conversionStatus = { status: 'error', message: outcome.message };
-      this.resultOutput = '';
-      this.updateResultLineNumbers();
+  private handleJsonToCsv(): void {
+    if (!this.jsonInput.trim()) {
+      this.conversionStatus = {
+        status: 'error',
+        message: 'Paste or upload JSON content to convert it into CSV.'
+      };
       return;
     }
 
-    this.resultOutput = outcome.output;
-    this.metrics = outcome.metrics;
-    this.updateResultLineNumbers();
-    this.conversionStatus = { status: 'success', message: outcome.message };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(this.jsonInput);
+    } catch (error) {
+      this.conversionStatus = {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unable to parse JSON input.'
+      };
+      return;
+    }
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      this.conversionStatus = {
+        status: 'error',
+        message: 'JSON must be an array of objects or arrays with at least one entry.'
+      };
+      return;
+    }
+
+    const detectedLineEnding = this.resolveLineEnding(this.jsonInput, this.csvLineEnding);
+    const csv = this.buildCsv(parsed, detectedLineEnding);
+    if ('error' in csv) {
+      this.conversionStatus = {
+        status: 'error',
+        message: csv.error
+      };
+      return;
+    }
+
+    this.resultOutput = csv.value;
+    this.metrics = {
+      rows: csv.rows,
+      columns: csv.columns,
+      sizeLabel: this.formatBytes(new Blob([csv.value]).size),
+      selection: 'CSV'
+    };
+    this.conversionStatus = {
+      status: 'success',
+      message: `Converted JSON to CSV (${csv.rows} rows).`
+    };
     this.recordHistory('Converted JSON to CSV');
   }
 
+  private parseCsv(
+    source: string,
+    options: {
+      delimiter: string;
+      quote: string;
+      hasHeader: boolean;
+      trim: boolean;
+      skipEmpty: boolean;
+      lineEnding: CsvLineEnding;
+    }
+  ): CsvParseResult | { error: string } {
+    const delimiter = options.delimiter;
+    const quoteChar = options.quote || '"';
+    const newline = this.resolveLineEnding(source, options.lineEnding);
+
+    const rows: string[][] = [];
+    let currentField = '';
+    let currentRow: string[] = [];
+    let insideQuotes = false;
+    let pointer = 0;
+    const length = source.length;
+
+    const pushField = () => {
+      currentRow.push(options.trim ? currentField.trim() : currentField);
+      currentField = '';
+    };
+
+    const pushRow = () => {
+      if (!(options.skipEmpty && currentRow.every((field) => field === ''))) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+    };
+
+    while (pointer < length) {
+      const char = source[pointer];
+      const next = pointer + 1 < length ? source[pointer + 1] : '';
+
+      if (char === quoteChar) {
+        if (insideQuotes && next === quoteChar) {
+          currentField += quoteChar;
+          pointer += 1;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (!insideQuotes && char === delimiter) {
+        pushField();
+      } else if (!insideQuotes && this.isNewline(source, pointer, newline)) {
+        pushField();
+        pushRow();
+        pointer += newline.length - 1;
+      } else {
+        currentField += char;
+      }
+
+      pointer += 1;
+    }
+
+    pushField();
+    pushRow();
+
+    if (!rows.length) {
+      return { error: 'No CSV data detected. Check delimiters or upload a different file.' };
+    }
+
+    if (options.hasHeader) {
+      const headers = rows.shift() ?? [];
+      if (!headers.length) {
+        return { error: 'Header row is empty. Disable headers or provide valid column names.' };
+      }
+      return { headers, rows };
+    }
+
+    return { headers: null, rows };
+  }
+
+  private isNewline(source: string, index: number, newline: string): boolean {
+    if (newline === '\r\n') {
+      return source[index] === '\r' && source[index + 1] === '\n';
+    }
+    return source[index] === '\n';
+  }
+
+  private buildCsv(
+    parsed: unknown[],
+    newline: string
+  ): { value: string; rows: number; columns: number } | { error: string } {
+    const delimiter = this.csvDelimiter;
+    const quoteChar = this.csvQuote || '"';
+    const includeHeader = this.csvIncludeHeader;
+
+    const rows: string[][] = [];
+    let columns: string[] = [];
+
+    if (this.isArrayOfObjects(parsed)) {
+      const seen = new Set<string>();
+      parsed.forEach((item) => {
+        Object.keys(item).forEach((key) => {
+          if (!seen.has(key)) {
+            seen.add(key);
+            columns.push(key);
+          }
+        });
+      });
+
+      if (this.jsonSortKeys) {
+        columns = [...columns].sort((a, b) => a.localeCompare(b));
+      }
+
+      if (!columns.length) {
+        return { error: 'Could not determine CSV columns from the JSON objects.' };
+      }
+
+      if (includeHeader) {
+        rows.push(columns);
+      }
+
+      parsed.forEach((entry) => {
+        const row = columns.map((column) => {
+          const value = entry[column];
+          return this.stringifyCsvValue(value, delimiter, quoteChar, newline);
+        });
+        rows.push(row);
+      });
+
+      return {
+        value: rows.map((row) => row.join(delimiter)).join(newline),
+        rows: includeHeader ? rows.length - 1 : rows.length,
+        columns: columns.length
+      };
+    }
+
+    if (this.isArrayOfArrays(parsed)) {
+      parsed.forEach((rowArray) => {
+        const row = rowArray.map((value) =>
+          this.stringifyCsvValue(value, delimiter, quoteChar, newline)
+        );
+        rows.push(row);
+      });
+
+      return {
+        value: rows.map((row) => row.join(delimiter)).join(newline),
+        rows: rows.length,
+        columns: rows[0]?.length ?? 0
+      };
+    }
+
+    return {
+      error:
+        'JSON must be an array of objects (preferred) or an array of arrays to convert into CSV.'
+    };
+  }
+
+  private stringifyCsvValue(
+    value: unknown,
+    delimiter: string,
+    quoteChar: string,
+    newline: string
+  ): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return this.wrapCsvField(value, delimiter, quoteChar, newline);
+    }
+    if (typeof value === 'boolean' || typeof value === 'number') {
+      const stringValue = String(value);
+      return this.wrapCsvField(stringValue, delimiter, quoteChar, newline);
+    }
+
+    const serialized = JSON.stringify(value);
+    return this.wrapCsvField(serialized, delimiter, quoteChar, newline);
+  }
+
+  private wrapCsvField(
+    value: string,
+    delimiter: string,
+    quoteChar: string,
+    newline: string
+  ): string {
+    const mustQuote =
+      value.includes(delimiter) ||
+      value.includes('\n') ||
+      value.includes('\r') ||
+      value.includes(quoteChar);
+
+    let escaped = value;
+    if (value.includes(quoteChar)) {
+      const regex = new RegExp(quoteChar, 'g');
+      escaped = value.replace(regex, quoteChar + quoteChar);
+    }
+
+    if (mustQuote) {
+      return `${quoteChar}${escaped}${quoteChar}`;
+    }
+    if (this.csvTrimWhitespace) {
+      return escaped.trim();
+    }
+    return escaped;
+  }
+
+  private resolveLineEnding(source: string, option: CsvLineEnding): string {
+    if (option === 'lf') {
+      return '\n';
+    }
+    if (option === 'crlf') {
+      return '\r\n';
+    }
+    return source.includes('\r\n') ? '\r\n' : '\n';
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) {
+      return '0 B';
+    }
+    const k = 1024;
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const value = bytes / Math.pow(k, i);
+    return `${value.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+  }
+
   private updateMetrics(value: string, selection: string): void {
-    this.metrics = computeInputMetrics(
-      value,
-      selection,
-      this.conversionMode,
-      this.csvDelimiter
-    );
+    const rows = value.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
+    const columns =
+      this.conversionMode === 'csv-to-json'
+        ? (value.split(/\r?\n/, 1)[0]?.split(this.csvDelimiter).length ?? 0)
+        : 0;
+    this.metrics = {
+      rows,
+      columns,
+      sizeLabel: this.formatBytes(new Blob([value]).size),
+      selection
+    };
+  }
+
+  private sortObjectKeys(
+    this: void,
+    key: string,
+    value: unknown
+  ): unknown {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const sorted: Record<string, unknown> = {};
+      Object.keys(value as Record<string, unknown>)
+        .sort((a, b) => a.localeCompare(b))
+        .forEach((childKey) => {
+          sorted[childKey] = (value as Record<string, unknown>)[childKey];
+        });
+      return sorted;
+    }
+    return value;
   }
 
   private recordHistory(label: string): void {
-    this.operationHistory = prependCsvJsonHistory(
-      this.operationHistory,
-      label,
-      CSV_JSON_HISTORY_LIMIT
-    );
+    const timestamp = new Date().toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    this.operationHistory = [{ label, timestamp }, ...this.operationHistory].slice(0, 6);
   }
 
   private readFile(file: File): void {
@@ -407,28 +665,23 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
           this.conversionMode = 'csv-to-json';
           this.csvInput = text;
           this.updateMetrics(text, 'CSV');
-          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded CSV file (${file.name}). Ready to convert.`
           };
-          this.toast.info(`Loaded ${file.name}`);
         } else if (isJson || (!isCsv && this.conversionMode === 'json-to-csv')) {
           this.conversionMode = 'json-to-csv';
           this.jsonInput = text;
           this.updateMetrics(text, 'JSON');
-          this.updateEditorLineNumbers();
           this.conversionStatus = {
             status: 'idle',
             message: `Loaded JSON file (${file.name}). Ready to convert.`
           };
-          this.toast.info(`Loaded ${file.name}`);
         } else {
           this.conversionStatus = {
             status: 'error',
             message: `Unsupported file type: ${extension || 'unknown'}. Upload CSV or JSON.`
           };
-          this.toast.error('Unsupported file type');
         }
       })
       .catch(() => {
@@ -436,8 +689,15 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
           status: 'error',
           message: 'Could not read the selected file. Please try another file.'
         };
-        this.toast.error('Could not read file');
       });
+  }
+
+  private isArrayOfObjects(value: unknown[]): value is Record<string, unknown>[] {
+    return value.every((entry) => !!entry && typeof entry === 'object' && !Array.isArray(entry));
+  }
+
+  private isArrayOfArrays(value: unknown[]): value is unknown[][] {
+    return value.every(Array.isArray);
   }
 
   private loadSample(): void {
@@ -446,8 +706,6 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
       this.jsonInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.csvInput, 'CSV');
-      this.updateEditorLineNumbers();
-      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample CSV loaded. Adjust options and convert when ready.'
@@ -457,8 +715,6 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
       this.csvInput = '';
       this.resultOutput = '';
       this.updateMetrics(this.jsonInput, 'JSON');
-      this.updateEditorLineNumbers();
-      this.updateResultLineNumbers();
       this.conversionStatus = {
         status: 'idle',
         message: 'Sample JSON loaded. Adjust options and convert when ready.'
@@ -466,14 +722,5 @@ export class CsvToJsonJsonToCsvComponent implements AfterViewInit {
     }
     this.operationHistory = [];
     this.copyStatus = 'idle';
-  }
-
-  private updateEditorLineNumbers(): void {
-    const currentInput = this.conversionMode === 'csv-to-json' ? this.csvInput : this.jsonInput;
-    this.editorLines = buildLineNumberList(currentInput);
-  }
-
-  private updateResultLineNumbers(): void {
-    this.resultLines = buildLineNumberList(this.resultOutput);
   }
 }
