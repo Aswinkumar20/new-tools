@@ -5,7 +5,8 @@ import {
   createEpcFileRecord,
   createSampleEpcFile,
   exportEpcEventsCsv,
-  filterValidEpcFiles
+  filterValidEpcFiles,
+  resolveEpcSuggestion
 } from './epc-diagram-viewer.utils';
 
 describe('epc-parse.utils', () => {
@@ -79,5 +80,24 @@ describe('epc-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveEpcSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveEpcSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveEpcSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveEpcSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportEpc returns false for null', () => {
+    expect(canExportEpc(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createEpcFileRecord(new File(['hello world'], 'bad.epc', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportEpc(record)).toBe(false);
   });
 });

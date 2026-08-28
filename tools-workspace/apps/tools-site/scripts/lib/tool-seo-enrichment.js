@@ -62,6 +62,13 @@ const TOOL_ENRICHMENT = {
     keywords:
       'xes viewer online, xes file viewer, process mining event log viewer, open xes file, pm4js viewer, event log analyzer',
   },
+  '/file-viewers/ics-viewer': {
+    name: 'ICS Calendar Viewer',
+    description:
+      'Open and preview .ics / iCalendar files in your browser. Month, week, day, agenda, and year views with search, filters, recurrence, and timezones — strictly read-only.',
+    keywords:
+      'ics viewer online, icalendar viewer, open ics file, calendar viewer, ics file preview, outlook ics viewer, google calendar ics viewer, apple calendar export viewer, read-only calendar',
+  },
   '/file-viewers/epub-viewer': {
     name: 'EPUB Viewer',
     description:

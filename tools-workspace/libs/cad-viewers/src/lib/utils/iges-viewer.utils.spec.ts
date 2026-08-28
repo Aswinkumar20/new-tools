@@ -8,11 +8,17 @@ import {
   parseIgText
 } from './iges-viewer-parse.utils';
 import {
+  buildIgEntityMetadata,
+  buildIgMetadataRows,
+  buildIgSurfaceMetadata,
   canExportIg,
   createIgFileRecord,
   createSampleIgFile,
+  exportIgRowsCsv,
   exportIgSchemaCsv,
-  filterValidIgFiles
+  exportIgSummaryJson,
+  filterValidIgFiles,
+  resolveIgSuggestion
 } from './iges-viewer.utils';
 
 describe('iges-viewer-parse.utils', () => {
@@ -108,5 +114,42 @@ describe('canExportIg guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportIg({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportIg(null)).toBe(false);
+  });
+});
+
+describe('iges-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and entity metadata rows', () => {
+    const parsed = parseIgBytes(buildSampleIgBytes(), 'impeller-hub.iges');
+    const rows = buildIgMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Surfaces')).toBe(true);
+
+    expect(buildIgSurfaceMetadata(parsed.surfaces[0]).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildIgEntityMetadata(parsed.entities[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createIgFileRecord(createSampleIgFile(), buildSampleIgBytes());
+    const summary = exportIgSummaryJson(file);
+    expect(summary).toContain('"surfaces"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportIgRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","surfaces":[],"entities":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createIgFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportIg(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveIgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveIgSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveIgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

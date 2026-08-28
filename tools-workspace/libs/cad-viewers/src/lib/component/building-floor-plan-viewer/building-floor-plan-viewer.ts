@@ -119,6 +119,10 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): FpLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -206,17 +210,9 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return fpTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isLevelHidden(id: string): boolean {
-    return this.hiddenLevelIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -229,11 +225,18 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -241,10 +244,9 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -295,7 +297,7 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -323,10 +325,13 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
       else this.shiftSpace(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatting
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: FpLoadedFile): string {
     return file.id;
@@ -356,9 +361,25 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     return index;
   }
 
+  tint(type: string, index: number): string {
+    return fpTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isLevelHidden(id: string): boolean {
+    return this.hiddenLevelIds.has(id);
+  }
+
   formatSize(bytes: number): string {
     return formatFpFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -429,6 +450,130 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedSpaceId = '';
+    this.selectedLevelId = '';
+    this.selectedRoomId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLevelIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: FpViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: FpExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportFpSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportFpSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportFpRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Plan, Levels, or Rooms to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / levels
+  // ---------------------------------------------------------------------------
+
   selectSpace(id: string): void {
     this.selectedSpaceId = id;
     this.renderCanvas();
@@ -443,6 +588,11 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
 
   selectRoom(id: string): void {
     this.selectedRoomId = id;
+    const room = this.filteredRooms.find((r) => r.id === id);
+    if (room) {
+      const hit = this.visibleSpaces.find((e) => e.name === room.name || e.id === room.name);
+      if (hit) this.selectedSpaceId = hit.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -450,10 +600,14 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredSpaces.some((s) => s.id === row.name || s.name === row.name)) this.selectedSpaceId = row.name;
-    if (this.filteredLevels.some((e) => e.id === row.name || e.name === row.name)) this.selectedLevelId = row.name;
-    if (this.filteredRooms.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedRoomId = row.name;
+    if (row?.name) {
+      const space = this.filteredSpaces.find((s) => s.id === row.name || s.name === row.name);
+      if (space) this.selectedSpaceId = space.id;
+      const level = this.filteredLevels.find((e) => e.id === row.name || e.name === row.name);
+      if (level) this.selectedLevelId = level.id;
+      const room = this.filteredRooms.find((inst) => inst.id === row.name || inst.name === row.name);
+      if (room) this.selectedRoomId = room.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -463,6 +617,21 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     if (this.hiddenLevelIds.has(id)) this.hiddenLevelIds.delete(id);
     else this.hiddenLevelIds.add(id);
     this.hiddenLevelIds = new Set(this.hiddenLevelIds);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLevels(): void {
+    if (!this.hiddenLevelIds.size) return;
+    this.hiddenLevelIds = new Set();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelectedLevel(): void {
+    if (!this.selectedLevelId || !this.parsed) return;
+    const levels = this.parsed.levels ?? [];
+    this.hiddenLevelIds = new Set(levels.filter((l) => l.id !== this.selectedLevelId && l.name !== this.selectedLevelId).map((l) => l.name));
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -477,104 +646,30 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     if (this.selectedRoomId && !this.filteredRooms.some((inst) => inst.id === this.selectedRoomId)) {
       this.selectedRoomId = this.filteredRooms[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedSpaceId = '';
+  clearSelection(): void {
     this.selectedLevelId = '';
     this.selectedRoomId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenLevelIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
-    this.clearCanvas();
+    this.selectedSpaceId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: FpViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: FpExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportFpSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportFpSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportFpRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Plan, Levels, or Rooms to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // View / canvas interaction
+  // ---------------------------------------------------------------------------
 
   zoomBy(factor: number): void {
     const canvas = this.canvasHost?.nativeElement;
@@ -596,7 +691,18 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    const solids = toFpCadGeom(this.visibleSpaces);
+    this.view = fitCadView(solids, width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -610,30 +716,6 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedLevelId = '';
-    this.selectedRoomId = '';
-    this.selectedSpaceId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids = toFpCadGeom(this.visibleSpaces);
-    this.view = fitCadView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -670,9 +752,8 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -691,8 +772,12 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftSpace(delta: number): void {
-    const list = this.filteredSpaces;
+    const list = this.visibleSpaces;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedSpaceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -718,7 +803,8 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
   private shiftRow(delta: number): void {
     const list = this.filteredRows;
     if (!list.length) return;
-    this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
+    const base = this.selectedRowIndex < 0 ? 0 : this.selectedRowIndex;
+    this.selectRow(Math.min(list.length - 1, Math.max(0, base + delta)));
   }
 
   private resetViewForCurrent(): void {
@@ -743,12 +829,14 @@ export class BuildingFloorPlanViewerComponent implements AfterViewInit, OnDestro
     let selectedId = this.selectedSpaceId || null;
     if (this.viewMode === 'rooms' && this.selectedRoom) {
       selectedId =
-        this.visibleSpaces.find((e) => e.name === this.selectedRoom?.name || e.id === this.selectedRoom?.name)?.id ?? selectedId;
+        this.visibleSpaces.find((e) => e.name === this.selectedRoom?.name || e.id === this.selectedRoom?.name)?.id ??
+        selectedId;
     }
     renderFpPlan(canvas, this.visibleSpaces, selectedId, this.view);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

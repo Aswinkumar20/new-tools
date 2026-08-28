@@ -146,17 +146,24 @@
           <div class="seq-empty" *ngIf="!currentFile && !loading">
             <p>Drop sequence source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn seq-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="seq-loading" *ngIf="loading">Parsing sequence…</div>
+          <div class="seq-loading" *ngIf="loading" role="status" aria-live="polite">Parsing sequence…</div>
         </div>
 
-        <div class="seq-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="seq-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="seq-disclaimer">Education and research preview only — not a substitute for enterprise sequence tools.</p>
+        <div class="seq-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="seq-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="seq-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for enterprise sequence tools.</p>
       </section>
 
-      <aside class="seq-sidebar">
+      <aside class="seq-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="seq-empty-panel">Upload a sequence diagram or load the sample to see overview, lifelines, and messages here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -168,7 +175,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="seq-search" type="search" placeholder="kind:actor from:User msg:Checkout (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="seq-search" type="search" aria-label="Search sequence diagram" placeholder="kind:actor from:User msg:Checkout (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="seq-search-hint">Try <code>kind:actor</code>, <code>from:User</code>, or <code>msg:Charge</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'table' || viewMode === 'messages') && filteredMessages.length" open>
@@ -224,17 +232,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Lifelines, Messages, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>kind:actor</code> or <code>msg:Charge</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, lifelines/messages CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

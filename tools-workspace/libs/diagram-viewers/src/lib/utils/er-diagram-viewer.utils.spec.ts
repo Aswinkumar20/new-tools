@@ -11,7 +11,8 @@ import {
   createErFileRecord,
   createSampleErFile,
   exportErEntitiesCsv,
-  filterValidErFiles
+  filterValidErFiles,
+  resolveErSuggestion
 } from './er-diagram-viewer.utils';
 
 describe('er-diagram-viewer-parse.utils', () => {
@@ -95,5 +96,21 @@ describe('er-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveErSuggestion covers empty and error states', () => {
+    expect(resolveErSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveErSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveErSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createErFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportEr(record)).toBe(false);
+  });
+
+  it('canExportEr returns false for null', () => {
+    expect(canExportEr(null)).toBe(false);
   });
 });

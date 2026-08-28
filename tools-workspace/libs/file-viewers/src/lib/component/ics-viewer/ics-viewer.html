@@ -1,0 +1,710 @@
+<div
+  class="ctl fv"
+  (dragenter)="onDragEnter()"
+  (dragleave)="onDragLeave()"
+  (drop)="onDrop($event)">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>ICS Calendar Viewer</h1>
+        <p>
+          Open and explore <strong>.ics</strong> calendars in your browser — month, week, day,
+          agenda, and year views. Strictly <strong>read-only</strong>: no editing, RSVP, or sync.
+        </p>
+      </header>
+
+      <div class="ctl__stats" aria-label="Calendar statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.events ?? '—' }}</span>
+          <span class="ctl__stat-label">Events</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.calendars ?? '—' }}</span>
+          <span class="ctl__stat-label">Calendars</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.allDay ?? '—' }}</span>
+          <span class="ctl__stat-label">All-day</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ stats?.recurring ?? '—' }}</span>
+          <span class="ctl__stat-label">Recurring</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fv-workflow" aria-label="ICS calendar controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="openFileDialog()"
+          aria-label="Upload ICS calendar"
+          appTooltip="Upload · Supported formats: {{ formatsLabel }}"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+        </button>
+        <input
+          #fileInput
+          type="file"
+          multiple
+          [accept]="acceptAttr"
+          (change)="onFileSelected($event)"
+          class="ics-file-input"
+          tabindex="-1"
+          aria-hidden="true" />
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="loadSample()"
+          aria-label="Load sample calendar"
+          appTooltip="Load sample calendar"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span class="ctl__tool-btn-label">Sample</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="downloadOriginal()"
+          [disabled]="!currentFile"
+          aria-label="Download original ICS"
+          appTooltip="Download original ICS"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="icsFiles.length === 0"
+          aria-label="Clear all files"
+          appTooltip="Clear all files"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+
+      <ng-container *ngIf="icsFiles.length > 0">
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+        <div class="ics-nav" role="group" aria-label="Calendar navigation">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="goPrevious()"
+            aria-label="Previous"
+            appTooltip="Previous"
+            tooltipPosition="bottom">
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="goToday()"
+            aria-label="Go to today"
+            appTooltip="Today (T)"
+            tooltipPosition="bottom">
+            <span class="ctl__tool-btn-label">Today</span>
+          </button>
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="goNext()"
+            aria-label="Next"
+            appTooltip="Next"
+            tooltipPosition="bottom">
+            <span aria-hidden="true">›</span>
+          </button>
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="openJumpPicker()"
+            aria-label="Jump to date"
+            appTooltip="Jump to date"
+            tooltipPosition="bottom">
+            <span class="ctl__tool-btn-label">Jump</span>
+          </button>
+          <input
+            #jumpDateInput
+            type="date"
+            class="ics-jump-date"
+            [value]="toIso(selectedDate)"
+            (change)="jumpToDate($any($event.target).value)"
+            aria-label="Jump to date" />
+        </div>
+
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+        <div class="ics-view-tabs ics-view-tabs--desktop" role="tablist" aria-label="Calendar view">
+          <button
+            type="button"
+            role="tab"
+            class="ics-view-tab"
+            *ngFor="let opt of viewOptions"
+            [class.active]="viewMode === opt.id"
+            [attr.aria-selected]="viewMode === opt.id"
+            (click)="setViewMode(opt.id)">
+            {{ opt.label }}
+          </button>
+        </div>
+        <div class="ics-view-select ics-view-select--mobile">
+          <lib-select-box
+            [options]="viewModeOptions"
+            [ngModel]="viewMode"
+            (ngModelChange)="onViewModeSelect($event)"
+            [ariaLabel]="'Calendar view'"></lib-select-box>
+        </div>
+
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+        <div class="ics-search" role="search">
+          <input
+            type="search"
+            class="ics-search__input"
+            placeholder="Search events…"
+            [ngModel]="filters.search"
+            (ngModelChange)="onSearchChange($event)"
+            aria-label="Search events" />
+          <span class="ics-search__count" *ngIf="filters.search.trim()">
+            {{ visibleEvents.length }} result{{ visibleEvents.length === 1 ? '' : 's' }}
+          </span>
+          <button
+            type="button"
+            class="ics-search__clear"
+            *ngIf="filters.search"
+            (click)="clearSearch()"
+            aria-label="Clear search"
+            appTooltip="Clear search"
+            tooltipPosition="bottom">
+            ×
+          </button>
+        </div>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="toggleFilterPanel()"
+          [attr.aria-expanded]="showFilters"
+          aria-label="Toggle filters"
+          appTooltip="Filters"
+          tooltipPosition="bottom">
+          <span class="ctl__tool-btn-label">Filters</span>
+          <span class="ics-filter-badge" *ngIf="filterCount > 0">{{ filterCount }}</span>
+        </button>
+      </ng-container>
+    </div>
+
+    <div class="ev__suggest" *ngIf="primarySuggestion as suggestion">
+      <div class="ev__suggest-body">
+        <p class="ev__suggest-title">{{ suggestion.title }}</p>
+        <p class="ev__suggest-reason">{{ suggestion.reason }}</p>
+      </div>
+      <div class="ev__suggest-actions">
+        <a class="ev__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+        <button type="button" class="ev__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)">
+          Dismiss
+        </button>
+      </div>
+    </div>
+
+    <div class="ctl__workspace ics-workspace" [class.ics-workspace--drop]="showDropZone">
+      <div class="fv-loading" *ngIf="loading" role="status" aria-live="polite">
+        <div class="fv-spinner" aria-hidden="true"></div>
+        <p>Parsing calendar…</p>
+      </div>
+
+      <div class="ics-empty" *ngIf="!loading && icsFiles.length === 0">
+        <div class="ics-empty__card">
+          <h2>Drop an .ics file here</h2>
+          <p>{{ formatsHint }}</p>
+          <div class="ics-empty__actions">
+            <button type="button" class="ctl__tool-btn" (click)="openFileDialog()">
+              <span class="ctl__tool-btn-label">Choose file</span>
+            </button>
+            <button type="button" class="ctl__tool-btn" (click)="loadSample()">
+              <span class="ctl__tool-btn-label">Load sample</span>
+            </button>
+          </div>
+          <p class="ics-empty__note" *ngIf="errorMessage" role="alert">{{ errorMessage }}</p>
+        </div>
+      </div>
+
+      <ng-container *ngIf="!loading && icsFiles.length > 0">
+        <aside class="ics-sidebar" [class.ics-sidebar--collapsed]="!showSidebar" aria-label="Calendar sidebar">
+          <div class="ics-mini">
+            <div class="ics-mini__head">
+              <button type="button" class="ics-mini__nav" (click)="onMiniMonthPrev()" aria-label="Previous month">‹</button>
+              <strong>{{ miniMonthAnchor | date: 'MMMM yyyy' }}</strong>
+              <button type="button" class="ics-mini__nav" (click)="onMiniMonthNext()" aria-label="Next month">›</button>
+            </div>
+            <div class="ics-mini__weekdays" aria-hidden="true">
+              <span *ngFor="let d of weekdayHeaders()">{{ d.charAt(0) }}</span>
+            </div>
+            <div class="ics-mini__grid" role="grid" aria-label="Mini calendar">
+              <button
+                type="button"
+                class="ics-mini__day"
+                *ngFor="let cell of miniMonthCells; trackBy: trackByIso"
+                role="gridcell"
+                [class.ics-mini__day--muted]="!cell.inCurrentMonth"
+                [class.ics-mini__day--today]="cell.isToday"
+                [class.ics-mini__day--selected]="cell.isSelected"
+                [class.ics-mini__day--has]="cell.events.length + cell.overflowCount > 0"
+                [attr.aria-label]="cell.date | date: 'fullDate'"
+                [attr.aria-current]="cell.isToday ? 'date' : null"
+                (click)="selectDate(cell.date)">
+                {{ cell.date.getDate() }}
+              </button>
+            </div>
+          </div>
+
+          <section class="ics-side-section">
+            <h3>Calendars</h3>
+            <ul class="ics-cal-list">
+              <li *ngFor="let file of icsFiles; let i = index; trackBy: trackByFileId">
+                <button
+                  type="button"
+                  class="ics-cal-swatch-btn"
+                  (click)="toggleCalendarVisibility(file)"
+                  [attr.aria-label]="'Toggle visibility for ' + (file.meta.calendarName || file.name)"
+                  [attr.aria-pressed]="file.visible"
+                  appTooltip="Show or hide calendar"
+                  tooltipPosition="left">
+                  <span
+                    class="ics-cal-swatch"
+                    [style.background]="eventColor(file.colorIndex)"
+                    [class.ics-cal-swatch--off]="!file.visible"
+                    aria-hidden="true"></span>
+                </button>
+                <button
+                  type="button"
+                  class="ics-cal-item"
+                  [class.ics-cal-item--active]="i === currentFileIndex"
+                  (click)="selectFile(i)">
+                  <span class="ics-cal-meta">
+                    <strong>{{ file.meta.calendarName || file.name }}</strong>
+                    <small>{{ file.eventCount }} events · {{ file.sizeLabel }}</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="ics-cal-remove"
+                  (click)="removeFile(i, $event)"
+                  aria-label="Remove calendar"
+                  appTooltip="Remove"
+                  tooltipPosition="left">
+                  ×
+                </button>
+              </li>
+            </ul>
+          </section>
+
+          <section class="ics-side-section ev__related" *ngIf="relatedTools.length">
+            <h3>Related tools</h3>
+            <ul class="ev__related-list">
+              <li *ngFor="let tool of relatedTools">
+                <a [routerLink]="tool.path">
+                  <strong>{{ tool.label }}</strong>
+                  <span>{{ tool.description }}</span>
+                </a>
+              </li>
+            </ul>
+          </section>
+        </aside>
+
+        <div class="ics-main">
+          <div class="ics-toolbar">
+            <h2 class="ics-toolbar__title">{{ viewTitle }}</h2>
+            <div class="ics-toolbar__tz" *ngIf="displayTimeZone">
+              <lib-select-box
+                [options]="timezoneOptions"
+                [ngModel]="displayTimeZone"
+                (ngModelChange)="onDisplayTimeZoneChange($event)"
+                [ariaLabel]="'Display timezone'"></lib-select-box>
+              <p class="ics-toolbar__meta">Display only · does not change the file</p>
+            </div>
+          </div>
+
+          <div class="ics-filters" *ngIf="showFilters" aria-label="Event filters">
+            <div class="ics-filters__row" *ngIf="categoryOptions.length">
+              <span class="ics-filters__label">Categories</span>
+              <button
+                type="button"
+                class="ics-chip"
+                *ngFor="let cat of categoryOptions"
+                [class.ics-chip--on]="isCategoryActive(cat)"
+                (click)="toggleCategory(cat)">
+                {{ cat }}
+              </button>
+            </div>
+            <div class="ics-filters__row" *ngIf="statusOptions.length">
+              <span class="ics-filters__label">Status</span>
+              <button
+                type="button"
+                class="ics-chip"
+                *ngFor="let st of statusOptions"
+                [class.ics-chip--on]="isStatusActive(st)"
+                (click)="toggleStatus(st)">
+                {{ st }}
+              </button>
+            </div>
+            <div class="ics-filters__row" *ngIf="calendarOptions.length">
+              <span class="ics-filters__label">Calendar</span>
+              <button
+                type="button"
+                class="ics-chip"
+                *ngFor="let cal of calendarOptions"
+                [class.ics-chip--on]="isCalendarFilterActive(cal)"
+                (click)="toggleCalendarFilter(cal)">
+                {{ cal }}
+              </button>
+            </div>
+            <div class="ics-filters__row ics-filters__row--toggles">
+              <label class="ics-check">
+                <input type="checkbox" [ngModel]="filters.allDayOnly" (ngModelChange)="setAllDayOnly($event)" />
+                All-day only
+              </label>
+              <label class="ics-check">
+                <input type="checkbox" [ngModel]="filters.recurringOnly" (ngModelChange)="setRecurringOnly($event)" />
+                Recurring only
+              </label>
+              <label class="ics-check">
+                <input
+                  type="checkbox"
+                  [ngModel]="filters.hasAttendeesOnly"
+                  (ngModelChange)="setHasAttendeesOnly($event)" />
+                With attendees
+              </label>
+              <button type="button" class="ics-filters__clear" (click)="clearFilters()" *ngIf="filterCount > 0">
+                Clear filters
+              </button>
+            </div>
+          </div>
+
+          <div class="ics-empty-inline" *ngIf="visibleEvents.length === 0" role="status">
+            <p *ngIf="filters.search || filterCount > 0">No events match your search or filters.</p>
+            <p *ngIf="!filters.search && filterCount === 0">No events in this date range.</p>
+            <button type="button" class="ctl__tool-btn" *ngIf="filterCount > 0" (click)="clearFilters()">
+              <span class="ctl__tool-btn-label">Clear filters</span>
+            </button>
+          </div>
+
+          <!-- Month -->
+          <div class="ics-month" *ngIf="viewMode === 'month'" role="grid" aria-label="Month view">
+            <div class="ics-month__weeknums" aria-hidden="true"></div>
+            <div class="ics-month__head">
+              <span *ngFor="let d of weekdayHeaders()">{{ d }}</span>
+            </div>
+            <div class="ics-month__body">
+          <div
+            class="ics-month__cell"
+            *ngFor="let cell of monthCells; trackBy: trackByIso"
+            role="gridcell"
+            [class.ics-month__cell--muted]="!cell.inCurrentMonth"
+            [class.ics-month__cell--today]="cell.isToday"
+            [class.ics-month__cell--selected]="cell.isSelected"
+            tabindex="0"
+            (click)="selectDate(cell.date)"
+            (keydown.enter)="selectDate(cell.date)"
+            (keydown.space)="selectDate(cell.date); $event.preventDefault()">
+                <div class="ics-month__daynum">
+                  <span *ngIf="cell.date.getDay() === 1" class="ics-month__wk">W{{ cell.weekNumber }}</span>
+                  <span>{{ cell.date.getDate() }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="ics-event-pill"
+                  *ngFor="let ev of cell.events; trackBy: trackByEventId"
+                  [style.--ev-color]="eventColor(ev.colorIndex)"
+                  [attr.aria-label]="ev.title + ', ' + formatTime(ev)"
+                  (click)="openEvent(ev, $event)">
+                  <span class="ics-event-pill__time" *ngIf="!ev.allDay">{{ ev.start | date: 'shortTime' }}</span>
+                  {{ ev.title }}
+                </button>
+                <button
+                  type="button"
+                  class="ics-month__more"
+                  *ngIf="cell.overflowCount > 0"
+                  (click)="openDayFromOverflow(cell.date, $event)">
+                  {{ moreEventsLabel(cell.overflowCount) }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Week / Work week / Day -->
+          <div
+            class="ics-timegrid"
+            *ngIf="viewMode === 'week' || viewMode === 'workWeek' || viewMode === 'day'"
+            role="region"
+            [attr.aria-label]="viewMode + ' view'">
+            <div class="ics-timegrid__allday">
+              <div class="ics-timegrid__gutter">All day</div>
+              <div
+                class="ics-timegrid__allday-col"
+                *ngFor="let col of dayColumns; trackBy: trackByIso"
+                [class.ics-timegrid__col--today]="col.isToday">
+                <button
+                  type="button"
+                  class="ics-event-pill ics-event-pill--allday"
+                  *ngFor="let ev of col.allDayEvents; trackBy: trackByEventId"
+                  [style.--ev-color]="eventColor(ev.colorIndex)"
+                  (click)="openEvent(ev, $event)">
+                  {{ ev.title }}
+                </button>
+              </div>
+            </div>
+            <div class="ics-timegrid__head">
+              <div class="ics-timegrid__gutter"></div>
+              <div
+                class="ics-timegrid__dayhead"
+                *ngFor="let col of dayColumns; trackBy: trackByIso"
+                [class.ics-timegrid__col--today]="col.isToday">
+                <span>{{ col.weekdayLabel }}</span>
+                <strong>{{ col.label }}</strong>
+              </div>
+            </div>
+            <div class="ics-timegrid__scroll">
+              <div class="ics-timegrid__hours" aria-hidden="true">
+                <div class="ics-timegrid__hour" *ngFor="let h of hours" [style.height.px]="hourHeightPx">
+                  <span>{{ h }}</span>
+                </div>
+              </div>
+              <div
+                class="ics-timegrid__cols"
+                [style.height.px]="hourHeightPx * hours.length">
+                <div
+                  class="ics-timegrid__col"
+                  *ngFor="let col of dayColumns; trackBy: trackByIso"
+                  [class.ics-timegrid__col--today]="col.isToday">
+                  <div
+                    class="ics-now"
+                    *ngIf="col.isToday && showNowIndicator"
+                    [style.top.%]="currentTimePct"
+                    aria-hidden="true"></div>
+                  <button
+                    type="button"
+                    class="ics-timed-event"
+                    *ngFor="let slot of col.timedEvents"
+                    [style.top.%]="slot.topPct"
+                    [style.height.%]="slot.heightPct"
+                    [style.left.%]="(slot.column / slot.columnCount) * 100"
+                    [style.width.%]="100 / slot.columnCount"
+                    [style.--ev-color]="eventColor(slot.event.colorIndex)"
+                    [attr.aria-label]="slot.event.title + ', ' + formatTime(slot.event)"
+                    (click)="openEvent(slot.event, $event)">
+                    <strong>{{ slot.event.title }}</strong>
+                    <span>{{ formatTime(slot.event) }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agenda -->
+          <div class="ics-agenda" *ngIf="viewMode === 'agenda'" role="list" aria-label="Agenda">
+            <section class="ics-agenda__group" *ngFor="let group of agendaGroups" role="listitem">
+              <header [class.ics-agenda__today]="group.isToday">
+                <h3>{{ group.label }}</h3>
+                <span *ngIf="group.isToday">Today</span>
+              </header>
+              <button
+                type="button"
+                class="ics-agenda__row"
+                *ngFor="let ev of group.events; trackBy: trackByEventId"
+                (click)="openEvent(ev)">
+                <span class="ics-agenda__swatch" [style.background]="eventColor(ev.colorIndex)"></span>
+                <span class="ics-agenda__time">{{ formatTime(ev) }}</span>
+                <span class="ics-agenda__body">
+                  <strong>{{ ev.title }}</strong>
+                  <small *ngIf="ev.location">{{ ev.location }}</small>
+                </span>
+                <span class="ics-agenda__status" *ngIf="ev.status">{{ ev.status }}</span>
+              </button>
+            </section>
+          </div>
+
+          <!-- List -->
+          <div class="ics-list" *ngIf="viewMode === 'list'" role="table" aria-label="Event list">
+            <div class="ics-list__head" role="row">
+              <span>Date</span>
+              <span>Time</span>
+              <span>Title</span>
+              <span>Calendar</span>
+              <span>Location</span>
+              <span>Status</span>
+            </div>
+            <button
+              type="button"
+              class="ics-list__row"
+              role="row"
+              *ngFor="let ev of listEvents; trackBy: trackByEventId"
+              (click)="openEvent(ev)">
+              <span>{{ ev.start | date: 'mediumDate' }}</span>
+              <span>{{ formatTime(ev) }}</span>
+              <span>
+                <strong>{{ ev.title }}</strong>
+                <small *ngIf="ev.attendees.length">· {{ ev.attendees.length }} attendees</small>
+              </span>
+              <span>{{ ev.calendarName || '—' }}</span>
+              <span>{{ ev.location || '—' }}</span>
+              <span>{{ ev.status || '—' }}</span>
+            </button>
+          </div>
+
+          <!-- Year -->
+          <div class="ics-year" *ngIf="viewMode === 'year'" aria-label="Year view">
+            <article class="ics-year__month" *ngFor="let ym of yearMonths">
+              <h3>{{ ym.label }}</h3>
+              <div class="ics-year__weekdays" aria-hidden="true">
+                <span *ngFor="let d of weekdayHeaders()">{{ d.charAt(0) }}</span>
+              </div>
+              <div class="ics-year__grid">
+                <button
+                  type="button"
+                  *ngFor="let day of ym.days; trackBy: trackByIso"
+                  class="ics-year__day"
+                  [class.ics-year__day--muted]="!day.inMonth"
+                  [class.ics-year__day--today]="day.isToday"
+                  [class.ics-year__day--has]="day.eventCount > 0"
+                  [attr.aria-label]="day.date | date: 'fullDate'"
+                  (click)="day.inMonth && selectDate(day.date)">
+                  {{ day.date.getDate() }}
+                  <i *ngIf="day.eventCount > 0" [attr.data-count]="day.eventCount"></i>
+                </button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </main>
+
+  <!-- Read-only event details -->
+  <div
+    class="ics-drawer-backdrop"
+    *ngIf="showEventDetails && selectedEvent"
+    (click)="closeEventDetails()"
+    aria-hidden="true"></div>
+  <aside
+    class="ics-drawer"
+    *ngIf="showEventDetails && selectedEvent as ev"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="'Event details: ' + ev.title">
+    <header class="ics-drawer__head">
+      <div>
+        <p class="ics-drawer__eyebrow">Event details · read-only</p>
+        <h2>{{ ev.title }}</h2>
+      </div>
+      <button type="button" class="ics-drawer__close" (click)="closeEventDetails()" aria-label="Close details">
+        ×
+      </button>
+    </header>
+    <div class="ics-drawer__body">
+      <dl class="ics-dl">
+        <div>
+          <dt>When</dt>
+          <dd>
+            {{ ev.start | date: (ev.allDay ? 'fullDate' : 'medium') }}
+            <ng-container *ngIf="!ev.allDay"> – {{ ev.end | date: 'shortTime' }}</ng-container>
+            <span *ngIf="ev.allDay"> · All day</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Duration</dt>
+          <dd>{{ formatDuration(ev) }}</dd>
+        </div>
+        <div *ngIf="ev.timezone">
+          <dt>Timezone</dt>
+          <dd>{{ ev.timezone }}</dd>
+        </div>
+        <div *ngIf="ev.location">
+          <dt>Location</dt>
+          <dd>{{ ev.location }}</dd>
+        </div>
+        <div *ngIf="ev.description">
+          <dt>Description</dt>
+          <dd class="ics-dl__pre">{{ ev.description }}</dd>
+        </div>
+        <div *ngIf="ev.organizer">
+          <dt>Organizer</dt>
+          <dd>{{ participantLabel(ev.organizer) }}</dd>
+        </div>
+        <div *ngIf="ev.attendees.length">
+          <dt>Attendees</dt>
+          <dd>
+            <ul class="ics-attendees">
+              <li *ngFor="let a of ev.attendees">
+                {{ participantLabel(a) }}
+                <span *ngIf="a.partStat">({{ a.partStat }})</span>
+              </li>
+            </ul>
+          </dd>
+        </div>
+        <div *ngIf="ev.categories.length">
+          <dt>Categories</dt>
+          <dd>{{ ev.categories.join(', ') }}</dd>
+        </div>
+        <div *ngIf="ev.status">
+          <dt>Status</dt>
+          <dd>{{ ev.status }}</dd>
+        </div>
+        <div *ngIf="ev.classification">
+          <dt>Class</dt>
+          <dd>{{ ev.classification }}</dd>
+        </div>
+        <div *ngIf="ev.priority != null">
+          <dt>Priority</dt>
+          <dd>{{ ev.priority }}</dd>
+        </div>
+        <div *ngIf="ev.recurrence">
+          <dt>Recurrence</dt>
+          <dd>
+            {{ ev.recurrence.summary }}
+            <small *ngIf="ev.recurrence.rrule">{{ ev.recurrence.rrule }}</small>
+          </dd>
+        </div>
+        <div *ngIf="ev.reminders.length">
+          <dt>Reminders</dt>
+          <dd>
+            <ul class="ics-attendees">
+              <li *ngFor="let r of ev.reminders">
+                {{ r.action || 'DISPLAY' }} · {{ r.trigger }}
+              </li>
+            </ul>
+          </dd>
+        </div>
+        <div *ngIf="safeSelectedUrl">
+          <dt>URL</dt>
+          <dd>
+            <a [href]="safeSelectedUrl" target="_blank" rel="noopener noreferrer">{{ safeSelectedUrl }}</a>
+          </dd>
+        </div>
+        <div *ngIf="ev.created">
+          <dt>Created</dt>
+          <dd>{{ ev.created | date: 'medium' }}</dd>
+        </div>
+        <div *ngIf="ev.lastModified">
+          <dt>Last modified</dt>
+          <dd>{{ ev.lastModified | date: 'medium' }}</dd>
+        </div>
+        <div>
+          <dt>UID</dt>
+          <dd class="ics-dl__mono">{{ ev.uid }}</dd>
+        </div>
+      </dl>
+    </div>
+  </aside>
+</div>

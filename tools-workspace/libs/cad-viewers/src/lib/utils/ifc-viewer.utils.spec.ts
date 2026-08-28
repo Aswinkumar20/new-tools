@@ -14,7 +14,20 @@ import {
   parseIcBytes,
   parseIcText
 } from './ifc-viewer-parse.utils';
-import { canExportIc, createIcFileRecord, createSampleIcFile, exportIcSchemaCsv, filterValidIcFiles } from './ifc-viewer.utils';
+import {
+  buildIcDisciplineMetadata,
+  buildIcElementMetadata,
+  buildIcMetadataRows,
+  buildIcPropertyMetadata,
+  canExportIc,
+  createIcFileRecord,
+  createSampleIcFile,
+  exportIcRowsCsv,
+  exportIcSchemaCsv,
+  exportIcSummaryJson,
+  filterValidIcFiles,
+  resolveIcSuggestion
+} from './ifc-viewer.utils';
 
 describe('ifc-viewer-parse.utils', () => {
   it('parses the library IF01 sample', () => {
@@ -124,5 +137,43 @@ describe('canExportIc guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportIc({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportIc(null)).toBe(false);
+  });
+});
+
+describe('ifc-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and entity metadata rows', () => {
+    const parsed = parseIcBytes(buildSampleIcBytes(), 'library-annex.ifc');
+    const rows = buildIcMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Elements')).toBe(true);
+
+    expect(buildIcElementMetadata(parsed.elements[0]).some((r) => r.key === 'IFC type')).toBe(true);
+    expect(buildIcPropertyMetadata(parsed.properties[0]).some((r) => r.key === 'Value')).toBe(true);
+    expect(buildIcDisciplineMetadata(parsed.disciplines[0]).some((r) => r.key === 'Elements')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createIcFileRecord(createSampleIcFile(), buildSampleIcBytes());
+    const summary = exportIcSummaryJson(file);
+    expect(summary).toContain('"elements"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportIcRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","elements":[],"properties":[],"disciplines":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createIcFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportIc(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveIcSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveIcSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveIcSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

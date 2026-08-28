@@ -5,7 +5,8 @@ import {
   createAvFileRecord,
   createSampleAvFile,
   exportAvSchemaCsv,
-  filterValidAvFiles
+  filterValidAvFiles,
+  resolveAvSuggestion
 } from './avro-viewer.utils';
 
 describe('avro-viewer-parse.utils', () => {
@@ -84,5 +85,16 @@ describe('avro-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('disables export on soft-fail and null', () => {
+    expect(canExportAv({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
+    expect(canExportAv(null)).toBe(false);
+  });
+
+  it('resolves suggestions for empty and error states', () => {
+    expect(resolveAvSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveAvSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveAvSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

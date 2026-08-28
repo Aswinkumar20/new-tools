@@ -10,6 +10,7 @@ const {
   CATEGORY_META,
   extractRoutedTools,
   extractPrerenderRoutes,
+  extractComingSoonPaths,
   slugToTitle,
 } = require('./lib/extract-routes');
 const { getEnrichment, buildEnhancedKeywords } = require('./lib/tool-seo-enrichment');
@@ -216,10 +217,13 @@ function generate() {
   writePrerenderRoutes(prerenderRoutes);
 
   const toolCount = Object.keys(seoCatalog).length - 1;
+  const comingSoonCount = extractComingSoonPaths().length;
   console.log(`✅ Tool SEO catalog: ${SEO_OUTPUT}`);
   console.log(`✅ UI tools catalog: ${CATALOG_OUTPUT}`);
   console.log(`✅ Prerender routes: ${PRERENDER_ROUTES_OUTPUT}`);
-  console.log(`   Categories: ${uiCategories.length}, routed tools: ${toolCount}, prerender URLs: ${prerenderRoutes.length}`);
+  console.log(
+    `   Categories: ${uiCategories.length}, routed tools: ${toolCount}, prerender URLs: ${prerenderRoutes.length}, coming-soon (noindex): ${comingSoonCount}`,
+  );
 }
 
 function writeSeoCatalog(catalog) {
@@ -251,6 +255,12 @@ function writeSeoCatalog(catalog) {
   }
 
   lines.push('};', '');
+  lines.push('/** Coming-soon placeholder routes — noindex; omitted from sitemap. */');
+  lines.push('export const COMING_SOON_PATHS: readonly string[] = [');
+  for (const route of extractComingSoonPaths()) {
+    lines.push(`  '${escapeTs(route)}',`);
+  }
+  lines.push('];', '');
   fs.writeFileSync(SEO_OUTPUT, lines.join('\n'), 'utf8');
 }
 
@@ -302,7 +312,10 @@ function writeUiCatalog(categories) {
 }
 
 function writePrerenderRoutes(routes) {
-  fs.writeFileSync(PRERENDER_ROUTES_OUTPUT, `${routes.join('\n')}\n`, 'utf8');
+  const cleaned = routes.map((route) => route.trim()).filter(Boolean);
+  // No trailing newline: empty line would be treated as route "/".
+  // Inventory for CI validation against dist/.../browser/**/index.html counts.
+  fs.writeFileSync(PRERENDER_ROUTES_OUTPUT, cleaned.join('\n'), 'utf8');
 }
 
 generate();

@@ -12,7 +12,8 @@ import {
   createCtFileRecord,
   createSampleCtFile,
   exportCtSchemaCsv,
-  filterValidCtFiles
+  filterValidCtFiles,
+  resolveCtSuggestion
 } from './catia-viewer.utils';
 
 describe('catia-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportCt guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportCt({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportCt(null)).toBe(false);
+  });
+});
+
+describe('resolveCtSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveCtSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveCtSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveCtSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

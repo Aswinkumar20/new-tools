@@ -93,7 +93,7 @@
             <span>{{ parsed?.name }} · {{ selectedLayout }} · {{ parsed?.rankdir }} · {{ parsed?.nodes?.length || 0 }} nodes · {{ parsed?.edges?.length || 0 }} edges</span>
           </div>
           <div class="gvz-view-controls">
-            <button type="button" *ngFor="let layout of layouts" [class.is-active]="selectedLayout === layout" (click)="setLayout(layout)">{{ layout }}</button>
+            <button type="button" *ngFor="let layout of layouts" [class.is-active]="selectedLayout === layout" (click)="setLayout(layout)" [attr.aria-label]="layout + ' layout'" [appTooltip]="layout + ' layout'" tooltipPosition="top">{{ layout }}</button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
@@ -109,6 +109,7 @@
               </header>
               <p>{{ selectedLayout }} layout</p>
             </article>
+            <p class="gvz-empty-filter" *ngIf="parsed && !filteredEdges.length">No edges match the current filter.</p>
           </div>
           <div class="gvz-cards" *ngIf="currentFile && viewMode === 'nodes'">
             <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
@@ -119,6 +120,7 @@
               </header>
               <p>{{ node.group || node.id }}</p>
             </article>
+            <p class="gvz-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="gvz-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -146,17 +148,24 @@
           <div class="gvz-empty" *ngIf="!currentFile && !loading">
             <p>Drop Graphviz DOT here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn gvz-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gvz-loading" *ngIf="loading">Parsing DOT…</div>
+          <div class="gvz-loading" *ngIf="loading" role="status" aria-live="polite">Parsing DOT…</div>
         </div>
 
-        <div class="gvz-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="gvz-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="gvz-disclaimer">Education and research preview only — not a substitute for Graphviz, Graphviz Online, or production layout engines.</p>
+        <div class="gvz-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="gvz-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="gvz-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Graphviz, Graphviz Online, or production layout engines.</p>
       </section>
 
-      <aside class="gvz-sidebar">
+      <aside class="gvz-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="gvz-empty-panel">Upload a Graphviz DOT graph or load the sample to see overview, nodes, edges, and layout details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -168,7 +177,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search graph</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="gvz-search" type="search" placeholder="node:Cart label:ok shape:box (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="gvz-search" type="search" aria-label="Search Graphviz graph" placeholder="node:Cart label:ok shape:box (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="gvz-search-hint">Try <code>node:Cart</code>, <code>label:checkout</code>, or <code>shape:box</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredEdges.length" open>
@@ -224,17 +234,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Layout, Graph, Nodes, or Table views, pick a layout engine (dot, neato, fdp, circo, twopi), and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Cart</code> or <code>label:checkout</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, nodes/edges CSV, SVG, or a PNG snapshot from Layout, Graph, or Nodes view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

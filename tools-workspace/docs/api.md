@@ -1,6 +1,6 @@
 # API documentation
 
-There is **no first-party product REST API**. Express (`apps/tools-site/src/server.ts`) serves static files, `sitemap.xml`, `robots.txt`, and SSR HTML only.
+There is **no first-party product REST API** and **no runtime Node/Express server**. Production serves static files from `dist/apps/tools-site/browser/` (SSG). Tools that call the network use third-party or browser APIs only.
 
 ## Authentication
 

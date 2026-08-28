@@ -92,8 +92,8 @@
             <span>{{ parsed?.name }} · {{ parsed?.directed ? 'directed' : 'undirected' }} · {{ parsed?.nodes?.length || 0 }} nodes · {{ parsed?.edges?.length || 0 }} edges · {{ parsed?.communities?.length || 0 }} communities</span>
           </div>
           <div class="gml-view-controls">
-            <button type="button" *ngIf="viewMode === 'diagram'" [class.is-active]="layoutMode === 'rank'" (click)="setLayoutMode('rank')">Rank</button>
-            <button type="button" *ngIf="viewMode === 'diagram'" [class.is-active]="layoutMode === 'community'" (click)="setLayoutMode('community')">Community</button>
+            <button type="button" *ngIf="viewMode === 'diagram'" [class.is-active]="layoutMode === 'rank'" (click)="setLayoutMode('rank')" aria-label="Rank layout" appTooltip="Rank layout" tooltipPosition="top">Rank</button>
+            <button type="button" *ngIf="viewMode === 'diagram'" [class.is-active]="layoutMode === 'community'" (click)="setLayoutMode('community')" aria-label="Community layout" appTooltip="Community layout" tooltipPosition="top">Community</button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
@@ -148,17 +148,24 @@
           <div class="gml-empty" *ngIf="!currentFile && !loading">
             <p>Drop GraphML source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn gml-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gml-loading" *ngIf="loading">Parsing GraphML…</div>
+          <div class="gml-loading" *ngIf="loading" role="status" aria-live="polite">Parsing GraphML…</div>
         </div>
 
-        <div class="gml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="gml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="gml-disclaimer">Education and research preview only — not a substitute for Gephi, yEd, or Cytoscape.</p>
+        <div class="gml-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="gml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="gml-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Gephi, yEd, or Cytoscape.</p>
       </section>
 
-      <aside class="gml-sidebar">
+      <aside class="gml-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="gml-empty-panel">Upload a GraphML network or load the sample to see overview, nodes, edges, communities, and layout details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -170,7 +177,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search network</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="gml-search" type="search" placeholder="comm:shoppers from:Customer rank:0 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="gml-search" type="search" aria-label="Search GraphML network" placeholder="comm:shoppers from:Customer rank:0 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="gml-search-hint">Try <code>node:Customer</code>, <code>comm:shoppers</code>, or <code>from:Customer</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'communities' && communities.length" open>
@@ -243,17 +251,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Layout, Communities, or Table views, toggle rank/community layout, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Customer</code> or <code>comm:shoppers</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, nodes/edges CSV, or a PNG snapshot from Diagram, Layout, or Communities view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

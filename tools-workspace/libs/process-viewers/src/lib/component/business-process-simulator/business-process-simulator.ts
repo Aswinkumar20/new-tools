@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   BPSIM_ACCEPT_ATTR,
   BPSIM_FORMATS_HINT,
@@ -68,7 +68,7 @@ import {
   standalone: true,
   templateUrl: './business-process-simulator.html',
   styleUrls: ['./business-process-simulator.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestroy {
@@ -115,6 +115,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): BpsimLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -140,11 +144,11 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   }
 
   get selectedScenario(): BpsimScenario | null {
-    return this.parsed?.scenarios.find((s) => s.id === this.selectedScenarioId) ?? this.parsed?.scenarios[0] ?? null;
+    return this.filteredScenarios.find((s) => s.id === this.selectedScenarioId) ?? null;
   }
 
   get selectedNode(): BpsimNode | null {
-    return this.parsed?.nodes.find((n) => n.id === this.selectedNodeId) ?? null;
+    return this.filteredNodes.find((n) => n.id === this.selectedNodeId) ?? null;
   }
 
   get filteredNodes(): BpsimNode[] {
@@ -192,6 +196,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
     return this.marking[id] ?? 0;
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -199,6 +207,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -253,6 +265,11 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -271,6 +288,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: BpsimLoadedFile): string {
     return file.id;
@@ -295,6 +316,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   formatSize(bytes: number): string {
     return formatBpsimFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -338,8 +363,13 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no nodes — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -358,6 +388,44 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedNodeId = '';
+    this.selectedScenarioId = '';
+    this.selectedStep = null;
+    this.marking = {};
+    this.choices = {};
+    this.trace = [];
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Simulation / selection / filter
+  // ---------------------------------------------------------------------------
 
   selectNode(id: string): void {
     this.selectedNodeId = id;
@@ -421,49 +489,25 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   }
 
   resetSimulation(): void {
-    this.applyScenario(this.selectedScenarioId);
+    if (!this.parsed) return;
+    const id = this.selectedScenarioId || this.parsed.scenarios[0]?.id || '';
+    this.applyScenario(id);
   }
 
   onFilterChange(): void {
-    if (this.viewMode === 'scenarios') {
-      const sc = this.filteredScenarios[0];
-      if (sc && !this.filteredScenarios.some((s) => s.id === this.selectedScenarioId)) this.selectedScenarioId = sc.id;
-    } else {
-      const node = this.filteredNodes[0];
-      if (node && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) this.selectedNodeId = node.id;
+    if (this.selectedNodeId && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) {
+      this.selectedNodeId = this.filteredNodes[0]?.id ?? '';
+    }
+    if (this.selectedScenarioId && !this.filteredScenarios.some((s) => s.id === this.selectedScenarioId)) {
+      this.selectedScenarioId = this.filteredScenarios[0]?.id ?? '';
     }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedNodeId = '';
-    this.selectedScenarioId = '';
-    this.selectedStep = null;
-    this.marking = {};
-    this.choices = {};
-    this.trace = [];
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -476,6 +520,7 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
   }
 
   setViewMode(mode: BpsimViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -489,6 +534,11 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -497,7 +547,11 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') {
@@ -512,10 +566,16 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Tokens, Scenarios, or Graph to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -523,6 +583,10 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftNode(delta: number): void {
     const list = this.filteredNodes;
@@ -560,14 +624,19 @@ export class BusinessProcessSimulatorComponent implements AfterViewInit, OnDestr
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(this.viewMode === 'graph' ? 280 : 220, parent.clientHeight || 240));
     }
-    if (this.viewMode === 'tokens') renderBpsimTokens(canvas, this.filteredNodes, this.marking, this.enabledIds, this.selectedNodeId || null);
-    else if (this.viewMode === 'scenarios') renderBpsimScenarios(canvas, this.filteredScenarios, this.selectedScenarioId || null);
-    else if (this.viewMode === 'graph') {
+    if (this.viewMode === 'tokens') {
+      renderBpsimTokens(canvas, this.filteredNodes, this.marking, this.enabledIds, this.selectedNodeId || null);
+    } else if (this.viewMode === 'scenarios') {
+      renderBpsimScenarios(canvas, this.filteredScenarios, this.selectedScenarioId || null);
+    } else if (this.viewMode === 'graph') {
       renderBpsimGraph(canvas, this.parsed.nodes, this.parsed.edges, this.marking, this.enabledIds, this.selectedNodeId || null);
-    } else renderBpsimTrace(canvas, this.trace, this.selectedStep);
+    } else {
+      renderBpsimTrace(canvas, this.trace, this.selectedStep);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -5,7 +5,8 @@ import {
   createBpelFileRecord,
   createSampleBpelFile,
   exportBpelActivitiesCsv,
-  filterValidBpelFiles
+  filterValidBpelFiles,
+  resolveBpelSuggestion
 } from './bpel-viewer.utils';
 
 describe('bpel-parse.utils', () => {
@@ -79,5 +80,22 @@ describe('bpel-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveBpelSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveBpelSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveBpelSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveBpelSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.bpel', { lastModified: 9 });
+    const record = createBpelFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportBpel(record)).toBe(false);
+  });
+
+  it('canExportBpel returns false for null', () => {
+    expect(canExportBpel(null)).toBe(false);
   });
 });

@@ -144,17 +144,24 @@
           <div class="drl-empty" *ngIf="!currentFile && !loading">
             <p>Drop a .drl file here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn drl-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="drl-loading" *ngIf="loading">Parsing Drools rules…</div>
+          <div class="drl-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Drools rules…</div>
         </div>
 
-        <div class="drl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="drl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="drl-disclaimer">Education and research preview only — not a substitute for Drools, KIE, or production rule engines.</p>
+        <div class="drl-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="drl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="drl-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Drools, KIE, or production rule engines.</p>
       </section>
 
-      <aside class="drl-sidebar">
+      <aside class="drl-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="drl-empty-panel">Upload a Drools rule file or load the sample to see overview, rules, and conditions here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search rules</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="drl-search" type="search" placeholder="rule:shipping fact:Order salience:10 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="drl-search" type="search" aria-label="Search Drools rules" placeholder="rule:shipping fact:Order salience:10 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="drl-search-hint">Try <code>rule:shipping</code>, <code>fact:Order</code>, or <code>salience:10</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'conditions' || viewMode === 'table') && filteredConditions.length" open>
@@ -222,17 +230,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Rules, Conditions, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>rule:shipping</code> or <code>fact:Order</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, rules/conditions CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

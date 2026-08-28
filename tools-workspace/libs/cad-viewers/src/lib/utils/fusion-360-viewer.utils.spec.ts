@@ -12,7 +12,8 @@ import {
   createFuFileRecord,
   createSampleFuFile,
   exportFuSchemaCsv,
-  filterValidFuFiles
+  filterValidFuFiles,
+  resolveFuSuggestion
 } from './fusion-360-viewer.utils';
 
 describe('fusion-360-viewer-parse.utils', () => {
@@ -114,5 +115,13 @@ describe('canExportFu guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportFu({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportFu(null)).toBe(false);
+  });
+});
+
+describe('resolveFuSuggestion', () => {
+  it('returns upload-or-sample when empty and sample-after-error when errored', () => {
+    expect(resolveFuSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveFuSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveFuSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

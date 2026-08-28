@@ -16,41 +16,53 @@
       </div>
       <div class="bpel-suggest__actions">
         <button type="button" class="bpel-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="bpel-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="bpel-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="bpel-toolbar">
+    <div class="bpel-toolbar" role="toolbar" aria-label="BPEL Viewer actions">
       <div class="bpel-toolbar__group">
         <input #fileInput class="bpel-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn bpel-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn bpel-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="bpel-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="bpel-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('activities-csv', $event)">Activities CSV</button>
-            <button type="button" (click)="exportAs('partners-csv', $event)">Partners CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="bpel-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="bpel-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('activities-csv', $event)">Activities CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('partners-csv', $event)">Partners CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="bpel-files" *ngIf="files.length">
           <div class="bpel-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.bpel-files__chip--active]="i === currentIndex">
             <button type="button" class="bpel-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="bpel-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="bpel-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="bpel-toolbar__status"><span class="bpel-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="bpel-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="bpel-tab-bar" *ngIf="currentFile" role="tablist" aria-label="BPEL Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="bpel-toolbar__status"><span class="bpel-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="bpel-workspace" [class.bpel-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,11 +73,11 @@
             <span>{{ parsed?.name }} · {{ parsed?.partners?.length || 0 }} partners · {{ parsed?.activities?.length || 0 }} activities · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="bpel-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="bpel-map-wrap" [class.bpel-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="bpel-map-wrap">
           <canvas #canvasHost class="bpel-map" [class.bpel-map--tall]="viewMode === 'orchestration'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="bpel-cards" *ngIf="currentFile && (viewMode === 'orchestration' || viewMode === 'activities')">
             <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
@@ -77,6 +89,7 @@
               <p>{{ activity.name }}</p>
               <p>{{ activity.partner || activity.parentName || '—' }}</p>
             </article>
+            <p class="bpel-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
           </div>
           <div class="bpel-cards" *ngIf="currentFile && viewMode === 'partners'">
             <article *ngFor="let partner of filteredPartners; trackBy: trackByPartner" [class.is-active]="selectedPartner?.id === partner.id" (click)="selectPartner(partner.id)">
@@ -87,6 +100,7 @@
               <p>{{ partner.name }}</p>
               <p>{{ partner.myRole || '—' }} / {{ partner.partnerRole || '—' }}</p>
             </article>
+            <p class="bpel-empty-filter" *ngIf="parsed && !filteredPartners.length">No partners match the current filter.</p>
           </div>
           <div class="bpel-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -116,73 +130,93 @@
           <div class="bpel-empty" *ngIf="!currentFile && !loading">
             <p>Drop BPEL processes here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn bpel-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="bpel-loading" *ngIf="loading">Parsing BPEL…</div>
+          <div class="bpel-loading" *ngIf="loading" role="status" aria-live="polite">Parsing BPEL…</div>
         </div>
 
-        <div class="bpel-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="bpel-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="bpel-disclaimer">Education and research preview only — not a substitute for Apache ODE, ActiveVOS, or production BPEL engines.</p>
+        <div class="bpel-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="bpel-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="bpel-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Apache ODE, ActiveVOS, or production BPEL engines.</p>
       </section>
 
-      <aside class="bpel-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="bpel-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="bpel-empty-panel">Upload a BPEL process or load the sample to see overview, partners, activities, and orchestration here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="bpel-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search process</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search process</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="bpel-search" type="search" placeholder="invoke partner:customer (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="bpel-search" type="search" aria-label="Search BPEL process" placeholder="invoke partner:assessor kind:receive (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="bpel-search-hint">Try <code>invoke</code>, <code>partner:assessor</code>, or <code>kind:receive</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'partners' && filteredPartners.length">
-          <header class="ctl__panel-head">Partners</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'partners' && filteredPartners.length" open>
+          <summary class="ctl__panel-head">Partners</summary>
           <div class="ctl__panel-body bpel-units">
             <button type="button" *ngFor="let partner of filteredPartners; trackBy: trackByPartner" [class.is-active]="selectedPartnerId === partner.id" (click)="selectPartner(partner.id)">
               <i class="bpel-swatch" [style.background]="kindTint('invoke')"></i>
               <span>{{ partner.name }} <small>{{ partner.partnerRole || partner.type || 'partner' }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'partners' && filteredActivities.length">
-          <header class="ctl__panel-head">Activities</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'partners' && filteredActivities.length" open>
+          <summary class="ctl__panel-head">Activities</summary>
           <div class="ctl__panel-body bpel-units">
             <button type="button" *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivityId === activity.id" (click)="selectActivity(activity.id)">
               <i class="bpel-swatch" [style.background]="kindTint(activity.kind)"></i>
               <span>{{ activity.name }} <small>{{ activity.kind }}{{ activity.partner ? ' · ' + activity.partner : '' }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'partners' && selectedPartner">
-          <header class="ctl__panel-head">Selected partner</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'partners' && selectedPartner" open>
+          <summary class="ctl__panel-head">Selected partner</summary>
           <div class="ctl__panel-body">
             <dl class="bpel-meta">
               <div *ngFor="let row of partnerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'partners' && selectedActivity">
-          <header class="ctl__panel-head">Selected activity</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'partners' && selectedActivity" open>
+          <summary class="ctl__panel-head">Selected activity</summary>
           <div class="ctl__panel-body">
             <dl class="bpel-meta">
               <div *ngFor="let row of activityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bpel-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bpel-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help bpel-footer-help">
+      <summary>How to use BPEL Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in loan approval sample. Files never leave your browser.</li>
+        <li>Switch Orchestration, Partners, Activities, or Table views; search with tokens like <code>invoke</code> or <code>partner:customer</code>.</li>
+        <li>Select activities or partners to inspect metadata in the side panel. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, CSV inventories, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }} Education/research preview only — not a substitute for production BPEL engines.</li>
+      </ul>
+    </details>
+
     <div class="bpel-drop" *ngIf="showDropZone"><p>Drop BPEL processes to inspect</p></div>
   </main>
 </div>

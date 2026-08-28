@@ -13,7 +13,8 @@ import {
   createSampleWfFile,
   createWfFileRecord,
   exportWfSchemaCsv,
-  filterValidWfFiles
+  filterValidWfFiles,
+  resolveWfSuggestion
 } from './dwf-viewer.utils';
 
 describe('dwf-viewer-parse.utils', () => {
@@ -111,5 +112,13 @@ describe('canExportWf guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportWf({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportWf(null)).toBe(false);
+  });
+});
+
+describe('resolveWfSuggestion', () => {
+  it('returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveWfSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveWfSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveWfSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

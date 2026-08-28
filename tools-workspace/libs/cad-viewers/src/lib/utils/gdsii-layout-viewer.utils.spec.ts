@@ -15,11 +15,18 @@ import {
   parseGdText
 } from './gdsii-layout-viewer-parse.utils';
 import {
+  buildGdCellMetadata,
+  buildGdFeatMetadata,
+  buildGdLayerMetadata,
+  buildGdMetadataRows,
   canExportGd,
   createGdFileRecord,
   createSampleGdFile,
+  exportGdRowsCsv,
   exportGdSchemaCsv,
-  filterValidGdFiles
+  exportGdSummaryJson,
+  filterValidGdFiles,
+  resolveGdSuggestion
 } from './gdsii-layout-viewer.utils';
 
 describe('gdsii-layout-viewer-parse.utils', () => {
@@ -99,12 +106,43 @@ describe('gdsii-layout-viewer.utils', () => {
     expect(canExportGd(record)).toBe(true);
   });
 
-  it('exports schema csv', () => {
+  it('marks unparseable bytes as soft-fail without throwing', () => {
+    const file = new File([new Uint8Array([1, 2, 3])], 'broken.gds', { lastModified: 9 });
+    const record = createGdFileRecord(file, new Uint8Array([1, 2, 3]));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportGd(record)).toBe(false);
+  });
+
+  it('builds overview and entity metadata rows', () => {
     const parsed = parseGdBytes(buildSampleGdBytes(), 'nand2-x1.gds');
-    const csv = exportGdSchemaCsv(parsed);
-    expect(csv).toContain('kind,name,type,layer,cell,x');
-    expect(csv).toContain('TOP');
-    expect(csv.split('\n').length).toBe(parsed.layers.length + parsed.cells.length + parsed.features.length + 1);
+    const meta = buildGdMetadataRows(parsed);
+    expect(meta.some((r) => r.key === 'Name' && r.value === 'NAND2_X1')).toBe(true);
+    expect(meta.some((r) => r.key === 'Features')).toBe(true);
+    expect(buildGdLayerMetadata(parsed.layers[0]).some((r) => r.key === 'Name')).toBe(true);
+    expect(buildGdCellMetadata(parsed.cells[0]).some((r) => r.key === 'Items')).toBe(true);
+    expect(buildGdFeatMetadata(parsed.features[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports schema csv, rows csv, and summary json', () => {
+    const file = createSampleGdFile();
+    const record = createGdFileRecord(file, buildSampleGdBytes());
+    const parsed = record.parsed!;
+
+    const schema = exportGdSchemaCsv(parsed);
+    expect(schema).toContain('kind,name,type,layer,cell,x');
+    expect(schema).toContain('TOP');
+    expect(schema.split('\n').length).toBe(parsed.layers.length + parsed.cells.length + parsed.features.length + 1);
+
+    const rows = exportGdRowsCsv(parsed);
+    expect(rows.split('\n')[0]).toContain('name');
+    expect(rows.split('\n').length).toBe(parsed.rows.length + 1);
+
+    const summary = JSON.parse(exportGdSummaryJson(record));
+    expect(summary.file).toBe(file.name);
+    expect(summary.layers.length).toBe(parsed.layers.length);
+    expect(summary.features.length).toBe(parsed.features.length);
   });
 
   it('rejects empty, huge, gzip, wrong extension, and duplicates', () => {
@@ -119,14 +157,23 @@ describe('gdsii-layout-viewer.utils', () => {
       new File(['x'], 'note.doc', { lastModified: 1 }),
       new File(['x'], 'plan.gds.gz', { lastModified: 2 }),
       empty,
-      huge
+      huge,
+      new File(['x'], 'chip.gdsii', { lastModified: 5 })
     ]);
-    expect(accepted.length).toBe(1);
+    expect(accepted.length).toBe(2);
+    expect(accepted.some((f) => f.name.endsWith('.gdsii'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('Duplicate'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
     expect(rejected.some((item) => /empty/i.test(item.reason))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('too large'))).toBe(true);
+  });
+
+  it('resolves contextual suggestions', () => {
+    expect(resolveGdSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveGdSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveGdSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+    expect(resolveGdSuggestion({ hasFiles: true, hasError: true })?.action).toBe('sample');
   });
 });
 

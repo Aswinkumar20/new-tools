@@ -144,17 +144,24 @@
           <div class="tf-empty" *ngIf="!currentFile && !loading">
             <p>Drop Terraform graph here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn tf-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="tf-loading" *ngIf="loading">Parsing Terraform graph…</div>
+          <div class="tf-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Terraform graph…</div>
         </div>
 
-        <div class="tf-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="tf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="tf-disclaimer">Education and research preview only — not a substitute for Terraform, Terragrunt, or cloud consoles.</p>
+        <div class="tf-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="tf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="tf-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Terraform, Terragrunt, or cloud consoles.</p>
       </section>
 
-      <aside class="tf-sidebar">
+      <aside class="tf-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="tf-empty-panel">Upload a Terraform graph or load the sample to see overview, resources, and edges here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search graph</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="tf-search" type="search" placeholder="resource:web type:aws_instance from:aws_vpc (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="tf-search" type="search" aria-label="Search Terraform graph" placeholder="resource:web type:aws_instance from:aws_vpc (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="tf-search-hint">Try <code>resource:web</code>, <code>type:aws_instance</code>, or <code>from:aws_vpc</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'edges' || viewMode === 'table') && filteredEdges.length" open>
@@ -222,12 +230,12 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Resources, Edges, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter resources or edges, then review properties in Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>

@@ -116,6 +116,10 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): IcLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -203,17 +207,9 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return icTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isDiscHidden(id: string): boolean {
-    return this.hiddenDisciplineIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -226,11 +222,18 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -238,10 +241,9 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -292,7 +294,7 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -320,10 +322,13 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
       else this.shiftElement(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Template helpers
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: IcLoadedFile): string {
     return file.id;
@@ -356,6 +361,22 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatIcFileSize(bytes);
   }
+
+  tint(type: string, index: number): string {
+    return icTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isDiscHidden(id: string): boolean {
+    return this.hiddenDisciplineIds.has(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -426,8 +447,137 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedElementId = '';
+    this.selectedDiscId = '';
+    this.selectedPropId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenDisciplineIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: IcViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: IcExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportIcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportIcSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportIcRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Building, Properties, or Disciplines to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / disciplines
+  // ---------------------------------------------------------------------------
+
   selectElement(id: string): void {
     this.selectedElementId = id;
+    const el = this.filteredElements.find((e) => e.id === id);
+    if (el?.discipline) {
+      const disc = this.filteredDisciplines.find((d) => d.id === el.discipline || d.name === el.discipline);
+      if (disc) this.selectedDiscId = disc.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -440,6 +590,11 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
 
   selectProp(id: string): void {
     this.selectedPropId = id;
+    const prop = this.filteredProperties.find((p) => p.id === id);
+    if (prop?.element) {
+      const el = this.visibleElements.find((e) => e.name === prop.element || e.id === prop.element);
+      if (el) this.selectedElementId = el.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -447,10 +602,14 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredElements.some((s) => s.id === row.name || s.name === row.name)) this.selectedElementId = row.name;
-    if (this.filteredDisciplines.some((e) => e.id === row.name || e.name === row.name)) this.selectedDiscId = row.name;
-    if (this.filteredProperties.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedPropId = row.name;
+    if (row?.name) {
+      const el = this.filteredElements.find((s) => s.id === row.name || s.name === row.name);
+      if (el) this.selectedElementId = el.id;
+      const disc = this.filteredDisciplines.find((e) => e.id === row.name || e.name === row.name);
+      if (disc) this.selectedDiscId = disc.id;
+      const prop = this.filteredProperties.find((inst) => inst.id === row.name || inst.name === row.name);
+      if (prop) this.selectedPropId = prop.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -460,6 +619,25 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     if (this.hiddenDisciplineIds.has(id)) this.hiddenDisciplineIds.delete(id);
     else this.hiddenDisciplineIds.add(id);
     this.hiddenDisciplineIds = new Set(this.hiddenDisciplineIds);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelectedDiscipline(): void {
+    if (!this.selectedDiscId || !this.parsed) return;
+    const discs = this.parsed.disciplines ?? [];
+    const keep = discs.find((d) => d.id === this.selectedDiscId || d.name === this.selectedDiscId);
+    const keepName = keep?.name ?? this.selectedDiscId;
+    this.hiddenDisciplineIds = new Set(
+      discs.filter((d) => d.name !== keepName && d.id !== this.selectedDiscId).map((d) => String(d.name))
+    );
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllDisciplines(): void {
+    if (!this.hiddenDisciplineIds.size) return;
+    this.hiddenDisciplineIds = new Set();
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -474,131 +652,11 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedPropId && !this.filteredProperties.some((inst) => inst.id === this.selectedPropId)) {
       this.selectedPropId = this.filteredProperties[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedElementId = '';
-    this.selectedDiscId = '';
-    this.selectedPropId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenDisciplineIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
-
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: IcViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: IcExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportIcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportIcSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportIcRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Building, Properties, or Disciplines to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
-
-  zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
-    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  resetView(): void {
-    this.view = defaultCad3dView();
-    this.fitView();
-  }
-
-  async toggleFullscreen(): Promise<void> {
-    const host = this.viewerPanel?.nativeElement;
-    if (!host) return;
-    const requestFs = host.requestFullscreen?.bind(host);
-    if (!requestFs) {
-      this.toast.info('Fullscreen is not available in this browser');
-      return;
-    }
-    try {
-      if (!document.fullscreenElement) await requestFs();
-      else await document.exitFullscreen();
-    } catch {
-      this.toast.info('Fullscreen is not available in this browser');
-    }
   }
 
   clearSearch(): void {
@@ -615,14 +673,47 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // View / canvas
+  // ---------------------------------------------------------------------------
+
+  zoomBy(factor: number): void {
+    if (!this.parsed || this.viewMode === 'table') return;
+    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  resetView(): void {
+    this.view = defaultCad3dView();
+    this.fitView();
+  }
+
   fitView(): void {
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
     const { width, height } = sizeCadCanvas(canvas);
     const solids = toIcCad3d(this.visibleElements);
     this.view = fitCad3dView(solids, width, height);
     this.renderCanvas();
     this.cdr.markForCheck();
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
+    const host = this.viewerPanel?.nativeElement;
+    if (!host) return;
+    const requestFs = host.requestFullscreen?.bind(host);
+    if (!requestFs) {
+      this.toast.info('Fullscreen is not available in this browser');
+      return;
+    }
+    try {
+      if (!document.fullscreenElement) await requestFs();
+      else await document.exitFullscreen();
+    } catch {
+      this.toast.info('Fullscreen is not available in this browser');
+    }
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -663,17 +754,20 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftElement(delta: number): void {
-    const list = this.filteredElements;
+    const list = this.visibleElements;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedElementId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -724,12 +818,14 @@ export class IfcViewerComponent implements AfterViewInit, OnDestroy {
     let selectedId = this.selectedElementId || null;
     if (this.viewMode === 'properties' && this.selectedProp) {
       selectedId =
-        this.visibleElements.find((e) => e.name === this.selectedProp?.element || e.id === this.selectedProp?.element)?.id ?? selectedId;
+        this.visibleElements.find((e) => e.name === this.selectedProp?.element || e.id === this.selectedProp?.element)?.id ??
+        selectedId;
     }
     renderIcBuilding(canvas, this.visibleElements, selectedId, this.view);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

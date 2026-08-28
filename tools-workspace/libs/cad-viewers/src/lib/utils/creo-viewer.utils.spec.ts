@@ -12,7 +12,8 @@ import {
   createCrFileRecord,
   createSampleCrFile,
   exportCrSchemaCsv,
-  filterValidCrFiles
+  filterValidCrFiles,
+  resolveCrSuggestion
 } from './creo-viewer.utils';
 
 describe('creo-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportCr guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportCr({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportCr(null)).toBe(false);
+  });
+});
+
+describe('resolveCrSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveCrSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveCrSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveCrSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

@@ -21,7 +21,7 @@ import {
   PB_RELATED_TOOLS,
   PB_SUPPORTED_EXTENSIONS
 } from '../../constants/pcb-layout-viewer.constants';
-import type { PbColumn, PbTrace, PbExportFormat, PbLayer, PbLoadedFile, PbNet, PbViewMode } from '../../types/pcb-layout-viewer.types';
+import type { PbColumn, PbExportFormat, PbLayer, PbLoadedFile, PbNet, PbTrace, PbViewMode } from '../../types/pcb-layout-viewer.types';
 import {
   buildCadInsightStats,
   clampCadZoom,
@@ -29,10 +29,10 @@ import {
   type CadViewTransform
 } from '../../utils/cad-file.utils';
 import {
-  buildPbTraceMetadata,
   buildPbLayerMetadata,
-  buildPbNetMetadata,
   buildPbMetadataRows,
+  buildPbNetMetadata,
+  buildPbTraceMetadata,
   canExportPb,
   canvasToPngDataUrl,
   createPbFileRecord,
@@ -40,22 +40,22 @@ import {
   downloadBinaryFile,
   downloadDataUrl,
   downloadTextFile,
-  pbTypeColor,
   exportPbRowsCsv,
   exportPbSchemaCsv,
   exportPbSummaryJson,
-  filterPbTraces,
   filterPbLayers,
   filterPbNets,
   filterPbRows,
+  filterPbTraces,
   filterValidPbFiles,
   fitCadView,
-  pickCadEntityAtScreen,
-  sizeCadCanvas,
   formatPbFileSize,
+  pbTypeColor,
+  pickCadEntityAtScreen,
   readPbFileBytes,
   renderPbPlot,
   resolvePbSuggestion,
+  sizeCadCanvas,
   toCadGeom
 } from '../../utils/pcb-layout-viewer.utils';
 
@@ -68,18 +68,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = PB_ACCEPT_ATTR;
   readonly relatedTools = PB_RELATED_TOOLS;
   readonly supportedExtensions = PB_SUPPORTED_EXTENSIONS;
@@ -92,24 +95,31 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: PbLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: PbViewMode = 'plot';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedLayerId = '';
   selectedNetId = '';
   selectedTraceId = '';
   selectedRowIndex = 0;
   hiddenLayerIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: CadViewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
   panning = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -118,6 +128,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): PbLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -130,6 +141,10 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     return canExportPb(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -138,10 +153,6 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredLayers(): PbLayer[] {
@@ -165,7 +176,14 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleTraces(): PbTrace[] {
-    return this.filteredTraces.filter((e) => !this.hiddenLayerIds.has(e.layer));
+    if (!this.hiddenLayerIds.size) return this.filteredTraces;
+    return this.filteredTraces.filter((t) => !this.isLayerKeyHidden(t.layer));
+  }
+
+  get visibleNets(): PbNet[] {
+    if (!this.hiddenLayerIds.size) return this.filteredNets;
+    const nets = new Set(this.visibleTraces.map((t) => t.net).filter(Boolean));
+    return this.filteredNets.filter((n) => nets.has(n.id) || nets.has(n.name));
   }
 
   get selectedLayer(): PbLayer | null {
@@ -177,17 +195,21 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedTrace(): PbTrace | null {
-    return this.filteredTraces.find((e) => e.id === this.selectedTraceId) ?? null;
+    return this.filteredTraces.find((t) => t.id === this.selectedTraceId) ?? null;
   }
 
   get plotSelectedId(): string | null {
     if (this.viewMode === 'plot') return this.selectedTraceId || null;
     if (this.viewMode === 'nets' && this.selectedNetId) {
-      const hit = this.visibleTraces.find((e) => e.net === this.selectedNetId);
-      return hit?.id ?? this.selectedTraceId ?? null;
+      const hit = this.visibleTraces.find((t) => t.net === this.selectedNetId || t.net === this.selectedNet?.name);
+      return hit?.id ?? (this.selectedTraceId || null);
     }
     if (this.viewMode === 'stack' && this.selectedLayerId) {
-      return this.visibleTraces.find((e) => e.layer === this.selectedLayerId)?.id ?? null;
+      const layer = this.selectedLayer;
+      return (
+        this.visibleTraces.find((t) => t.layer === this.selectedLayerId || (!!layer && t.layer === layer.name))?.id ??
+        null
+      );
     }
     return this.selectedTraceId || null;
   }
@@ -217,18 +239,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return pbTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isLayerHidden(id: string): boolean {
-    return this.hiddenLayerIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -240,11 +251,15 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -252,15 +267,14 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -271,13 +285,13 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -288,7 +302,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -299,6 +313,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -339,6 +354,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: PbLoadedFile): string {
     return file.id;
   }
@@ -371,6 +387,19 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     return formatPbFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return pbTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isLayerHidden(id: string): boolean {
+    return this.hiddenLayerIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -440,6 +469,43 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedNetId = '';
+    this.selectedTraceId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLayerIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'plot';
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectLayer(id: string): void {
     this.selectedLayerId = id;
     this.renderCanvas();
@@ -448,7 +514,8 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   selectNet(id: string): void {
     this.selectedNetId = id;
-    const hit = this.visibleTraces.find((t) => t.net === id);
+    const net = this.filteredNets.find((n) => n.id === id);
+    const hit = this.visibleTraces.find((t) => t.net === id || (!!net && t.net === net.name));
     if (hit) this.selectedTraceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -457,7 +524,14 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   selectTrace(id: string): void {
     this.selectedTraceId = id;
     const trace = this.filteredTraces.find((t) => t.id === id);
-    if (trace?.net) this.selectedNetId = trace.net;
+    if (trace?.net) {
+      const net = this.parsed?.nets.find((n) => n.id === trace.net || n.name === trace.net);
+      this.selectedNetId = net?.id ?? trace.net;
+    }
+    if (trace?.layer) {
+      const layer = this.parsed?.layers.find((l) => l.id === trace.layer || l.name === trace.layer);
+      this.selectedLayerId = layer?.id ?? this.selectedLayerId;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -465,7 +539,24 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (row?.name) this.selectedTraceId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const type = (row['type'] || row['Type'] || '').toLowerCase();
+    if (type === 'layer' || this.parsed.layers.some((l) => l.name === name || l.id === name)) {
+      const layer = this.parsed.layers.find((l) => l.name === name || l.id === name);
+      if (layer) this.selectedLayerId = layer.id;
+    } else if (type === 'net' || this.parsed.nets.some((n) => n.name === name || n.id === name)) {
+      const net = this.parsed.nets.find((n) => n.name === name || n.id === name);
+      if (net) this.selectNet(net.id);
+    } else if (name) {
+      const trace = this.parsed.traces.find((t) => t.name === name || t.id === name);
+      if (trace) this.selectTrace(trace.id);
+      else this.selectedTraceId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -486,43 +577,45 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedNetId && !this.filteredNets.some((n) => n.id === this.selectedNetId)) {
       this.selectedNetId = this.filteredNets[0]?.id ?? '';
     }
-    if (this.selectedTraceId && !this.filteredTraces.some((e) => e.id === this.selectedTraceId)) {
+    if (this.selectedTraceId && !this.filteredTraces.some((t) => t.id === this.selectedTraceId)) {
       this.selectedTraceId = this.filteredTraces[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
+  clearSelection(): void {
     this.selectedLayerId = '';
     this.selectedNetId = '';
     this.selectedTraceId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenLayerIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
 
+  isolateSelected(): void {
+    if (!this.selectedLayerId || !this.parsed) return;
+    this.hiddenLayerIds = new Set(this.parsed.layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
+    this.hiddenLayerIds = new Set();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -534,9 +627,13 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: PbViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -550,6 +647,11 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -587,6 +689,7 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas || !this.parsed || this.viewMode === 'table') return;
@@ -607,7 +710,17 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCadView(toCadGeom(this.visibleTraces), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -621,43 +734,6 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedLayerId = '';
-    this.selectedNetId = '';
-    this.selectedTraceId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  isolateSelected(): void {
-    if (!this.selectedLayerId || !this.parsed) return;
-    const layers = (this.parsed as { layers?: Array<{ id: string }> }).layers ?? [];
-    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  showAllLayers(): void {
-    this.hiddenLayerIds = new Set();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    this.view = fitCadView(toCadGeom(this.visibleTraces), width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -694,9 +770,8 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -715,6 +790,13 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isLayerKeyHidden(layerKey: string): boolean {
+    if (this.hiddenLayerIds.has(layerKey)) return true;
+    const layer = this.parsed?.layers.find((l) => l.id === layerKey || l.name === layerKey);
+    return !!layer && this.hiddenLayerIds.has(layer.id);
+  }                                                                                                                                       
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -724,15 +806,15 @@ export class PcbLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftTrace(delta: number): void {
-    const list = this.filteredTraces;
+    const list = this.visibleTraces;
     if (!list.length) return;
-    const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedTraceId));
+    const idx = Math.max(0, list.findIndex((t) => t.id === this.selectedTraceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
     if (next) this.selectTrace(next.id);
   }
 
   private shiftNet(delta: number): void {
-    const list = this.filteredNets;
+    const list = this.visibleNets;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((n) => n.id === this.selectedNetId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];

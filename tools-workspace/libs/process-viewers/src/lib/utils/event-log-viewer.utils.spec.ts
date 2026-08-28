@@ -5,7 +5,8 @@ import {
   createEventLogFileRecord,
   createSampleEventLogFile,
   exportEventLogCasesCsv,
-  filterValidEventLogFiles
+  filterValidEventLogFiles,
+  resolveEventLogSuggestion
 } from './event-log-viewer.utils';
 
 describe('event-log-parse.utils', () => {
@@ -73,5 +74,24 @@ describe('event-log-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveEventLogSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveEventLogSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveEventLogSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveEventLogSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportEventLog returns false for null', () => {
+    expect(canExportEventLog(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createEventLogFileRecord(new File(['hello world'], 'bad.csv', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportEventLog(record)).toBe(false);
   });
 });

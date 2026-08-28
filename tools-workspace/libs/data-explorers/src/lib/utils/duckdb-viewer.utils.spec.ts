@@ -12,7 +12,8 @@ import {
   createDkFileRecord,
   createSampleDkFile,
   exportDkSchemaCsv,
-  filterValidDkFiles
+  filterValidDkFiles,
+  resolveDkSuggestion
 } from './duckdb-viewer.utils';
 
 describe('duckdb-viewer-parse.utils', () => {
@@ -97,5 +98,16 @@ describe('duckdb-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('disables export on soft-fail and null', () => {
+    expect(canExportDk({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
+    expect(canExportDk(null)).toBe(false);
+  });
+
+  it('resolves suggestions for empty and error states', () => {
+    expect(resolveDkSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDkSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDkSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

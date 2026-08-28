@@ -94,16 +94,16 @@
           <div class="dio-view-controls">
             <label class="dio-page-select" *ngIf="parsed?.pages?.length">
               <span>Page</span>
-              <select [(ngModel)]="selectedPageId" (ngModelChange)="onPageChange()">
+              <select [(ngModel)]="selectedPageId" (ngModelChange)="onPageChange()" aria-label="Select page">
                 <option *ngFor="let page of parsed?.pages; trackBy: trackByPage" [value]="page.id">{{ page.name }}</option>
               </select>
             </label>
-            <div class="dio-zoom" *ngIf="viewMode === 'diagram'">
-              <button type="button" (click)="zoomOut()" aria-label="Zoom out">−</button>
-              <span>{{ zoomLabel }}</span>
-              <button type="button" (click)="zoomIn()" aria-label="Zoom in">+</button>
-              <button type="button" (click)="resetZoom()">0</button>
-              <button type="button" (click)="fitZoom()">Fit</button>
+            <div class="dio-zoom" *ngIf="viewMode === 'diagram'" role="group" aria-label="Diagram zoom">
+              <button type="button" (click)="zoomOut()" aria-label="Zoom out" appTooltip="Zoom out (−)" tooltipPosition="bottom">−</button>
+              <span aria-live="polite">{{ zoomLabel }}</span>
+              <button type="button" (click)="zoomIn()" aria-label="Zoom in" appTooltip="Zoom in (+)" tooltipPosition="bottom">+</button>
+              <button type="button" (click)="resetZoom()" aria-label="Reset zoom to 100%" appTooltip="Reset zoom (0)" tooltipPosition="bottom">0</button>
+              <button type="button" (click)="fitZoom()" appTooltip="Fit diagram to view" tooltipPosition="bottom">Fit</button>
             </div>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
@@ -159,17 +159,24 @@
           <div class="dio-empty" *ngIf="!currentFile && !loading">
             <p>Drop draw.io diagram here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn dio-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="dio-loading" *ngIf="loading">Parsing draw.io…</div>
+          <div class="dio-loading" *ngIf="loading" role="status" aria-live="polite">Parsing draw.io…</div>
         </div>
 
-        <div class="dio-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="dio-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="dio-disclaimer">Education and research preview only — not a substitute for diagrams.net or Visio. Compressed pages are skipped; export uncompressed XML.</p>
+        <div class="dio-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dio-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dio-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for diagrams.net or Visio. Compressed pages are skipped; export uncompressed XML.</p>
       </section>
 
-      <aside class="dio-sidebar">
+      <aside class="dio-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dio-empty-panel">Upload a draw.io diagram or load the sample to see overview, pages, shapes, and connectors here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -181,7 +188,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="dio-search" type="search" placeholder="page:Shop shape:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="dio-search" type="search" aria-label="Search draw.io diagram" placeholder="page:Shop shape:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="dio-search-hint">Try <code>page:Shop</code>, <code>shape:Customer</code>, or <code>rel:uses</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter. Use <kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> for zoom in diagram view.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'pages' && filteredPages.length" open>
@@ -254,17 +262,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Pages, Shapes, or Table views, pick a page, zoom the diagram, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>page:Shop</code> or <code>shape:Customer</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, shapes/connectors CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

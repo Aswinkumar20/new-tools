@@ -6,7 +6,8 @@ import {
   createDecisionModelFileRecord,
   createSampleDecisionModelFile,
   exportDecisionModelRulesCsv,
-  filterValidDecisionModelFiles
+  filterValidDecisionModelFiles,
+  resolveDecisionModelSuggestion
 } from './decision-model-viewer.utils';
 
 describe('decision-model-parse.utils', () => {
@@ -77,5 +78,24 @@ describe('decision-model-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDecisionModelSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveDecisionModelSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveDecisionModelSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveDecisionModelSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportDecisionModel returns false for null', () => {
+    expect(canExportDecisionModel(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createDecisionModelFileRecord(new File(['hello world'], 'bad.json', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportDecisionModel(record)).toBe(false);
   });
 });

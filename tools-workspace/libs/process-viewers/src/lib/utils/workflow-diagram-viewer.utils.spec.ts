@@ -5,7 +5,8 @@ import {
   createSampleWorkflowFile,
   createWorkflowFileRecord,
   exportWorkflowNodesCsv,
-  filterValidWorkflowFiles
+  filterValidWorkflowFiles,
+  resolveWorkflowSuggestion
 } from './workflow-diagram-viewer.utils';
 
 describe('workflow-parse.utils', () => {
@@ -77,5 +78,24 @@ describe('workflow-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveWorkflowSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveWorkflowSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveWorkflowSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveWorkflowSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportWorkflow returns false for null', () => {
+    expect(canExportWorkflow(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createWorkflowFileRecord(new File(['hello world'], 'bad.xml', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportWorkflow(record)).toBe(false);
   });
 });

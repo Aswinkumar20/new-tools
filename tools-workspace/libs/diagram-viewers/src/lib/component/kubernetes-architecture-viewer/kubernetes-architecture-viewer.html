@@ -144,17 +144,24 @@
           <div class="k8s-empty" *ngIf="!currentFile && !loading">
             <p>Drop Kubernetes manifest here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn k8s-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="k8s-loading" *ngIf="loading">Parsing Kubernetes…</div>
+          <div class="k8s-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Kubernetes…</div>
         </div>
 
-        <div class="k8s-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="k8s-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="k8s-disclaimer">Education and research preview only — not a substitute for kubectl, Lens, or cluster consoles.</p>
+        <div class="k8s-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="k8s-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="k8s-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for kubectl, Lens, or cluster consoles.</p>
       </section>
 
-      <aside class="k8s-sidebar">
+      <aside class="k8s-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="k8s-empty-panel">Upload a Kubernetes manifest or load the sample to see overview, workloads, services, links, and selected item details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search cluster</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="k8s-search" type="search" placeholder="workload:web kind:Service rel:selects (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="k8s-search" type="search" aria-label="Search Kubernetes cluster" placeholder="workload:web kind:Service rel:selects (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="k8s-search-hint">Try <code>workload:web</code>, <code>kind:Deployment</code>, or <code>rel:selects</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredLinks.length" open>
@@ -239,17 +247,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Workloads, Services, or Table views and inspect the selected workload, service, or link.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>workload:web</code> or <code>rel:selects</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, workloads/services CSV, or a PNG snapshot from Diagram, Workloads, or Services view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

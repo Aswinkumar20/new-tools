@@ -12,7 +12,8 @@ import {
   createSampleXmFile,
   createXmFileRecord,
   exportXmSchemaCsv,
-  filterValidXmFiles
+  filterValidXmFiles,
+  resolveXmSuggestion
 } from './xml-viewer.utils';
 
 describe('xml-viewer-parse.utils', () => {
@@ -89,6 +90,22 @@ describe('xml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveXmSuggestion covers empty and error states', () => {
+    expect(resolveXmSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveXmSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveXmSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createXmFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportXm(record)).toBe(false);
+    expect(canExportXm(null)).toBe(false);
   });
 });
 

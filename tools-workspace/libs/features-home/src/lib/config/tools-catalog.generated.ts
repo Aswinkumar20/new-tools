@@ -754,6 +754,11 @@ export const TOOL_CATEGORIES: ToolCategoryCatalog[] = [
         path: '/file-viewers/rtf-viewer',
       },
       {
+        name: 'ICS Calendar Viewer',
+        description: 'Open and preview .ics / iCalendar files in your browser. Month, week, day, agenda, and year views with search, filters, recurrence, and timezones — strictly read-only.',
+        path: '/file-viewers/ics-viewer',
+      },
+      {
         name: 'Subtitle Viewer',
         description: 'Free online subtitle viewer — fast, private, and browser-based.',
         path: '/file-viewers/subtitle-viewer',

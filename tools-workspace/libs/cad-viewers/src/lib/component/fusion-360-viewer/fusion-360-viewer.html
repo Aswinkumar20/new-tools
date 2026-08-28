@@ -119,7 +119,7 @@
                 <i class="fu-swatch" [style.background]="body.colorHex || tint(body.kind, body.index)"></i>
                 <strong>{{ body.name }}</strong>
                 <span>{{ body.kind }}</span>
-                <button type="button" class="fu-eye" (click)="toggleBodyVisible(body.id, $event)" [attr.aria-label]="isBodyHidden(body.id) ? 'Show' : 'Hide'" [appTooltip]="isBodyHidden(body.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isBodyHidden(body.id) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="fu-eye" (click)="toggleBodyVisible(body.id, $event)" [attr.aria-label]="isBodyHidden(body.id) ? 'Show body' : 'Hide body'" [appTooltip]="isBodyHidden(body.id) ? 'Show body' : 'Hide body'" tooltipPosition="top">{{ isBodyHidden(body.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>{{ body.kind === 'cylinder' ? 'r ' + body.r + ' · h ' + body.h : body.sx + ' × ' + body.sy }}</p>
             </article>
@@ -137,7 +137,7 @@
             <p class="fu-empty-filter" *ngIf="parsed && !filteredComponents.length">No components match the current filter.</p>
           </div>
           <div class="fu-cards" *ngIf="currentFile && viewMode === 'preview'">
-            <article *ngFor="let instance of filteredInstances; trackBy: trackByInstance" [class.is-active]="selectedInstance?.id === instance.id" tabindex="0" role="button" (click)="selectInstance(instance.id)" (keydown.enter)="selectInstance(instance.id)" (keydown.space)="selectInstance(instance.id); $event.preventDefault()">
+            <article *ngFor="let instance of visibleInstances; trackBy: trackByInstance" [class.is-active]="selectedInstance?.id === instance.id" tabindex="0" role="button" (click)="selectInstance(instance.id)" (keydown.enter)="selectInstance(instance.id)" (keydown.space)="selectInstance(instance.id); $event.preventDefault()">
               <header>
                 <i class="fu-swatch" [style.background]="tint('instance', instance.index)"></i>
                 <strong>{{ instance.name }}</strong>
@@ -145,7 +145,7 @@
               </header>
               <p>{{ instance.body }} · {{ instance.component }}</p>
             </article>
-            <p class="fu-empty-filter" *ngIf="parsed && !filteredInstances.length">No instances match the current filter.</p>
+            <p class="fu-empty-filter" *ngIf="parsed && !visibleInstances.length">No instances match the current filter or visible bodies.</p>
           </div>
           <div class="fu-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -169,7 +169,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="fu-loading" *ngIf="loading">Parsing Fusion dump…</div>
+          <div class="fu-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Fusion dump…</div>
         </div>
 
         <div class="fu-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -219,10 +219,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredInstances.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && visibleInstances.length" open>
           <summary class="ctl__panel-head">Instances</summary>
           <div class="ctl__panel-body fu-units">
-            <button type="button" *ngFor="let instance of filteredInstances; trackBy: trackByInstance" [class.is-active]="selectedInstanceId === instance.id" (click)="selectInstance(instance.id)">
+            <button type="button" *ngFor="let instance of visibleInstances; trackBy: trackByInstance" [class.is-active]="selectedInstanceId === instance.id" (click)="selectInstance(instance.id)">
               <i class="fu-swatch" [style.background]="tint('instance', instance.index)"></i>
               <span>{{ instance.name }} <small>{{ instance.body }} · {{ instance.component }}</small></span>
             </button>

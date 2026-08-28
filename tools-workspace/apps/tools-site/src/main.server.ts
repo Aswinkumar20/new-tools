@@ -1,3 +1,7 @@
+import { installPrerenderBrowserGlobals } from './prerender-globals';
+
+installPrerenderBrowserGlobals();
+
 import {
   BootstrapContext,
   bootstrapApplication,

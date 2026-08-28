@@ -92,8 +92,8 @@
             <span>{{ parsed?.name }} · {{ parsed?.version || 'Freeplane' }} · {{ parsed?.nodes?.length || 0 }} nodes · {{ icons.length }} icon types</span>
           </div>
           <div class="fp-view-controls">
-            <button type="button" (click)="expandAll()">Expand</button>
-            <button type="button" (click)="collapseAll()">Collapse</button>
+            <button type="button" (click)="expandAll()" aria-label="Expand all branches" appTooltip="Expand all branches" tooltipPosition="top">Expand</button>
+            <button type="button" (click)="collapseAll()" aria-label="Collapse all branches" appTooltip="Collapse all branches" tooltipPosition="top">Collapse</button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
@@ -103,7 +103,7 @@
           <div class="fp-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'nodes')">
             <article *ngFor="let node of visibleNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
               <header>
-                <button type="button" class="fp-toggle" *ngIf="node.childIds.length" (click)="toggleCollapse(node.id, $event)">{{ node.collapsed ? '+' : '−' }}</button>
+                <button type="button" class="fp-toggle" *ngIf="node.childIds.length" (click)="toggleCollapse(node.id, $event)" [attr.aria-label]="node.collapsed ? 'Expand ' + node.label : 'Collapse ' + node.label" [appTooltip]="node.collapsed ? 'Expand branch' : 'Collapse branch'" tooltipPosition="top">{{ node.collapsed ? '+' : '−' }}</button>
                 <i class="fp-swatch" [style.background]="tint(node)"></i>
                 <strong>{{ node.label }}</strong>
                 <span>{{ node.icons[0] || ('d' + node.depth) }}</span>
@@ -149,17 +149,24 @@
           <div class="fp-empty" *ngIf="!currentFile && !loading">
             <p>Drop a Freeplane .mm file here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn fp-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="fp-loading" *ngIf="loading">Parsing Freeplane map…</div>
+          <div class="fp-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Freeplane map…</div>
         </div>
 
-        <div class="fp-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="fp-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="fp-disclaimer">Education and research preview only — not a substitute for Freeplane or FreeMind.</p>
+        <div class="fp-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="fp-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="fp-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Freeplane or FreeMind.</p>
       </section>
 
-      <aside class="fp-sidebar">
+      <aside class="fp-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="fp-empty-panel">Upload a Freeplane map or load the sample to see overview, nodes, icons, and selected details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -171,7 +178,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search map</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="fp-search" type="search" placeholder="icon:idea attr:retail node:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="fp-search" type="search" aria-label="Search Freeplane map" placeholder="icon:idea attr:retail node:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="fp-search-hint">Try <code>node:Customer</code>, <code>icon:idea</code>, or <code>attr:retail</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'icons' && icons.length" open>
@@ -206,6 +214,9 @@
             <dl class="fp-meta">
               <div *ngFor="let row of nodeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
+            <button type="button" class="ctl__tool-btn" *ngIf="selectedNode.childIds.length" (click)="toggleCollapse(selectedNode.id)">
+              {{ selectedNode.collapsed ? 'Expand branch' : 'Collapse branch' }}
+            </button>
           </div>
         </details>
         <details class="ctl__panel" open>
@@ -227,17 +238,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Nodes, Icons, or Table views, expand/collapse branches, and inspect the selected node or icon.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Customer</code> or <code>icon:idea</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, nodes/icons CSV, or a PNG snapshot from Diagram or Icons view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

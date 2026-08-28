@@ -129,6 +129,9 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   }
 
   setupDragAndDrop(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -136,6 +139,9 @@ export class MarkdownPreviewerComponent implements OnInit, AfterViewInit, OnDest
   }
 
   setupFullscreenListeners(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of MARKDOWN_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }

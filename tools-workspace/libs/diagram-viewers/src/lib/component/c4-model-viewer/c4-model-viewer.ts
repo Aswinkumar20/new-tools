@@ -97,6 +97,10 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): C4LoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -162,9 +166,21 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  // ---------------------------------------------------------------------------
+  // Display helpers
+  // ---------------------------------------------------------------------------
+
   tint(kind: string, index: number): string {
     return c4ElementColor(kind, index);
   }
+
+  formatSize(bytes: number): string {
+    return formatC4FileSize(bytes);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
@@ -173,6 +189,10 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -223,6 +243,12 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.showExportMenu) {
+      event.preventDefault();
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -246,6 +272,10 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: C4LoadedFile): string {
     return file.id;
   }
@@ -262,9 +292,9 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     return relation.id;
   }
 
-  formatSize(bytes: number): string {
-    return formatC4FileSize(bytes);
-  }
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -309,7 +339,11 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no elements — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -329,6 +363,40 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedElementId = '';
+    this.selectedRelationId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
   selectElement(id: string): void {
     this.selectedElementId = id;
     this.renderCanvas();
@@ -342,38 +410,19 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const el = this.filteredElements[0];
-    if (el && !this.filteredElements.some((e) => e.id === this.selectedElementId)) this.selectedElementId = el.id;
-    const rel = this.filteredRelations[0];
-    if (rel && !this.filteredRelations.some((r) => r.id === this.selectedRelationId)) this.selectedRelationId = rel.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedElementId && !this.filteredElements.some((e) => e.id === this.selectedElementId)) {
+      this.selectedElementId = this.filteredElements[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedRelationId && !this.filteredRelations.some((r) => r.id === this.selectedRelationId)) {
+      this.selectedRelationId = this.filteredRelations[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedElementId = '';
-    this.selectedRelationId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -386,6 +435,7 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: C4ViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -399,6 +449,11 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -407,7 +462,11 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportC4SummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -417,10 +476,16 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Diagram, Context, or Container to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -428,6 +493,10 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftElement(delta: number): void {
     const list = this.filteredElements;
@@ -464,10 +533,13 @@ export class C4ModelViewerComponent implements AfterViewInit, OnDestroy {
       renderC4Diagram(canvas, this.parsed.elements, this.parsed.relations, this.selectedElementId || null);
     } else if (this.viewMode === 'context' || this.viewMode === 'container') {
       renderC4Elements(canvas, this.filteredElements, this.selectedElementId || null);
-    } else renderC4Relations(canvas, this.filteredRelations, this.selectedRelationId || null);
+    } else {
+      renderC4Relations(canvas, this.filteredRelations, this.selectedRelationId || null);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

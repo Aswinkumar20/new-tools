@@ -21,7 +21,7 @@ import {
   RH_RELATED_TOOLS,
   RH_SUPPORTED_EXTENSIONS
 } from '../../constants/rhino-3dm-viewer.constants';
-import type { RhLayer, RhColumn, RhExportFormat, RhInstance, RhLoadedFile, RhSurface, RhViewMode } from '../../types/rhino-3dm-viewer.types';
+import type { RhColumn, RhExportFormat, RhInstance, RhLayer, RhLoadedFile, RhSurface, RhViewMode } from '../../types/rhino-3dm-viewer.types';
 import type { Cad3dView } from '../../utils/cad-3d.utils';
 import { buildCadInsightStats, clampCadZoom, observeCadDocumentTheme } from '../../utils/cad-file.utils';
 import {
@@ -39,21 +39,21 @@ import {
   exportRhRowsCsv,
   exportRhSchemaCsv,
   exportRhSummaryJson,
-  filterRhLayers,
   filterRhInstances,
-  filterRhSurfaces,
+  filterRhLayers,
   filterRhRows,
+  filterRhSurfaces,
   filterValidRhFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatRhFileSize,
-  rhTypeColor,
+  pickCad3dSolidAtScreen,
   readRhFileBytes,
-  renderRhLayers,
   renderRhInstances,
+  renderRhLayers,
   renderRhSurfaces,
   resolveRhSuggestion,
+  rhTypeColor,
+  sizeCadCanvas,
   toCad3dInstances,
   toCad3dSurfaces
 } from '../../utils/rhino-3dm-viewer.utils';
@@ -67,18 +67,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = RH_ACCEPT_ATTR;
   readonly relatedTools = RH_RELATED_TOOLS;
   readonly supportedExtensions = RH_SUPPORTED_EXTENSIONS;
@@ -91,24 +94,31 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: RhLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: RhViewMode = 'surfaces';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedSurfaceId = '';
   selectedLayerId = '';
   selectedInstanceId = '';
   selectedRowIndex = 0;
   hiddenSurfaceIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -117,6 +127,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): RhLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -129,6 +140,10 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     return canExportRh(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -137,10 +152,6 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredSurfaces(): RhSurface[] {
@@ -164,7 +175,13 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleSurfaces(): RhSurface[] {
+    if (!this.hiddenSurfaceIds.size) return this.filteredSurfaces;
     return this.filteredSurfaces.filter((s) => !this.hiddenSurfaceIds.has(s.id));
+  }
+
+  get visibleInstances(): RhInstance[] {
+    if (!this.hiddenSurfaceIds.size) return this.filteredInstances;
+    return this.filteredInstances.filter((inst) => !this.isSurfaceKeyHidden(inst.surface));
   }
 
   get selectedSurface(): RhSurface | null {
@@ -200,18 +217,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return rhTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isSurfaceHidden(id: string): boolean {
-    return this.hiddenSurfaceIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -223,11 +229,15 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -235,15 +245,14 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -254,13 +263,13 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -271,7 +280,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -282,6 +291,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -305,12 +315,14 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
+      if (this.viewMode === 'preview') this.shiftInstance(1);
+      else if (this.viewMode === 'table') this.shiftRow(1);
       else if (this.viewMode === 'layers') this.shiftLayer(1);
       else this.shiftSurface(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
+      if (this.viewMode === 'preview') this.shiftInstance(-1);
+      else if (this.viewMode === 'table') this.shiftRow(-1);
       else if (this.viewMode === 'layers') this.shiftLayer(-1);
       else this.shiftSurface(-1);
     } else if (event.key.toLowerCase() === 'f') {
@@ -320,6 +332,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: RhLoadedFile): string {
     return file.id;
   }
@@ -332,8 +345,8 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     return part.id;
   }
 
-  trackByLayer(_i: number, assembly: RhLayer): string {
-    return assembly.id;
+  trackByLayer(_i: number, layer: RhLayer): string {
+    return layer.id;
   }
 
   trackByInstance(_i: number, instance: RhInstance): string {
@@ -352,6 +365,19 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     return formatRhFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return rhTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isSurfaceHidden(id: string): boolean {
+    return this.hiddenSurfaceIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -421,20 +447,78 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedSurfaceId = '';
+    this.selectedLayerId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenSurfaceIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'surfaces';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectSurface(id: string): void {
     this.selectedSurfaceId = id;
+    const surface = this.filteredSurfaces.find((s) => s.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.surface === id || (!!surface && (inst.surface === surface.name || inst.surface === surface.id))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectLayer(id: string): void {
     this.selectedLayerId = id;
+    const layer = this.filteredLayers.find((l) => l.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.layer === id || (!!layer && (inst.layer === layer.name || inst.layer === layer.id))
+    );
+    if (hit) {
+      this.selectedInstanceId = hit.id;
+      this.selectSurfaceFromInstance(hit);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectInstance(id: string): void {
     this.selectedInstanceId = id;
+    const inst = this.filteredInstances.find((i) => i.id === id);
+    if (inst) {
+      this.selectSurfaceFromInstance(inst);
+      if (inst.layer) {
+        const layer = this.parsed?.layers.find((l) => l.id === inst.layer || l.name === inst.layer);
+        this.selectedLayerId = layer?.id ?? this.selectedLayerId;
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -442,10 +526,24 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredSurfaces.some((s) => s.id === row.name || s.name === row.name)) this.selectedSurfaceId = row.name;
-    if (this.filteredLayers.some((e) => e.id === row.name || e.name === row.name)) this.selectedLayerId = row.name;
-    if (this.filteredInstances.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedInstanceId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'layer' || this.parsed.layers.some((l) => l.name === name || l.id === name)) {
+      const layer = this.parsed.layers.find((l) => l.name === name || l.id === name);
+      if (layer) this.selectLayer(layer.id);
+    } else if (kind === 'instance' || this.parsed.instances.some((i) => i.name === name || i.id === name)) {
+      const inst = this.parsed.instances.find((i) => i.name === name || i.id === name);
+      if (inst) this.selectInstance(inst.id);
+    } else if (name) {
+      const surface = this.parsed.surfaces.find((s) => s.name === name || s.id === name);
+      if (surface) this.selectSurface(surface.id);
+      else this.selectedSurfaceId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -469,41 +567,28 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedInstanceId && !this.filteredInstances.some((inst) => inst.id === this.selectedInstanceId)) {
       this.selectedInstanceId = this.filteredInstances[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedSurfaceId = '';
-    this.selectedLayerId = '';
-    this.selectedInstanceId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenSurfaceIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedInstanceId = '';
+    this.selectedLayerId = '';
+    this.selectedSurfaceId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -515,9 +600,13 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: RhViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -531,6 +620,11 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -551,7 +645,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
       else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Parts, Assemblies, or Preview to export a PNG snapshot');
+          this.toast.info('Open Surfaces, Layers, or Preview to export a PNG snapshot');
           return;
         }
         const url = canvasToPngDataUrl(canvas);
@@ -568,6 +662,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     if (!this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
@@ -580,7 +675,21 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleSurfaces, this.visibleInstances)
+        : toCad3dSurfaces(this.visibleSurfaces);
+    this.view = fitCad3dView(solids, width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -594,33 +703,6 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedInstanceId = '';
-    this.selectedLayerId = '';
-    this.selectedSurfaceId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids =
-      this.viewMode === 'preview'
-        ? toCad3dInstances(this.visibleSurfaces, this.filteredInstances)
-        : toCad3dSurfaces(this.visibleSurfaces);
-    this.view = fitCad3dView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -649,29 +731,49 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'layers') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    const id = pickCad3dSolidAtScreen(this.viewMode === 'preview' ? toCad3dInstances(this.visibleSurfaces, this.filteredInstances) : toCad3dSurfaces(this.visibleSurfaces), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectInstance(id);
-    else this.clearSelection();
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleSurfaces, this.visibleInstances)
+        : toCad3dSurfaces(this.visibleSurfaces);
+    const id = pickCad3dSolidAtScreen(solids, this.view, canvas.width, canvas.height, sx, sy);
+    if (!id) {
+      this.clearSelection();
+      return;
+    }
+    if (this.viewMode === 'preview') this.selectInstance(id);
+    else this.selectSurface(id);
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isSurfaceKeyHidden(surfaceKey: string): boolean {
+    if (this.hiddenSurfaceIds.has(surfaceKey)) return true;
+    const surface = this.parsed?.surfaces.find((s) => s.id === surfaceKey || s.name === surfaceKey);
+    return !!surface && this.hiddenSurfaceIds.has(surface.id);
+  }
+
+  private selectSurfaceFromInstance(inst: RhInstance): void {
+    if (!inst.surface) return;
+    const surface = this.parsed?.surfaces.find((s) => s.id === inst.surface || s.name === inst.surface);
+    this.selectedSurfaceId = surface?.id ?? this.selectedSurfaceId;
+  }
+
   private shiftSurface(delta: number): void {
-    const list = this.filteredSurfaces;
+    const list = this.visibleSurfaces;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedSurfaceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -687,7 +789,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftInstance(delta: number): void {
-    const list = this.filteredInstances;
+    const list = this.visibleInstances;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedInstanceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -695,10 +797,6 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftInstance(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
@@ -724,7 +822,7 @@ export class Rhino3dmViewerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.viewMode === 'preview') {
-      renderRhInstances(canvas, this.visibleSurfaces, this.filteredInstances, this.selectedInstanceId || null, this.view);
+      renderRhInstances(canvas, this.visibleSurfaces, this.visibleInstances, this.selectedInstanceId || null, this.view);
       return;
     }
     renderRhSurfaces(canvas, this.visibleSurfaces, this.selectedSurfaceId || null, this.view);

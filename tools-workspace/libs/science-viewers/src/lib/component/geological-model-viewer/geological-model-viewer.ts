@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   GEO_MODEL_ACCEPT_ATTR,
   GEO_MODEL_FORMATS_HINT,
@@ -23,6 +23,7 @@ import {
 } from '../../constants/geological-model-viewer.constants';
 import type {
   GeoModelExportFormat,
+  GeoModelFault,
   GeoModelLayer,
   GeoModelLoadedFile,
   GeoModelViewMode,
@@ -55,7 +56,7 @@ import {
   standalone: true,
   templateUrl: './geological-model-viewer.html',
   styleUrls: ['./geological-model-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy {
@@ -93,7 +94,7 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
 
-  viewMode: GeoModelViewMode = 'section';
+  viewMode: GeoModelViewMode = 'map';
   query = '';
   exaggeration = 1;
   visibleIds = new Set<string>();
@@ -122,11 +123,11 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   get filteredLayers(): GeoModelLayer[] {
-    return this.parsed ? filterGeoLayers(this.parsed.layers, this.query) : [];
+    return filterGeoLayers(this.parsed?.layers ?? [], this.query);
   }
 
   get selectedLayer(): GeoModelLayer | null {
-    return this.parsed?.layers.find((l) => l.id === this.selectedLayerId) ?? this.filteredLayers[0] ?? null;
+    return this.parsed?.layers.find((l) => l.id === this.selectedLayerId) ?? null;
   }
 
   get layerMetadataRows() {
@@ -137,7 +138,11 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
     return this.parsed?.wells ?? [];
   }
 
-  get faults() {
+  get selectedWell(): GeoModelWell | null {
+    return this.wells.find((w) => w.id === this.selectedWellId) ?? null;
+  }
+
+  get faults(): GeoModelFault[] {
     return this.parsed?.faults ?? [];
   }
 
@@ -146,20 +151,24 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'map' || this.viewMode === 'section';
+  }
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -207,11 +216,18 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
-    if (!this.parsed) return;
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (event.key === '/') {
       event.preventDefault();
       this.searchInput?.nativeElement?.focus();
-    } else if (event.key === 'ArrowDown') {
+      return;
+    }
+    if (!this.parsed) return;
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
       this.shiftLayer(1);
     } else if (event.key === 'ArrowUp') {
@@ -225,9 +241,7 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
       this.setExaggeration(this.exaggeration / 1.25);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.exaggeration = 1;
-      this.renderCanvas();
-      this.cdr.markForCheck();
+      this.fitExaggeration();
     }
   }
 
@@ -293,8 +307,13 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no layer data — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -314,13 +333,48 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedWellId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.exaggeration = 1;
+    this.viewMode = 'map';
+    this.visibleIds = new Set();
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
   selectLayer(id: string): void {
+    if (id === this.selectedLayerId) return;
     this.selectedLayerId = id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectWell(id: string): void {
+    if (id === this.selectedWellId) return;
     this.selectedWellId = id;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -337,38 +391,24 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   setExaggeration(value: number): void {
-    this.exaggeration = Math.max(0.25, Math.min(8, value));
+    const next = Math.max(0.25, Math.min(8, value));
+    if (next === this.exaggeration) return;
+    this.exaggeration = next;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  fitExaggeration(): void {
+    this.exaggeration = 1;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   onFilterChange(): void {
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedLayerId && !this.filteredLayers.some((l) => l.id === this.selectedLayerId)) {
+      this.selectedLayerId = this.filteredLayers[0]?.id ?? '';
+      this.renderCanvas();
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedLayerId = '';
-    this.selectedWellId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.visibleIds = new Set();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
@@ -383,6 +423,7 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   setViewMode(mode: GeoModelViewMode): void {
+    if (mode === this.viewMode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -396,6 +437,11 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -404,7 +450,11 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(new TextEncoder().encode(file.text), file.name, 'application/json');
       else if (format === 'summary-json') downloadTextFile(exportGeoModelSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -412,12 +462,18 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
       else if (format === 'section-csv') downloadTextFile(exportGeoSectionCsv(file.parsed), `${file.name}.section.csv`, 'text/csv');
       else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
-        if (!canvas) {
+        if (!canvas || !this.canUseCanvasExport) {
           this.toast.info('Open Map or Section to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -429,8 +485,9 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   private shiftLayer(delta: number): void {
     const layers = this.filteredLayers;
     if (!layers.length) return;
-    const idx = Math.max(0, layers.findIndex((l) => l.id === this.selectedLayerId));
-    const next = layers[Math.min(layers.length - 1, Math.max(0, idx + delta))];
+    const idx = layers.findIndex((l) => l.id === this.selectedLayerId);
+    const base = idx >= 0 ? idx : 0;
+    const next = layers[Math.min(layers.length - 1, Math.max(0, base + delta))];
     if (next) this.selectLayer(next.id);
   }
 
@@ -450,14 +507,14 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   private renderCanvas(): void {
-    if (!this.isBrowser || (this.viewMode !== 'map' && this.viewMode !== 'section')) return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const parsed = this.parsed;
     if (!canvas) return;
     const parent = canvas.parentElement;
     if (parent) {
       canvas.width = Math.max(320, parent.clientWidth);
-      canvas.height = Math.max(280, parent.clientHeight || 420);
+      canvas.height = Math.max(280, Math.min(520, parent.clientHeight || 420));
     }
     if (!parsed?.layers.length) {
       this.clearCanvas();
@@ -480,6 +537,7 @@ export class GeologicalModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

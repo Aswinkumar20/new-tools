@@ -5,7 +5,8 @@ import {
   createClimateFileRecord,
   createSampleClimateFile,
   exportClimateSeriesCsv,
-  filterValidClimateFiles
+  filterValidClimateFiles,
+  resolveClimateSuggestion
 } from './climate-data-viewer.utils';
 
 describe('climate-parse.utils', () => {
@@ -73,5 +74,26 @@ describe('climate-data-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('canExportClimate is false for null', () => {
+    expect(canExportClimate(null)).toBe(false);
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.json', { lastModified: 3 });
+    const record = createClimateFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportClimate(record)).toBe(false);
+    expect(record.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('resolveClimateSuggestion returns upload when empty', () => {
+    expect(resolveClimateSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveClimateSuggestion returns sample after error', () => {
+    expect(resolveClimateSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveClimateSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

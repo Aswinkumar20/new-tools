@@ -11,7 +11,8 @@ import {
   createSampleTvFile,
   createTvFileRecord,
   exportTvSchemaCsv,
-  filterValidTvFiles
+  filterValidTvFiles,
+  resolveTvSuggestion
 } from './tsv-viewer.utils';
 
 describe('tsv-viewer-parse.utils', () => {
@@ -87,6 +88,22 @@ describe('tsv-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveTvSuggestion covers empty and error states', () => {
+    expect(resolveTvSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveTvSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveTvSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createTvFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportTv(record)).toBe(false);
+    expect(canExportTv(null)).toBe(false);
   });
 });
 

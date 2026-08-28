@@ -12,7 +12,7 @@ import {
   toggleMmapCollapsed,
   visibleMmapNodes
 } from './mind-map-viewer-parse.utils';
-import { canExportMmap, createMmapFileRecord, createSampleMmapFile, exportMmapOutlineTxt, filterValidMmapFiles } from './mind-map-viewer.utils';
+import { canExportMmap, createMmapFileRecord, createSampleMmapFile, exportMmapOutlineTxt, filterValidMmapFiles, resolveMmapSuggestion } from './mind-map-viewer.utils';
 
 describe('mind-map-viewer-parse.utils', () => {
   it('parses the shop markdown sample', () => {
@@ -102,5 +102,24 @@ describe('mind-map-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveMmapSuggestion returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveMmapSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveMmapSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveMmapSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.md', { lastModified: 9 });
+    const record = createMmapFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportMmap(record)).toBe(false);
+  });
+
+  it('canExportMmap returns false for null', () => {
+    expect(canExportMmap(null)).toBe(false);
   });
 });

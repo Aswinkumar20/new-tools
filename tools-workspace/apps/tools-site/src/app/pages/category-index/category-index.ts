@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LowerCasePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Navigation, TOOL_CATEGORIES } from '@tools-workspace/features-home';
 import type { ToolCategoryCatalog } from '@tools-workspace/features-home';
@@ -7,7 +8,7 @@ import type { ToolCategoryCatalog } from '@tools-workspace/features-home';
   selector: 'app-category-index',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Navigation],
+  imports: [RouterLink, Navigation, LowerCasePipe],
   templateUrl: './category-index.html',
   styleUrl: './category-index.scss',
 })

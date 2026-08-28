@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   GRIB_ACCEPT_ATTR,
   GRIB_FORMATS_HINT,
@@ -58,7 +58,7 @@ import {
   standalone: true,
   templateUrl: './grib-viewer.html',
   styleUrls: ['./grib-viewer.scss'],
-  imports: [CommonModule, RouterLink, Navigation],
+  imports: [CommonModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GribViewerComponent implements AfterViewInit, OnDestroy {
@@ -69,7 +69,8 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
-  @ViewChild('canvasHost') canvasHost!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
 
   readonly acceptAttr = GRIB_ACCEPT_ATTR;
   readonly relatedTools = GRIB_RELATED_TOOLS;
@@ -144,14 +145,14 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -159,13 +160,16 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
-    this.showDropZone = true;
-    this.cdr.markForCheck();
+    if (!this.showDropZone) {
+      this.showDropZone = true;
+      this.cdr.markForCheck();
+    }
   }
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (this.isFileDrag(event)) event.preventDefault();
+    if (!this.isFileDrag(event)) return;
+    event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
@@ -173,7 +177,7 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
-    if (this.dragDepth === 0) {
+    if (this.dragDepth === 0 && this.showDropZone) {
       this.showDropZone = false;
       this.cdr.markForCheck();
     }
@@ -191,16 +195,28 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    if (!this.currentFile || this.isTypingTarget(event.target)) return;
-    if (event.key.toLowerCase() === 'f') {
-      event.preventDefault();
-      this.fitZoom();
-    } else if (event.key === '+' || event.key === '=') {
+    if (this.isTypingTarget(event.target)) {
+      if (event.key === 'Escape') (event.target as HTMLElement).blur();
+      return;
+    }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!this.currentFile) return;
+    if (event.key === '+' || event.key === '=') {
       event.preventDefault();
       this.zoomIn();
-    } else if (event.key === '-') {
+    } else if (event.key === '-' || event.key === '_') {
       event.preventDefault();
       this.zoomOut();
+    } else if (event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      this.fitZoom();
+    } else if (event.key.toLowerCase() === 'i') {
+      event.preventDefault();
+      this.toggleInvert();
     }
   }
 
@@ -233,7 +249,7 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   async handleFiles(files: File[]): Promise<void> {
     const { accepted, rejected } = filterValidGribFiles(files);
-    rejected.forEach((r) => this.toast.error(`${r.name}: ${r.reason}`));
+    for (const item of rejected) this.toast.error(`${item.name}: ${item.reason}`);
     if (!accepted.length) {
       this.cdr.markForCheck();
       return;
@@ -243,21 +259,34 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
     try {
       for (const file of accepted) {
-        const bytes = await readGribFileBytes(file);
-        const record = createGribFileRecord(file, bytes);
-        const existing = this.files.findIndex((f) => f.id === record.id);
-        if (existing >= 0) {
-          this.files[existing] = record;
-          this.currentIndex = existing;
-        } else {
-          this.files = [...this.files, record];
-          this.currentIndex = this.files.length - 1;
+        try {
+          const bytes = await readGribFileBytes(file);
+          const record = createGribFileRecord(file, bytes);
+          const existing = this.files.findIndex((f) => f.id === record.id);
+          if (existing >= 0) {
+            this.files[existing] = record;
+            this.currentIndex = existing;
+          } else {
+            this.files = [...this.files, record];
+            this.currentIndex = this.files.length - 1;
+          }
+          this.syncFromCurrent();
+        } catch (error) {
+          this.errorMessage = `${file.name}: ${error instanceof Error ? error.message : 'Invalid GRIB'}`;
+          this.toast.error(this.errorMessage);
         }
-        this.syncFromCurrent();
       }
       this.fitZoom();
       this.renderCanvas();
-      if (this.currentFile) this.toast.success(`Loaded ${this.currentFile.name}`);
+      if (this.currentFile) {
+        this.errorMessage = '';
+        this.toast.success(`Loaded ${this.currentFile.name}`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no message data — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
+      }
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -278,20 +307,33 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
-    this.files = this.files.filter((_, i) => i !== index);
-    if (!this.files.length) {
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
       this.clearAll();
       return;
     }
-    this.currentIndex = Math.min(index, this.files.length - 1);
+    this.currentIndex = Math.min(index, next.length - 1);
     this.syncFromCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
     this.files = [];
     this.currentIndex = -1;
+    this.selectedMessageIndex = 0;
+    this.windowCenter = 0;
+    this.windowWidth = 1;
+    this.invert = false;
+    this.colormap = 'viridis';
+    this.zoom = 1;
     this.errorMessage = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
@@ -307,6 +349,7 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   selectMessage(index: number): void {
+    if (index === this.selectedMessageIndex) return;
     this.selectedMessageIndex = index;
     const f = this.field;
     if (f) {
@@ -320,6 +363,7 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setColormap(c: GribColormap): void {
+    if (c === this.colormap) return;
     this.colormap = c;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -332,13 +376,17 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   zoomIn(): void {
-    this.zoom = Math.min(8, this.zoom * 1.15);
+    const next = Math.min(8, this.zoom * 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   zoomOut(): void {
-    this.zoom = Math.max(0.1, this.zoom / 1.15);
+    const next = Math.max(0.1, this.zoom / 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -347,12 +395,13 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     const f = this.field;
     const canvas = this.canvasHost?.nativeElement;
     if (!f || !canvas) return;
-    this.zoom = computeZoomFit(canvas.clientWidth, canvas.clientHeight, f.ni, f.nj);
+    this.zoom = computeZoomFit(canvas.clientWidth || 320, canvas.clientHeight || 280, f.ni, f.nj);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   resetZoom(): void {
+    if (this.zoom === 1) return;
     this.zoom = 1;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -366,6 +415,11 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -375,15 +429,36 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     this.showExportMenu = false;
     const file = this.currentFile;
     const field = this.field;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportGribSummaryJson(file), `${file.name}.summary.json`, 'application/json');
       else if (format === 'messages-json') downloadTextFile(exportGribMessagesJson(file), `${file.name}.messages.json`, 'application/json');
-      else if (format === 'field-csv' && field) downloadTextFile(exportGribFieldCsv(field), `${field.parameterName}.csv`, 'text/csv');
-      else if (format === 'png') {
-        const url = canvasToPngDataUrl(this.canvasHost.nativeElement);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+      else if (format === 'field-csv') {
+        if (!field) {
+          this.toast.info('Select a message field to export CSV');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadTextFile(exportGribFieldCsv(field), `${field.parameterName}.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas) {
+          this.toast.info('Open a field preview to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (e) {
@@ -401,7 +476,12 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
 
   private syncFromCurrent(): void {
     const parsed = this.parsed;
-    if (!parsed) return;
+    if (!parsed?.messages.length) {
+      this.selectedMessageIndex = 0;
+      this.windowCenter = 0;
+      this.windowWidth = 1;
+      return;
+    }
     this.selectedMessageIndex = parsed.defaultMessageIndex;
     const f = this.field;
     if (f) {
@@ -418,8 +498,8 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
     if (!canvas || !field) return;
     const parent = canvas.parentElement;
     if (parent) {
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
+      canvas.width = Math.max(320, parent.clientWidth);
+      canvas.height = Math.max(280, Math.min(520, parent.clientHeight || 420));
     }
     const imageData = pixelsToImageData(field.data, field.ni, field.nj, {
       center: this.windowCenter,
@@ -431,16 +511,18 @@ export class GribViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
-    const ctx = this.canvasHost?.nativeElement?.getContext('2d');
+    if (!this.isBrowser) return;
     const c = this.canvasHost?.nativeElement;
-    if (ctx && c) ctx.clearRect(0, 0, c.width, c.height);
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (ctx) ctx.clearRect(0, 0, c.width, c.height);
   }
 
   private observeCanvasResize(): void {
-    const parent = this.canvasHost?.nativeElement?.parentElement;
-    if (!parent || typeof ResizeObserver === 'undefined') return;
+    const host = this.mapWrap?.nativeElement ?? this.canvasHost?.nativeElement?.parentElement;
+    if (!host || typeof ResizeObserver === 'undefined') return;
     this.resizeObserver = new ResizeObserver(() => this.fitZoom());
-    this.resizeObserver.observe(parent);
+    this.resizeObserver.observe(host);
   }
 
   private isFileDrag(event: DragEvent): boolean {

@@ -10,7 +10,8 @@ import {
   createSampleSmFile,
   createSmFileRecord,
   exportSmStatesCsv,
-  filterValidSmFiles
+  filterValidSmFiles,
+  resolveSmSuggestion
 } from './state-machine-viewer.utils';
 
 describe('state-machine-viewer-parse.utils', () => {
@@ -89,5 +90,22 @@ describe('state-machine-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveSmSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveSmSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSmSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSmSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createSmFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportSm(record)).toBe(false);
+  });
+
+  it('canExportSm returns false for null', () => {
+    expect(canExportSm(null)).toBe(false);
   });
 });

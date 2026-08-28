@@ -12,7 +12,8 @@ import {
   createSkFileRecord,
   createSampleSkFile,
   exportSkSchemaCsv,
-  filterValidSkFiles
+  filterValidSkFiles,
+  resolveSkSuggestion
 } from './sketchup-viewer.utils';
 
 describe('sketchup-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportSk guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportSk({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportSk(null)).toBe(false);
+  });
+});
+
+describe('resolveSkSuggestion', () => {
+  it('prefers error sample, then upload-or-sample when empty', () => {
+    expect(resolveSkSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSkSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSkSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

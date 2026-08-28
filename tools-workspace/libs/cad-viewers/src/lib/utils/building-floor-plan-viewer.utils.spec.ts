@@ -14,7 +14,20 @@ import {
   parseFpBytes,
   parseFpText
 } from './building-floor-plan-viewer-parse.utils';
-import { canExportFp, createFpFileRecord, createSampleFpFile, exportFpSchemaCsv, filterValidFpFiles } from './building-floor-plan-viewer.utils';
+import {
+  buildFpLevelMetadata,
+  buildFpMetadataRows,
+  buildFpRoomMetadata,
+  buildFpSpaceMetadata,
+  canExportFp,
+  createFpFileRecord,
+  createSampleFpFile,
+  exportFpRowsCsv,
+  exportFpSchemaCsv,
+  exportFpSummaryJson,
+  filterValidFpFiles,
+  resolveFpSuggestion
+} from './building-floor-plan-viewer.utils';
 
 describe('building-floor-plan-viewer-parse.utils', () => {
   it('parses the hotel FP01 sample', () => {
@@ -123,5 +136,44 @@ describe('canExportFp guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportFp({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportFp(null)).toBe(false);
+  });
+});
+
+describe('building-floor-plan-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and entity metadata rows', () => {
+    const parsed = parseFpBytes(buildSampleFpBytes(), 'hotel-l3.ifc');
+    const rows = buildFpMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Spaces')).toBe(true);
+
+    const space = parsed.spaces[0];
+    expect(buildFpSpaceMetadata(space).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildFpRoomMetadata(parsed.rooms[0]).some((r) => r.key === 'Area')).toBe(true);
+    expect(buildFpLevelMetadata(parsed.levels[0]).some((r) => r.key === 'Elevation')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createFpFileRecord(createSampleFpFile(), buildSampleFpBytes());
+    const summary = exportFpSummaryJson(file);
+    expect(summary).toContain('"levels"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportFpRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","levels":[],"rooms":[],"spaces":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createFpFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportFp(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveFpSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveFpSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveFpSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

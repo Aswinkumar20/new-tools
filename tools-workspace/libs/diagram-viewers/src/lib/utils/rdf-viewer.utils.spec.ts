@@ -10,7 +10,8 @@ import {
   createRdfFileRecord,
   createSampleRdfFile,
   exportRdfTriplesCsv,
-  filterValidRdfFiles
+  filterValidRdfFiles,
+  resolveRdfSuggestion
 } from './rdf-viewer.utils';
 
 describe('rdf-viewer-parse.utils', () => {
@@ -87,5 +88,22 @@ describe('rdf-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveRdfSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveRdfSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveRdfSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveRdfSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createRdfFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportRdf(record)).toBe(false);
+  });
+
+  it('canExportRdf returns false for null', () => {
+    expect(canExportRdf(null)).toBe(false);
   });
 });

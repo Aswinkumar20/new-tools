@@ -1,5 +1,5 @@
 import { SeoMetadata } from '../services/seo.service';
-import { TOOL_SEO_CATALOG, ToolSeoEntry } from './tool-seo-catalog.generated';
+import { COMING_SOON_PATHS, TOOL_SEO_CATALOG, ToolSeoEntry } from './tool-seo-catalog.generated';
 
 /**
  * Optional hand-tuned SEO overrides for high-traffic pages.
@@ -118,6 +118,13 @@ const SEO_OVERRIDES: Record<string, Partial<SeoMetadata>> = {
       'Decode and inspect JWT headers and payloads safely in your browser. Free JWT debugger — tokens never leave your device.',
     keywords: 'jwt decoder, decode jwt token, jwt debugger, json web token decoder',
   },
+  '/file-viewers/ics-viewer': {
+    title: 'ICS Calendar Viewer - Open .ics Files Online',
+    description:
+      'Open and preview .ics / iCalendar files in your browser. Month, week, day, agenda, and year views with search, filters, recurrence, and timezones — strictly read-only.',
+    keywords:
+      'ics viewer online, icalendar viewer, open ics file, calendar viewer, ics file preview, outlook ics viewer, google calendar ics viewer, apple calendar export viewer, read-only calendar',
+  },
 };
 
 /**
@@ -149,6 +156,12 @@ export function getSeoMetadataForRoute(route: string): SeoMetadata | null {
 export function getToolSeoEntry(route: string): ToolSeoEntry | null {
   const cleanRoute = route.split('?')[0].replace(/\/$/, '') || '/tools/home';
   return TOOL_SEO_CATALOG[cleanRoute] ?? null;
+}
+
+/** Coming-soon placeholders should not be indexed. */
+export function isComingSoonRoute(route: string): boolean {
+  const cleanRoute = route.split('?')[0].replace(/\/$/, '') || '';
+  return (COMING_SOON_PATHS as readonly string[]).includes(cleanRoute);
 }
 
 function catalogEntryToMetadata(entry: ToolSeoEntry, route: string): SeoMetadata {

@@ -144,17 +144,24 @@
           <div class="cmap-empty" *ngIf="!currentFile && !loading">
             <p>Drop concept map source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn cmap-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="cmap-loading" *ngIf="loading">Parsing concept map…</div>
+          <div class="cmap-loading" *ngIf="loading" role="status" aria-live="polite">Parsing concept map…</div>
         </div>
 
-        <div class="cmap-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="cmap-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="cmap-disclaimer">Education and research preview only — not a substitute for CmapTools or classroom concept-mapping software.</p>
+        <div class="cmap-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="cmap-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="cmap-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for CmapTools or classroom concept-mapping software.</p>
       </section>
 
-      <aside class="cmap-sidebar">
+      <aside class="cmap-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="cmap-empty-panel">Upload a concept map or load the sample to see overview, nodes, and links here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="cmap-search" type="search" placeholder="node:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="cmap-search" type="search" aria-label="Search concept map" placeholder="node:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="cmap-search-hint">Try <code>node:Customer</code>, <code>rel:uses</code>, or <code>from:Cart</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'table' || viewMode === 'links') && filteredLinks.length" open>
@@ -222,17 +230,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Nodes, Links, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Customer</code> or <code>rel:uses</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, nodes/links CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

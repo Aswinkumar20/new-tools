@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**EasyToolHub** (`@tools-workspace/source`) is a free browser toolkit at [easytoolhub.com](https://easytoolhub.com). Processing is almost entirely **client-side**. The Express SSR server serves HTML/static files only — **no product REST API**.
+**EasyToolHub** (`@tools-workspace/source`) is a free browser toolkit at [easytoolhub.com](https://easytoolhub.com). Processing is almost entirely **client-side**. Production deploys **static SSG** HTML from `dist/apps/tools-site/browser/` — **no Node/Express runtime, no product REST API**.
 
 ## Tech stack
 
@@ -12,7 +12,7 @@
 | Framework | Angular ~20.3 (standalone components) |
 | Language | TypeScript ~5.9 |
 | Styling | SCSS |
-| SSR | `@angular/ssr` + Express `CommonEngine` |
+| SSG | `@angular/ssr` + `@angular/platform-server` (build-time prerender only) |
 | Unit tests | Jest + jest-preset-angular |
 | E2E | Playwright |
 | Lint | ESLint 9 flat config |
@@ -21,14 +21,14 @@
 
 **CDN at runtime:** pdf.js, SheetJS, mammoth, marked, DOMPurify (markdown), JSZip, Chart.js, qrcode, JsBarcode, jspdf, html2canvas.
 
-No NgRx, no app `environments/`, no HTTP interceptors, no route guards. Root `package.json` `"scripts": {}` — use `npx nx …`.
+No NgRx, no app `environments/`, no HTTP interceptors, no route guards.
 
 ## Folder structure
 
 ```
 tools-workspace/
 ├── apps/
-│   ├── tools-site/          # SPA + SSR (routes, SEO, GA)
+│   ├── tools-site/          # SPA + SSG (routes, SEO, GA)
 │   └── tools-site-e2e/      # Playwright
 ├── libs/                    # 23 libraries (@tools-workspace/*)
 ├── docs/                    # This documentation (canonical)
@@ -44,7 +44,10 @@ Path aliases: `@tools-workspace/<lib>` → `libs/<lib>/src/index.ts`.
 
 ```mermaid
 flowchart TB
-  User[Browser] --> App[App shell]
+  User[Browser] --> CDN[Static CDN]
+  CDN --> HTML[Prerendered HTML]
+  HTML --> Hydrate[Client hydration]
+  Hydrate --> App[App shell]
   App --> Outlet[router-outlet]
   App --> Footer[lib-footer]
   App --> Toast[lib-toast-container]
@@ -56,7 +59,6 @@ flowchart TB
   Tools --> Nav
   Tools --> ToastSvc[ToastService]
   Tools --> Assets[AssetService]
-  SSR[Express server.ts] --> Engine[CommonEngine]
 ```
 
 | Layer | Responsibility |
@@ -64,22 +66,24 @@ flowchart TB
 | `apps/tools-site` | Bootstrap, `app.routes.ts` (365 lazy routes), SEO, GA, shell |
 | `features-home` (`type:shared`) | Home, nav, footer, toast, assets, i18n, coming-soon page |
 | Feature libs (`type:feature`) | One tool (or PDF mode) per route; client logic + optional CDN |
-| Build scripts | SEO catalog, prerender routes, sitemap |
+| Build scripts | SEO catalog, prerender route inventory, sitemap |
 
 ### Routing
 
 - Single table: `apps/tools-site/src/app/app.routes.ts`.
 - Pattern: category parent → `children` with `loadComponent`.
-- Coming-soon routes load shared `ComingSoonPageComponent` from `features-home`.
-- `''` and `**` redirect toward `tools`.
+- Coming-soon routes load shared `ComingSoonPageComponent` from `features-home` (`noindex`, omitted from sitemap).
+- `''` redirects toward `tools`; unknown URLs → NotFound (`/404`).
 
 ### Design choices
 
 1. Thin app, fat libs  
 2. Lazy per-tool chunks  
 3. Privacy-first client processing (FX rates are the main outbound product API)  
-4. Shell shared via `features-home` (`type:shared`; Navigation still coupled to the generated catalog)  
-5. PDF: mode-driven workbenches; Text: many tools extend `TextToolBase`
+4. Build-time SSG for crawlable HTML; tools hydrate in the browser  
+5. Theme preference uses a single `localStorage` key: `theme`  
+6. Shell shared via `features-home` (`type:shared`; Navigation still coupled to the generated catalog)  
+7. PDF: mode-driven workbenches; Text: many tools extend `TextToolBase`
 
 Hardcoded: SEO base `https://easytoolhub.com`, GA `G-C7L2T1RHVW`.
 
@@ -97,8 +101,6 @@ No global UI store.
 | Signal stores | Unit-converter preset/history |
 | `localStorage` | Theme (`theme`), language, clipboard history, some tool history |
 | `sessionStorage` | PDF workbench (`easytoolhub.pdf.session`) |
-
-**Theme caveat:** shell uses key `theme`; home also references `easytoolhub.theme` in places — can desync.
 
 ```mermaid
 flowchart LR

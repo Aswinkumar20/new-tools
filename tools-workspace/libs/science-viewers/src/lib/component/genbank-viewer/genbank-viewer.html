@@ -16,41 +16,53 @@
       </div>
       <div class="gb-suggest__actions">
         <button type="button" class="gb-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="gb-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="gb-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="gb-toolbar">
+    <div class="gb-toolbar" role="toolbar" aria-label="GenBank Viewer actions">
       <div class="gb-toolbar__group">
         <input #fileInput class="gb-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn gb-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn gb-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="gb-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="gb-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('features-csv', $event)">Features CSV</button>
-            <button type="button" (click)="exportAs('selected-fasta', $event)">Feature FASTA</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="gb-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="gb-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('features-csv', $event)">Features CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('selected-fasta', $event)">Feature FASTA</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="gb-files" *ngIf="files.length">
           <div class="gb-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.gb-files__chip--active]="i === currentIndex">
             <button type="button" class="gb-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="gb-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="gb-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="gb-toolbar__status"><span class="gb-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="gb-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="gb-tab-bar" *ngIf="currentFile" role="tablist" aria-label="GenBank Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="gb-toolbar__status"><span class="gb-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="gb-workspace" [class.gb-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,15 +73,15 @@
             <span>{{ record?.length || 0 | number }} bp · {{ record?.molType || formatsLabel }} · {{ record?.features?.length || 0 }} features</span>
           </div>
           <div class="gb-view-controls">
-            <button type="button" *ngFor="let w of wraps" [class.is-active]="wrap === w" (click)="setWrap(w)">{{ w === 0 ? 'None' : w }}</button>
-            <button type="button" (click)="toggleColor()" [class.is-active]="colorize">Color</button>
-            <button type="button" (click)="toggleTranslation()" [class.is-active]="showTranslation" title="Translation (T)">AA</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__tool-btn" *ngFor="let w of wraps" [class.is-active]="wrap === w" [attr.aria-pressed]="wrap === w" (click)="setWrap(w)" [attr.aria-label]="w === 0 ? 'No wrap' : 'Wrap at ' + w" [appTooltip]="w === 0 ? 'No wrap' : 'Wrap at ' + w" tooltipPosition="top">{{ w === 0 ? 'None' : w }}</button>
+            <button type="button" class="ctl__tool-btn" (click)="toggleColor()" [class.is-active]="colorize" [attr.aria-pressed]="colorize" aria-label="Toggle residue colors" appTooltip="Toggle residue colors" tooltipPosition="top">Color</button>
+            <button type="button" class="ctl__tool-btn" (click)="toggleTranslation()" [class.is-active]="showTranslation" [attr.aria-pressed]="showTranslation" aria-label="Toggle CDS translation" appTooltip="Translation (T)" tooltipPosition="top">AA</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="gb-map-wrap" [class.gb-map-wrap--empty]="!currentFile">
-          <canvas #canvasHost class="gb-map" *ngIf="viewMode === 'map'"></canvas>
+        <div #mapWrap class="gb-map-wrap">
+          <canvas #canvasHost class="gb-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="gb-feat-table" *ngIf="currentFile && viewMode === 'features'">
             <table>
               <thead>
@@ -101,81 +113,108 @@
                 <ng-template #plainLine>{{ line.text }}</ng-template>
               </span>
             </div>
+            <p class="gb-clip" *ngIf="sequenceClipped">Preview truncated — export the full feature or record.</p>
             <p class="gb-translate" *ngIf="showTranslation && translation"><strong>Translation</strong> {{ translation }}</p>
+            <p class="gb-empty-filter" *ngIf="showTranslation && !translation">No translation available for this feature.</p>
           </div>
           <div class="gb-empty" *ngIf="!currentFile && !loading">
             <p>Drop GenBank files here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn gb-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gb-loading" *ngIf="loading">Parsing GenBank…</div>
+          <div class="gb-loading" *ngIf="loading" role="status" aria-live="polite">Parsing GenBank…</div>
         </div>
 
-        <div class="gb-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="gb-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="gb-disclaimer">Education and research preview only — not a substitute for NCBI GenBank or production annotation pipelines.</p>
+        <div class="gb-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="gb-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="gb-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for NCBI GenBank or production annotation pipelines.</p>
       </section>
 
-      <aside class="gb-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="gb-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="gb-empty-panel">Upload a .gb / .gbk / .gbff file or load the sample adhS fragment to inspect the feature map, CDS translation, and sequence here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="gb-meta">
               <div *ngFor="let row of fileMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="records.length > 1">
-          <header class="ctl__panel-head">Records</header>
-          <div class="ctl__panel-body">
+        </details>
+        <details class="ctl__panel" *ngIf="records.length > 1" open>
+          <summary class="ctl__panel-head">Records</summary>
+          <div class="ctl__panel-body gb-rec-list">
             <button type="button" class="gb-rec" *ngFor="let rec of records; trackBy: trackByRecord" [class.is-active]="record?.index === rec.index" (click)="selectRecord(rec.index)">
               <strong>{{ rec.locus }}</strong>
               <span>{{ rec.length | number }} bp · {{ rec.features.length }} features</span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="record">
-          <header class="ctl__panel-head">Record</header>
+        </details>
+        <details class="ctl__panel" *ngIf="record" open>
+          <summary class="ctl__panel-head">Record</summary>
           <div class="ctl__panel-body">
             <dl class="gb-meta">
               <div *ngFor="let row of recordMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="record">
-          <header class="ctl__panel-head">Feature types</header>
+        </details>
+        <details class="ctl__panel" *ngIf="record" open>
+          <summary class="ctl__panel-head">Feature types</summary>
           <div class="ctl__panel-body gb-types">
-            <button type="button" [class.is-active]="typeFilter === null" (click)="setTypeFilter(null)">All</button>
-            <button type="button" *ngFor="let type of record.featureTypes" [class.is-active]="typeFilter === type" (click)="setTypeFilter(type)">{{ type }}</button>
+            <button type="button" [class.is-active]="typeFilter === null" [attr.aria-pressed]="typeFilter === null" (click)="setTypeFilter(null)">All</button>
+            <button type="button" *ngFor="let type of record.featureTypes" [class.is-active]="typeFilter === type" [attr.aria-pressed]="typeFilter === type" (click)="setTypeFilter(type)">{{ type }}</button>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Features</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Features</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="gb-search" type="search" placeholder="Search gene / product (/)" [(ngModel)]="query" (ngModelChange)="onQueryChange()" />
-            <button type="button" class="gb-rec" *ngFor="let feature of visibleFeatures; let i = index; trackBy: trackByFeature" [class.is-active]="selectedFeature?.index === feature.index" (click)="selectFeature(i)">
-              <strong>{{ feature.type }} <span *ngIf="feature.gene">· {{ feature.gene }}</span></strong>
-              <span>{{ feature.location }}</span>
-            </button>
+            <input #searchInput class="gb-search" type="search" aria-label="Search features" placeholder="Search gene / product (/)" [(ngModel)]="query" (ngModelChange)="onQueryChange()" />
+            <p class="gb-search-hint">Filter by gene, product, or note. Press <kbd>/</kbd> to focus; <kbd>↑</kbd>/<kbd>↓</kbd> change feature; <kbd>t</kbd> toggles translation.</p>
+            <div class="gb-feat-list">
+              <button type="button" class="gb-rec" *ngFor="let feature of visibleFeatures; let i = index; trackBy: trackByFeature" [class.is-active]="selectedFeature?.index === feature.index" (click)="selectFeature(i)">
+                <strong>{{ feature.type }} <span *ngIf="feature.gene">· {{ feature.gene }}</span></strong>
+                <span>{{ feature.location }}</span>
+              </button>
+            </div>
+            <p class="gb-empty-filter" *ngIf="record && !visibleFeatures.length">No features match the current filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedFeature">
-          <header class="ctl__panel-head">Selected feature</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedFeature" open>
+          <summary class="ctl__panel-head">Selected feature</summary>
           <div class="ctl__panel-body">
             <dl class="gb-meta">
               <div *ngFor="let row of featureMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
-            <label class="gb-jump">Jump <input type="number" min="1" [(ngModel)]="jumpPos" placeholder="position" /></label>
+            <label class="gb-jump">Jump
+              <input type="number" min="1" [(ngModel)]="jumpPos" (ngModelChange)="jumpToPosition()" placeholder="position" aria-label="Jump to sequence position" />
+            </label>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="gb-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="gb-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help gb-footer-help">
+      <summary>How to use GenBank Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in adhS sample. Files never leave your browser.</li>
+        <li>Switch Feature map, Features, or Sequence views. Filter by type and search gene/product.</li>
+        <li>Toggle color and CDS translation (AA). Press <kbd>t</kbd> for translation; <kbd>↑</kbd>/<kbd>↓</kbd> to move features.</li>
+        <li>Export the original file, summary JSON, features CSV, selected feature FASTA, or a PNG feature-map snapshot.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="gb-drop" *ngIf="showDropZone"><p>Drop GenBank files to preview</p></div>
   </main>
 </div>

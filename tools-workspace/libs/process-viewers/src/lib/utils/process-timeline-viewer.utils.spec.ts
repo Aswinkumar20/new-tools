@@ -9,7 +9,8 @@ import {
   createProcessTimelineFileRecord,
   createSampleProcessTimelineFile,
   exportProcessTimelineCsv,
-  filterValidProcessTimelineFiles
+  filterValidProcessTimelineFiles,
+  resolveProcessTimelineSuggestion
 } from './process-timeline-viewer.utils';
 
 describe('process-timeline-parse.utils', () => {
@@ -77,5 +78,24 @@ describe('process-timeline-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveProcessTimelineSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveProcessTimelineSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveProcessTimelineSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveProcessTimelineSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportProcessTimeline returns false for null', () => {
+    expect(canExportProcessTimeline(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createProcessTimelineFileRecord(new File(['hello world'], 'bad.csv', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportProcessTimeline(record)).toBe(false);
   });
 });

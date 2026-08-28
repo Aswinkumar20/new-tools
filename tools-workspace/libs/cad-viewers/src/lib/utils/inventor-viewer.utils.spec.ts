@@ -8,11 +8,17 @@ import {
   parseIvText
 } from './inventor-viewer-parse.utils';
 import {
+  buildIvAssemblyMetadata,
+  buildIvMetadataRows,
+  buildIvPartMetadata,
   canExportIv,
   createIvFileRecord,
   createSampleIvFile,
+  exportIvRowsCsv,
   exportIvSchemaCsv,
-  filterValidIvFiles
+  exportIvSummaryJson,
+  filterValidIvFiles,
+  resolveIvSuggestion
 } from './inventor-viewer.utils';
 
 describe('inventor-viewer-parse.utils', () => {
@@ -113,5 +119,42 @@ describe('canExportIv guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportIv({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportIv(null)).toBe(false);
+  });
+});
+
+describe('inventor-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and part/assembly metadata rows', () => {
+    const parsed = parseIvBytes(buildSampleIvBytes(), 'shaft-collar.ipt');
+    const rows = buildIvMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Parts')).toBe(true);
+
+    expect(buildIvPartMetadata(parsed.parts[0]).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildIvAssemblyMetadata(parsed.assemblies[0]).some((r) => r.key === 'Instances')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createIvFileRecord(createSampleIvFile(), buildSampleIvBytes());
+    const summary = exportIvSummaryJson(file);
+    expect(summary).toContain('"parts"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportIvRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","parts":[],"assemblies":[],"instances":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createIvFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportIv(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveIvSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveIvSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveIvSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

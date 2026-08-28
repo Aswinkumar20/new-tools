@@ -5,7 +5,8 @@ import {
   createFtFileRecord,
   createSampleFtFile,
   exportFtSchemaCsv,
-  filterValidFtFiles
+  filterValidFtFiles,
+  resolveFtSuggestion
 } from './feather-viewer.utils';
 
 describe('feather-viewer-parse.utils', () => {
@@ -83,5 +84,16 @@ describe('feather-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('disables export on soft-fail and null', () => {
+    expect(canExportFt({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
+    expect(canExportFt(null)).toBe(false);
+  });
+
+  it('resolves suggestions for empty and error states', () => {
+    expect(resolveFtSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveFtSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveFtSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

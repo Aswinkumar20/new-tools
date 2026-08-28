@@ -10,7 +10,8 @@ import {
   createMmdFileRecord,
   createSampleMmdFile,
   exportMmdNodesCsv,
-  filterValidMmdFiles
+  filterValidMmdFiles,
+  resolveMmdSuggestion
 } from './mermaid-diagram-viewer.utils';
 
 describe('mermaid-diagram-parse.utils', () => {
@@ -84,5 +85,24 @@ describe('mermaid-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveMmdSuggestion returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveMmdSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveMmdSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveMmdSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createMmdFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportMmd(record)).toBe(false);
+  });
+
+  it('canExportMmd returns false for null', () => {
+    expect(canExportMmd(null)).toBe(false);
   });
 });

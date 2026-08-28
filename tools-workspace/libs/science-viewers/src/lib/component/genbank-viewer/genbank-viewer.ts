@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   GENBANK_ACCEPT_ATTR,
   GENBANK_FORMATS_HINT,
@@ -62,7 +62,7 @@ import {
   standalone: true,
   templateUrl: './genbank-viewer.html',
   styleUrls: ['./genbank-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
@@ -111,6 +111,10 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): GenbankLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -132,7 +136,7 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get record(): GenbankRecord | null {
-    return this.records[this.recordIndex] ?? this.records[0] ?? null;
+    return this.records.find((r) => r.index === this.recordIndex) ?? null;
   }
 
   get fileMetadataRows() {
@@ -149,7 +153,7 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedFeature(): GenbankFeature | null {
-    return this.visibleFeatures[this.selectedFeatureIndex] ?? this.visibleFeatures[0] ?? null;
+    return this.visibleFeatures[this.selectedFeatureIndex] ?? null;
   }
 
   get featureMetadataRows() {
@@ -171,6 +175,11 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     return this.record.sequence;
   }
 
+  get sequenceClipped(): boolean {
+    const maxChars = this.colorize ? 12_000 : 80_000;
+    return this.displaySequence.length > maxChars;
+  }
+
   get translation(): string {
     if (!this.record || !this.selectedFeature) return '';
     return featureTranslation(this.record, this.selectedFeature);
@@ -181,6 +190,14 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'map';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -188,6 +205,10 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -242,6 +263,11 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.currentFile) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -254,10 +280,13 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
       this.selectFeature(Math.max(0, this.selectedFeatureIndex - 1));
     } else if (event.key.toLowerCase() === 't') {
       event.preventDefault();
-      this.showTranslation = !this.showTranslation;
-      this.cdr.markForCheck();
+      this.toggleTranslation();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: GenbankLoadedFile): string {
     return file.id;
@@ -302,6 +331,10 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     return formatGenbankFileSize(bytes);
   }
 
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
+
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -336,9 +369,7 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
             this.files = [...this.files, record];
             this.currentIndex = this.files.length - 1;
           }
-          this.recordIndex = 0;
-          this.selectedFeatureIndex = 0;
-          this.typeFilter = null;
+          this.resetViewForCurrent();
         } catch (error) {
           this.errorMessage = `${file.name}: ${error instanceof Error ? error.message : 'Invalid GenBank'}`;
           this.toast.error(this.errorMessage);
@@ -346,8 +377,13 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with no GenBank records — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -362,28 +398,35 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   selectFile(index: number): void {
     if (index < 0 || index >= this.files.length || index === this.currentIndex) return;
     this.currentIndex = index;
-    this.recordIndex = 0;
-    this.selectedFeatureIndex = 0;
+    this.resetViewForCurrent();
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectRecord(index: number): void {
+    if (!this.records.some((r) => r.index === index)) return;
+    if (this.recordIndex === index) return;
     this.recordIndex = index;
     this.selectedFeatureIndex = 0;
     this.typeFilter = null;
+    this.query = '';
+    this.jumpPos = '';
+    this.showTranslation = false;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectFeature(index: number): void {
     if (index < 0 || index >= this.visibleFeatures.length) return;
+    if (index === this.selectedFeatureIndex) return;
     this.selectedFeatureIndex = index;
+    this.jumpPos = '';
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setTypeFilter(type: string | null): void {
+    if (this.typeFilter === type) return;
     this.typeFilter = type;
     this.selectedFeatureIndex = 0;
     this.renderCanvas();
@@ -391,7 +434,15 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onQueryChange(): void {
-    this.selectedFeatureIndex = 0;
+    if (this.selectedFeatureIndex >= this.visibleFeatures.length) {
+      this.selectedFeatureIndex = 0;
+    }
+    if (!this.visibleFeatures.length) this.selectedFeatureIndex = 0;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  jumpToPosition(): void {
     this.cdr.markForCheck();
   }
 
@@ -405,8 +456,9 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.currentIndex = Math.min(index, next.length - 1);
-    this.recordIndex = 0;
+    this.resetViewForCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -417,9 +469,22 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     this.errorMessage = '';
     this.query = '';
     this.typeFilter = null;
+    this.jumpPos = '';
+    this.showTranslation = false;
+    this.wrap = 60;
+    this.colorize = true;
+    this.viewMode = 'map';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // View controls / suggestions / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -432,12 +497,14 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: GenbankViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
   }
 
   setWrap(wrap: GenbankWrap): void {
+    if (this.wrap === wrap) return;
     this.wrap = wrap;
     this.cdr.markForCheck();
   }
@@ -460,6 +527,11 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -469,21 +541,40 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     this.showExportMenu = false;
     const file = this.currentFile;
     const record = this.record;
-    if (!file?.parsed || !record) return;
+    if (!this.canExport || !file?.parsed || !record) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(new TextEncoder().encode(file.text), file.name, 'text/plain');
       else if (format === 'summary-json') downloadTextFile(exportGenbankSummaryJson(file), `${file.name}.summary.json`, 'application/json');
       else if (format === 'features-csv') downloadTextFile(exportGenbankFeaturesCsv(record), `${record.locus}.features.csv`, 'text/csv');
-      else if (format === 'selected-fasta' && this.selectedFeature) {
-        downloadTextFile(exportGenbankFeatureFasta(record, this.selectedFeature), `${record.locus}-${this.selectedFeature.type}.fasta`, 'text/plain');
+      else if (format === 'selected-fasta') {
+        if (!this.selectedFeature) {
+          this.toast.info('Select a feature to export as FASTA');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadTextFile(
+          exportGenbankFeatureFasta(record, this.selectedFeature),
+          `${record.locus}-${this.selectedFeature.type}.fasta`,
+          'text/plain'
+        );
       } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
-        if (!canvas) {
+        if (!canvas || !this.canUseCanvasExport) {
           this.toast.info('Open Feature map to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${record.locus}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${record.locus}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -492,15 +583,28 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private resetViewForCurrent(): void {
+    this.recordIndex = this.records[0]?.index ?? 0;
+    this.selectedFeatureIndex = 0;
+    this.typeFilter = null;
+    this.query = '';
+    this.jumpPos = '';
+    this.showTranslation = false;
+  }
+
   private renderCanvas(): void {
-    if (!this.isBrowser || this.viewMode !== 'map') return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const record = this.record;
     if (!canvas) return;
     const parent = canvas.parentElement;
     if (parent) {
       canvas.width = Math.max(320, parent.clientWidth);
-      canvas.height = Math.max(220, parent.clientHeight);
+      canvas.height = Math.max(220, parent.clientHeight || 420);
     }
     if (!record) {
       this.clearCanvas();
@@ -510,6 +614,7 @@ export class GenbankViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

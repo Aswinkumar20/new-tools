@@ -79,7 +79,7 @@ export function createInFileRecord(file: File, bytes: Uint8Array): InLoadedFile 
   try {
     parsed = parseIniBytes(bytes, file.name);
     warnings.push(...parsed.warnings);
-    if (!parsed.sections.length) softFail = true;
+    if (!parsed.sections.length || (!parsed.keyCount && !parsed.rows.length)) softFail = true;
   } catch (error) {
     softFail = true;
     warnings.push(error instanceof Error ? error.message : 'Failed to parse INI');

@@ -114,7 +114,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="pl-cards" *ngIf="currentFile && viewMode === 'plot'">
-            <article *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
+            <article *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
               <header>
                 <i class="pl-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
                 <strong>{{ command.name }}</strong>
@@ -122,7 +122,7 @@
               </header>
               <p>{{ command.pen }} · {{ command.text || command.length || '—' }}</p>
             </article>
-            <p class="pl-empty-filter" *ngIf="parsed && !filteredCommands.length">No commands match the current filter.</p>
+            <p class="pl-empty-filter" *ngIf="parsed && !visibleCommands.length">No commands match the current filter or visible pens.</p>
           </div>
           <div class="pl-cards" *ngIf="currentFile && viewMode === 'pens'">
             <article *ngFor="let pen of filteredPens; trackBy: trackByPen" [class.is-active]="selectedPen?.id === pen.id" tabindex="0" role="button" (click)="selectPen(pen.id)" (keydown.enter)="selectPen(pen.id)" (keydown.space)="selectPen(pen.id); $event.preventDefault()">
@@ -130,14 +130,14 @@
                 <i class="pl-swatch" [style.background]="pen.colorHex || tint('pen', pen.index)"></i>
                 <strong>{{ pen.name }}</strong>
                 <span>pen</span>
-                <button type="button" class="pl-eye" (click)="togglePenVisible(pen.id, $event)" [attr.aria-label]="isPenHidden(pen.id) ? 'Show' : 'Hide'" [appTooltip]="isPenHidden(pen.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isPenHidden(pen.id) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="pl-eye" (click)="togglePenVisible(pen.id, $event)" [attr.aria-label]="isPenHidden(pen.id) ? 'Show pen' : 'Hide pen'" [appTooltip]="isPenHidden(pen.id) ? 'Show pen' : 'Hide pen'" tooltipPosition="top">{{ isPenHidden(pen.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>Pen {{ pen.color }} · {{ pen.commandCount }} commands</p>
             </article>
             <p class="pl-empty-filter" *ngIf="parsed && !filteredPens.length">No pens match the current filter.</p>
           </div>
           <div class="pl-cards" *ngIf="currentFile && viewMode === 'commands'">
-            <article *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
+            <article *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
               <header>
                 <i class="pl-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
                 <strong>{{ command.name }}</strong>
@@ -145,7 +145,7 @@
               </header>
               <p>{{ command.pen }} · x {{ command.x }} y {{ command.y }} · {{ command.text || '—' }}</p>
             </article>
-            <p class="pl-empty-filter" *ngIf="parsed && !filteredCommands.length">No commands match the current filter.</p>
+            <p class="pl-empty-filter" *ngIf="parsed && !visibleCommands.length">No commands match the current filter or visible pens.</p>
           </div>
           <div class="pl-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -169,7 +169,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="pl-loading" *ngIf="loading">Parsing PLT dump…</div>
+          <div class="pl-loading" *ngIf="loading" role="status" aria-live="polite">Parsing PLT dump…</div>
         </div>
 
         <div class="pl-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -210,10 +210,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'commands' || viewMode === 'table') && filteredCommands.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'commands' || viewMode === 'table') && visibleCommands.length" open>
           <summary class="ctl__panel-head">Commands</summary>
           <div class="ctl__panel-body pl-units">
-            <button type="button" *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommandId === command.id" (click)="selectCommand(command.id)">
+            <button type="button" *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommandId === command.id" (click)="selectCommand(command.id)">
               <i class="pl-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
               <span>{{ command.name }} <small>{{ command.type }} · {{ command.pen }}</small></span>
             </button>

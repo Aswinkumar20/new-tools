@@ -94,6 +94,9 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   setupDragAndDrop(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);

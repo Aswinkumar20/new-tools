@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   DECISION_MODEL_ACCEPT_ATTR,
   DECISION_MODEL_FORMATS_HINT,
@@ -62,7 +62,7 @@ import {
   standalone: true,
   templateUrl: './decision-model-viewer.html',
   styleUrls: ['./decision-model-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
@@ -106,6 +106,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): DecisionModelLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -122,10 +126,6 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
     return this.currentFile?.warnings ?? [];
   }
 
-  get metadataRows() {
-    return this.parsed ? buildDecisionModelMetadataRows(this.parsed) : [];
-  }
-
   get filteredDecisions(): DecisionModelDecision[] {
     return this.parsed ? filterDecisionModelDecisions(this.parsed.decisions, this.query) : [];
   }
@@ -139,15 +139,19 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedDecision(): DecisionModelDecision | null {
-    return this.filteredDecisions.find((d) => d.id === this.selectedDecisionId) ?? this.filteredDecisions[0] ?? null;
+    return this.filteredDecisions.find((d) => d.id === this.selectedDecisionId) ?? null;
   }
 
   get selectedRule(): DecisionModelRule | null {
-    return this.filteredRules.find((r) => r.id === this.selectedRuleId) ?? this.filteredRules[0] ?? null;
+    return this.filteredRules.find((r) => r.id === this.selectedRuleId) ?? null;
   }
 
   get selectedDependency(): DecisionModelDependency | null {
-    return this.filteredDependencies.find((d) => d.id === this.selectedDepId) ?? this.filteredDependencies[0] ?? null;
+    return this.filteredDependencies.find((d) => d.id === this.selectedDepId) ?? null;
+  }
+
+  get metadataRows() {
+    return this.parsed ? buildDecisionModelMetadataRows(this.parsed) : [];
   }
 
   get decisionMetadataRows() {
@@ -175,6 +179,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
     return decisionModelDepColor(type);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -182,6 +190,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -236,6 +248,11 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -256,6 +273,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: DecisionModelLoadedFile): string {
     return file.id;
@@ -280,6 +301,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatDecisionModelFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -323,8 +348,13 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no decisions — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -343,6 +373,41 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedDecisionId = '';
+    this.selectedRuleId = '';
+    this.selectedDepId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
 
   selectDecision(id: string): void {
     this.selectedDecisionId = id;
@@ -366,41 +431,22 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const decision = this.filteredDecisions[0];
-    if (decision && !this.filteredDecisions.some((d) => d.id === this.selectedDecisionId)) this.selectedDecisionId = decision.id;
-    const rule = this.filteredRules[0];
-    if (rule && !this.filteredRules.some((r) => r.id === this.selectedRuleId)) this.selectedRuleId = rule.id;
-    const dep = this.filteredDependencies[0];
-    if (dep && !this.filteredDependencies.some((d) => d.id === this.selectedDepId)) this.selectedDepId = dep.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedDecisionId && !this.filteredDecisions.some((d) => d.id === this.selectedDecisionId)) {
+      this.selectedDecisionId = this.filteredDecisions[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedRuleId && !this.filteredRules.some((r) => r.id === this.selectedRuleId)) {
+      this.selectedRuleId = this.filteredRules[0]?.id ?? '';
+    }
+    if (this.selectedDepId && !this.filteredDependencies.some((d) => d.id === this.selectedDepId)) {
+      this.selectedDepId = this.filteredDependencies[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedDecisionId = '';
-    this.selectedRuleId = '';
-    this.selectedDepId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -413,6 +459,7 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: DecisionModelViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -426,6 +473,11 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -434,20 +486,33 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportDecisionModelSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'rules-csv') downloadTextFile(exportDecisionModelRulesCsv(file.parsed), `${file.name}.rules.csv`, 'text/csv');
-      else if (format === 'dependencies-csv') downloadTextFile(exportDecisionModelDependenciesCsv(file.parsed), `${file.name}.dependencies.csv`, 'text/csv');
-      else if (format === 'png') {
+      else if (format === 'summary-json') {
+        downloadTextFile(exportDecisionModelSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'rules-csv') {
+        downloadTextFile(exportDecisionModelRulesCsv(file.parsed), `${file.name}.rules.csv`, 'text/csv');
+      } else if (format === 'dependencies-csv') {
+        downloadTextFile(exportDecisionModelDependenciesCsv(file.parsed), `${file.name}.dependencies.csv`, 'text/csv');
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || (this.viewMode !== 'tables' && this.viewMode !== 'dependencies')) {
           this.toast.info('Open Tables or Dependencies to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -455,6 +520,10 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftDecision(delta: number): void {
     const list = this.filteredDecisions;
@@ -496,11 +565,15 @@ export class DecisionModelViewerComponent implements AfterViewInit, OnDestroy {
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(280, parent.clientHeight || 220));
     }
-    if (this.viewMode === 'tables') renderDecisionModelDecisions(canvas, this.filteredDecisions, this.selectedDecision?.id ?? null);
-    else renderDecisionModelDependencies(canvas, this.filteredDependencies, this.selectedDependency?.id ?? null);
+    if (this.viewMode === 'tables') {
+      renderDecisionModelDecisions(canvas, this.filteredDecisions, this.selectedDecisionId || null);
+    } else {
+      renderDecisionModelDependencies(canvas, this.filteredDependencies, this.selectedDepId || null);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

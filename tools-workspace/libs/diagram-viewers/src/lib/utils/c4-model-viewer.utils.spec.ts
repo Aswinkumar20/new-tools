@@ -6,7 +6,7 @@ import {
   C4_XML_SAMPLE
 } from '../constants/c4-model-viewer-sample.data';
 import { filterC4Elements, filterC4Relations, parseC4Text } from './c4-model-viewer-parse.utils';
-import { canExportC4, createC4FileRecord, createSampleC4File, exportC4ElementsCsv, filterValidC4Files } from './c4-model-viewer.utils';
+import { canExportC4, createC4FileRecord, createSampleC4File, exportC4ElementsCsv, filterValidC4Files, resolveC4Suggestion } from './c4-model-viewer.utils';
 
 describe('c4-model-viewer-parse.utils', () => {
   it('parses the shop C4 sample', () => {
@@ -91,5 +91,21 @@ describe('c4-model-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveC4Suggestion covers empty and error states', () => {
+    expect(resolveC4Suggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveC4Suggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveC4Suggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createC4FileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportC4(record)).toBe(false);
+    expect(canExportC4(null)).toBe(false);
   });
 });

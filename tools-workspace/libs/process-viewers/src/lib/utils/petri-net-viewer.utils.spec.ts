@@ -10,7 +10,8 @@ import {
   createPetriNetFileRecord,
   createSamplePetriNetFile,
   exportPetriNetMarkingCsv,
-  filterValidPetriNetFiles
+  filterValidPetriNetFiles,
+  resolvePetriNetSuggestion
 } from './petri-net-viewer.utils';
 
 describe('petri-net-parse.utils', () => {
@@ -96,5 +97,24 @@ describe('petri-net-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolvePetriNetSuggestion returns upload-or-sample when empty', () => {
+    expect(resolvePetriNetSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolvePetriNetSuggestion returns sample-after-error when hasError', () => {
+    expect(resolvePetriNetSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportPetriNet returns false for null', () => {
+    expect(canExportPetriNet(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createPetriNetFileRecord(new File(['hello world'], 'bad.pnml', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportPetriNet(record)).toBe(false);
   });
 });

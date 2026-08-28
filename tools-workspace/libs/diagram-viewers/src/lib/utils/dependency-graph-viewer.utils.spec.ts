@@ -11,7 +11,8 @@ import {
   createDepFileRecord,
   createSampleDepFile,
   exportDepPackagesCsv,
-  filterValidDepFiles
+  filterValidDepFiles,
+  resolveDepSuggestion
 } from './dependency-graph-viewer.utils';
 
 describe('dependency-graph-viewer-parse.utils', () => {
@@ -94,5 +95,21 @@ describe('dependency-graph-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDepSuggestion covers empty and error states', () => {
+    expect(resolveDepSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDepSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDepSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createDepFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportDep(record)).toBe(false);
+  });
+
+  it('canExportDep returns false for null', () => {
+    expect(canExportDep(null)).toBe(false);
   });
 });

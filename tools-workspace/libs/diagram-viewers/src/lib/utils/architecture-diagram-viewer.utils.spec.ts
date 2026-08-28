@@ -11,7 +11,8 @@ import {
   createArchFileRecord,
   createSampleArchFile,
   exportArchBoxesCsv,
-  filterValidArchFiles
+  filterValidArchFiles,
+  resolveArchSuggestion
 } from './architecture-diagram-viewer.utils';
 
 describe('architecture-diagram-viewer-parse.utils', () => {
@@ -93,5 +94,21 @@ describe('architecture-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveArchSuggestion covers empty and error states', () => {
+    expect(resolveArchSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveArchSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveArchSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createArchFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportArch(record)).toBe(false);
+    expect(canExportArch(null)).toBe(false);
   });
 });

@@ -16,41 +16,53 @@
       </div>
       <div class="bhl-suggest__actions">
         <button type="button" class="bhl-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="bhl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="bhl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="bhl-toolbar">
+    <div class="bhl-toolbar" role="toolbar" aria-label="Borehole Viewer actions">
       <div class="bhl-toolbar__group">
         <input #fileInput class="bhl-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn bhl-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn bhl-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="bhl-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="bhl-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('survey-csv', $event)">Survey CSV</button>
-            <button type="button" (click)="exportAs('lithology-csv', $event)">Lithology CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="bhl-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="bhl-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('survey-csv', $event)">Survey CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('lithology-csv', $event)">Lithology CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="bhl-files" *ngIf="files.length">
           <div class="bhl-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.bhl-files__chip--active]="i === currentIndex">
             <button type="button" class="bhl-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="bhl-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="bhl-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="bhl-toolbar__status"><span class="bhl-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="bhl-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="bhl-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Borehole Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="bhl-toolbar__status"><span class="bhl-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="bhl-workspace" [class.bhl-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,23 +73,23 @@
             <span>{{ parsed?.well }} · TD {{ parsed?.td | number:'1.0-0' }} {{ parsed?.unit }} · TVD {{ parsed?.tvd | number:'1.0-0' }} · {{ parsed?.survey?.length || 0 }} stations</span>
           </div>
           <div class="bhl-view-controls">
-            <button type="button" *ngIf="viewMode === 'section' || viewMode === '3d'" (click)="setExaggeration(exaggeration * 1.25)" title="Exaggerate (+)">+</button>
-            <button type="button" *ngIf="viewMode === 'section' || viewMode === '3d'" (click)="setExaggeration(exaggeration / 1.25)" title="Flatten (−)">−</button>
-            <button type="button" (click)="fitDepth()" title="Fit (F)">Fit</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'section' || viewMode === '3d'" (click)="setExaggeration(exaggeration * 1.25)" aria-label="Increase vertical exaggeration" appTooltip="Exaggerate (+)" tooltipPosition="top">+</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'section' || viewMode === '3d'" (click)="setExaggeration(exaggeration / 1.25)" aria-label="Decrease vertical exaggeration" appTooltip="Flatten (−)" tooltipPosition="top">−</button>
+            <button type="button" class="ctl__tool-btn" (click)="fitDepth()" aria-label="Fit depth range" appTooltip="Fit depth and reset exaggeration (F)" tooltipPosition="top">Fit</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div class="bhl-filters" *ngIf="currentFile && parsed">
-          <label>MD min <input type="range" [min]="parsed.survey[0].md" [max]="parsed.survey[parsed.survey.length - 1].md" step="1" [ngModel]="mdMin" (ngModelChange)="mdMin = +$event; onDepthChange()" /></label>
+        <div class="bhl-filters" *ngIf="currentFile && parsed?.survey?.length">
+          <label>MD min <input type="range" [min]="surveyMdMin" [max]="surveyMdMax" step="1" [ngModel]="mdMin" (ngModelChange)="mdMin = +$event; onDepthChange()" aria-label="Measured depth minimum" /></label>
           <span>{{ mdMin | number:'1.0-0' }}</span>
-          <label>MD max <input type="range" [min]="parsed.survey[0].md" [max]="parsed.survey[parsed.survey.length - 1].md" step="1" [ngModel]="mdMax" (ngModelChange)="mdMax = +$event; onDepthChange()" /></label>
-          <span>{{ mdMax | number:'1.0-0' }} {{ parsed.unit }}</span>
-          <label *ngIf="viewMode === 'section' || viewMode === '3d'">V.E. <input type="range" min="0.25" max="5" step="0.05" [ngModel]="exaggeration" (ngModelChange)="setExaggeration(+$event)" /></label>
+          <label>MD max <input type="range" [min]="surveyMdMin" [max]="surveyMdMax" step="1" [ngModel]="mdMax" (ngModelChange)="mdMax = +$event; onDepthChange()" aria-label="Measured depth maximum" /></label>
+          <span>{{ mdMax | number:'1.0-0' }} {{ parsed?.unit }}</span>
+          <label *ngIf="viewMode === 'section' || viewMode === '3d'">V.E. <input type="range" min="0.25" max="5" step="0.05" [ngModel]="exaggeration" (ngModelChange)="setExaggeration(+$event)" aria-label="Vertical exaggeration" /></label>
         </div>
 
-        <div #mapWrap class="bhl-map-wrap" [class.bhl-map-wrap--empty]="!currentFile">
-          <canvas #canvasHost class="bhl-map" *ngIf="currentFile && (viewMode === 'plan' || viewMode === 'section' || viewMode === '3d')"></canvas>
+        <div #mapWrap class="bhl-map-wrap">
+          <canvas #canvasHost class="bhl-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="bhl-column" *ngIf="currentFile && viewMode === 'lithology'">
             <div *ngFor="let interval of lithIntervals; trackBy: trackByLith" class="bhl-column__unit" [style.background]="interval.color" [style.flex-grow]="interval.baseMd - interval.topMd">
               <strong>{{ interval.name }}</strong>
@@ -100,7 +112,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let row of visibleStations; trackBy: trackByStation" [class.is-active]="selectedStation?.index === row.index" (click)="selectStation(row.index)">
+                <tr *ngFor="let row of visibleStations; trackBy: trackByStation" [class.is-active]="selectedStationIndex === row.index" (click)="selectStation(row.index)">
                   <td>{{ row.index + 1 }}</td>
                   <td>{{ row.md | number:'1.1-1' }}</td>
                   <td>{{ row.inc | number:'1.1-1' }}</td>
@@ -112,57 +124,78 @@
                 </tr>
               </tbody>
             </table>
+            <p class="bhl-empty-filter" *ngIf="parsed && !visibleStations.length">No survey stations match the current search.</p>
           </div>
           <div class="bhl-empty" *ngIf="!currentFile && !loading">
             <p>Drop borehole surveys here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn bhl-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="bhl-loading" *ngIf="loading">Parsing borehole…</div>
+          <div class="bhl-loading" *ngIf="loading" role="status" aria-live="polite">Parsing borehole…</div>
         </div>
 
-        <div class="bhl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="bhl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="bhl-disclaimer">Education and research preview only — not validated for directional drilling or well-control decisions.</p>
+        <div class="bhl-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="bhl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="bhl-disclaimer" *ngIf="currentFile">Education and research preview only — not validated for directional drilling or well-control decisions.</p>
       </section>
 
-      <aside class="bhl-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="bhl-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="bhl-empty-panel">Upload a JSON, CSV, .bhl, or .dev survey or load the sample ETH-1 borehole to explore plan, section, lithology, and dogleg severity here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="bhl-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="bhl-search" type="search" placeholder="Search MD / lithology (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="bhl-search" type="search" aria-label="Search stations and lithology" placeholder="Search MD / lithology (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="bhl-search-hint">Filter by station number, MD, or lithology name. Press <kbd>/</kbd> to focus; <kbd>f</kbd> fits depth; <kbd>↑</kbd>/<kbd>↓</kbd> moves the selected station.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedStation">
-          <header class="ctl__panel-head">Selected station</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedStation" open>
+          <summary class="ctl__panel-head">Selected station</summary>
           <div class="ctl__panel-body">
             <dl class="bhl-meta">
               <div *ngFor="let row of stationMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="lithIntervals.length">
-          <header class="ctl__panel-head">Lithology</header>
+        </details>
+        <details class="ctl__panel" *ngIf="lithIntervals.length" open>
+          <summary class="ctl__panel-head">Lithology</summary>
           <div class="ctl__panel-body bhl-lith">
             <span *ngFor="let interval of lithIntervals; trackBy: trackByLith"><i class="bhl-swatch" [style.background]="interval.color"></i>{{ interval.name }}</span>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bhl-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bhl-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help bhl-footer-help">
+      <summary>How to use Borehole Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in ETH-1 sample. Files never leave your browser.</li>
+        <li>Switch Plan, Section, 3D, Lithology, or Survey views to inspect trajectory and geology.</li>
+        <li>Use MD min/max and vertical exaggeration on Section/3D. Press <kbd>f</kbd> to fit; <kbd>+</kbd>/<kbd>−</kbd> adjust exaggeration.</li>
+        <li>Export the original file, summary JSON, survey CSV, lithology CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="bhl-drop" *ngIf="showDropZone"><p>Drop borehole surveys to preview</p></div>
   </main>
 </div>

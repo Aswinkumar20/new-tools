@@ -155,17 +155,24 @@
           <div class="dep-empty" *ngIf="!currentFile && !loading">
             <p>Drop lockfile or dependency graph here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn dep-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="dep-loading" *ngIf="loading">Parsing dependency graph…</div>
+          <div class="dep-loading" *ngIf="loading" role="status" aria-live="polite">Parsing dependency graph…</div>
         </div>
 
-        <div class="dep-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="dep-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="dep-disclaimer">Education and research preview only — not a substitute for npm, yarn, or lockfile audit tools.</p>
+        <div class="dep-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dep-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dep-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for npm, yarn, or lockfile audit tools.</p>
       </section>
 
-      <aside class="dep-sidebar">
+      <aside class="dep-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dep-empty-panel">Upload a lockfile or dependency graph, or load the sample to see overview, packages, and cycles here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -177,7 +184,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search graph</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="dep-search" type="search" placeholder="pkg:express kind:direct from:shop cycle:lib (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="dep-search" type="search" aria-label="Search dependency graph" placeholder="pkg:express kind:direct from:shop cycle:lib (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="dep-search-hint">Try <code>pkg:express</code>, <code>kind:direct</code>, or <code>cycle:lib-a</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredEdges.length" open>
@@ -259,17 +267,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Tree, Cycles, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>pkg:express</code> or <code>cycle:lib-a</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, packages/edges CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

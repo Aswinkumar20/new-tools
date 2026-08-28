@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   EPC_ACCEPT_ATTR,
   EPC_FORMATS_HINT,
@@ -50,7 +50,7 @@ import {
   standalone: true,
   templateUrl: './epc-diagram-viewer.html',
   styleUrls: ['./epc-diagram-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
@@ -92,6 +92,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): EpcLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -108,10 +112,6 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     return this.currentFile?.warnings ?? [];
   }
 
-  get metadataRows() {
-    return this.parsed ? buildEpcMetadataRows(this.parsed) : [];
-  }
-
   get filteredNodes(): EpcNode[] {
     if (!this.parsed) return [];
     const base =
@@ -120,7 +120,11 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedNode(): EpcNode | null {
-    return this.filteredNodes.find((n) => n.id === this.selectedNodeId) ?? this.filteredNodes[0] ?? null;
+    return this.filteredNodes.find((n) => n.id === this.selectedNodeId) ?? null;
+  }
+
+  get metadataRows() {
+    return this.parsed ? buildEpcMetadataRows(this.parsed) : [];
   }
 
   get nodeMetadataRows() {
@@ -136,6 +140,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     return epcKindColor(kind);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -143,6 +151,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -197,6 +209,11 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -214,6 +231,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: EpcLoadedFile): string {
     return file.id;
   }
@@ -229,6 +250,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatEpcFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -272,8 +297,13 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no nodes — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -293,19 +323,6 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  selectNode(id: string): void {
-    this.selectedNodeId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  onFilterChange(): void {
-    const node = this.filteredNodes[0];
-    if (node && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) this.selectedNodeId = node.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
     if (index < 0 || index >= this.files.length) return;
@@ -318,6 +335,7 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     this.currentIndex = Math.min(index, next.length - 1);
     this.resetViewForCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -326,9 +344,35 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedNodeId = '';
     this.errorMessage = '';
     this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
+  selectNode(id: string): void {
+    this.selectedNodeId = id;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  onFilterChange(): void {
+    if (this.selectedNodeId && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) {
+      this.selectedNodeId = this.filteredNodes[0]?.id ?? '';
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -341,8 +385,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: EpcViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.onFilterChange();
+    setTimeout(() => this.renderCanvas(), 0);
   }
 
   toggleSidebar(): void {
@@ -353,6 +399,11 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -361,20 +412,33 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportEpcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'events-csv') downloadTextFile(exportEpcEventsCsv(file.parsed), `${file.name}.nodes.csv`, 'text/csv');
-      else if (format === 'flows-csv') downloadTextFile(exportEpcFlowsCsv(file.parsed), `${file.name}.flows.csv`, 'text/csv');
-      else if (format === 'png') {
+      else if (format === 'summary-json') {
+        downloadTextFile(exportEpcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'events-csv') {
+        downloadTextFile(exportEpcEventsCsv(file.parsed), `${file.name}.nodes.csv`, 'text/csv');
+      } else if (format === 'flows-csv') {
+        downloadTextFile(exportEpcFlowsCsv(file.parsed), `${file.name}.flows.csv`, 'text/csv');
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Diagram, Events, or Functions to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -382,6 +446,10 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftNode(delta: number): void {
     const list = this.filteredNodes;
@@ -405,11 +473,16 @@ export class EpcDiagramViewerComponent implements AfterViewInit, OnDestroy {
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(this.viewMode === 'diagram' ? 320 : 220, parent.clientHeight || 240));
     }
-    if (this.viewMode === 'diagram') renderEpcDiagram(canvas, this.parsed.nodes, this.parsed.flows, this.selectedNode?.id ?? null);
-    else renderEpcKinds(canvas, this.parsed.kinds, this.selectedNode?.kind ?? null);
+    if (this.viewMode === 'diagram') {
+      renderEpcDiagram(canvas, this.parsed.nodes, this.parsed.flows, this.selectedNodeId || null);
+    } else {
+      const kind = this.filteredNodes.find((n) => n.id === this.selectedNodeId)?.kind ?? null;
+      renderEpcKinds(canvas, this.parsed.kinds, kind);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

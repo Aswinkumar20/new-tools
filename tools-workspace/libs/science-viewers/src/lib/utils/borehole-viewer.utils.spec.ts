@@ -5,7 +5,8 @@ import {
   createBoreholeFileRecord,
   createSampleBoreholeFile,
   exportBoreholeSurveyCsv,
-  filterValidBoreholeFiles
+  filterValidBoreholeFiles,
+  resolveBoreholeSuggestion
 } from './borehole-viewer.utils';
 
 describe('borehole-parse.utils', () => {
@@ -84,5 +85,24 @@ describe('borehole-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveBoreholeSuggestion returns upload-bhl when empty', () => {
+    expect(resolveBoreholeSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-bhl');
+  });
+
+  it('resolveBoreholeSuggestion returns try-sample when hasError', () => {
+    expect(resolveBoreholeSuggestion({ hasFiles: true, hasError: true })?.id).toBe('try-sample');
+  });
+
+  it('canExportBorehole returns false for null', () => {
+    expect(canExportBorehole(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createBoreholeFileRecord(new File(['hello world'], 'bad.json', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportBorehole(record)).toBe(false);
   });
 });

@@ -6,7 +6,7 @@ import {
   SEQ_XML_SAMPLE
 } from '../constants/sequence-diagram-viewer-sample.data';
 import { filterSeqLifelines, filterSeqMessages, parseSequenceText } from './sequence-diagram-viewer-parse.utils';
-import { canExportSeq, createSampleSeqFile, createSeqFileRecord, exportSeqLifelinesCsv, filterValidSeqFiles } from './sequence-diagram-viewer.utils';
+import { canExportSeq, createSampleSeqFile, createSeqFileRecord, exportSeqLifelinesCsv, filterValidSeqFiles, resolveSeqSuggestion } from './sequence-diagram-viewer.utils';
 
 describe('sequence-diagram-viewer-parse.utils', () => {
   it('parses the checkout sequence sample', () => {
@@ -86,5 +86,22 @@ describe('sequence-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveSeqSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveSeqSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSeqSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSeqSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createSeqFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportSeq(record)).toBe(false);
+  });
+
+  it('canExportSeq returns false for null', () => {
+    expect(canExportSeq(null)).toBe(false);
   });
 });

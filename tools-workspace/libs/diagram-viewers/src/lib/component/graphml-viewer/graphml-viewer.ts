@@ -110,6 +110,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): GmlLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -190,6 +194,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
     return gmlCommunityColor(index);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -197,6 +205,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -247,6 +259,12 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.showExportMenu) {
+      event.preventDefault();
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -272,6 +290,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: GmlLoadedFile): string {
     return file.id;
   }
@@ -295,6 +317,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatGmlFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -339,7 +365,11 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no nodes — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -358,6 +388,42 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedNodeId = '';
+    this.selectedEdgeId = '';
+    this.selectedCommunityId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.layoutMode = 'rank';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / layout
+  // ---------------------------------------------------------------------------
 
   selectNode(id: string): void {
     this.selectedNodeId = id;
@@ -380,6 +446,7 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setLayoutMode(mode: 'rank' | 'community'): void {
+    if (this.layoutMode === mode) return;
     const file = this.currentFile;
     if (!file?.parsed) return;
     this.layoutMode = mode;
@@ -390,40 +457,26 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const node = this.filteredNodes[0];
-    if (node && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) this.selectedNodeId = node.id;
-    const edge = this.filteredEdges[0];
-    if (edge && !this.filteredEdges.some((e) => e.id === this.selectedEdgeId)) this.selectedEdgeId = edge.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedNodeId && !this.filteredNodes.some((n) => n.id === this.selectedNodeId)) {
+      this.selectedNodeId = this.filteredNodes[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedEdgeId && !this.filteredEdges.some((e) => e.id === this.selectedEdgeId)) {
+      this.selectedEdgeId = this.filteredEdges[0]?.id ?? '';
+    }
+    if (
+      this.viewMode === 'communities' &&
+      this.selectedCommunityId &&
+      !this.communities.some((c) => c.id === this.selectedCommunityId || c.name === this.selectedCommunityId)
+    ) {
+      this.selectedCommunityId = this.communities[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedNodeId = '';
-    this.selectedEdgeId = '';
-    this.selectedCommunityId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.layoutMode = 'rank';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -436,6 +489,7 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: GmlViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -449,6 +503,11 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -457,7 +516,11 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportGmlSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -470,7 +533,11 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -478,6 +545,10 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftNode(delta: number): void {
     const list = this.filteredNodes;
@@ -530,6 +601,7 @@ export class GraphmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

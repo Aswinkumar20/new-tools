@@ -12,7 +12,8 @@ import {
   createSampleTmFile,
   createTmFileRecord,
   exportTmSchemaCsv,
-  filterValidTmFiles
+  filterValidTmFiles,
+  resolveTmSuggestion
 } from './toml-viewer.utils';
 
 describe('toml-viewer-parse.utils', () => {
@@ -86,5 +87,21 @@ describe('toml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveTmSuggestion covers empty and error states', () => {
+    expect(resolveTmSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveTmSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveTmSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createTmFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportTm(record)).toBe(false);
+    expect(canExportTm(null)).toBe(false);
   });
 });

@@ -103,6 +103,10 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): CdgLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -162,6 +166,10 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  // ---------------------------------------------------------------------------
+  // Display helpers
+  // ---------------------------------------------------------------------------
+
   tint(kind: string, index: number): string {
     return cdgTypeColor(kind, index);
   }
@@ -173,6 +181,14 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     return parts.length ? parts.join(', ') : type.stereotype || type.id;
   }
 
+  formatSize(bytes: number): string {
+    return formatCdgFileSize(bytes);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -180,6 +196,10 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -230,6 +250,12 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.showExportMenu) {
+      event.preventDefault();
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -253,6 +279,10 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: CdgLoadedFile): string {
     return file.id;
   }
@@ -269,9 +299,9 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     return relation.id;
   }
 
-  formatSize(bytes: number): string {
-    return formatCdgFileSize(bytes);
-  }
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -316,7 +346,11 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no types — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -336,6 +370,40 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedTypeId = '';
+    this.selectedRelationId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
   selectType(id: string): void {
     this.selectedTypeId = id;
     this.renderCanvas();
@@ -349,38 +417,19 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const type = this.filteredTypes[0];
-    if (type && !this.filteredTypes.some((t) => t.id === this.selectedTypeId)) this.selectedTypeId = type.id;
-    const rel = this.filteredRelations[0];
-    if (rel && !this.filteredRelations.some((r) => r.id === this.selectedRelationId)) this.selectedRelationId = rel.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedTypeId && !this.filteredTypes.some((t) => t.id === this.selectedTypeId)) {
+      this.selectedTypeId = this.filteredTypes[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedRelationId && !this.filteredRelations.some((r) => r.id === this.selectedRelationId)) {
+      this.selectedRelationId = this.filteredRelations[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedTypeId = '';
-    this.selectedRelationId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -393,6 +442,7 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: CdgViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -406,6 +456,11 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -414,7 +469,11 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportCdgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -424,10 +483,16 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Diagram, Types, or Relations to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -435,6 +500,10 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftType(delta: number): void {
     const list = this.filteredTypes;
@@ -475,6 +544,7 @@ export class ClassDiagramViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

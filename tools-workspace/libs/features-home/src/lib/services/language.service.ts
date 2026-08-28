@@ -57,8 +57,10 @@ export class LanguageService {
   setLanguage(languageCode: string): void {
     if (this.isLanguageSupported(languageCode)) {
       this.currentLanguageSubject.next(languageCode);
-      localStorage.setItem('preferred-language', languageCode);
-      document.documentElement.setAttribute('lang', languageCode);
+      this.getLocalStorage()?.setItem('preferred-language', languageCode);
+      if (typeof document !== 'undefined') {
+        document.documentElement.setAttribute('lang', languageCode);
+      }
     }
   }
 
@@ -75,9 +77,12 @@ export class LanguageService {
   }
 
   private loadLanguagePreference(): void {
-    const saved = localStorage.getItem('preferred-language');
-    const browserLang = navigator.language.split('-')[0];
-    
+    const saved = this.getLocalStorage()?.getItem('preferred-language');
+    const browserLang =
+      typeof navigator !== 'undefined' && navigator.language
+        ? navigator.language.split('-')[0]
+        : 'en';
+
     if (saved && this.isLanguageSupported(saved)) {
       this.setLanguage(saved);
     } else if (this.isLanguageSupported(browserLang)) {
@@ -86,5 +91,12 @@ export class LanguageService {
       this.setLanguage('en'); // Default to English
     }
   }
-}
 
+  private getLocalStorage(): Storage | null {
+    if (typeof globalThis === 'undefined') {
+      return null;
+    }
+    const globalObject = globalThis as typeof globalThis & { localStorage?: Storage };
+    return globalObject.localStorage ?? null;
+  }
+}

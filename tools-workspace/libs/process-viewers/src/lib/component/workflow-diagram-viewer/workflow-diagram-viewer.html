@@ -16,41 +16,53 @@
       </div>
       <div class="wf-suggest__actions">
         <button type="button" class="wf-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="wf-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="wf-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="wf-toolbar">
+    <div class="wf-toolbar" role="toolbar" aria-label="Workflow Diagram Viewer actions">
       <div class="wf-toolbar__group">
         <input #fileInput class="wf-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn wf-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn wf-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="wf-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="wf-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('nodes-csv', $event)">Nodes CSV</button>
-            <button type="button" (click)="exportAs('edges-csv', $event)">Edges CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="wf-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="wf-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('nodes-csv', $event)">Nodes CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('edges-csv', $event)">Edges CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="wf-files" *ngIf="files.length">
           <div class="wf-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.wf-files__chip--active]="i === currentIndex">
             <button type="button" class="wf-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="wf-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="wf-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="wf-toolbar__status"><span class="wf-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="wf-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="wf-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Workflow Diagram Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="wf-toolbar__status"><span class="wf-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="wf-workspace" [class.wf-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,14 +73,14 @@
             <span>{{ parsed?.name }} · {{ parsed?.nodes?.length || 0 }} nodes · {{ parsed?.edges?.length || 0 }} edges · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="wf-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="wf-map-wrap" [class.wf-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="wf-map-wrap">
           <canvas #canvasHost class="wf-map" [class.wf-map--tall]="viewMode === 'diagram'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="wf-cards" *ngIf="currentFile && (viewMode === 'diagram' || viewMode === 'nodes')">
-            <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
+            <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
               <header>
                 <i class="wf-swatch" [style.background]="kindTint(node.kind)"></i>
                 <strong>{{ node.kind }}</strong>
@@ -76,15 +88,17 @@
               </header>
               <p>{{ node.name }}</p>
             </article>
+            <p class="wf-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="wf-cards" *ngIf="currentFile && viewMode === 'edges'">
-            <article *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdge?.id === edge.id" (click)="selectEdge(edge.id)">
+            <article *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdgeId === edge.id" (click)="selectEdge(edge.id)">
               <header>
                 <i class="wf-swatch" [style.background]="kindTint('event')"></i>
                 <strong>{{ edge.label || 'flow' }}</strong>
               </header>
               <p>{{ edge.sourceName }} → {{ edge.targetName }}</p>
             </article>
+            <p class="wf-empty-filter" *ngIf="parsed && !filteredEdges.length">No edges match the current filter.</p>
           </div>
           <div class="wf-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -98,7 +112,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
+                <tr *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
                   <td>{{ node.index + 1 }}</td>
                   <td><i class="wf-swatch" [style.background]="kindTint(node.kind)"></i>{{ node.kind }}</td>
                   <td>{{ node.name }}</td>
@@ -112,73 +126,93 @@
           <div class="wf-empty" *ngIf="!currentFile && !loading">
             <p>Drop workflow diagrams here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn wf-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="wf-loading" *ngIf="loading">Parsing workflow…</div>
+          <div class="wf-loading" *ngIf="loading" role="status" aria-live="polite">Parsing workflow…</div>
         </div>
 
-        <div class="wf-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="wf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="wf-disclaimer">Education and research preview only — not a substitute for BPMN, Camunda, or production workflow engines.</p>
+        <div class="wf-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="wf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="wf-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for BPMN, Camunda, or production workflow engines.</p>
       </section>
 
-      <aside class="wf-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="wf-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="wf-empty-panel">Upload an XML, JSON, CSV, or .wf workflow diagram or load the sample support ticket flow to explore nodes, edges, and kinds here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="wf-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search diagram</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="wf-search" type="search" placeholder="task decision node:Triage (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="wf-search" type="search" aria-label="Search diagram" placeholder="task decision node:Triage (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="wf-search-hint">Try <code>task</code>, <code>kind:decision</code>, or <code>node:Triage</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'edges' && filteredEdges.length">
-          <header class="ctl__panel-head">Edges</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'edges' && filteredEdges.length" open>
+          <summary class="ctl__panel-head">Edges</summary>
           <div class="ctl__panel-body wf-units">
             <button type="button" *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdgeId === edge.id" (click)="selectEdge(edge.id)">
               <i class="wf-swatch" [style.background]="kindTint('event')"></i>
               <span>{{ edge.sourceName }} → {{ edge.targetName }} <small>{{ edge.label || 'flow' }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'edges' && filteredNodes.length">
-          <header class="ctl__panel-head">Nodes</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && filteredNodes.length" open>
+          <summary class="ctl__panel-head">Nodes</summary>
           <div class="ctl__panel-body wf-units">
             <button type="button" *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
               <i class="wf-swatch" [style.background]="kindTint(node.kind)"></i>
               <span>{{ node.name }} <small>{{ node.kind }} · {{ node.inCount }} in / {{ node.outCount }} out</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'edges' && selectedEdge">
-          <header class="ctl__panel-head">Selected edge</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'edges' && selectedEdge" open>
+          <summary class="ctl__panel-head">Selected edge</summary>
           <div class="ctl__panel-body">
             <dl class="wf-meta">
               <div *ngFor="let row of edgeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'edges' && selectedNode">
-          <header class="ctl__panel-head">Selected node</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && selectedNode" open>
+          <summary class="ctl__panel-head">Selected node</summary>
           <div class="ctl__panel-body">
             <dl class="wf-meta">
               <div *ngFor="let row of nodeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="wf-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="wf-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help wf-footer-help">
+      <summary>How to use Workflow Diagram Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in support ticket sample. Files never leave your browser.</li>
+        <li>Switch Diagram, Nodes, Edges, or Table views to explore the workflow from different angles.</li>
+        <li>Search with tokens like <code>task</code>, <code>kind:decision</code>, or <code>node:Triage</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, nodes CSV, edges CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="wf-drop" *ngIf="showDropZone"><p>Drop workflow diagrams to inspect</p></div>
   </main>
 </div>

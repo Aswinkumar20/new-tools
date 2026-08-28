@@ -116,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="hg-cards" *ngIf="currentFile && viewMode === 'plot'">
-            <article *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
+            <article *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
               <header>
                 <i class="hg-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
                 <strong>{{ command.name }}</strong>
@@ -124,7 +124,7 @@
               </header>
               <p>{{ command.layer }} · {{ command.text || command.length || '—' }}</p>
             </article>
-            <p class="hg-empty-filter" *ngIf="parsed && !filteredCommands.length">No commands match the current filter.</p>
+            <p class="hg-empty-filter" *ngIf="parsed && !visibleCommands.length">No commands match the current filter.</p>
           </div>
           <div class="hg-cards" *ngIf="currentFile && viewMode === 'layers'">
             <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" tabindex="0" role="button" (click)="selectLayer(layer.id)" (keydown.enter)="selectLayer(layer.id)" (keydown.space)="selectLayer(layer.id); $event.preventDefault()">
@@ -139,7 +139,7 @@
             <p class="hg-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current filter.</p>
           </div>
           <div class="hg-cards" *ngIf="currentFile && viewMode === 'commands'">
-            <article *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
+            <article *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommand?.id === command.id" tabindex="0" role="button" (click)="selectCommand(command.id)" (keydown.enter)="selectCommand(command.id)" (keydown.space)="selectCommand(command.id); $event.preventDefault()">
               <header>
                 <i class="hg-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
                 <strong>{{ command.name }}</strong>
@@ -147,7 +147,7 @@
               </header>
               <p>{{ command.layer }} · x {{ command.x }} y {{ command.y }} · {{ command.text || '—' }}</p>
             </article>
-            <p class="hg-empty-filter" *ngIf="parsed && !filteredCommands.length">No commands match the current filter.</p>
+            <p class="hg-empty-filter" *ngIf="parsed && !visibleCommands.length">No commands match the current filter.</p>
           </div>
           <div class="hg-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -171,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="hg-loading" *ngIf="loading">Parsing HPGL dump…</div>
+          <div class="hg-loading" *ngIf="loading" role="status">Parsing HPGL dump…</div>
         </div>
 
         <div class="hg-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -212,10 +212,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'commands' || viewMode === 'table') && filteredCommands.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'commands' || viewMode === 'table') && visibleCommands.length" open>
           <summary class="ctl__panel-head">Commands</summary>
           <div class="ctl__panel-body hg-units">
-            <button type="button" *ngFor="let command of filteredCommands; trackBy: trackByCommand" [class.is-active]="selectedCommandId === command.id" (click)="selectCommand(command.id)">
+            <button type="button" *ngFor="let command of visibleCommands; trackBy: trackByCommand" [class.is-active]="selectedCommandId === command.id" (click)="selectCommand(command.id)">
               <i class="hg-swatch" [style.background]="command.colorHex || tint(command.type, command.index)"></i>
               <span>{{ command.name }} <small>{{ command.type }} · {{ command.layer }}</small></span>
             </button>

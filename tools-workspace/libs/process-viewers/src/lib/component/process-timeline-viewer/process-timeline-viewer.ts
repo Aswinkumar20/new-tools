@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   PROCESS_TIMELINE_ACCEPT_ATTR,
   PROCESS_TIMELINE_FORMATS_HINT,
@@ -60,7 +60,7 @@ import {
   standalone: true,
   templateUrl: './process-timeline-viewer.html',
   styleUrls: ['./process-timeline-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy {
@@ -103,6 +103,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): ProcessTimelineLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -129,19 +133,23 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
 
   get filteredCaseLanes(): ProcessTimelineLane[] {
     if (!this.parsed) return [];
-    const lanes = this.parsed.caseLanes.map((lane) => ({
-      ...lane,
-      items: filterTimelineItems(lane.items, this.query)
-    })).filter((lane) => lane.items.length);
+    const lanes = this.parsed.caseLanes
+      .map((lane) => ({
+        ...lane,
+        items: filterTimelineItems(lane.items, this.query)
+      }))
+      .filter((lane) => lane.items.length);
     return filterTimelineLanes(lanes, this.query);
   }
 
   get filteredResourceLanes(): ProcessTimelineLane[] {
     if (!this.parsed) return [];
-    const lanes = this.parsed.resourceLanes.map((lane) => ({
-      ...lane,
-      items: filterTimelineItems(lane.items, this.query)
-    })).filter((lane) => lane.items.length);
+    const lanes = this.parsed.resourceLanes
+      .map((lane) => ({
+        ...lane,
+        items: filterTimelineItems(lane.items, this.query)
+      }))
+      .filter((lane) => lane.items.length);
     return filterTimelineLanes(lanes, this.query);
   }
 
@@ -150,11 +158,11 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   get selectedItem(): ProcessTimelineItem | null {
-    return this.filteredItems.find((it) => it.id === this.selectedItemId) ?? this.filteredItems[0] ?? null;
+    return this.filteredItems.find((it) => it.id === this.selectedItemId) ?? null;
   }
 
   get selectedLane(): ProcessTimelineLane | null {
-    return this.activeLanes.find((l) => l.id === this.selectedLaneId) ?? this.activeLanes[0] ?? null;
+    return this.activeLanes.find((l) => l.id === this.selectedLaneId) ?? null;
   }
 
   get itemMetadataRows() {
@@ -178,6 +186,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
     return formatTimelineDuration(ms);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -185,6 +197,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -239,17 +255,22 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'lanes') this.shiftLane(1);
+      if (this.viewMode === 'lanes' || this.viewMode === 'gantt') this.shiftLane(1);
       else this.shiftItem(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'lanes') this.shiftLane(-1);
+      if (this.viewMode === 'lanes' || this.viewMode === 'gantt') this.shiftLane(-1);
       else this.shiftItem(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
@@ -257,6 +278,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: ProcessTimelineLoadedFile): string {
     return file.id;
@@ -277,6 +302,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   formatSize(bytes: number): string {
     return formatProcessTimelineFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -320,8 +349,13 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no timeline events — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -341,6 +375,40 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedItemId = '';
+    this.selectedLaneId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
   selectItem(id: string): void {
     this.selectedItemId = id;
     this.renderCanvas();
@@ -354,38 +422,19 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   onFilterChange(): void {
-    const item = this.filteredItems[0];
-    if (item && !this.filteredItems.some((it) => it.id === this.selectedItemId)) this.selectedItemId = item.id;
-    const lane = this.activeLanes[0];
-    if (lane && !this.activeLanes.some((l) => l.id === this.selectedLaneId)) this.selectedLaneId = lane.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedItemId && !this.filteredItems.some((it) => it.id === this.selectedItemId)) {
+      this.selectedItemId = this.filteredItems[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedLaneId && !this.activeLanes.some((l) => l.id === this.selectedLaneId)) {
+      this.selectedLaneId = this.activeLanes[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedItemId = '';
-    this.selectedLaneId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -398,7 +447,13 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   setViewMode(mode: ProcessTimelineViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
+    if (mode === 'lanes') {
+      this.selectedLaneId = this.filteredResourceLanes[0]?.id ?? '';
+    } else if (mode === 'gantt') {
+      this.selectedLaneId = this.filteredCaseLanes[0]?.id ?? '';
+    }
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
   }
@@ -411,6 +466,11 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -419,7 +479,11 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportProcessTimelineSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -429,10 +493,16 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Gantt, Lanes, or Events to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -440,6 +510,10 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftItem(delta: number): void {
     const list = this.filteredItems;
@@ -478,13 +552,17 @@ export class ProcessTimelineViewerComponent implements AfterViewInit, OnDestroy 
         this.filteredCaseLanes,
         this.filteredItems,
         { startMs: this.parsed.startMs, endMs: this.parsed.endMs },
-        this.selectedItem?.id ?? null
+        this.selectedItemId || null
       );
-    } else if (this.viewMode === 'lanes') renderTimelineLanes(canvas, this.filteredResourceLanes, this.selectedLane?.id ?? null);
-    else renderTimelineEvents(canvas, this.filteredItems, this.selectedItem?.id ?? null);
+    } else if (this.viewMode === 'lanes') {
+      renderTimelineLanes(canvas, this.filteredResourceLanes, this.selectedLaneId || null);
+    } else {
+      renderTimelineEvents(canvas, this.filteredItems, this.selectedItemId || null);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

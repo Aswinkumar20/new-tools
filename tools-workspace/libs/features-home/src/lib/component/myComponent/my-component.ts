@@ -1,14 +1,15 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import {
   AfterViewInit,
   Component,
   ElementRef,
   OnDestroy,
   OnInit,
+  PLATFORM_ID,
   ViewChild,
   inject,
 } from '@angular/core';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Navigation } from '../navigation/navigation';
 import { AssetService } from '../../services/asset.service';
@@ -101,9 +102,11 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   ];
   suggestionIndex = 0;
   private suggestionTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly themeStorageKey = 'easytoolhub.theme';
+  private readonly themeStorageKey = 'theme';
   private readonly assetService = inject(AssetService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   /** Maps category names to SVG filenames in assets/icons/categories/ */
   private readonly categoryIconFiles: Record<string, string> = {
@@ -138,17 +141,33 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.totalTools = this.computeTotalToolCount();
     this.popularTools = this.computePopularTools(8);
     this.weeklyHighlights = this.estimateWeeklyHighlights();
-    this.hydrateThemePreference();
-    this.startSuggestionRotation();
+
+    const searchParam = this.route.snapshot.queryParamMap.get('search');
+    if (searchParam?.trim()) {
+      this.searchQuery = searchParam.trim();
+    }
     this.filterCategories();
+
+    if (this.isBrowser) {
+      this.hydrateThemePreference();
+      this.startSuggestionRotation();
+    }
   }
 
   ngAfterViewInit(): void {
-    this.focusSearchOnDesktop();
-    // Defer so entrance animations run after first paint
-    requestAnimationFrame(() => {
+    if (!this.isBrowser) {
       this.pageReady = true;
-    });
+      return;
+    }
+    this.focusSearchOnDesktop();
+    // Defer so entrance animations run after first paint (browser only)
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        this.pageReady = true;
+      });
+    } else {
+      this.pageReady = true;
+    }
   }
 
   ngOnDestroy(): void {
@@ -217,6 +236,9 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   scrollToCatalog() {
+    if (typeof document === 'undefined') {
+      return;
+    }
     const catalog = document.getElementById('catalog-title');
     catalog?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -233,14 +255,28 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private focusSearchOnDesktop() {
-    if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
-      return;
+    try {
+      if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
+        return;
+      }
+      const isDesktop = globalThis.matchMedia('(min-width: 768px)').matches;
+      if (!isDesktop) {
+        return;
+      }
+      const el = this.homepageSearch?.nativeElement;
+      if (!el || typeof el.focus !== 'function') {
+        return;
+      }1
+      queueMicrotask(() => {
+        try {
+          el.focus({ preventScroll: true });
+        } catch {
+          /* Domino / prerender may not implement focus */
+        }
+      });
+    } catch {
+      /* ignore during prerender */
     }
-    const isDesktop = globalThis.matchMedia('(min-width: 768px)').matches;
-    if (!isDesktop) {
-      return;
-    }
-    queueMicrotask(() => this.homepageSearch?.nativeElement?.focus({ preventScroll: true }));
   }
 
   private startSuggestionRotation() {
@@ -542,9 +578,12 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private hydrateThemePreference() {
     const storage = this.getLocalStorage();
-    const storedTheme = storage?.getItem(this.themeStorageKey);
+    const storedTheme =
+      storage?.getItem(this.themeStorageKey) ?? storage?.getItem('easytoolhub.theme');
     if (storedTheme === 'dark' || storedTheme === 'light') {
       this.isDarkMode = storedTheme === 'dark';
+      storage?.setItem(this.themeStorageKey, storedTheme);
+      storage?.removeItem('easytoolhub.theme');
       return;
     }
     const matchMediaFn = this.getMatchMedia();

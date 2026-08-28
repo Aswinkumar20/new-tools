@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { extractPrerenderRoutes } = require('./lib/extract-routes');
+const { extractSitemapRoutes } = require('./lib/extract-routes');
 
 const baseUrl = 'https://easytoolhub.com';
 const outputPath = path.join(__dirname, '../public/sitemap.xml');
@@ -59,7 +59,7 @@ function getRouteMeta(routePath) {
 }
 
 function generateSitemap() {
-  const routes = extractPrerenderRoutes();
+  const routes = extractSitemapRoutes();
   const lastmod = new Date().toISOString().split('T')[0];
 
   const xmlUrls = routes

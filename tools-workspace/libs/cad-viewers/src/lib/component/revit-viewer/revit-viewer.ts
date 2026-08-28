@@ -21,14 +21,14 @@ import {
   RV_RELATED_TOOLS,
   RV_SUPPORTED_EXTENSIONS
 } from '../../constants/revit-viewer.constants';
-import type { RvFamily, RvColumn, RvExportFormat, RvType, RvLoadedFile, RvInstance, RvViewMode } from '../../types/revit-viewer.types';
+import type { RvColumn, RvExportFormat, RvFamily, RvInstance, RvLoadedFile, RvType, RvViewMode } from '../../types/revit-viewer.types';
 import type { Cad3dView } from '../../utils/cad-3d.utils';
 import { buildCadInsightStats, clampCadZoom, observeCadDocumentTheme } from '../../utils/cad-file.utils';
 import {
   buildRvFamilyMetadata,
+  buildRvInstanceMetadata,
   buildRvMetadataRows,
   buildRvTypeMetadata,
-  buildRvInstanceMetadata,
   canExportRv,
   canvasToPngDataUrl,
   createRvFileRecord,
@@ -46,14 +46,14 @@ import {
   filterRvTypes,
   filterValidRvFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatRvFileSize,
-  rvTypeColor,
+  pickCad3dSolidAtScreen,
   readRvFileBytes,
   renderRvFamilies,
   renderRvNavigate,
   resolveRvSuggestion,
+  rvTypeColor,
+  sizeCadCanvas,
   toRvCad3d
 } from '../../utils/revit-viewer.utils';
 
@@ -66,18 +66,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class RevitViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = RV_ACCEPT_ATTR;
   readonly relatedTools = RV_RELATED_TOOLS;
   readonly supportedExtensions = RV_SUPPORTED_EXTENSIONS;
@@ -90,24 +93,31 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: RvLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: RvViewMode = 'navigate';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedInstanceId = '';
   selectedFamilyId = '';
   selectedTypeId = '';
   selectedRowIndex = 0;
   hiddenFamilyIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -116,6 +126,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): RvLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -128,6 +139,10 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     return canExportRv(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -136,10 +151,6 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredInstances(): RvInstance[] {
@@ -163,7 +174,13 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleInstances(): RvInstance[] {
-    return this.filteredInstances.filter((s) => !this.hiddenFamilyIds.has(s.family));
+    if (!this.hiddenFamilyIds.size) return this.filteredInstances;
+    return this.filteredInstances.filter((inst) => !this.isFamilyKeyHidden(inst.family));
+  }
+
+  get visibleTypes(): RvType[] {
+    if (!this.hiddenFamilyIds.size) return this.filteredTypes;
+    return this.filteredTypes.filter((t) => !this.isFamilyKeyHidden(t.family));
   }
 
   get selectedInstance(): RvInstance | null {
@@ -175,7 +192,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedType(): RvType | null {
-    return this.filteredTypes.find((inst) => inst.id === this.selectedTypeId) ?? null;
+    return this.filteredTypes.find((typ) => typ.id === this.selectedTypeId) ?? null;
   }
 
   get metadataRows() {
@@ -203,18 +220,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return rvTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isFamilyHidden(id: string): boolean {
-    return this.hiddenFamilyIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -226,11 +232,15 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -238,15 +248,14 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -257,13 +266,13 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -274,7 +283,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -285,6 +294,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -325,6 +335,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: RvLoadedFile): string {
     return file.id;
   }
@@ -357,6 +368,19 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     return formatRvFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return rvTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isFamilyHidden(id: string): boolean {
+    return this.hiddenFamilyIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -426,20 +450,80 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedInstanceId = '';
+    this.selectedFamilyId = '';
+    this.selectedTypeId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenFamilyIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'navigate';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectInstance(id: string): void {
     this.selectedInstanceId = id;
+    const inst = this.filteredInstances.find((s) => s.id === id);
+    if (inst?.family) {
+      const family = this.parsed?.families.find((f) => f.id === inst.family || f.name === inst.family);
+      this.selectedFamilyId = family?.id ?? this.selectedFamilyId;
+    }
+    if (inst?.type) {
+      const typ = this.parsed?.types.find((t) => t.id === inst.type || t.name === inst.type);
+      this.selectedTypeId = typ?.id ?? this.selectedTypeId;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectFamily(id: string): void {
     this.selectedFamilyId = id;
+    const family = this.filteredFamilies.find((f) => f.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.family === id || (!!family && (inst.family === family.name || inst.family === family.id))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectType(id: string): void {
     this.selectedTypeId = id;
+    const typ = this.filteredTypes.find((t) => t.id === id);
+    if (typ?.family) {
+      const family = this.parsed?.families.find((f) => f.id === typ.family || f.name === typ.family);
+      this.selectedFamilyId = family?.id ?? this.selectedFamilyId;
+    }
+    const hit = this.visibleInstances.find(
+      (inst) => inst.type === id || (!!typ && (inst.type === typ.name || inst.family === typ.family))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -447,10 +531,24 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredInstances.some((s) => s.id === row.name || s.name === row.name)) this.selectedInstanceId = row.name;
-    if (this.filteredFamilies.some((e) => e.id === row.name || e.name === row.name)) this.selectedFamilyId = row.name;
-    if (this.filteredTypes.some((typ) => typ.id === row.name || typ.name === row.name)) this.selectedTypeId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'family' || this.parsed.families.some((f) => f.name === name || f.id === name)) {
+      const family = this.parsed.families.find((f) => f.name === name || f.id === name);
+      if (family) this.selectFamily(family.id);
+    } else if (kind === 'type' || this.parsed.types.some((t) => t.name === name || t.id === name)) {
+      const typ = this.parsed.types.find((t) => t.name === name || t.id === name);
+      if (typ) this.selectType(typ.id);
+    } else if (name) {
+      const inst = this.parsed.instances.find((s) => s.name === name || s.id === name);
+      if (inst) this.selectInstance(inst.id);
+      else this.selectedInstanceId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -474,41 +572,28 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedTypeId && !this.filteredTypes.some((typ) => typ.id === this.selectedTypeId)) {
       this.selectedTypeId = this.filteredTypes[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedInstanceId = '';
-    this.selectedFamilyId = '';
-    this.selectedTypeId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenFamilyIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedFamilyId = '';
+    this.selectedInstanceId = '';
+    this.selectedTypeId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -520,9 +605,13 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: RvViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -536,6 +625,11 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -573,6 +667,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     if (!this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
@@ -585,7 +680,17 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCad3dView(toRvCad3d(this.visibleInstances), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -599,30 +704,6 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedFamilyId = '';
-    this.selectedInstanceId = '';
-    this.selectedTypeId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids = toRvCad3d(this.visibleInstances);
-    this.view = fitCad3dView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -651,7 +732,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'families') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -663,17 +744,23 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isFamilyKeyHidden(familyKey: string): boolean {
+    if (this.hiddenFamilyIds.has(familyKey)) return true;
+    const family = this.parsed?.families.find((f) => f.id === familyKey || f.name === familyKey);
+    return !!family && this.hiddenFamilyIds.has(family.id);
+  }
+
   private shiftInstance(delta: number): void {
-    const list = this.filteredInstances;
+    const list = this.visibleInstances;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedInstanceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -689,7 +776,7 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftType(delta: number): void {
-    const list = this.filteredTypes;
+    const list = this.visibleTypes;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((typ) => typ.id === this.selectedTypeId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -724,8 +811,12 @@ export class RevitViewerComponent implements AfterViewInit, OnDestroy {
     let selectedId = this.selectedInstanceId || null;
     if (this.viewMode === 'types' && this.selectedType) {
       selectedId =
-        this.visibleInstances.find((inst) => inst.type === this.selectedType?.name || inst.family === this.selectedType?.family)?.id ??
-        selectedId;
+        this.visibleInstances.find(
+          (inst) =>
+            inst.type === this.selectedType?.name ||
+            inst.type === this.selectedType?.id ||
+            inst.family === this.selectedType?.family
+        )?.id ?? selectedId;
     }
     renderRvNavigate(canvas, this.visibleInstances, selectedId, this.view);
   }

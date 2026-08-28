@@ -5,7 +5,7 @@ import {
   GXF_NO_COMMUNITY_SAMPLE
 } from '../constants/gexf-viewer-sample.data';
 import { filterGxfEdges, filterGxfNodes, isGxfActive, parseGexfText } from './gexf-viewer-parse.utils';
-import { canExportGxf, createGxfFileRecord, createSampleGxfFile, exportGxfNodesCsv, filterValidGxfFiles } from './gexf-viewer.utils';
+import { canExportGxf, createGxfFileRecord, createSampleGxfFile, exportGxfNodesCsv, filterValidGxfFiles, resolveGxfSuggestion } from './gexf-viewer.utils';
 
 describe('gexf-viewer-parse.utils', () => {
   it('parses the shop GEXF sample', () => {
@@ -86,5 +86,21 @@ describe('gexf-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveGxfSuggestion covers empty and error states', () => {
+    expect(resolveGxfSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveGxfSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveGxfSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createGxfFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportGxf(record)).toBe(false);
+  });
+
+  it('canExportGxf returns false for null', () => {
+    expect(canExportGxf(null)).toBe(false);
   });
 });

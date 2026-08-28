@@ -137,7 +137,7 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get canExport(): boolean {
-    return !!this.currentFile && !this.loading;
+    return !!this.currentFile && !this.loading && this.libraryReady;
   }
 
   get selectedElement(): BpmnElementSummary | null {
@@ -208,6 +208,14 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
   onKeydown(event: KeyboardEvent): void {
     const target = event.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (event.key === 'Escape') {
+        target.blur();
+      }
+      return;
+    }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
       return;
     }
     if (!this.currentFile || this.loading) {
@@ -267,6 +275,9 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
+    if (!this.isFileDrag(event)) {
+      return;
+    }
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -330,7 +341,11 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
       }
       await this.renderCurrentFile();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
+        if (this.importWarnings.length) {
+          this.toast.info(`${this.importWarnings.length} import note(s) about this diagram`);
+        }
       }
     } catch (error) {
       this.errorMessage = error instanceof Error ? error.message : 'Failed to load BPMN file';
@@ -402,6 +417,10 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
     this.elementSearch = '';
     this.elementFilter = 'all';
     this.zoomPercent = 100;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.cdr.markForCheck();
   }
 
@@ -418,6 +437,9 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setElementFilter(filter: BpmnElementFilter): void {
+    if (this.elementFilter === filter) {
+      return;
+    }
     this.elementFilter = filter;
     this.refreshFilteredElements();
   }
@@ -435,6 +457,11 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -443,8 +470,8 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
     event?.stopPropagation();
     this.showExportMenu = false;
     const current = this.currentFile;
-    if (!current) {
-      this.toast.error('No diagram loaded');
+    if (!this.canExport || !current) {
+      this.toast.info('Nothing to export');
       this.cdr.markForCheck();
       return;
     }
@@ -461,7 +488,12 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
           'text/csv;charset=utf-8'
         );
         this.toast.success('Exported elements CSV');
-      } else if (format === 'summary-json' && this.stats) {
+      } else if (format === 'summary-json') {
+        if (!this.stats) {
+          this.toast.info('Nothing to export');
+          this.cdr.markForCheck();
+          return;
+        }
         downloadTextFile(
           exportBpmnSummaryJson(current, this.stats, this.elements),
           `${base}-summary.json`,
@@ -484,8 +516,12 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
 
   async copySelectedId(): Promise<void> {
     const element = this.selectedElement;
-    if (!element || !navigator.clipboard?.writeText) {
-      this.toast.error('Nothing to copy');
+    if (!element) {
+      this.toast.info('Nothing to copy');
+      return;
+    }
+    if (!this.isBrowser || !navigator.clipboard?.writeText) {
+      this.toast.error('Clipboard is not available in this browser');
       return;
     }
     await navigator.clipboard.writeText(element.id);
@@ -494,8 +530,12 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
 
   async copyXml(): Promise<void> {
     const current = this.currentFile;
-    if (!current || !navigator.clipboard?.writeText) {
-      this.toast.error('No diagram loaded');
+    if (!current) {
+      this.toast.info('No diagram loaded');
+      return;
+    }
+    if (!this.isBrowser || !navigator.clipboard?.writeText) {
+      this.toast.error('Clipboard is not available in this browser');
       return;
     }
     await navigator.clipboard.writeText(current.xml);
@@ -523,6 +563,9 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser || typeof document === 'undefined') {
+      return;
+    }
     const node = this.workspace?.nativeElement;
     if (!node) {
       return;
@@ -578,6 +621,12 @@ export class BpmnViewerComponent implements AfterViewInit, OnDestroy {
 
   private refreshFilteredElements(): void {
     this.filteredElements = filterBpmnElements(this.elements, this.elementFilter, this.elementSearch);
+    if (
+      this.selectedElementId &&
+      !this.filteredElements.some((item) => item.id === this.selectedElementId)
+    ) {
+      this.selectedElementId = null;
+    }
     this.cdr.markForCheck();
   }
 

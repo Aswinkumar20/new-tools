@@ -8,11 +8,17 @@ import {
   parseHgText
 } from './hpgl-viewer-parse.utils';
 import {
+  buildHgCommandMetadata,
+  buildHgLayerMetadata,
+  buildHgMetadataRows,
   canExportHg,
   createHgFileRecord,
   createSampleHgFile,
+  exportHgRowsCsv,
   exportHgSchemaCsv,
-  filterValidHgFiles
+  exportHgSummaryJson,
+  filterValidHgFiles,
+  resolveHgSuggestion
 } from './hpgl-viewer.utils';
 
 describe('hpgl-viewer-parse.utils', () => {
@@ -115,5 +121,42 @@ describe('canExportHg guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportHg({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportHg(null)).toBe(false);
+  });
+});
+
+describe('hpgl-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and entity metadata rows', () => {
+    const parsed = parseHgBytes(buildSampleHgBytes(), 'outline-plot.hpgl');
+    const rows = buildHgMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Commands')).toBe(true);
+
+    expect(buildHgLayerMetadata(parsed.layers[0]).some((r) => r.key === 'Color')).toBe(true);
+    expect(buildHgCommandMetadata(parsed.commands[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createHgFileRecord(createSampleHgFile(), buildSampleHgBytes());
+    const summary = exportHgSummaryJson(file);
+    expect(summary).toContain('"layers"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportHgRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","layers":[],"commands":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createHgFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportHg(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveHgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveHgSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveHgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

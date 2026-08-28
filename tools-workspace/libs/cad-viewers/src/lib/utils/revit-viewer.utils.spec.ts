@@ -8,7 +8,7 @@ import {
   parseRvBytes,
   parseRvText
 } from './revit-viewer-parse.utils';
-import { canExportRv, createRvFileRecord, createSampleRvFile, exportRvSchemaCsv, filterValidRvFiles } from './revit-viewer.utils';
+import { canExportRv, createRvFileRecord, createSampleRvFile, exportRvSchemaCsv, filterValidRvFiles, resolveRvSuggestion } from './revit-viewer.utils';
 
 describe('revit-viewer-parse.utils', () => {
   it('parses the classroom RV01 sample', () => {
@@ -109,5 +109,13 @@ describe('canExportRv guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportRv({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportRv(null)).toBe(false);
+  });
+});
+
+describe('resolveRvSuggestion', () => {
+  it('prefers error sample, then upload-or-sample when empty', () => {
+    expect(resolveRvSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveRvSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveRvSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

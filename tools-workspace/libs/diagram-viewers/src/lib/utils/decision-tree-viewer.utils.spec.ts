@@ -11,7 +11,8 @@ import {
   createDtFileRecord,
   createSampleDtFile,
   exportDtBranchesCsv,
-  filterValidDtFiles
+  filterValidDtFiles,
+  resolveDtSuggestion
 } from './decision-tree-viewer.utils';
 
 describe('decision-tree-viewer-parse.utils', () => {
@@ -102,5 +103,19 @@ describe('decision-tree-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDtSuggestion covers empty and error states', () => {
+    expect(resolveDtSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDtSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDtSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createDtFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportDt(record)).toBe(false);
+    expect(canExportDt(null)).toBe(false);
   });
 });

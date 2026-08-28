@@ -23,3 +23,4 @@ export * from './lib/component/raw-image-viewer/raw-image-viewer';
 export * from './lib/component/tiff-viewer/tiff-viewer';
 export * from './lib/component/opendocument-viewer/opendocument-viewer';
 export * from './lib/component/rtf-viewer/rtf-viewer';
+export * from './lib/component/ics-viewer/ics-viewer';

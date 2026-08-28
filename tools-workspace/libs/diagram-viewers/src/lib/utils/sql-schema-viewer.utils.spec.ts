@@ -10,7 +10,8 @@ import {
   createSampleSqlsFile,
   createSqlsFileRecord,
   exportSqlsTablesCsv,
-  filterValidSqlsFiles
+  filterValidSqlsFiles,
+  resolveSqlsSuggestion
 } from './sql-schema-viewer.utils';
 
 describe('sql-schema-viewer-parse.utils', () => {
@@ -88,5 +89,22 @@ describe('sql-schema-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveSqlsSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveSqlsSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSqlsSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSqlsSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createSqlsFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportSqls(record)).toBe(false);
+  });
+
+  it('canExportSqls returns false for null', () => {
+    expect(canExportSqls(null)).toBe(false);
   });
 });

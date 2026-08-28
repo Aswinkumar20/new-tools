@@ -107,6 +107,7 @@
               </header>
               <p>{{ element.members.length ? element.members.join(', ') : element.stereotype || element.id }}</p>
             </article>
+            <p class="puml-empty-filter" *ngIf="parsed && !filteredElements.length">No elements match the current filter.</p>
           </div>
           <div class="puml-cards" *ngIf="currentFile && (viewMode === 'uml' || viewMode === 'c4')">
             <article *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElement?.id === element.id" (click)="selectElement(element.id)">
@@ -117,7 +118,7 @@
               </header>
               <p>{{ element.stereotype || (element.members.length ? element.members.join(', ') : 'no members') }}</p>
             </article>
-            <p class="puml-empty-filter" *ngIf="parsed && !filteredElements.length">No {{ viewMode === 'c4' ? 'C4' : 'UML' }} elements in this diagram.</p>
+            <p class="puml-empty-filter" *ngIf="parsed && !filteredElements.length">No {{ viewMode === 'c4' ? 'C4' : 'UML' }} elements match the current filter.</p>
           </div>
           <div class="puml-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -145,17 +146,24 @@
           <div class="puml-empty" *ngIf="!currentFile && !loading">
             <p>Drop PlantUML source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn puml-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="puml-loading" *ngIf="loading">Parsing PlantUML…</div>
+          <div class="puml-loading" *ngIf="loading" role="status" aria-live="polite">Parsing PlantUML…</div>
         </div>
 
-        <div class="puml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="puml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="puml-disclaimer">Education and research preview only — not a substitute for plantuml.com or production UML tools.</p>
+        <div class="puml-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="puml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="puml-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for plantuml.com or production UML tools.</p>
       </section>
 
-      <aside class="puml-sidebar">
+      <aside class="puml-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="puml-empty-panel">Upload a PlantUML diagram or load the sample to see overview, elements, relations, and selected item details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -167,7 +175,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="puml-search" type="search" placeholder="kind:class rel:places c4 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="puml-search" type="search" aria-label="Search PlantUML diagram" placeholder="kind:class rel:places c4 (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="puml-search-hint">Try <code>kind:class</code>, <code>rel:compose</code>, or <code>c4</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredRelations.length" open>
@@ -180,7 +189,7 @@
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode !== 'table' && filteredElements.length" open>
-          <summary class="ctl__panel-head">{{ viewMode === 'c4' ? 'C4 elements' : 'UML elements' }}</summary>
+          <summary class="ctl__panel-head">{{ viewMode === 'c4' ? 'C4 elements' : viewMode === 'uml' ? 'UML elements' : 'Elements' }}</summary>
           <div class="ctl__panel-body puml-units">
             <button type="button" *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElementId === element.id" (click)="selectElement(element.id)">
               <i class="puml-swatch" [style.background]="tint(element.kind, element.index)"></i>
@@ -223,17 +232,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, UML, C4, or Table views and inspect the selected element or relation.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>kind:class</code> or <code>rel:compose</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, elements/relations CSV, or a PNG snapshot from Diagram, UML, or C4 view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

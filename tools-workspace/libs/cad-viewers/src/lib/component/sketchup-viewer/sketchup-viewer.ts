@@ -21,17 +21,17 @@ import {
   SK_RELATED_TOOLS,
   SK_SUPPORTED_EXTENSIONS
 } from '../../constants/sketchup-viewer.constants';
-import type { SkComponent, SkColumn, SkExportFormat, SkInstance, SkLoadedFile, SkGroup, SkViewMode } from '../../types/sketchup-viewer.types';
+import type { SkColumn, SkComponent as SkComp, SkExportFormat, SkGroup, SkInstance, SkLoadedFile, SkViewMode } from '../../types/sketchup-viewer.types';
 import type { Cad3dView } from '../../utils/cad-3d.utils';
 import { buildCadInsightStats, clampCadZoom, observeCadDocumentTheme } from '../../utils/cad-file.utils';
 import {
   buildSkComponentMetadata,
-  buildSkMetadataRows,
   buildSkGroupMetadata,
+  buildSkMetadataRows,
   canExportSk,
   canvasToPngDataUrl,
-  createSkFileRecord,
   createSampleSkFile,
+  createSkFileRecord,
   defaultCad3dView,
   downloadBinaryFile,
   downloadDataUrl,
@@ -40,22 +40,22 @@ import {
   exportSkSchemaCsv,
   exportSkSummaryJson,
   filterSkComponents,
-  filterSkInstances,
   filterSkGroups,
+  filterSkInstances,
   filterSkRows,
   filterValidSkFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatSkFileSize,
-  skTypeColor,
+  pickCad3dSolidAtScreen,
   readSkFileBytes,
   renderSkComponents,
-  renderSkInstances,
   renderSkGroups,
+  renderSkInstances,
   resolveSkSuggestion,
-  toCad3dInstances,
-  toCad3dGroups
+  sizeCadCanvas,
+  skTypeColor,
+  toCad3dGroups,
+  toCad3dInstances
 } from '../../utils/sketchup-viewer.utils';
 
 @Component({
@@ -67,18 +67,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = SK_ACCEPT_ATTR;
   readonly relatedTools = SK_RELATED_TOOLS;
   readonly supportedExtensions = SK_SUPPORTED_EXTENSIONS;
@@ -91,24 +94,31 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: SkLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: SkViewMode = 'groups';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedGroupId = '';
   selectedComponentId = '';
   selectedInstanceId = '';
   selectedRowIndex = 0;
   hiddenGroupIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -117,6 +127,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): SkLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -129,6 +140,10 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     return canExportSk(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -139,15 +154,11 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     );
   }
 
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
-  }
-
   get filteredGroups(): SkGroup[] {
     return this.parsed ? filterSkGroups(this.parsed.groups, this.query) : [];
   }
 
-  get filteredComponents(): SkComponent[] {
+  get filteredComponents(): SkComp[] {
     return this.parsed ? filterSkComponents(this.parsed.components, this.query) : [];
   }
 
@@ -164,14 +175,20 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleGroups(): SkGroup[] {
-    return this.filteredGroups.filter((s) => !this.hiddenGroupIds.has(s.id));
+    if (!this.hiddenGroupIds.size) return this.filteredGroups;
+    return this.filteredGroups.filter((g) => !this.hiddenGroupIds.has(g.id));
+  }
+
+  get visibleInstances(): SkInstance[] {
+    if (!this.hiddenGroupIds.size) return this.filteredInstances;
+    return this.filteredInstances.filter((inst) => !this.isGroupKeyHidden(inst.group));
   }
 
   get selectedGroup(): SkGroup | null {
     return this.filteredGroups.find((s) => s.id === this.selectedGroupId) ?? null;
   }
 
-  get selectedComponent(): SkComponent | null {
+  get selectedComponent(): SkComp | null {
     return this.filteredComponents.find((e) => e.id === this.selectedComponentId) ?? null;
   }
 
@@ -200,18 +217,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return skTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isGroupHidden(id: string): boolean {
-    return this.hiddenGroupIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -223,11 +229,15 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -235,15 +245,14 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -254,13 +263,13 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -271,7 +280,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -282,6 +291,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -305,12 +315,14 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
+      if (this.viewMode === 'preview') this.shiftInstance(1);
+      else if (this.viewMode === 'table') this.shiftRow(1);
       else if (this.viewMode === 'components') this.shiftComponent(1);
       else this.shiftGroup(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
+      if (this.viewMode === 'preview') this.shiftInstance(-1);
+      else if (this.viewMode === 'table') this.shiftRow(-1);
       else if (this.viewMode === 'components') this.shiftComponent(-1);
       else this.shiftGroup(-1);
     } else if (event.key.toLowerCase() === 'f') {
@@ -320,6 +332,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: SkLoadedFile): string {
     return file.id;
   }
@@ -332,7 +345,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     return part.id;
   }
 
-  trackByComponent(_i: number, assembly: SkComponent): string {
+  trackByComponent(_i: number, assembly: SkComp): string {
     return assembly.id;
   }
 
@@ -352,6 +365,19 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     return formatSkFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return skTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isGroupHidden(id: string): boolean {
+    return this.hiddenGroupIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -421,20 +447,79 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedGroupId = '';
+    this.selectedComponentId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenGroupIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'groups';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectGroup(id: string): void {
     this.selectedGroupId = id;
+    const group = this.filteredGroups.find((g) => g.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.group === id || (!!group && (inst.group === group.name || inst.group === group.id))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectComponent(id: string): void {
     this.selectedComponentId = id;
+    const component = this.filteredComponents.find((c) => c.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) =>
+        inst.component === id || (!!component && (inst.component === component.name || inst.component === component.id))
+    );
+    if (hit) {
+      this.selectedInstanceId = hit.id;
+      this.selectGroupFromInstance(hit);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectInstance(id: string): void {
     this.selectedInstanceId = id;
+    const inst = this.filteredInstances.find((i) => i.id === id);
+    if (inst) {
+      this.selectGroupFromInstance(inst);
+      if (inst.component) {
+        const component = this.parsed?.components.find((c) => c.id === inst.component || c.name === inst.component);
+        this.selectedComponentId = component?.id ?? this.selectedComponentId;
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -442,10 +527,24 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredGroups.some((s) => s.id === row.name || s.name === row.name)) this.selectedGroupId = row.name;
-    if (this.filteredComponents.some((e) => e.id === row.name || e.name === row.name)) this.selectedComponentId = row.name;
-    if (this.filteredInstances.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedInstanceId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'component' || this.parsed.components.some((c) => c.name === name || c.id === name)) {
+      const component = this.parsed.components.find((c) => c.name === name || c.id === name);
+      if (component) this.selectComponent(component.id);
+    } else if (kind === 'instance' || this.parsed.instances.some((i) => i.name === name || i.id === name)) {
+      const inst = this.parsed.instances.find((i) => i.name === name || i.id === name);
+      if (inst) this.selectInstance(inst.id);
+    } else if (name) {
+      const group = this.parsed.groups.find((g) => g.name === name || g.id === name);
+      if (group) this.selectGroup(group.id);
+      else this.selectedGroupId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -469,41 +568,28 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedInstanceId && !this.filteredInstances.some((inst) => inst.id === this.selectedInstanceId)) {
       this.selectedInstanceId = this.filteredInstances[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedGroupId = '';
-    this.selectedComponentId = '';
-    this.selectedInstanceId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenGroupIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedComponentId = '';
+    this.selectedGroupId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -515,9 +601,13 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: SkViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -531,6 +621,11 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -551,7 +646,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
       else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Parts, Assemblies, or Preview to export a PNG snapshot');
+          this.toast.info('Open Groups, Components, or Preview to export a PNG snapshot');
           return;
         }
         const url = canvasToPngDataUrl(canvas);
@@ -568,6 +663,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     if (!this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
@@ -580,7 +676,21 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleGroups, this.visibleInstances)
+        : toCad3dGroups(this.visibleGroups);
+    this.view = fitCad3dView(solids, width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -594,33 +704,6 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedComponentId = '';
-    this.selectedGroupId = '';
-    this.selectedInstanceId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids =
-      this.viewMode === 'preview'
-        ? toCad3dInstances(this.visibleGroups, this.filteredInstances)
-        : toCad3dGroups(this.visibleGroups);
-    this.view = fitCad3dView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -649,29 +732,49 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'components') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    const id = pickCad3dSolidAtScreen(this.viewMode === 'preview' ? toCad3dInstances(this.visibleGroups, this.filteredInstances) : toCad3dGroups(this.visibleGroups), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectInstance(id);
-    else this.clearSelection();
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleGroups, this.visibleInstances)
+        : toCad3dGroups(this.visibleGroups);
+    const id = pickCad3dSolidAtScreen(solids, this.view, canvas.width, canvas.height, sx, sy);
+    if (!id) {
+      this.clearSelection();
+      return;
+    }
+    if (this.viewMode === 'preview') this.selectInstance(id);
+    else this.selectGroup(id);
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isGroupKeyHidden(groupKey: string): boolean {
+    if (this.hiddenGroupIds.has(groupKey)) return true;
+    const group = this.parsed?.groups.find((g) => g.id === groupKey || g.name === groupKey);
+    return !!group && this.hiddenGroupIds.has(group.id);
+  }
+
+  private selectGroupFromInstance(inst: SkInstance): void {
+    if (!inst.group) return;
+    const group = this.parsed?.groups.find((g) => g.id === inst.group || g.name === inst.group);
+    this.selectedGroupId = group?.id ?? this.selectedGroupId;
+  }
+
   private shiftGroup(delta: number): void {
-    const list = this.filteredGroups;
+    const list = this.visibleGroups;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedGroupId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -687,7 +790,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftInstance(delta: number): void {
-    const list = this.filteredInstances;
+    const list = this.visibleInstances;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedInstanceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -695,10 +798,6 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftInstance(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
@@ -724,7 +823,7 @@ export class SketchupViewerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.viewMode === 'preview') {
-      renderSkInstances(canvas, this.visibleGroups, this.filteredInstances, this.selectedInstanceId || null, this.view);
+      renderSkInstances(canvas, this.visibleGroups, this.visibleInstances, this.selectedInstanceId || null, this.view);
       return;
     }
     renderSkGroups(canvas, this.visibleGroups, this.selectedGroupId || null, this.view);

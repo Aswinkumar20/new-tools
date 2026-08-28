@@ -60,7 +60,7 @@ Files under `apps/tools-site/src/app/directives/`. Template adoption is still mi
 3. Files/errors: `GoogleAnalyticsService` or `utils/ga-helper.ts`.  
 4. Avoid also calling `trackToolUsage(..., 'view')` on init (duplicates).
 
-Reference: `apps/tools-site/src/app/examples/ga-tracking-example.ts`.
+Reference: use `GaToolActionDirective`, `GaClickDirective`, and `GoogleAnalyticsService` in tool components (see directives under `apps/tools-site/src/app/directives/`).
 
 ## Key events
 

@@ -16,41 +16,53 @@
       </div>
       <div class="climate-suggest__actions">
         <button type="button" class="climate-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="climate-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="climate-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="climate-toolbar">
+    <div class="climate-toolbar" role="toolbar" aria-label="Climate Data Viewer actions">
       <div class="climate-toolbar__group">
         <input #fileInput class="climate-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn climate-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn climate-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="climate-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="climate-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('grid-csv', $event)">Grid CSV</button>
-            <button type="button" (click)="exportAs('series-csv', $event)">Series CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="climate-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="climate-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('grid-csv', $event)">Grid CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('series-csv', $event)">Series CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="climate-files" *ngIf="files.length">
           <div class="climate-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.climate-files__chip--active]="i === currentIndex">
             <button type="button" class="climate-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="climate-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="climate-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="climate-toolbar__status"><span class="climate-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="climate-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="climate-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Climate Data Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="climate-toolbar__status"><span class="climate-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="climate-workspace" [class.climate-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,27 +73,28 @@
             <span>{{ parsed?.variable }} · {{ timeLabel }} · {{ parsed?.nx }}×{{ parsed?.ny }} · {{ parsed?.nt }} steps</span>
           </div>
           <div class="climate-view-controls">
-            <button type="button" (click)="stepTime(-1)" [disabled]="timeIndex <= 0">Prev t</button>
-            <button type="button" (click)="stepTime(1)" [disabled]="timeIndex >= nt - 1">Next t</button>
-            <button type="button" *ngIf="viewMode === 'map'" (click)="zoomOut()">−</button>
-            <button type="button" *ngIf="viewMode === 'map'" (click)="zoomIn()">+</button>
-            <button type="button" *ngIf="viewMode === 'map'" (click)="fitZoom()">Fit</button>
-            <button type="button" *ngIf="viewMode === 'map'" (click)="toggleInvert()" [class.is-active]="invert">Invert</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__tool-btn" (click)="stepTime(-1)" [disabled]="timeIndex <= 0" aria-label="Previous time step" appTooltip="Previous time (←)" tooltipPosition="top">Prev t</button>
+            <button type="button" class="ctl__tool-btn" (click)="stepTime(1)" [disabled]="timeIndex >= nt - 1" aria-label="Next time step" appTooltip="Next time (→)" tooltipPosition="top">Next t</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'map'" (click)="zoomOut()" aria-label="Zoom out" appTooltip="Zoom out (−)" tooltipPosition="top">−</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'map'" (click)="zoomIn()" aria-label="Zoom in" appTooltip="Zoom in (+)" tooltipPosition="top">+</button>
+            <button type="button" class="ctl__tool-btn" *ngIf="viewMode === 'map'" (click)="fitZoom()" aria-label="Fit map zoom" appTooltip="Fit zoom (F)" tooltipPosition="top">Fit</button>
+            <button type="button" class="ctl__tool-btn" *ngIf="viewMode === 'map'" (click)="toggleInvert()" [class.is-active]="invert" [attr.aria-pressed]="invert" aria-label="Invert colormap" appTooltip="Invert colormap (I)" tooltipPosition="top">Invert</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
         <div class="climate-filters" *ngIf="currentFile && nt > 1">
-          <label>Time <strong>{{ timeLabel }}</strong></label>
-          <input type="range" min="0" [max]="nt - 1" [ngModel]="timeIndex" (ngModelChange)="setTimeIndex(+$event)" />
+          <label>Time <strong>{{ timeLabel }}</strong>
+            <input type="range" min="0" [max]="nt - 1" [ngModel]="timeIndex" (ngModelChange)="setTimeIndex(+$event)" aria-label="Time step" />
+          </label>
         </div>
 
         <div class="climate-filters" *ngIf="currentFile && viewMode === 'map'">
-          <button type="button" *ngFor="let map of colormaps" [class.is-active]="colormap === map" (click)="setColormap(map)">{{ map }}</button>
+          <button type="button" class="ctl__tool-btn" *ngFor="let map of colormaps" [class.is-active]="colormap === map" [attr.aria-pressed]="colormap === map" (click)="setColormap(map)" [attr.aria-label]="'Colormap ' + map" [appTooltip]="'Colormap: ' + map" tooltipPosition="top">{{ map }}</button>
         </div>
 
-        <div #mapWrap class="climate-map-wrap" [class.climate-map-wrap--empty]="!currentFile">
-          <canvas #canvasHost class="climate-map" *ngIf="currentFile && viewMode !== 'table' && viewMode !== 'stations'"></canvas>
+        <div #mapWrap class="climate-map-wrap">
+          <canvas #canvasHost class="climate-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="climate-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
               <thead>
@@ -127,54 +140,74 @@
           <div class="climate-empty" *ngIf="!currentFile && !loading">
             <p>Drop climate datasets here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn climate-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="climate-loading" *ngIf="loading">Parsing climate data…</div>
+          <div class="climate-loading" *ngIf="loading" role="status" aria-live="polite">Parsing climate data…</div>
         </div>
 
-        <div class="climate-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="climate-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="climate-disclaimer">Education and research preview only — not an operational climate analysis product.</p>
+        <div class="climate-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="climate-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="climate-disclaimer" *ngIf="currentFile">Education and research preview only — not an operational climate analysis product.</p>
       </section>
 
-      <aside class="climate-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="climate-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="climate-empty-panel">Upload NetCDF, GRIB, JSON, CSV, or .clim — or load the Ethiopia TAS sample to explore maps, time series, stations, and grid tables here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="climate-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search stations</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search stations</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="climate-search" type="search" placeholder="Search station (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="climate-search" type="search" aria-label="Search stations" placeholder="Search station (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="climate-search-hint">Filter by station id or name. Press <kbd>/</kbd> to focus; <kbd>←</kbd>/<kbd>→</kbd> steps time; <kbd>+</kbd>/<kbd>−</kbd> zooms the map; <kbd>f</kbd> fits; <kbd>i</kbd> inverts.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="filteredStations.length">
-          <header class="ctl__panel-head">Stations</header>
+        </details>
+        <details class="ctl__panel" *ngIf="filteredStations.length" open>
+          <summary class="ctl__panel-head">Stations</summary>
           <div class="ctl__panel-body climate-units">
             <button type="button" *ngFor="let station of filteredStations; trackBy: trackByStation" [class.is-active]="selectedStationId === station.id" (click)="selectStation(station.id)">
               <span>{{ station.name }} <small>{{ station.id }}</small></span>
               <strong>{{ stationValue(station) }} {{ parsed?.unit }}</strong>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="histogramBars.length">
-          <header class="ctl__panel-head">Histogram</header>
+        </details>
+        <details class="ctl__panel" *ngIf="histogramBars.length" open>
+          <summary class="ctl__panel-head">Histogram</summary>
           <div class="ctl__panel-body climate-hist">
-            <div *ngFor="let bar of histogramBars" class="climate-hist__bar" [style.height.%]="bar.heightPct" [attr.title]="bar.label + ': ' + bar.count"></div>
+            <div *ngFor="let bar of histogramBars" class="climate-hist__bar" [style.height.%]="bar.heightPct" [attr.title]="bar.label + ': ' + bar.count" [attr.aria-label]="bar.label + ': ' + bar.count"></div>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="climate-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="climate-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help climate-footer-help">
+      <summary>How to use Climate Data Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in Ethiopia TAS sample. Files never leave your browser.</li>
+        <li>Switch Map, Time series, Stations, or Table views. Use the time slider and Prev/Next to step through months.</li>
+        <li>On the map, change colormap, invert, and zoom. Press <kbd>f</kbd> to fit; <kbd>i</kbd> to invert.</li>
+        <li>Export the original file, summary JSON, grid CSV, series CSV, or a PNG snapshot from Map or Time series.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="climate-drop" *ngIf="showDropZone"><p>Drop climate datasets to preview</p></div>
   </main>
 </div>

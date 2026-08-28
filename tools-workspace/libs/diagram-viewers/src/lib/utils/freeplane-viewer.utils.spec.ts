@@ -1,6 +1,6 @@
 import { FP_JSON_SAMPLE, FP_MARKDOWN_SAMPLE, FP_MM_SAMPLE } from '../constants/freeplane-viewer-sample.data';
 import { filterFpNodes, parseFreeplaneText } from './freeplane-viewer-parse.utils';
-import { canExportFp, createFpFileRecord, createSampleFpFile, exportFpIconsCsv, filterValidFpFiles } from './freeplane-viewer.utils';
+import { canExportFp, createFpFileRecord, createSampleFpFile, exportFpIconsCsv, filterValidFpFiles, resolveFpSuggestion } from './freeplane-viewer.utils';
 
 describe('freeplane-viewer-parse.utils', () => {
   it('parses the shop Freeplane sample', () => {
@@ -74,5 +74,21 @@ describe('freeplane-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveFpSuggestion covers empty and error states', () => {
+    expect(resolveFpSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveFpSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveFpSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createFpFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportFp(record)).toBe(false);
+  });
+
+  it('canExportFp returns false for null', () => {
+    expect(canExportFp(null)).toBe(false);
   });
 });

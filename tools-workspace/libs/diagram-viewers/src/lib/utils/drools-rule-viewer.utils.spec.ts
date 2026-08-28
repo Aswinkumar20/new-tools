@@ -10,7 +10,8 @@ import {
   createDrlFileRecord,
   createSampleDrlFile,
   exportDrlRulesCsv,
-  filterValidDrlFiles
+  filterValidDrlFiles,
+  resolveDrlSuggestion
 } from './drools-rule-viewer.utils';
 
 describe('drools-rule-viewer-parse.utils', () => {
@@ -91,5 +92,21 @@ describe('drools-rule-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDrlSuggestion covers empty and error states', () => {
+    expect(resolveDrlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDrlSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDrlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createDrlFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportDrl(record)).toBe(false);
+  });
+
+  it('canExportDrl returns false for null', () => {
+    expect(canExportDrl(null)).toBe(false);
   });
 });

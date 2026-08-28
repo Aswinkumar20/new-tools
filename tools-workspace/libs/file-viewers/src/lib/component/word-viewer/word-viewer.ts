@@ -130,6 +130,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   setupDragAndDrop(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -137,6 +140,9 @@ export class FileViewerWordViewerComponent implements OnInit, AfterViewInit, OnD
   }
 
   setupFullscreenListeners(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of WORD_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }

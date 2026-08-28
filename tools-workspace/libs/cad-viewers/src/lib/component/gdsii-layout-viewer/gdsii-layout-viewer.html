@@ -116,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="gd-cards" *ngIf="currentFile && viewMode === 'plot'">
-            <article *ngFor="let feat of filteredFeatures; trackBy: trackByFeat" [class.is-active]="selectedFeat?.id === feat.id" tabindex="0" role="button" (click)="selectFeat(feat.id)" (keydown.enter)="selectFeat(feat.id)" (keydown.space)="selectFeat(feat.id); $event.preventDefault()">
+            <article *ngFor="let feat of visibleFeatures; trackBy: trackByFeat" [class.is-active]="selectedFeat?.id === feat.id" tabindex="0" role="button" (click)="selectFeat(feat.id)" (keydown.enter)="selectFeat(feat.id)" (keydown.space)="selectFeat(feat.id); $event.preventDefault()">
               <header>
                 <i class="gd-swatch" [style.background]="feat.colorHex || tint(feat.type, feat.index)"></i>
                 <strong>{{ feat.name }}</strong>
@@ -124,7 +124,7 @@
               </header>
               <p>{{ feat.layer }} · {{ feat.text || feat.length || '—' }}</p>
             </article>
-            <p class="gd-empty-filter" *ngIf="parsed && !filteredFeatures.length">No features match the current filter.</p>
+            <p class="gd-empty-filter" *ngIf="parsed && !visibleFeatures.length">No features match the current filter.</p>
           </div>
           <div class="gd-cards" *ngIf="currentFile && viewMode === 'layers'">
             <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" tabindex="0" role="button" (click)="selectLayer(layer.id)" (keydown.enter)="selectLayer(layer.id)" (keydown.space)="selectLayer(layer.id); $event.preventDefault()">
@@ -171,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gd-loading" *ngIf="loading">Parsing GDSII dump…</div>
+          <div class="gd-loading" *ngIf="loading" role="status">Parsing GDSII dump…</div>
         </div>
 
         <div class="gd-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -221,10 +221,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'table') && filteredFeatures.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'plot' || viewMode === 'table') && visibleFeatures.length" open>
           <summary class="ctl__panel-head">Features</summary>
           <div class="ctl__panel-body gd-units">
-            <button type="button" *ngFor="let feat of filteredFeatures; trackBy: trackByFeat" [class.is-active]="selectedFeatId === feat.id" (click)="selectFeat(feat.id)">
+            <button type="button" *ngFor="let feat of visibleFeatures; trackBy: trackByFeat" [class.is-active]="selectedFeatId === feat.id" (click)="selectFeat(feat.id)">
               <i class="gd-swatch" [style.background]="feat.colorHex || tint(feat.type, feat.index)"></i>
               <span>{{ feat.name }} <small>{{ feat.type }} · {{ feat.cell || feat.layer }}</small></span>
             </button>

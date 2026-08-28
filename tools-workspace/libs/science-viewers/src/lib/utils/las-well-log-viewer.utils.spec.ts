@@ -1,13 +1,17 @@
 import { LAS_SAMPLE } from '../constants/las-sample.data';
 import { parseLasText } from './las-parse.utils';
 import {
+  buildCurveMetadata,
+  buildLasMetadataRows,
   canExportLas,
   createLasFileRecord,
   createSampleLasFile,
   exportLasCurvesCsv,
   exportLasSubset,
+  exportLasSummaryJson,
   filterLasCurves,
-  filterValidLasFiles
+  filterValidLasFiles,
+  resolveLasSuggestion
 } from './las-well-log-viewer.utils';
 
 describe('las-parse.utils', () => {
@@ -82,5 +86,26 @@ describe('las-well-log-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz'))).toBe(true);
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.las', { lastModified: 3 });
+    const record = createLasFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportLas(record)).toBe(false);
+  });
+
+  it('builds metadata and summary export', () => {
+    const file = createSampleLasFile();
+    const record = createLasFileRecord(file, new TextEncoder().encode(LAS_SAMPLE));
+    expect(buildLasMetadataRows(record.parsed!).some((r) => r.key === 'Curves')).toBe(true);
+    expect(buildCurveMetadata(record.parsed!.curves[0]).some((r) => r.key === 'Mnemonic')).toBe(true);
+    expect(exportLasSummaryJson(record)).toContain('sample-well.las');
+  });
+
+  it('resolves upload and sample suggestions', () => {
+    expect(resolveLasSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-las');
+    expect(resolveLasSuggestion({ hasFiles: false, hasError: true })?.id).toBe('try-sample');
+    expect(resolveLasSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

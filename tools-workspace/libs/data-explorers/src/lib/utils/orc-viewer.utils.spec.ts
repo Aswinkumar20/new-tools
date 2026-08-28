@@ -5,7 +5,8 @@ import {
   createOrcFileRecord,
   createSampleOrcFile,
   exportOrcSchemaCsv,
-  filterValidOrcFiles
+  filterValidOrcFiles,
+  resolveOrcSuggestion
 } from './orc-viewer.utils';
 
 describe('orc-viewer-parse.utils', () => {
@@ -86,5 +87,20 @@ describe('orc-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveOrcSuggestion covers empty and error states', () => {
+    expect(resolveOrcSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveOrcSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveOrcSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode(JSON.stringify({ columns: [], rows: [] }));
+    const file = new File([payload], 'empty.json', { lastModified: 9 });
+    const record = createOrcFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(canExportOrc(record)).toBe(false);
+    expect(canExportOrc(null)).toBe(false);
   });
 });

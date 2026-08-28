@@ -16,41 +16,53 @@
       </div>
       <div class="bpsim-suggest__actions">
         <button type="button" class="bpsim-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="bpsim-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="bpsim-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="bpsim-toolbar">
+    <div class="bpsim-toolbar" role="toolbar" aria-label="Business Process Simulator actions">
       <div class="bpsim-toolbar__group">
         <input #fileInput class="bpsim-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn bpsim-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn bpsim-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="bpsim-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="bpsim-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('scenarios-csv', $event)">Scenarios CSV</button>
-            <button type="button" (click)="exportAs('trace-csv', $event)">Trace CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="bpsim-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="bpsim-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('scenarios-csv', $event)">Scenarios CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('trace-csv', $event)">Trace CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="bpsim-files" *ngIf="files.length">
           <div class="bpsim-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.bpsim-files__chip--active]="i === currentIndex">
             <button type="button" class="bpsim-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="bpsim-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="bpsim-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="bpsim-toolbar__status"><span class="bpsim-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="bpsim-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="bpsim-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Business Process Simulator views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="bpsim-toolbar__status"><span class="bpsim-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="bpsim-workspace" [class.bpsim-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,13 +73,13 @@
             <span>{{ parsed?.name }} · {{ currentTokenTotal }} tokens · {{ enabledIds.length }} enabled · {{ trace.length }} steps · {{ parsed?.engine }}</span>
           </div>
           <div class="bpsim-view-controls">
-            <button type="button" (click)="fireStep()" [disabled]="!enabledIds.length">Step</button>
-            <button type="button" (click)="resetSimulation()" [disabled]="!parsed">Reset</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" (click)="fireStep()" [disabled]="!enabledIds.length" appTooltip="Fire next enabled step" tooltipPosition="bottom" aria-label="Fire step">Step</button>
+            <button type="button" (click)="resetSimulation()" [disabled]="!parsed" appTooltip="Reset to selected scenario" tooltipPosition="bottom" aria-label="Reset simulation">Reset</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="bpsim-map-wrap" [class.bpsim-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="bpsim-map-wrap">
           <canvas #canvasHost class="bpsim-map" [class.bpsim-map--tall]="viewMode === 'graph'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="bpsim-cards" *ngIf="currentFile && viewMode === 'tokens'">
             <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
@@ -78,6 +90,7 @@
               </header>
               <p>{{ node.name }}</p>
             </article>
+            <p class="bpsim-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="bpsim-cards" *ngIf="currentFile && viewMode === 'scenarios'">
             <article *ngFor="let scenario of filteredScenarios; trackBy: trackByScenario" [class.is-active]="selectedScenario?.id === scenario.id" (click)="selectScenario(scenario.id)">
@@ -86,8 +99,9 @@
                 <strong>{{ scenario.name }}</strong>
               </header>
               <p>{{ scenario.description || 'Token scenario' }}</p>
-              <button type="button" class="bpsim-apply" (click)="applyScenarioFromCard(scenario.id, $event)">Apply</button>
+              <button type="button" class="bpsim-apply" (click)="applyScenarioFromCard(scenario.id, $event)" appTooltip="Apply this scenario marking" tooltipPosition="bottom">Apply</button>
             </article>
+            <p class="bpsim-empty-filter" *ngIf="parsed && !filteredScenarios.length">No scenarios match the current filter.</p>
           </div>
           <div class="bpsim-cards" *ngIf="currentFile && viewMode === 'graph'">
             <article *ngIf="!trace.length" class="is-active">
@@ -126,74 +140,94 @@
           <div class="bpsim-empty" *ngIf="!currentFile && !loading">
             <p>Drop BPMN or PNML here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn bpsim-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="bpsim-loading" *ngIf="loading">Parsing simulator model…</div>
+          <div class="bpsim-loading" *ngIf="loading" role="status" aria-live="polite">Parsing simulator model…</div>
         </div>
 
-        <div class="bpsim-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="bpsim-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="bpsim-disclaimer">Education and research preview only — not a substitute for BIMP, Signavio simulation, or production process simulators.</p>
+        <div class="bpsim-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="bpsim-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="bpsim-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for BIMP, Signavio simulation, or production process simulators.</p>
       </section>
 
-      <aside class="bpsim-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="bpsim-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="bpsim-empty-panel">Upload a BPMN or PNML model or load the sample to run token scenarios, fire steps, and inspect traces here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="bpsim-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search simulation</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search simulation</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="bpsim-search" type="search" placeholder="enabled kind:gateway scenario:happy (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="bpsim-search" type="search" aria-label="Search simulation" placeholder="enabled kind:gateway scenario:happy (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="bpsim-search-hint">Try <code>enabled</code>, <code>kind:gateway</code>, or <code>scenario:happy</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'scenarios' && filteredScenarios.length">
-          <header class="ctl__panel-head">Scenarios</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'scenarios' && filteredScenarios.length" open>
+          <summary class="ctl__panel-head">Scenarios</summary>
           <div class="ctl__panel-body bpsim-units">
             <button type="button" *ngFor="let scenario of filteredScenarios; trackBy: trackByScenario" [class.is-active]="selectedScenarioId === scenario.id" (click)="selectScenario(scenario.id)">
               <i class="bpsim-swatch" [style.background]="scenarioTint(scenario.index)"></i>
               <span>{{ scenario.name }} <small>{{ scenario.description }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'scenarios' && filteredNodes.length">
-          <header class="ctl__panel-head">Nodes</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'scenarios' && filteredNodes.length" open>
+          <summary class="ctl__panel-head">Nodes</summary>
           <div class="ctl__panel-body bpsim-units">
             <button type="button" *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
               <i class="bpsim-swatch" [style.background]="nodeTint(node)"></i>
               <span>{{ node.name }} <small>{{ tokenCount(node.id) }} tokens · {{ isEnabled(node.id) ? 'enabled' : node.kind }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'scenarios' && selectedScenario">
-          <header class="ctl__panel-head">Selected scenario</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'scenarios' && selectedScenario" open>
+          <summary class="ctl__panel-head">Selected scenario</summary>
           <div class="ctl__panel-body">
             <dl class="bpsim-meta">
               <div *ngFor="let row of scenarioMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
             <button type="button" class="ctl__tool-btn" (click)="applyScenario(selectedScenario.id)">Apply scenario</button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'scenarios' && selectedNode">
-          <header class="ctl__panel-head">Selected node</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'scenarios' && selectedNode" open>
+          <summary class="ctl__panel-head">Selected node</summary>
           <div class="ctl__panel-body">
             <dl class="bpsim-meta">
               <div *ngFor="let row of nodeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bpsim-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="bpsim-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help bpsim-footer-help">
+      <summary>How to use Business Process Simulator</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in order fulfillment sample. Files never leave your browser.</li>
+        <li>Switch Tokens, Scenarios, Graph, or Table views; apply a scenario marking, then fire enabled steps.</li>
+        <li>Search with tokens like <code>enabled</code> or <code>scenario:happy</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, scenarios CSV, trace CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }} Education/research preview only — not a substitute for production simulation platforms.</li>
+      </ul>
+    </details>
+
     <div class="bpsim-drop" *ngIf="showDropZone"><p>Drop BPMN or PNML to simulate</p></div>
   </main>
 </div>

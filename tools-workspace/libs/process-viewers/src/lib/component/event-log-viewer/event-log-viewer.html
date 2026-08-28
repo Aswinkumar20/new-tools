@@ -16,41 +16,53 @@
       </div>
       <div class="elog-suggest__actions">
         <button type="button" class="elog-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="elog-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="elog-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="elog-toolbar">
+    <div class="elog-toolbar" role="toolbar" aria-label="Event Log Viewer actions">
       <div class="elog-toolbar__group">
         <input #fileInput class="elog-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn elog-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn elog-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="elog-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="elog-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('cases-csv', $event)">Cases CSV</button>
-            <button type="button" (click)="exportAs('events-csv', $event)">Events CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="elog-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="elog-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('cases-csv', $event)">Cases CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('events-csv', $event)">Events CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="elog-files" *ngIf="files.length">
           <div class="elog-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.elog-files__chip--active]="i === currentIndex">
             <button type="button" class="elog-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="elog-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="elog-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="elog-toolbar__status"><span class="elog-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="elog-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="elog-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Event Log Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="elog-toolbar__status"><span class="elog-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="elog-workspace" [class.elog-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,11 +73,11 @@
             <span>{{ parsed?.name }} · {{ parsed?.cases?.length || 0 }} cases · {{ parsed?.events?.length || 0 }} events · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="elog-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="elog-map-wrap" [class.elog-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="elog-map-wrap">
           <canvas #canvasHost class="elog-map" [class.elog-map--tall]="viewMode === 'events'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="elog-cards" *ngIf="currentFile && viewMode === 'cases'">
             <article *ngFor="let item of filteredCases; trackBy: trackByCase" [class.is-active]="selectedCase?.id === item.id" (click)="selectCase(item.id)">
@@ -77,6 +89,7 @@
               <p>{{ item.pathLabel }}</p>
               <p>{{ formatDuration(item.durationMs) }}</p>
             </article>
+            <p class="elog-empty-filter" *ngIf="parsed && !filteredCases.length">No cases match the current filter.</p>
           </div>
           <div class="elog-cards" *ngIf="currentFile && viewMode === 'activities'">
             <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
@@ -87,6 +100,7 @@
               </header>
               <p>{{ activity.name }}</p>
             </article>
+            <p class="elog-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
           </div>
           <div class="elog-cards" *ngIf="currentFile && viewMode === 'events'">
             <article *ngFor="let event of filteredEvents; trackBy: trackByEvent" [class.is-active]="selectedEvent?.id === event.id" (click)="selectEvent(event.id)">
@@ -98,6 +112,7 @@
               <p>{{ event.activity }}</p>
               <p>{{ event.timestamp || '—' }}</p>
             </article>
+            <p class="elog-empty-filter" *ngIf="parsed && !filteredEvents.length">No events match the current filter.</p>
           </div>
           <div class="elog-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -125,90 +140,110 @@
           <div class="elog-empty" *ngIf="!currentFile && !loading">
             <p>Drop event logs here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn elog-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="elog-loading" *ngIf="loading">Parsing event log…</div>
+          <div class="elog-loading" *ngIf="loading" role="status" aria-live="polite">Parsing event log…</div>
         </div>
 
-        <div class="elog-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="elog-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="elog-disclaimer">Education and research preview only — not a substitute for ProM, pm4py, or production event-log platforms.</p>
+        <div class="elog-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="elog-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="elog-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for ProM, pm4py, or production event-log platforms.</p>
       </section>
 
-      <aside class="elog-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="elog-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="elog-empty-panel">Upload an XES, XML, JSON, or CSV event log or load the sample to explore cases, activities, and events here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="elog-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search log</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search log</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="elog-search" type="search" placeholder="case:T1 activity:Triage long (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="elog-search" type="search" aria-label="Search log" placeholder="case:T1 activity:Triage long (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="elog-search-hint">Try <code>case:T1</code>, <code>activity:Triage</code>, or <code>long</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'activities' && filteredActivities.length">
-          <header class="ctl__panel-head">Activities</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'activities' && filteredActivities.length" open>
+          <summary class="ctl__panel-head">Activities</summary>
           <div class="ctl__panel-body elog-units">
             <button type="button" *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivityId === activity.id" (click)="selectActivity(activity.id)">
               <i class="elog-swatch" [style.background]="frequencyTint(activity.pct)"></i>
               <span>{{ activity.name }} <small>{{ activity.frequency }} · {{ activity.cases }} cases</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'events' && filteredEvents.length">
-          <header class="ctl__panel-head">Events</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'events' && filteredEvents.length" open>
+          <summary class="ctl__panel-head">Events</summary>
           <div class="ctl__panel-body elog-units">
             <button type="button" *ngFor="let event of filteredEvents; trackBy: trackByEvent" [class.is-active]="selectedEventId === event.id" (click)="selectEvent(event.id)">
               <i class="elog-swatch" [style.background]="frequencyTint(70)"></i>
               <span>{{ event.caseId }} · {{ event.activity }} <small>{{ event.resource || '—' }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'cases' || viewMode === 'table') && filteredCases.length">
-          <header class="ctl__panel-head">Cases</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'cases' || viewMode === 'table') && filteredCases.length" open>
+          <summary class="ctl__panel-head">Cases</summary>
           <div class="ctl__panel-body elog-units">
             <button type="button" *ngFor="let item of filteredCases; trackBy: trackByCase" [class.is-active]="selectedCaseId === item.id" (click)="selectCase(item.id)">
               <i class="elog-swatch" [style.background]="caseTint(item.index)"></i>
               <span>{{ item.caseId }} <small>{{ item.events }} events · {{ formatDuration(item.durationMs) }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'activities' && selectedActivity">
-          <header class="ctl__panel-head">Selected activity</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'activities' && selectedActivity" open>
+          <summary class="ctl__panel-head">Selected activity</summary>
           <div class="ctl__panel-body">
             <dl class="elog-meta">
               <div *ngFor="let row of activityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'events' && selectedEvent">
-          <header class="ctl__panel-head">Selected event</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'events' && selectedEvent" open>
+          <summary class="ctl__panel-head">Selected event</summary>
           <div class="ctl__panel-body">
             <dl class="elog-meta">
               <div *ngFor="let row of eventMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'cases' || viewMode === 'table') && selectedCase">
-          <header class="ctl__panel-head">Selected case</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'cases' || viewMode === 'table') && selectedCase" open>
+          <summary class="ctl__panel-head">Selected case</summary>
           <div class="ctl__panel-body">
             <dl class="elog-meta">
               <div *ngFor="let row of caseMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="elog-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="elog-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help elog-footer-help">
+      <summary>How to use Event Log Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in support ticket sample. Files never leave your browser.</li>
+        <li>Switch Cases, Activities, Events, or Table views to explore the log from different angles.</li>
+        <li>Search with tokens like <code>case:T1</code>, <code>activity:Triage</code>, or <code>long</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, cases CSV, events CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }} Education/research preview only — not a substitute for production process mining platforms.</li>
+      </ul>
+    </details>
+
     <div class="elog-drop" *ngIf="showDropZone"><p>Drop event logs to inspect</p></div>
   </main>
 </div>

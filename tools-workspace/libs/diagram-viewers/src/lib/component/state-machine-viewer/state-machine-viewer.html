@@ -144,17 +144,24 @@
           <div class="sm-empty" *ngIf="!currentFile && !loading">
             <p>Drop SCXML / FSM here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn sm-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="sm-loading" *ngIf="loading">Parsing state machine…</div>
+          <div class="sm-loading" *ngIf="loading" role="status" aria-live="polite">Parsing state machine…</div>
         </div>
 
-        <div class="sm-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="sm-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="sm-disclaimer">Education and research preview only — not a substitute for SCXML engines or statechart tools.</p>
+        <div class="sm-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="sm-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="sm-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for SCXML engines or statechart tools.</p>
       </section>
 
-      <aside class="sm-sidebar">
+      <aside class="sm-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="sm-empty-panel">Upload a state machine or load the sample to see overview, states, and transitions here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search machine</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="sm-search" type="search" placeholder="state:idle kind:final event:start (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="sm-search" type="search" aria-label="Search state machine" placeholder="state:idle kind:final event:start (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="sm-search-hint">Try <code>state:idle</code>, <code>kind:final</code>, or <code>event:start</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'transitions' || viewMode === 'table') && filteredTransitions.length" open>
@@ -222,12 +230,12 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, States, Transitions, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter states or transitions, then review properties in Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>

@@ -14,7 +14,14 @@ import {
   parseBcBytes,
   parseBcText
 } from './bim-clash-viewer-parse.utils';
-import { canExportBc, createBcFileRecord, createSampleBcFile, exportBcSchemaCsv, filterValidBcFiles } from './bim-clash-viewer.utils';
+import {
+  canExportBc,
+  createBcFileRecord,
+  createSampleBcFile,
+  exportBcSchemaCsv,
+  filterValidBcFiles,
+  resolveBcSuggestion
+} from './bim-clash-viewer.utils';
 
 describe('bim-clash-viewer-parse.utils', () => {
   it('parses the duct-beam BC01 sample', () => {
@@ -128,5 +135,13 @@ describe('canExportBc guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportBc({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportBc(null)).toBe(false);
+  });
+});
+
+describe('resolveBcSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveBcSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveBcSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveBcSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

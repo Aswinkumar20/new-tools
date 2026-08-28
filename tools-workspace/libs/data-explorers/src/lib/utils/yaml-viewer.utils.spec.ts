@@ -11,7 +11,8 @@ import {
   createSampleYlFile,
   createYlFileRecord,
   exportYlSchemaCsv,
-  filterValidYlFiles
+  filterValidYlFiles,
+  resolveYlSuggestion
 } from './yaml-viewer.utils';
 
 describe('yaml-viewer-parse.utils', () => {
@@ -93,5 +94,21 @@ describe('yaml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveYlSuggestion covers empty and error states', () => {
+    expect(resolveYlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveYlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveYlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createYlFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportYl(record)).toBe(false);
+    expect(canExportYl(null)).toBe(false);
   });
 });

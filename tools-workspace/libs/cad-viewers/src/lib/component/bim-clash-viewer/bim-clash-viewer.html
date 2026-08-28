@@ -114,7 +114,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="bc-cards" *ngIf="currentFile && viewMode === 'clashes'">
-            <article *ngFor="let clash of filteredClashes; trackBy: trackByClash" [class.is-active]="selectedClash?.id === clash.id" tabindex="0" role="button" (click)="selectClash(clash.id)" (keydown.enter)="selectClash(clash.id)" (keydown.space)="selectClash(clash.id); $event.preventDefault()">
+            <article *ngFor="let clash of visibleClashes; trackBy: trackByClash" [class.is-active]="selectedClash?.id === clash.id" tabindex="0" role="button" (click)="selectClash(clash.id)" (keydown.enter)="selectClash(clash.id)" (keydown.space)="selectClash(clash.id); $event.preventDefault()">
               <header>
                 <i class="bc-swatch" [style.background]="tint(clash.clashType, clash.index)"></i>
                 <strong>{{ clash.name }}</strong>
@@ -122,7 +122,7 @@
               </header>
               <p>{{ clash.itemA }} vs {{ clash.itemB }} · {{ clash.test }} · {{ clash.status }} · {{ clash.distance }}</p>
             </article>
-            <p class="bc-empty-filter" *ngIf="parsed && !filteredClashes.length">No clashes match the current filter.</p>
+            <p class="bc-empty-filter" *ngIf="parsed && !visibleClashes.length">No clashes match the current filter or visible tests.</p>
           </div>
           <div class="bc-cards" *ngIf="currentFile && viewMode === 'focus'">
             <article *ngFor="let item of visibleItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" tabindex="0" role="button" (click)="selectItem(item.id)" (keydown.enter)="selectItem(item.id)" (keydown.space)="selectItem(item.id); $event.preventDefault()">
@@ -142,7 +142,7 @@
                 <i class="bc-swatch" [style.background]="tint('test', test.index)"></i>
                 <strong>{{ test.name }}</strong>
                 <span>test</span>
-                <button type="button" class="bc-eye" (click)="toggleTestVisible(test.name, $event)" [attr.aria-label]="isTestHidden(test.name) ? 'Show' : 'Hide'" [appTooltip]="isTestHidden(test.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isTestHidden(test.name) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="bc-eye" (click)="toggleTestVisible(test.id, $event)" [attr.aria-label]="isTestHidden(test.id) ? 'Show test' : 'Hide test'" [appTooltip]="isTestHidden(test.id) ? 'Show test' : 'Hide test'" tooltipPosition="top">{{ isTestHidden(test.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>{{ test.description || '—' }} · {{ test.clashCount }} clashes</p>
             </article>
@@ -170,7 +170,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="bc-loading" *ngIf="loading">Parsing BIM clash dump…</div>
+          <div class="bc-loading" *ngIf="loading" role="status" aria-live="polite">Parsing BIM clash dump…</div>
         </div>
 
         <div class="bc-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -202,10 +202,10 @@
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'clashes' && filteredClashes.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'clashes' && visibleClashes.length" open>
           <summary class="ctl__panel-head">Clashes</summary>
           <div class="ctl__panel-body bc-units">
-            <button type="button" *ngFor="let clash of filteredClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
+            <button type="button" *ngFor="let clash of visibleClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
               <i class="bc-swatch" [style.background]="tint(clash.clashType, clash.index)"></i>
               <span>{{ clash.name }} <small>{{ clash.clashType }} · {{ clash.itemA }} vs {{ clash.itemB }}</small></span>
             </button>
@@ -229,10 +229,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'table') && filteredClashes.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'table') && visibleClashes.length" open>
           <summary class="ctl__panel-head">Clashes</summary>
           <div class="ctl__panel-body bc-units">
-            <button type="button" *ngFor="let clash of filteredClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
+            <button type="button" *ngFor="let clash of visibleClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
               <i class="bc-swatch" [style.background]="tint(clash.clashType, clash.index)"></i>
               <span>{{ clash.name }} <small>{{ clash.clashType }} · {{ clash.test }}</small></span>
             </button>

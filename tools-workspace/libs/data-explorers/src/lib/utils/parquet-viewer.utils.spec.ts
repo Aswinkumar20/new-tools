@@ -5,7 +5,8 @@ import {
   createPqFileRecord,
   createSamplePqFile,
   exportPqSchemaCsv,
-  filterValidPqFiles
+  filterValidPqFiles,
+  resolvePqSuggestion
 } from './parquet-viewer.utils';
 
 describe('parquet-viewer-parse.utils', () => {
@@ -85,5 +86,20 @@ describe('parquet-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolvePqSuggestion covers empty and error states', () => {
+    expect(resolvePqSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePqSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePqSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode(JSON.stringify({ columns: [], rows: [] }));
+    const file = new File([payload], 'empty.json', { lastModified: 9 });
+    const record = createPqFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(canExportPq(record)).toBe(false);
+    expect(canExportPq(null)).toBe(false);
   });
 });

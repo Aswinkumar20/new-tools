@@ -12,7 +12,8 @@ import {
   createRhFileRecord,
   createSampleRhFile,
   exportRhSchemaCsv,
-  filterValidRhFiles
+  filterValidRhFiles,
+  resolveRhSuggestion
 } from './rhino-3dm-viewer.utils';
 
 describe('rhino-3dm-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportRh guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportRh({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportRh(null)).toBe(false);
+  });
+});
+
+describe('resolveRhSuggestion', () => {
+  it('prefers error sample, then upload-or-sample when empty', () => {
+    expect(resolveRhSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveRhSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveRhSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

@@ -134,6 +134,9 @@ export class FileViewerPdfViewerComponent implements OnInit, AfterViewInit, OnDe
   }
 
   setupDragAndDrop(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -141,6 +144,9 @@ export class FileViewerPdfViewerComponent implements OnInit, AfterViewInit, OnDe
   }
 
   setupFullscreenListeners(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of PDF_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }

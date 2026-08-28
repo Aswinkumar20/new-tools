@@ -116,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="gb-cards" *ngIf="currentFile && viewMode === 'artwork'">
-            <article *ngFor="let feature of filteredFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeature?.id === feature.id" tabindex="0" role="button" (click)="selectFeature(feature.id)" (keydown.enter)="selectFeature(feature.id)" (keydown.space)="selectFeature(feature.id); $event.preventDefault()">
+            <article *ngFor="let feature of visibleFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeature?.id === feature.id" tabindex="0" role="button" (click)="selectFeature(feature.id)" (keydown.enter)="selectFeature(feature.id)" (keydown.space)="selectFeature(feature.id); $event.preventDefault()">
               <header>
                 <i class="gb-swatch" [style.background]="feature.colorHex || tint(feature.type, feature.index)"></i>
                 <strong>{{ feature.name }}</strong>
@@ -124,7 +124,7 @@
               </header>
               <p>{{ feature.layer }} · {{ feature.text || feature.length || '—' }}</p>
             </article>
-            <p class="gb-empty-filter" *ngIf="parsed && !filteredFeatures.length">No features match the current filter.</p>
+            <p class="gb-empty-filter" *ngIf="parsed && !visibleFeatures.length">No features match the current filter.</p>
           </div>
           <div class="gb-cards" *ngIf="currentFile && viewMode === 'layers'">
             <article *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayer?.id === layer.id" tabindex="0" role="button" (click)="selectLayer(layer.id)" (keydown.enter)="selectLayer(layer.id)" (keydown.space)="selectLayer(layer.id); $event.preventDefault()">
@@ -139,7 +139,7 @@
             <p class="gb-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current filter.</p>
           </div>
           <div class="gb-cards" *ngIf="currentFile && viewMode === 'features'">
-            <article *ngFor="let feature of filteredFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeature?.id === feature.id" tabindex="0" role="button" (click)="selectFeature(feature.id)" (keydown.enter)="selectFeature(feature.id)" (keydown.space)="selectFeature(feature.id); $event.preventDefault()">
+            <article *ngFor="let feature of visibleFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeature?.id === feature.id" tabindex="0" role="button" (click)="selectFeature(feature.id)" (keydown.enter)="selectFeature(feature.id)" (keydown.space)="selectFeature(feature.id); $event.preventDefault()">
               <header>
                 <i class="gb-swatch" [style.background]="feature.colorHex || tint(feature.type, feature.index)"></i>
                 <strong>{{ feature.name }}</strong>
@@ -147,7 +147,7 @@
               </header>
               <p>{{ feature.layer }} · x {{ feature.x }} y {{ feature.y }} · {{ feature.text || '—' }}</p>
             </article>
-            <p class="gb-empty-filter" *ngIf="parsed && !filteredFeatures.length">No features match the current filter.</p>
+            <p class="gb-empty-filter" *ngIf="parsed && !visibleFeatures.length">No features match the current filter.</p>
           </div>
           <div class="gb-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -171,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gb-loading" *ngIf="loading">Parsing Gerber dump…</div>
+          <div class="gb-loading" *ngIf="loading" role="status">Parsing Gerber dump…</div>
         </div>
 
         <div class="gb-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -212,10 +212,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'artwork' || viewMode === 'features' || viewMode === 'table') && filteredFeatures.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'artwork' || viewMode === 'features' || viewMode === 'table') && visibleFeatures.length" open>
           <summary class="ctl__panel-head">Features</summary>
           <div class="ctl__panel-body gb-units">
-            <button type="button" *ngFor="let feature of filteredFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeatureId === feature.id" (click)="selectFeature(feature.id)">
+            <button type="button" *ngFor="let feature of visibleFeatures; trackBy: trackByFeature" [class.is-active]="selectedFeatureId === feature.id" (click)="selectFeature(feature.id)">
               <i class="gb-swatch" [style.background]="feature.colorHex || tint(feature.type, feature.index)"></i>
               <span>{{ feature.name }} <small>{{ feature.type }} · {{ feature.layer }}</small></span>
             </button>

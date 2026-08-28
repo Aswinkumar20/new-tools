@@ -1,7 +1,13 @@
 import { parseFitsBytes } from './fits-parse.utils';
 import { base64ToUint8Array } from './science-file.utils';
 import { FITS_SAMPLE_BASE64 } from '../constants/fits-sample.data';
-import { createFitsFileRecord, createSampleFitsFile } from './fits-viewer.utils';
+import {
+  canExportFits,
+  createFitsFileRecord,
+  createSampleFitsFile,
+  filterValidFitsFiles,
+  resolveFitsSuggestion
+} from './fits-viewer.utils';
 
 describe('fits-parse.utils', () => {
   it('parses the embedded sample FITS image', () => {
@@ -29,5 +35,37 @@ describe('fits-viewer.utils', () => {
     const record = createFitsFileRecord(file, bytes);
     expect(record.softFail).toBe(false);
     expect(record.parsed?.preview?.shape).toEqual([8, 8]);
+    expect(canExportFits(record)).toBe(true);
+  });
+
+  it('canExportFits is false for null', () => {
+    expect(canExportFits(null)).toBe(false);
+  });
+
+  it('soft-fails unparseable bytes and disables export', () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'bad.fits', { lastModified: 3 });
+    const record = createFitsFileRecord(file, new Uint8Array([1, 2, 3, 4]));
+    expect(record.softFail).toBe(true);
+    expect(canExportFits(record)).toBe(false);
+    expect(record.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unsupported files', () => {
+    const sample = createSampleFitsFile();
+    const { accepted, rejected } = filterValidFitsFiles([
+      sample,
+      new File(['x'], 'image.png', { lastModified: 1 })
+    ]);
+    expect(accepted.length).toBe(1);
+    expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
+  });
+
+  it('resolveFitsSuggestion returns upload when empty', () => {
+    expect(resolveFitsSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-fits');
+  });
+
+  it('resolveFitsSuggestion returns sample after error', () => {
+    expect(resolveFitsSuggestion({ hasFiles: false, hasError: true })?.id).toBe('try-sample');
+    expect(resolveFitsSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

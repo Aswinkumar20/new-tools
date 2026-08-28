@@ -11,7 +11,8 @@ import {
   createJnFileRecord,
   createSampleJnFile,
   exportJnSchemaCsv,
-  filterValidJnFiles
+  filterValidJnFiles,
+  resolveJnSuggestion
 } from './json-viewer.utils';
 
 describe('json-viewer-parse.utils', () => {
@@ -90,6 +91,22 @@ describe('json-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveJnSuggestion covers empty and error states', () => {
+    expect(resolveJnSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveJnSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveJnSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createJnFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportJn(record)).toBe(false);
+    expect(canExportJn(null)).toBe(false);
   });
 });
 

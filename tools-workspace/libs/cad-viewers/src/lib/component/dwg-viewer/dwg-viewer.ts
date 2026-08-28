@@ -126,6 +126,10 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): DwLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -173,7 +177,13 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleEntities(): DwEntity[] {
-    return this.filteredEntities.filter((e) => !this.hiddenLayerIds.has(e.layer));
+    if (!this.hiddenLayerIds.size) return this.filteredEntities;
+    return this.filteredEntities.filter((e) => !this.isLayerKeyHidden(e.layer));
+  }
+
+  get visibleMeasurements(): DwMeasurement[] {
+    if (!this.hiddenLayerIds.size) return this.filteredMeasurements;
+    return this.filteredMeasurements.filter((m) => !this.isLayerKeyHidden(m.layer));
   }
 
   get selectedLayer(): DwLayer | null {
@@ -193,7 +203,12 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
       return this.selectedEntityId;
     }
     if (this.viewMode === 'layers' && this.selectedLayerId) {
-      return this.visibleEntities.find((e) => e.layer === this.selectedLayerId)?.id ?? null;
+      const layer = this.selectedLayer;
+      return (
+        this.visibleEntities.find(
+          (e) => e.layer === this.selectedLayerId || (!!layer && e.layer === layer.name)
+        )?.id ?? null
+      );
     }
     if (this.viewMode === 'measurements' && this.selectedMeas) {
       const value = this.selectedMeas.value;
@@ -249,6 +264,10 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
     return this.hiddenLayerIds.has(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -260,11 +279,18 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -272,15 +298,14 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -291,13 +316,13 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -308,7 +333,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -319,6 +344,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -356,6 +382,10 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: DwLoadedFile): string {
     return file.id;
   }
@@ -387,6 +417,10 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatDwFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -457,9 +491,128 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedMeasId = '';
+    this.selectedEntityId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLayerIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: DwViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: DwExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      else if (format === 'summary-json') downloadTextFile(exportDwSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      else if (format === 'schema-csv') downloadTextFile(exportDwSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      else if (format === 'rows-csv') downloadTextFile(exportDwRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Layers, Measurements, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / layers
+  // ---------------------------------------------------------------------------
+
   selectLayer(id: string): void {
     this.selectedLayerId = id;
-    const entity = this.visibleEntities.find((e) => e.layer === id);
+    const entity = this.visibleEntities.find((e) => e.layer === id || e.layer === this.selectedLayer?.name);
     if (entity) this.selectedEntityId = entity.id;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -467,6 +620,8 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   selectMeas(id: string): void {
     this.selectedMeasId = id;
+    const meas = this.filteredMeasurements.find((m) => m.id === id);
+    if (meas?.layer) this.syncSelectedLayerFromKey(meas.layer);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -474,7 +629,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   selectEntity(id: string): void {
     this.selectedEntityId = id;
     const entity = this.filteredEntities.find((e) => e.id === id);
-    if (entity) this.selectedLayerId = this.filteredLayers.find((l) => l.id === entity.layer || l.name === entity.layer)?.id ?? this.selectedLayerId;
+    if (entity?.layer) this.syncSelectedLayerFromKey(entity.layer);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -482,7 +637,21 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (row?.name) this.selectedEntityId = row.name;
+    if (row?.name) {
+      const entity = this.filteredEntities.find((e) => e.id === row.name || e.name === row.name);
+      if (entity) {
+        this.selectedEntityId = entity.id;
+        if (entity.layer) this.syncSelectedLayerFromKey(entity.layer);
+      } else {
+        const meas = this.filteredMeasurements.find((m) => m.id === row.name || m.name === row.name);
+        if (meas) {
+          this.selectedMeasId = meas.id;
+          if (meas.layer) this.syncSelectedLayerFromKey(meas.layer);
+        } else {
+          this.syncSelectedLayerFromKey(row.name);
+        }
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -497,10 +666,18 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    if (this.selectedLayerId && !this.filteredLayers.some((l) => l.id === this.selectedLayerId)) this.selectedLayerId = '';
-    if (this.selectedMeasId && !this.filteredMeasurements.some((m) => m.id === this.selectedMeasId)) this.selectedMeasId = '';
-    if (this.selectedEntityId && !this.filteredEntities.some((e) => e.id === this.selectedEntityId)) this.selectedEntityId = '';
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedLayerId && !this.filteredLayers.some((l) => l.id === this.selectedLayerId)) {
+      this.selectedLayerId = '';
+    }
+    if (this.selectedMeasId && !this.filteredMeasurements.some((m) => m.id === this.selectedMeasId)) {
+      this.selectedMeasId = '';
+    }
+    if (this.selectedEntityId && !this.filteredEntities.some((e) => e.id === this.selectedEntityId)) {
+      this.selectedEntityId = '';
+    }
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -514,7 +691,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedLayerId = '';
     this.selectedMeasId = '';
     this.selectedEntityId = '';
-    this.selectedRowIndex = -1;
+    this.selectedRowIndex = 0;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -527,107 +704,20 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
     this.hiddenLayerIds = new Set();
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedLayerId = '';
-    this.selectedMeasId = '';
-    this.selectedEntityId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenLayerIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
-
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: DwViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: DwExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportDwSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportDwSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportDwRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Layers, Measurements, or Preview to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Canvas / view controls
+  // ---------------------------------------------------------------------------
 
   fitView(): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas) return;
     const { width, height } = sizeCadCanvas(canvas);
     this.view = fitCadView(toCadGeom(this.visibleEntities), width, height);
     this.renderCanvas();
@@ -639,8 +729,9 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   zoomBy(factor: number): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    if (!canvas) return;
     const sx = canvas.width / 2;
     const sy = canvas.height / 2;
     const next = clampCadZoom(this.view.scale * factor);
@@ -655,6 +746,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -671,6 +763,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
+    if (!this.isBrowser || this.viewMode === 'table') return;
     this.panning = true;
     this.pointerMoved = 0;
     this.lastX = event.clientX;
@@ -679,7 +772,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerMove(event: PointerEvent): void {
-    if (!this.panning) return;
+    if (!this.isBrowser || !this.panning) return;
     const dx = event.clientX - this.lastX;
     const dy = event.clientY - this.lastY;
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
@@ -690,6 +783,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerUp(event?: PointerEvent): void {
+    if (!this.isBrowser) return;
     const wasClick = this.panning && this.pointerMoved <= 8;
     this.panning = false;
     if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
@@ -705,7 +799,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -724,6 +818,21 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private isLayerKeyHidden(layerKey: string): boolean {
+    if (this.hiddenLayerIds.has(layerKey)) return true;
+    const layer = this.parsed?.layers.find((l) => l.id === layerKey || l.name === layerKey);
+    return !!layer && this.hiddenLayerIds.has(layer.id);
+  }
+
+  private syncSelectedLayerFromKey(layerKey: string): void {
+    const layer = this.filteredLayers.find((l) => l.id === layerKey || l.name === layerKey);
+    if (layer) this.selectedLayerId = layer.id;
+  }
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -733,7 +842,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftMeas(delta: number): void {
-    const list = this.filteredMeasurements;
+    const list = this.visibleMeasurements;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((m) => m.id === this.selectedMeasId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -742,7 +851,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
 
   private shiftRow(delta: number): void {
     if (this.viewMode === 'preview') {
-      const list = this.filteredEntities;
+      const list = this.visibleEntities;
       if (!list.length) return;
       const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedEntityId));
       const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -757,10 +866,10 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   private resetViewForCurrent(): void {
     this.query = '';
     this.hiddenLayerIds = new Set();
-    this.selectedLayerId = '';
-    this.selectedMeasId = '';
-    this.selectedEntityId = '';
-    this.selectedRowIndex = -1;
+    this.selectedLayerId = this.parsed?.layers[0]?.id ?? '';
+    this.selectedMeasId = this.parsed?.measurements[0]?.id ?? '';
+    this.selectedEntityId = this.parsed?.entities[0]?.id ?? '';
+    this.selectedRowIndex = 0;
   }
 
   private renderCanvas(): void {
@@ -772,6 +881,7 @@ export class DwgViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -16,41 +16,53 @@
       </div>
       <div class="ban-suggest__actions">
         <button type="button" class="ban-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="ban-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="ban-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="ban-toolbar">
+    <div class="ban-toolbar" role="toolbar" aria-label="BPMN Analytics Viewer actions">
       <div class="ban-toolbar__group">
         <input #fileInput class="ban-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn ban-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn ban-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="ban-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="ban-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('activities-csv', $event)">Activities CSV</button>
-            <button type="button" (click)="exportAs('bottlenecks-csv', $event)">Bottlenecks CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ban-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="ban-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('activities-csv', $event)">Activities CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('bottlenecks-csv', $event)">Bottlenecks CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="ban-files" *ngIf="files.length">
           <div class="ban-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ban-files__chip--active]="i === currentIndex">
             <button type="button" class="ban-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="ban-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="ban-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="ban-toolbar__status"><span class="ban-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="ban-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="ban-tab-bar" *ngIf="currentFile" role="tablist" aria-label="BPMN Analytics Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="ban-toolbar__status"><span class="ban-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="ban-workspace" [class.ban-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,11 +73,11 @@
             <span>{{ parsed?.processName }} · {{ parsed?.cases || 0 }} cases · {{ filteredActivities.length }} activities · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="ban-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="ban-map-wrap" [class.ban-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="ban-map-wrap">
           <canvas #canvasHost class="ban-map" [class.ban-map--tall]="viewMode === 'overlays'" *ngIf="currentFile && (viewMode === 'bottlenecks' || viewMode === 'overlays')"></canvas>
           <div class="ban-cards" *ngIf="currentFile && viewMode === 'bottlenecks'">
             <article *ngFor="let activity of bottleneckActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
@@ -89,6 +101,7 @@
               <p>{{ activity.name }}</p>
               <p>wait {{ formatWait(activity.waitMs) }} · avg {{ formatWait(activity.avgDurationMs) }}</p>
             </article>
+            <p class="ban-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
           </div>
           <div class="ban-cards" *ngIf="currentFile && viewMode === 'activities'">
             <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
@@ -100,6 +113,7 @@
               <p>{{ activity.frequency }} cases · {{ activity.failures }} failures</p>
               <p>wait {{ formatWait(activity.waitMs) }}</p>
             </article>
+            <p class="ban-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
           </div>
           <div class="ban-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -133,56 +147,76 @@
           <div class="ban-empty" *ngIf="!currentFile && !loading">
             <p>Drop BPMN analytics here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn ban-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="ban-loading" *ngIf="loading">Parsing BPMN analytics…</div>
+          <div class="ban-loading" *ngIf="loading" role="status" aria-live="polite">Parsing BPMN analytics…</div>
         </div>
 
-        <div class="ban-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="ban-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="ban-disclaimer">Education and research preview only — not a substitute for Camunda Optimize, Celonis, or production process mining platforms.</p>
+        <div class="ban-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ban-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ban-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Camunda Optimize, Celonis, or production process mining platforms.</p>
       </section>
 
-      <aside class="ban-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="ban-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="ban-empty-panel">Upload BPMN analytics or load the sample to see bottlenecks, overlays, and activity metrics here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="ban-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search activities</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search activities</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="ban-search" type="search" placeholder="bottleneck task critical (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="ban-search" type="search" aria-label="Search BPMN analytics activities" placeholder="bottleneck task critical (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="ban-search-hint">Try <code>bottleneck</code>, <code>critical</code>, or <code>kind:task</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="filteredActivities.length">
-          <header class="ctl__panel-head">Activities</header>
+        </details>
+        <details class="ctl__panel" *ngIf="filteredActivities.length" open>
+          <summary class="ctl__panel-head">Activities</summary>
           <div class="ctl__panel-body ban-units">
             <button type="button" *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedId === activity.id" (click)="selectActivity(activity.id)">
               <i class="ban-swatch" [style.background]="severityTint(activity.severity)"></i>
               <span>{{ activity.name }} <small>{{ activity.severity }} · wait {{ formatWait(activity.waitMs) }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedActivity">
-          <header class="ctl__panel-head">Selected activity</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedActivity" open>
+          <summary class="ctl__panel-head">Selected activity</summary>
           <div class="ctl__panel-body">
             <dl class="ban-meta">
               <div *ngFor="let row of activityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ban-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ban-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help ban-footer-help">
+      <summary>How to use BPMN Analytics Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in order analytics sample. Files never leave your browser.</li>
+        <li>Switch Bottlenecks, Overlays, Activities, or Table views; search with tokens like <code>bottleneck</code> or <code>critical</code>.</li>
+        <li>Select activities to inspect wait time, frequency, and severity in the side panel. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, CSV inventories, or a PNG snapshot from Bottlenecks/Overlays views.</li>
+        <li>{{ formatsHint }} Education/research preview only — not a substitute for production process mining platforms.</li>
+      </ul>
+    </details>
+
     <div class="ban-drop" *ngIf="showDropZone"><p>Drop BPMN analytics to inspect</p></div>
   </main>
 </div>

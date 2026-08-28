@@ -5,7 +5,14 @@ import {
   CDG_XMI_SAMPLE
 } from '../constants/class-diagram-viewer-sample.data';
 import { filterCdgRelations, filterCdgTypes, parseClassDiagramText } from './class-diagram-viewer-parse.utils';
-import { canExportCdg, createCdgFileRecord, createSampleCdgFile, exportCdgTypesCsv, filterValidCdgFiles } from './class-diagram-viewer.utils';
+import {
+  canExportCdg,
+  createCdgFileRecord,
+  createSampleCdgFile,
+  exportCdgTypesCsv,
+  filterValidCdgFiles,
+  resolveCdgSuggestion
+} from './class-diagram-viewer.utils';
 
 describe('class-diagram-viewer-parse.utils', () => {
   it('parses the catalog types sample', () => {
@@ -92,5 +99,19 @@ describe('class-diagram-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveCdgSuggestion covers empty and error states', () => {
+    expect(resolveCdgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveCdgSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveCdgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createCdgFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportCdg(record)).toBe(false);
+    expect(canExportCdg(null)).toBe(false);
   });
 });

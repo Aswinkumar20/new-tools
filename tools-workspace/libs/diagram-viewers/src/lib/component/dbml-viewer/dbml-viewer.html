@@ -151,17 +151,24 @@
           <div class="dbml-empty" *ngIf="!currentFile && !loading">
             <p>Drop DBML source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn dbml-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="dbml-loading" *ngIf="loading">Parsing DBML…</div>
+          <div class="dbml-loading" *ngIf="loading" role="status" aria-live="polite">Parsing DBML…</div>
         </div>
 
-        <div class="dbml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="dbml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="dbml-disclaimer">Education and research preview only — not a substitute for dbdiagram.io or database design tools.</p>
+        <div class="dbml-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dbml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dbml-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for dbdiagram.io or database design tools.</p>
       </section>
 
-      <aside class="dbml-sidebar">
+      <aside class="dbml-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dbml-empty-panel">Upload a DBML schema or load the sample to see overview, tables, and refs here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -173,7 +180,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="dbml-search" type="search" placeholder="table:Customer col:email ref:&gt; from:Order (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="dbml-search" type="search" aria-label="Search DBML schema" placeholder="table:Customer col:email ref:&gt; from:Order (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="dbml-search-hint">Try <code>table:Customer</code>, <code>col:email</code>, or <code>from:Order</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="(viewMode === 'refs' || viewMode === 'table') && filteredRefs.length" open>
@@ -229,17 +237,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Tables, Refs, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>table:Customer</code> or <code>from:Order</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, tables/refs CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

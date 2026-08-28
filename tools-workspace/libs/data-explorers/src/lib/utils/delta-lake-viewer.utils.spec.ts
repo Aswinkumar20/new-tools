@@ -12,7 +12,8 @@ import {
   createDlFileRecord,
   createSampleDlFile,
   exportDlSchemaCsv,
-  filterValidDlFiles
+  filterValidDlFiles,
+  resolveDlSuggestion
 } from './delta-lake-viewer.utils';
 
 describe('delta-lake-viewer-parse.utils', () => {
@@ -100,5 +101,16 @@ describe('delta-lake-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('disables export on soft-fail and null', () => {
+    expect(canExportDl({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
+    expect(canExportDl(null)).toBe(false);
+  });
+
+  it('resolves suggestions for empty and error states', () => {
+    expect(resolveDlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDlSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

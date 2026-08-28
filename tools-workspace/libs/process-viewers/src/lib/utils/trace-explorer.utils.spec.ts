@@ -5,7 +5,8 @@ import {
   createSampleTraceExplorerFile,
   createTraceExplorerFileRecord,
   exportTraceExplorerTracesCsv,
-  filterValidTraceExplorerFiles
+  filterValidTraceExplorerFiles,
+  resolveTraceExplorerSuggestion
 } from './trace-explorer.utils';
 
 describe('trace-explorer-parse.utils', () => {
@@ -73,5 +74,24 @@ describe('trace-explorer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveTraceExplorerSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveTraceExplorerSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveTraceExplorerSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveTraceExplorerSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportTraceExplorer returns false for null', () => {
+    expect(canExportTraceExplorer(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createTraceExplorerFileRecord(new File(['hello world'], 'bad.xes', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportTraceExplorer(record)).toBe(false);
   });
 });

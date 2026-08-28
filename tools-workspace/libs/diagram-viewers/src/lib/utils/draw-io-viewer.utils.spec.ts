@@ -10,7 +10,8 @@ import {
   createDioFileRecord,
   createSampleDioFile,
   exportDioShapesCsv,
-  filterValidDioFiles
+  filterValidDioFiles,
+  resolveDioSuggestion
 } from './draw-io-viewer.utils';
 
 describe('draw-io-viewer-parse.utils', () => {
@@ -99,5 +100,21 @@ describe('draw-io-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDioSuggestion covers empty and error states', () => {
+    expect(resolveDioSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDioSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDioSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createDioFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportDio(record)).toBe(false);
+  });
+
+  it('canExportDio returns false for null', () => {
+    expect(canExportDio(null)).toBe(false);
   });
 });

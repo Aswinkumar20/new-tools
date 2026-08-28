@@ -13,7 +13,20 @@ import {
   parseNwBytes,
   parseNwText
 } from './navisworks-viewer-parse.utils';
-import { canExportNw, createNwFileRecord, createSampleNwFile, exportNwSchemaCsv, filterValidNwFiles } from './navisworks-viewer.utils';
+import {
+  buildNwClashMetadata,
+  buildNwItemMetadata,
+  buildNwMetadataRows,
+  buildNwModelMetadata,
+  canExportNw,
+  createNwFileRecord,
+  createSampleNwFile,
+  exportNwRowsCsv,
+  exportNwSchemaCsv,
+  exportNwSummaryJson,
+  filterValidNwFiles,
+  resolveNwSuggestion
+} from './navisworks-viewer.utils';
 
 describe('navisworks-viewer-parse.utils', () => {
   it('parses the campus NW01 sample', () => {
@@ -121,5 +134,43 @@ describe('canExportNw guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportNw({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportNw(null)).toBe(false);
+  });
+});
+
+describe('navisworks-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and item/clash/model metadata rows', () => {
+    const parsed = parseNwBytes(buildSampleNwBytes(), 'campus-fed.nwd');
+    const rows = buildNwMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Items')).toBe(true);
+
+    expect(buildNwItemMetadata(parsed.items[0]).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildNwClashMetadata(parsed.clashes[0]).some((r) => r.key === 'Type')).toBe(true);
+    expect(buildNwModelMetadata(parsed.models[0]).some((r) => r.key === 'Name')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createNwFileRecord(createSampleNwFile(), buildSampleNwBytes());
+    const summary = exportNwSummaryJson(file);
+    expect(summary).toContain('"items"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportNwRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","items":[],"clashes":[],"models":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createNwFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportNw(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveNwSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveNwSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveNwSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

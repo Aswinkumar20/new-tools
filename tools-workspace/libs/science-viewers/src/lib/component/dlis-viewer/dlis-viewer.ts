@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   DLIS_ACCEPT_ATTR,
   DLIS_FORMATS_HINT,
@@ -58,7 +58,7 @@ import {
   standalone: true,
   templateUrl: './dlis-viewer.html',
   styleUrls: ['./dlis-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class DlisViewerComponent implements AfterViewInit, OnDestroy {
@@ -107,6 +107,10 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): DlisLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -137,7 +141,7 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.selectedMnemonic) ?? this.visibleCurves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.selectedMnemonic) ?? null;
   }
 
   get curveMetadataRows() {
@@ -149,15 +153,15 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get xCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotX) ?? this.parsed?.curves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotX) ?? null;
   }
 
   get yCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotY) ?? this.parsed?.curves[1] ?? this.parsed?.curves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotY) ?? null;
   }
 
   get selectedRecord(): DlisVisibleRecord | null {
-    return this.parsed?.records[this.selectedRecordIndex] ?? this.parsed?.records[0] ?? null;
+    return this.parsed?.records[this.selectedRecordIndex] ?? null;
   }
 
   get allCurves() {
@@ -173,6 +177,23 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'tracks';
+  }
+
+  get depthFullMin(): number {
+    return this.parsed?.depth[0] ?? 0;
+  }
+
+  get depthFullMax(): number {
+    const depth = this.parsed?.depth;
+    return depth?.length ? depth[depth.length - 1] : 1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -180,6 +201,10 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -234,6 +259,11 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.currentFile || !this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -257,6 +287,10 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
       this.fitDepth();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: DlisLoadedFile): string {
     return file.id;
@@ -293,6 +327,10 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   hexAttr(value: number): string {
     return `0x${value.toString(16).padStart(2, '0')}`;
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -336,8 +374,13 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with incomplete SUL/metadata — preview may be limited');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -357,7 +400,48 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedRecordIndex = 0;
+    this.errorMessage = '';
+    this.query = '';
+    this.enabledMnemonics = new Set();
+    this.selectedMnemonic = '';
+    this.crossplotX = '';
+    this.crossplotY = '';
+    this.showCrossplot = false;
+    this.depthMin = 0;
+    this.depthMax = 1;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filters / view controls
+  // ---------------------------------------------------------------------------
+
   selectCurve(mnemonic: string): void {
+    if (this.selectedMnemonic === mnemonic) return;
     this.selectedMnemonic = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -365,6 +449,7 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
 
   selectRecord(index: number): void {
     if (!this.parsed || index < 0 || index >= this.parsed.records.length) return;
+    if (this.selectedRecordIndex === index) return;
     this.selectedRecordIndex = index;
     this.cdr.markForCheck();
   }
@@ -411,16 +496,26 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
+    if (this.selectedMnemonic && !this.filteredChannels.some((c) => c.mnemonic === this.selectedMnemonic)) {
+      const next =
+        this.filteredChannels.find((c) => this.allCurves.some((curve) => curve.mnemonic === c.mnemonic))?.mnemonic ??
+        this.filteredChannels[0]?.mnemonic ??
+        '';
+      this.selectedMnemonic = next;
+      this.renderCanvas();
+    }
     this.cdr.markForCheck();
   }
 
   setCrossplotX(mnemonic: string): void {
+    if (this.crossplotX === mnemonic) return;
     this.crossplotX = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setCrossplotY(mnemonic: string): void {
+    if (this.crossplotY === mnemonic) return;
     this.crossplotY = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -460,37 +555,17 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
 
   fitDepth(): void {
     if (!this.parsed?.depth.length) return;
-    this.depthMin = this.parsed.depth[0];
-    this.depthMax = this.parsed.depth[this.parsed.depth.length - 1];
+    const fullMin = this.parsed.depth[0];
+    const fullMax = this.parsed.depth[this.parsed.depth.length - 1];
+    if (this.depthMin === fullMin && this.depthMax === fullMax) return;
+    this.depthMin = fullMin;
+    this.depthMax = fullMax;
     this.onDepthChange();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedRecordIndex = 0;
-    this.errorMessage = '';
-    this.query = '';
-    this.enabledMnemonics = new Set();
-    this.selectedMnemonic = '';
-    this.showCrossplot = false;
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Suggestions / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -503,6 +578,7 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: DlisViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -516,6 +592,11 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -524,21 +605,36 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       const mnemonics = this.visibleCurves.map((c) => c.mnemonic);
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportDlisSummaryJson(file), `${file.name}.summary.json`, 'application/json');
       else if (format === 'channels-csv') downloadTextFile(exportDlisChannelsCsv(file.parsed), `${file.name}.channels.csv`, 'text/csv');
-      else if (format === 'frame-csv') downloadTextFile(exportDlisFrameCsv(file.parsed, mnemonics.length ? mnemonics : file.parsed.curves.map((c) => c.mnemonic)), `${file.name}.frame.csv`, 'text/csv');
-      else if (format === 'png') {
+      else if (format === 'frame-csv') {
+        downloadTextFile(
+          exportDlisFrameCsv(file.parsed, mnemonics.length ? mnemonics : file.parsed.curves.map((c) => c.mnemonic)),
+          `${file.name}.frame.csv`,
+          'text/csv'
+        );
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
-        if (!canvas) {
+        if (!canvas || !this.canUseCanvasExport) {
           this.toast.info('Open Tracks view to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -546,6 +642,10 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private resetViewForCurrent(): void {
     const parsed = this.parsed;
@@ -570,7 +670,7 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private renderCanvas(): void {
-    if (!this.isBrowser || this.viewMode !== 'tracks') return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const parsed = this.parsed;
     if (!canvas) return;
@@ -598,6 +698,7 @@ export class DlisViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

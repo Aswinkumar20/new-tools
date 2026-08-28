@@ -115,6 +115,10 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): GbLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -198,17 +202,9 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return gbTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isLayerHidden(id: string): boolean {
-    return this.hiddenLayerIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -221,11 +217,18 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -233,10 +236,9 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -287,7 +289,7 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -313,10 +315,13 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
       else this.shiftLayer(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Template helpers
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: GbLoadedFile): string {
     return file.id;
@@ -345,6 +350,22 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatGbFileSize(bytes);
   }
+
+  tint(type: string, index: number): string {
+    return gbTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isLayerHidden(id: string): boolean {
+    return this.hiddenLayerIds.has(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -415,52 +436,12 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  selectLayer(id: string): void {
-    this.selectedLayerId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectFeature(id: string): void {
-    this.selectedFeatureId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectRow(index: number): void {
-    this.selectedRowIndex = index;
-    const row = this.filteredRows[index];
-    if (row?.name) this.selectedFeatureId = row.name;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  toggleLayerVisible(id: string, event: Event): void {
-    event.stopPropagation();
-    if (this.hiddenLayerIds.has(id)) this.hiddenLayerIds.delete(id);
-    else this.hiddenLayerIds.add(id);
-    this.hiddenLayerIds = new Set(this.hiddenLayerIds);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  onFilterChange(): void {
-    if (this.selectedLayerId && !this.filteredLayers.some((l) => l.id === this.selectedLayerId)) {
-      this.selectedLayerId = this.filteredLayers[0]?.id ?? '';
-    }
-    if (this.selectedFeatureId && !this.filteredFeatures.some((e) => e.id === this.selectedFeatureId)) {
-      this.selectedFeatureId = this.filteredFeatures[0]?.id ?? '';
-    }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
     if (index < 0 || index >= this.files.length) return;
     const next = this.files.filter((_, i) => i !== index);
     this.files = next;
+    this.showExportMenu = false;
     if (!next.length) {
       this.clearAll();
       return;
@@ -469,6 +450,7 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     this.resetViewForCurrent();
     this.fitView();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -480,9 +462,18 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     this.hiddenLayerIds = new Set();
     this.errorMessage = '';
     this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -495,9 +486,13 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: GbViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -511,6 +506,11 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -521,22 +521,29 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     const file = this.currentFile;
     if (!this.canExport || !file?.parsed) {
       this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
       return;
     }
     try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportGbSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportGbSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportGbRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportGbSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportGbSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportGbRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Artwork, Layers, or Features to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
         if (!url) {
           this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         downloadDataUrl(url, `${file.name}.png`);
@@ -547,6 +554,100 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / layers
+  // ---------------------------------------------------------------------------
+
+  selectLayer(id: string): void {
+    this.selectedLayerId = id;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  selectFeature(id: string): void {
+    this.selectedFeatureId = id;
+    const feat = this.filteredFeatures.find((e) => e.id === id);
+    if (feat?.layer) {
+      const layer = this.filteredLayers.find((l) => l.id === feat.layer || l.name === feat.layer);
+      if (layer) this.selectedLayerId = layer.id;
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  selectRow(index: number): void {
+    this.selectedRowIndex = index;
+    const row = this.filteredRows[index];
+    if (row?.name) {
+      const feat = this.filteredFeatures.find((e) => e.id === row.name || e.name === row.name);
+      if (feat) {
+        this.selectedFeatureId = feat.id;
+        const layer = this.filteredLayers.find((l) => l.id === feat.layer || l.name === feat.layer);
+        if (layer) this.selectedLayerId = layer.id;
+      } else {
+        const layer = this.filteredLayers.find((l) => l.id === row.name || l.name === row.name);
+        if (layer) this.selectedLayerId = layer.id;
+      }
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  toggleLayerVisible(id: string, event: Event): void {
+    event.stopPropagation();
+    if (this.hiddenLayerIds.has(id)) this.hiddenLayerIds.delete(id);
+    else this.hiddenLayerIds.add(id);
+    this.hiddenLayerIds = new Set(this.hiddenLayerIds);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelected(): void {
+    if (!this.selectedLayerId || !this.parsed) return;
+    const layers = this.parsed.layers ?? [];
+    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
+    this.hiddenLayerIds = new Set();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  onFilterChange(): void {
+    if (this.selectedLayerId && !this.filteredLayers.some((l) => l.id === this.selectedLayerId)) {
+      this.selectedLayerId = this.filteredLayers[0]?.id ?? '';
+    }
+    if (this.selectedFeatureId && !this.filteredFeatures.some((e) => e.id === this.selectedFeatureId)) {
+      this.selectedFeatureId = this.filteredFeatures[0]?.id ?? '';
+    }
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedFeatureId = '';
+    this.selectedLayerId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // View / canvas
+  // ---------------------------------------------------------------------------
 
   zoomBy(factor: number): void {
     const canvas = this.canvasHost?.nativeElement;
@@ -568,7 +669,17 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCadView(toCadGeom(this.visibleFeatures), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -582,42 +693,6 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedFeatureId = '';
-    this.selectedLayerId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  isolateSelected(): void {
-    if (!this.selectedLayerId || !this.parsed) return;
-    const layers = (this.parsed as { layers?: Array<{ id: string }> }).layers ?? [];
-    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  showAllLayers(): void {
-    this.hiddenLayerIds = new Set();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    this.view = fitCadView(toCadGeom(this.visibleFeatures), width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -654,9 +729,8 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -675,6 +749,10 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -684,7 +762,7 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftFeature(delta: number): void {
-    const list = this.filteredFeatures;
+    const list = this.visibleFeatures;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedFeatureId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -714,6 +792,7 @@ export class GerberFileViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

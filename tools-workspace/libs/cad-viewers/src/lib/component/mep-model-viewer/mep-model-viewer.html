@@ -95,6 +95,8 @@
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="isolateSelectedDiscipline()" [disabled]="!selectedDiscId" [attr.aria-label]="selectedDiscId ? 'Isolate selected discipline' : 'Select a discipline to isolate'" [appTooltip]="selectedDiscId ? 'Isolate selected discipline' : 'Select a discipline to isolate'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="showAllDisciplines()" [disabled]="!hiddenDisciplineIds.size" [attr.aria-label]="hiddenDisciplineIds.size ? 'Show all disciplines' : 'All disciplines visible'" [appTooltip]="hiddenDisciplineIds.size ? 'Show all disciplines' : 'All disciplines visible'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
@@ -114,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="me-cards" *ngIf="currentFile && viewMode === 'preview'">
-            <article *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElement?.id === element.id" tabindex="0" role="button" (click)="selectElement(element.id)" (keydown.enter)="selectElement(element.id)" (keydown.space)="selectElement(element.id); $event.preventDefault()">
+            <article *ngFor="let element of visibleElements; trackBy: trackByElement" [class.is-active]="selectedElement?.id === element.id" tabindex="0" role="button" (click)="selectElement(element.id)" (keydown.enter)="selectElement(element.id)" (keydown.space)="selectElement(element.id); $event.preventDefault()">
               <header>
                 <i class="me-swatch" [style.background]="element.colorHex || tint(element.kind, element.index)"></i>
                 <strong>{{ element.name }}</strong>
@@ -123,7 +125,7 @@
               </header>
               <p>{{ element.kind === 'cylinder' ? 'r ' + element.r + ' · h ' + element.h : element.sx + ' × ' + element.sy }}</p>
             </article>
-            <p class="me-empty-filter" *ngIf="parsed && !filteredElements.length">No elements match the current filter.</p>
+            <p class="me-empty-filter" *ngIf="parsed && !visibleElements.length">No elements match the current filter.</p>
           </div>
           <div class="me-cards" *ngIf="currentFile && viewMode === 'disciplines'">
             <article *ngFor="let disc of filteredDisciplines; trackBy: trackByDiscipline" [class.is-active]="selectedDiscipline?.id === disc.id" tabindex="0" role="button" (click)="selectDiscipline(disc.id)" (keydown.enter)="selectDiscipline(disc.id)" (keydown.space)="selectDiscipline(disc.id); $event.preventDefault()">
@@ -131,14 +133,14 @@
                 <i class="me-swatch" [style.background]="tint('discipline', disc.index)"></i>
                 <strong>{{ disc.name }}</strong>
                 <span>discipline</span>
-                <button type="button" class="me-eye" (click)="toggleDiscVisible(disc.name, $event)" [attr.aria-label]="isDiscHidden(disc.name) ? 'Show' : 'Hide'" [appTooltip]="isDiscHidden(disc.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isDiscHidden(disc.name) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="me-eye" (click)="toggleDiscVisible(disc.id, $event)" [attr.aria-label]="isDiscHidden(disc.id) ? 'Show' : 'Hide'" [appTooltip]="isDiscHidden(disc.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isDiscHidden(disc.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>{{ disc.description || '—' }} · {{ disc.elementCount }} elements</p>
             </article>
             <p class="me-empty-filter" *ngIf="parsed && !filteredDisciplines.length">No disciplines match the current filter.</p>
           </div>
           <div class="me-cards" *ngIf="currentFile && viewMode === 'systems'">
-            <article *ngFor="let system of filteredSystems; trackBy: trackBySystem" [class.is-active]="selectedSystem?.id === system.id" tabindex="0" role="button" (click)="selectSystem(system.id)" (keydown.enter)="selectSystem(system.id)" (keydown.space)="selectSystem(system.id); $event.preventDefault()">
+            <article *ngFor="let system of visibleSystems; trackBy: trackBySystem" [class.is-active]="selectedSystem?.id === system.id" tabindex="0" role="button" (click)="selectSystem(system.id)" (keydown.enter)="selectSystem(system.id)" (keydown.space)="selectSystem(system.id); $event.preventDefault()">
               <header>
                 <i class="me-swatch" [style.background]="tint(system.discipline, system.index)"></i>
                 <strong>{{ system.name }}</strong>
@@ -146,7 +148,7 @@
               </header>
               <p>{{ system.description || '—' }} · {{ system.elementCount }} elements</p>
             </article>
-            <p class="me-empty-filter" *ngIf="parsed && !filteredSystems.length">No systems match the current filter.</p>
+            <p class="me-empty-filter" *ngIf="parsed && !visibleSystems.length">No systems match the current filter.</p>
           </div>
           <div class="me-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -170,7 +172,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="me-loading" *ngIf="loading">Parsing MEP dump…</div>
+          <div class="me-loading" *ngIf="loading" role="status">Parsing MEP dump…</div>
         </div>
 
         <div class="me-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -202,10 +204,10 @@
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'preview' && filteredElements.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'preview' && visibleElements.length" open>
           <summary class="ctl__panel-head">Preview</summary>
           <div class="ctl__panel-body me-units">
-            <button type="button" *ngFor="let element of filteredElements; trackBy: trackByElement" [class.is-active]="selectedElementId === element.id" (click)="selectElement(element.id)">
+            <button type="button" *ngFor="let element of visibleElements; trackBy: trackByElement" [class.is-active]="selectedElementId === element.id" (click)="selectElement(element.id)">
               <i class="me-swatch" [style.background]="element.colorHex || tint(element.kind, element.index)"></i>
               <span>{{ element.name }} <small>{{ element.kind }}</small></span>
             </button>
@@ -220,10 +222,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'systems' || viewMode === 'table') && filteredSystems.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'systems' || viewMode === 'table') && visibleSystems.length" open>
           <summary class="ctl__panel-head">Systems</summary>
           <div class="ctl__panel-body me-units">
-            <button type="button" *ngFor="let system of filteredSystems; trackBy: trackBySystem" [class.is-active]="selectedSystemId === system.id" (click)="selectSystem(system.id)">
+            <button type="button" *ngFor="let system of visibleSystems; trackBy: trackBySystem" [class.is-active]="selectedSystemId === system.id" (click)="selectSystem(system.id)">
               <i class="me-swatch" [style.background]="tint(system.discipline, system.index)"></i>
               <span>{{ system.name }} <small>{{ system.discipline }} · {{ system.description || '—' }}</small></span>
             </button>

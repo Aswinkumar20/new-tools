@@ -21,18 +21,26 @@ import {
   SR_RELATED_TOOLS,
   SR_SUPPORTED_EXTENSIONS
 } from '../../constants/structural-model-viewer.constants';
-import type { SrSection, SrColumn, SrExportFormat, SrProperty, SrLoadedFile, SrMember, SrViewMode } from '../../types/structural-model-viewer.types';
+import type {
+  SrColumn,
+  SrExportFormat,
+  SrLoadedFile,
+  SrMember,
+  SrProperty,
+  SrSection,
+  SrViewMode
+} from '../../types/structural-model-viewer.types';
 import type { Cad3dView } from '../../utils/cad-3d.utils';
 import { buildCadInsightStats, clampCadZoom, observeCadDocumentTheme } from '../../utils/cad-file.utils';
 import {
-  buildSrSectionMetadata,
+  buildSrMemberMetadata,
   buildSrMetadataRows,
   buildSrPropertyMetadata,
-  buildSrMemberMetadata,
+  buildSrSectionMetadata,
   canExportSr,
   canvasToPngDataUrl,
-  createSrFileRecord,
   createSampleSrFile,
+  createSrFileRecord,
   defaultCad3dView,
   downloadBinaryFile,
   downloadDataUrl,
@@ -40,19 +48,19 @@ import {
   exportSrRowsCsv,
   exportSrSchemaCsv,
   exportSrSummaryJson,
-  filterSrSections,
-  filterSrProperties,
   filterSrMembers,
+  filterSrProperties,
   filterSrRows,
+  filterSrSections,
   filterValidSrFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatSrFileSize,
-  srTypeColor,
+  pickCad3dSolidAtScreen,
   readSrFileBytes,
   renderSrPreview,
   resolveSrSuggestion,
+  sizeCadCanvas,
+  srTypeColor,
   toSrCad3d
 } from '../../utils/structural-model-viewer.utils';
 
@@ -65,18 +73,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = SR_ACCEPT_ATTR;
   readonly relatedTools = SR_RELATED_TOOLS;
   readonly supportedExtensions = SR_SUPPORTED_EXTENSIONS;
@@ -89,24 +100,31 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: SrLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: SrViewMode = 'preview';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedMemberId = '';
   selectedSectionId = '';
   selectedPropId = '';
   selectedRowIndex = 0;
   hiddenSectionIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -115,6 +133,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): SrLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -127,6 +146,10 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     return canExportSr(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -135,10 +158,6 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredMembers(): SrMember[] {
@@ -162,7 +181,17 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   get visibleMembers(): SrMember[] {
-    return this.filteredMembers.filter((s) => !this.hiddenSectionIds.has(String(s.section)));
+    if (!this.hiddenSectionIds.size) return this.filteredMembers;
+    return this.filteredMembers.filter((m) => !this.isSectionKeyHidden(m.section));
+  }
+
+  get visibleProperties(): SrProperty[] {
+    if (!this.hiddenSectionIds.size) return this.filteredProperties;
+    return this.filteredProperties.filter((p) => {
+      const member = this.parsed?.members.find((m) => m.id === p.member || m.name === p.member);
+      if (!member) return true;
+      return !this.isSectionKeyHidden(member.section);
+    });
   }
 
   get selectedMember(): SrMember | null {
@@ -202,18 +231,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return srTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isSectionHidden(id: string): boolean {
-    return this.hiddenSectionIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -225,11 +243,15 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -237,15 +259,14 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -256,13 +277,13 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -273,7 +294,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -284,6 +305,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -322,6 +344,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: SrLoadedFile): string {
     return file.id;
   }
@@ -330,16 +353,16 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     return warning;
   }
 
-  trackByMember(_i: number, part: SrMember): string {
-    return part.id;
+  trackByMember(_i: number, member: SrMember): string {
+    return member.id;
   }
 
-  trackBySection(_i: number, assembly: SrSection): string {
-    return assembly.id;
+  trackBySection(_i: number, section: SrSection): string {
+    return section.id;
   }
 
-  trackByProperty(_i: number, instance: SrProperty): string {
-    return instance.id;
+  trackByProperty(_i: number, prop: SrProperty): string {
+    return prop.id;
   }
 
   trackByColumn(_i: number, column: SrColumn): string {
@@ -354,6 +377,19 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     return formatSrFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return srTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isSectionHidden(id: string): boolean {
+    return this.hiddenSectionIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -423,20 +459,73 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedMemberId = '';
+    this.selectedSectionId = '';
+    this.selectedPropId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenSectionIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'preview';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectMember(id: string): void {
     this.selectedMemberId = id;
+    const member = this.filteredMembers.find((m) => m.id === id);
+    if (member?.section) {
+      const section = this.parsed?.sections.find((s) => s.id === member.section || s.name === member.section);
+      this.selectedSectionId = section?.id ?? this.selectedSectionId;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectSection(id: string): void {
     this.selectedSectionId = id;
+    const section = this.filteredSections.find((s) => s.id === id);
+    const hit = this.visibleMembers.find(
+      (m) => m.section === id || (!!section && (m.section === section.name || m.section === section.id))
+    );
+    if (hit) this.selectedMemberId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectProperty(id: string): void {
     this.selectedPropId = id;
+    const prop = this.filteredProperties.find((p) => p.id === id);
+    if (prop?.member) {
+      const member = this.parsed?.members.find((m) => m.id === prop.member || m.name === prop.member);
+      if (member) this.selectMember(member.id);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -444,10 +533,24 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredMembers.some((s) => s.id === row.name || s.name === row.name)) this.selectedMemberId = row.name;
-    if (this.filteredSections.some((e) => e.id === row.name || e.name === row.name)) this.selectedSectionId = row.name;
-    if (this.filteredProperties.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedPropId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'property' || this.parsed.properties.some((p) => p.name === name || p.id === name)) {
+      const prop = this.parsed.properties.find((p) => p.name === name || p.id === name);
+      if (prop) this.selectProperty(prop.id);
+    } else if (kind === 'section' || this.parsed.sections.some((s) => s.name === name || s.id === name)) {
+      const section = this.parsed.sections.find((s) => s.name === name || s.id === name);
+      if (section) this.selectSection(section.id);
+    } else if (name) {
+      const member = this.parsed.members.find((m) => m.name === name || m.id === name);
+      if (member) this.selectMember(member.id);
+      else this.selectedMemberId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -471,41 +574,28 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     if (this.selectedPropId && !this.filteredProperties.some((inst) => inst.id === this.selectedPropId)) {
       this.selectedPropId = this.filteredProperties[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedMemberId = '';
-    this.selectedSectionId = '';
-    this.selectedPropId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenSectionIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedMemberId = '';
+    this.selectedPropId = '';
+    this.selectedSectionId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -517,9 +607,13 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   setViewMode(mode: SrViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -533,6 +627,11 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -570,6 +669,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     if (!this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
@@ -582,7 +682,18 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     this.fitView();
   }
 
+  fitView(): void {
+    if (!this.isBrowser || this.viewMode === 'table') return;
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed) return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCad3dView(toSrCad3d(this.visibleMembers), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -596,30 +707,6 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedMemberId = '';
-    this.selectedPropId = '';
-    this.selectedSectionId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids = toSrCad3d(this.visibleMembers);
-    this.view = fitCad3dView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -656,21 +743,40 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
     const id = pickCad3dSolidAtScreen(toSrCad3d(this.visibleMembers), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectMember(id);
-    else this.clearSelection();
+    if (!id) {
+      this.clearSelection();
+      return;
+    }
+    if (this.viewMode === 'properties') {
+      const prop = this.visibleProperties.find((p) => {
+        const member = this.parsed?.members.find((m) => m.id === id);
+        return !!member && (p.member === member.name || p.member === member.id);
+      });
+      if (prop) this.selectProperty(prop.id);
+      else this.selectMember(id);
+    } else {
+      this.selectMember(id);
+    }
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isSectionKeyHidden(sectionKey: string): boolean {
+    if (!sectionKey) return false;
+    if (this.hiddenSectionIds.has(sectionKey)) return true;
+    const section = this.parsed?.sections.find((s) => s.id === sectionKey || s.name === sectionKey);
+    return !!section && this.hiddenSectionIds.has(section.id);
+  }
+
   private shiftMember(delta: number): void {
-    const list = this.filteredMembers;
+    const list = this.visibleMembers;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedMemberId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -678,7 +784,7 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
   }
 
   private shiftProp(delta: number): void {
-    const list = this.filteredProperties;
+    const list = this.visibleProperties;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedPropId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -709,7 +815,9 @@ export class StructuralModelViewerComponent implements AfterViewInit, OnDestroy 
     let selectedId = this.selectedMemberId || null;
     if (this.viewMode === 'properties' && this.selectedProperty) {
       selectedId =
-        this.visibleMembers.find((e) => e.name === this.selectedProperty?.member || e.name === this.selectedProperty?.name)?.id ?? selectedId;
+        this.visibleMembers.find(
+          (m) => m.name === this.selectedProperty?.member || m.id === this.selectedProperty?.member
+        )?.id ?? selectedId;
     }
     renderSrPreview(canvas, this.visibleMembers, selectedId, this.view);
   }

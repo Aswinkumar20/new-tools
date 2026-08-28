@@ -7,7 +7,8 @@ import {
   exportDlisChannelsCsv,
   exportDlisFrameCsv,
   filterDlisChannels,
-  filterValidDlisFiles
+  filterValidDlisFiles,
+  resolveDlisSuggestion
 } from './dlis-viewer.utils';
 
 describe('dlis-parse.utils', () => {
@@ -66,5 +67,26 @@ describe('dlis-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('canExportDlis is false for null', () => {
+    expect(canExportDlis(null)).toBe(false);
+  });
+
+  it('soft-fails unparseable bytes and disables export', () => {
+    const file = new File([new Uint8Array([1, 2, 3, 4])], 'bad.dlis', { lastModified: 3 });
+    const record = createDlisFileRecord(file, new Uint8Array([1, 2, 3, 4]));
+    expect(record.softFail).toBe(true);
+    expect(canExportDlis(record)).toBe(false);
+    expect(record.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('resolveDlisSuggestion returns upload when empty', () => {
+    expect(resolveDlisSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-dlis');
+  });
+
+  it('resolveDlisSuggestion returns sample after error', () => {
+    expect(resolveDlisSuggestion({ hasFiles: false, hasError: true })?.id).toBe('try-sample');
+    expect(resolveDlisSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

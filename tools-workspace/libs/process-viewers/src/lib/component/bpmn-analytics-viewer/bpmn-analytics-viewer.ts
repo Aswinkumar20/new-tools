@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   BPMN_ANALYTICS_ACCEPT_ATTR,
   BPMN_ANALYTICS_FORMATS_HINT,
@@ -56,7 +56,7 @@ import {
   standalone: true,
   templateUrl: './bpmn-analytics-viewer.html',
   styleUrls: ['./bpmn-analytics-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
@@ -98,6 +98,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): BpmnAnalyticsLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -127,7 +131,7 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedActivity(): BpmnAnalyticsActivity | null {
-    return this.filteredActivities.find((a) => a.id === this.selectedId) ?? this.filteredActivities[0] ?? null;
+    return this.filteredActivities.find((a) => a.id === this.selectedId) ?? null;
   }
 
   get activityMetadataRows() {
@@ -147,6 +151,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     return formatDurationMs(ms);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -154,6 +162,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -208,6 +220,11 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -225,6 +242,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: BpmnAnalyticsLoadedFile): string {
     return file.id;
   }
@@ -240,6 +261,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatBpmnAnalyticsFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -284,7 +309,11 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no activities — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -304,19 +333,6 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  selectActivity(id: string): void {
-    this.selectedId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  onFilterChange(): void {
-    const first = this.filteredActivities[0];
-    if (first && !this.filteredActivities.some((a) => a.id === this.selectedId)) this.selectedId = first.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
     if (index < 0 || index >= this.files.length) return;
@@ -329,6 +345,7 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     this.currentIndex = Math.min(index, next.length - 1);
     this.resetViewForCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -337,9 +354,35 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedId = '';
     this.errorMessage = '';
     this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
+  selectActivity(id: string): void {
+    this.selectedId = id;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  onFilterChange(): void {
+    if (this.selectedId && !this.filteredActivities.some((a) => a.id === this.selectedId)) {
+      this.selectedId = this.filteredActivities[0]?.id ?? '';
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -352,6 +395,7 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: BpmnAnalyticsViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -365,6 +409,11 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -373,7 +422,11 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportBpmnAnalyticsSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -383,10 +436,16 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || (this.viewMode !== 'overlays' && this.viewMode !== 'bottlenecks')) {
           this.toast.info('Open Bottlenecks or Overlays to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -394,6 +453,10 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftActivity(delta: number): void {
     const list = this.viewMode === 'bottlenecks' ? this.bottleneckActivities : this.filteredActivities;
@@ -426,6 +489,7 @@ export class BpmnAnalyticsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

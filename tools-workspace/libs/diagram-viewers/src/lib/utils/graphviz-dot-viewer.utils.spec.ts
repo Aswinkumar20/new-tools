@@ -1,7 +1,14 @@
 import { GVZ_DOT_SAMPLE, GVZ_JSON_SAMPLE, GVZ_MARKDOWN_SAMPLE, GVZ_NEATO_SAMPLE } from '../constants/graphviz-dot-viewer-sample.data';
 import { applyGvzLayout, filterGvzEdges, parseDotText } from './graphviz-dot-parse.utils';
 import { exportGvzSvg } from './graphviz-dot-render.utils';
-import { canExportGvz, createGvzFileRecord, createSampleGvzFile, exportGvzNodesCsv, filterValidGvzFiles } from './graphviz-dot-viewer.utils';
+import {
+  canExportGvz,
+  createGvzFileRecord,
+  createSampleGvzFile,
+  exportGvzNodesCsv,
+  filterValidGvzFiles,
+  resolveGvzSuggestion
+} from './graphviz-dot-viewer.utils';
 
 describe('graphviz-dot-parse.utils', () => {
   it('parses the checkout DOT sample', () => {
@@ -78,5 +85,21 @@ describe('graphviz-dot-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveGvzSuggestion covers empty and error states', () => {
+    expect(resolveGvzSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveGvzSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveGvzSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createGvzFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportGvz(record)).toBe(false);
+  });
+
+  it('canExportGvz returns false for null', () => {
+    expect(canExportGvz(null)).toBe(false);
   });
 });

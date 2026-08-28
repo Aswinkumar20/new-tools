@@ -6,7 +6,8 @@ import {
   createBpmnAnalyticsFileRecord,
   createSampleBpmnAnalyticsFile,
   exportBpmnAnalyticsActivitiesCsv,
-  filterValidBpmnAnalyticsFiles
+  filterValidBpmnAnalyticsFiles,
+  resolveBpmnAnalyticsSuggestion
 } from './bpmn-analytics-viewer.utils';
 
 describe('bpmn-analytics-parse.utils', () => {
@@ -79,5 +80,22 @@ describe('bpmn-analytics-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveBpmnAnalyticsSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveBpmnAnalyticsSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveBpmnAnalyticsSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveBpmnAnalyticsSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.json', { lastModified: 9 });
+    const record = createBpmnAnalyticsFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportBpmnAnalytics(record)).toBe(false);
+  });
+
+  it('canExportBpmnAnalytics returns false for null', () => {
+    expect(canExportBpmnAnalytics(null)).toBe(false);
   });
 });

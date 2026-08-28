@@ -5,7 +5,7 @@ export const AL_SUPPORTED_EXTENSIONS: ReadonlyArray<string> = ['.pcbdoc', '.schd
 export const AL_ACCEPT_ATTR =
   '.pcbdoc,.schdoc,.prjpcb,.txt,.json,.csv,.md,application/x-altium,application/octet-stream,application/json,text/plain,text/csv,text/markdown';
 
-export const AL_FORMATS_LABEL = '.pcbdoc, .schdoc, .json, .csv, .md, .txt';
+export const AL_FORMATS_LABEL = '.pcbdoc, .schdoc, .prjpcb, .json, .csv, .md, .txt';
 
 export const AL_FORMATS_HINT = 'Altium copper layers and designators. Education/research only.';
 

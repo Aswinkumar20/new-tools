@@ -1,6 +1,6 @@
 import { DMN_CSV_SAMPLE, DMN_JSON_SAMPLE, DMN_XML_SAMPLE } from '../constants/dmn-sample.data';
 import { filterDmnRules, filterDmnTables, parseDmnText } from './dmn-parse.utils';
-import { canExportDmn, createDmnFileRecord, createSampleDmnFile, exportDmnRulesCsv, filterValidDmnFiles } from './dmn-viewer.utils';
+import { canExportDmn, createDmnFileRecord, createSampleDmnFile, exportDmnRulesCsv, filterValidDmnFiles, resolveDmnSuggestion } from './dmn-viewer.utils';
 
 describe('dmn-parse.utils', () => {
   it('parses the loan approval DMN XML sample', () => {
@@ -72,5 +72,24 @@ describe('dmn-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDmnSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveDmnSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveDmnSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveDmnSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportDmn returns false for null', () => {
+    expect(canExportDmn(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createDmnFileRecord(new File(['hello world'], 'bad.dmn', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportDmn(record)).toBe(false);
   });
 });

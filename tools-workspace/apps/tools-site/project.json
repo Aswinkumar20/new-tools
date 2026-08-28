@@ -12,8 +12,7 @@
     "generate-tool-seo-catalog": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node apps/tools-site/scripts/generate-tool-seo-catalog.js",
-        "description": "Generate per-tool SEO metadata catalog from routes and descriptions"
+        "command": "node apps/tools-site/scripts/generate-tool-seo-catalog.js"
       }
     },
     "generate-sitemap": {
@@ -22,8 +21,7 @@
         "generate-tool-seo-catalog"
       ],
       "options": {
-        "command": "node apps/tools-site/scripts/generate-sitemap.js",
-        "description": "Generate sitemap.xml from application routes"
+        "command": "node apps/tools-site/scripts/generate-sitemap.js"
       }
     },
     "build": {
@@ -79,10 +77,18 @@
             "glob": "404.html",
             "input": "apps/tools-site/public",
             "output": "."
+          },
+          {
+            "glob": "_headers",
+            "input": "apps/tools-site/public",
+            "output": "."
           }
         ],
         "styles": [
           "apps/tools-site/src/styles.scss"
+        ],
+        "externalDependencies": [
+          "canvas"
         ],
         "allowedCommonJsDependencies": [
           "leaflet",
@@ -118,6 +124,7 @@
           "pdfjs-dist",
           "marked",
           "dompurify",
+          "ical.js",
           "chart.js",
           "jspdf",
           "jspdf-autotable",
@@ -129,10 +136,7 @@
           "tesseract.js",
           "regenerator-runtime"
         ],
-        "server": "apps/tools-site/src/main.server.ts",
-        "ssr": {
-          "entry": "apps/tools-site/src/server.ts"
-        }
+        "server": "apps/tools-site/src/main.server.ts"
       },
       "configurations": {
         "production": {
@@ -149,10 +153,7 @@
             }
           ],
           "outputHashing": "all",
-          "prerender": {
-            "discoverRoutes": true,
-            "routesFile": "apps/tools-site/prerender-routes.txt"
-          }
+          "outputMode": "static"
         },
         "development": {
           "optimization": false,
@@ -161,11 +162,11 @@
           "ssr": false,
           "prerender": false
         },
-        "ssr-dev": {
+        "ssg-preview": {
           "optimization": false,
           "extractLicenses": false,
           "sourceMap": false,
-          "prerender": false
+          "outputMode": "static"
         }
       },
       "defaultConfiguration": "development"
@@ -179,9 +180,6 @@
         },
         "development": {
           "buildTarget": "tools-site:build:development"
-        },
-        "ssr-dev": {
-          "buildTarget": "tools-site:build:ssr-dev"
         }
       },
       "defaultConfiguration": "development"
@@ -209,23 +207,10 @@
       "continuous": true,
       "executor": "@nx/web:file-server",
       "options": {
-        "buildTarget": "tools-site:build",
+        "buildTarget": "tools-site:build:development",
         "port": 4200,
         "spa": true
       }
-    },
-    "serve-ssr": {
-      "continuous": true,
-      "executor": "@angular/build:dev-server",
-      "configurations": {
-        "development": {
-          "buildTarget": "tools-site:build:ssr-dev"
-        },
-        "production": {
-          "buildTarget": "tools-site:build:production"
-        }
-      },
-      "defaultConfiguration": "development"
     },
     "build-prod": {
       "executor": "nx:run-commands",
@@ -233,11 +218,10 @@
         "generate-sitemap"
       ],
       "options": {
-        "command": "npx nx build tools-site --configuration=production",
-        "description": "Production prerendered static build (deploy dist/apps/tools-site/browser)"
+        "command": "npx nx build tools-site --configuration=production"
       }
     },
-    "serve-prerender": {
+    "serve-ssg": {
       "continuous": true,
       "executor": "@nx/web:file-server",
       "options": {

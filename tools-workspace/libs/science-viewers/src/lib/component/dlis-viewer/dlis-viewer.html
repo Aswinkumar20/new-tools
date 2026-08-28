@@ -16,41 +16,53 @@
       </div>
       <div class="dlis-suggest__actions">
         <button type="button" class="dlis-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="dlis-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="dlis-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="dlis-toolbar">
+    <div class="dlis-toolbar" role="toolbar" aria-label="DLIS Viewer actions">
       <div class="dlis-toolbar__group">
         <input #fileInput class="dlis-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn dlis-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn dlis-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="dlis-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="dlis-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('channels-csv', $event)">Channels CSV</button>
-            <button type="button" (click)="exportAs('frame-csv', $event)">Frame CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dlis-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dlis-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('channels-csv', $event)">Channels CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('frame-csv', $event)">Frame CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="dlis-files" *ngIf="files.length">
           <div class="dlis-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dlis-files__chip--active]="i === currentIndex">
             <button type="button" class="dlis-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="dlis-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="dlis-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="dlis-toolbar__status"><span class="dlis-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="dlis-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="dlis-tab-bar" *ngIf="currentFile" role="tablist" aria-label="DLIS Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="dlis-toolbar__status"><span class="dlis-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="dlis-workspace" [class.dlis-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,35 +73,39 @@
             <span>{{ parsed?.channels?.length || 0 }} channels · {{ parsed?.records?.length || 0 }} records · {{ parsed?.sul?.version }}</span>
           </div>
           <div class="dlis-view-controls">
-            <button type="button" *ngIf="viewMode === 'tracks'" (click)="toggleCrossplot()" [class.is-active]="showCrossplot">Crossplot</button>
-            <button type="button" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(0.8)" title="Zoom in (+)">+</button>
-            <button type="button" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(1.25)" title="Zoom out (−)">−</button>
-            <button type="button" *ngIf="viewMode === 'tracks'" (click)="fitDepth()" title="Fit depth (F)">Fit</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__tool-btn" *ngIf="viewMode === 'tracks'" (click)="toggleCrossplot()" [class.is-active]="showCrossplot" [attr.aria-pressed]="showCrossplot" aria-label="Toggle crossplot" appTooltip="Toggle crossplot" tooltipPosition="top">Crossplot</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(0.8)" aria-label="Zoom in depth" appTooltip="Zoom in (+)" tooltipPosition="top">+</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'tracks'" (click)="zoomDepth(1.25)" aria-label="Zoom out depth" appTooltip="Zoom out (−)" tooltipPosition="top">−</button>
+            <button type="button" class="ctl__tool-btn" *ngIf="viewMode === 'tracks'" (click)="fitDepth()" aria-label="Fit depth range" appTooltip="Fit depth (F)" tooltipPosition="top">Fit</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
         <div class="dlis-filters" *ngIf="currentFile && parsed && viewMode === 'tracks' && parsed.depth.length">
-          <label>Depth min <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMin" (ngModelChange)="depthMin = +$event; onDepthChange()" /></label>
+          <label>Depth min
+            <input type="range" [min]="depthFullMin" [max]="depthFullMax" step="0.1" [ngModel]="depthMin" (ngModelChange)="depthMin = +$event; onDepthChange()" aria-label="Depth minimum" />
+          </label>
           <span>{{ depthMin | number:'1.1-1' }}</span>
-          <label>Depth max <input type="range" [min]="parsed.depth[0]" [max]="parsed.depth[parsed.depth.length - 1]" step="0.1" [ngModel]="depthMax" (ngModelChange)="depthMax = +$event; onDepthChange()" /></label>
+          <label>Depth max
+            <input type="range" [min]="depthFullMin" [max]="depthFullMax" step="0.1" [ngModel]="depthMax" (ngModelChange)="depthMax = +$event; onDepthChange()" aria-label="Depth maximum" />
+          </label>
           <span>{{ depthMax | number:'1.1-1' }}</span>
           <ng-container *ngIf="showCrossplot">
             <label>X
-              <select [ngModel]="crossplotX" (ngModelChange)="setCrossplotX($event)">
+              <select [ngModel]="crossplotX" (ngModelChange)="setCrossplotX($event)" aria-label="Crossplot X curve">
                 <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
               </select>
             </label>
             <label>Y
-              <select [ngModel]="crossplotY" (ngModelChange)="setCrossplotY($event)">
+              <select [ngModel]="crossplotY" (ngModelChange)="setCrossplotY($event)" aria-label="Crossplot Y curve">
                 <option *ngFor="let curve of parsed.curves; trackBy: trackByCurve" [value]="curve.mnemonic">{{ curve.mnemonic }}</option>
               </select>
             </label>
           </ng-container>
         </div>
 
-        <div #mapWrap class="dlis-map-wrap" [class.dlis-map-wrap--empty]="!currentFile">
-          <canvas #canvasHost class="dlis-map" *ngIf="currentFile && viewMode === 'tracks'"></canvas>
+        <div #mapWrap class="dlis-map-wrap">
+          <canvas #canvasHost class="dlis-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="dlis-table" *ngIf="currentFile && viewMode === 'records'">
             <table>
               <thead>
@@ -140,7 +156,7 @@
               <p>{{ selectedCurve.mnemonic }} histogram</p>
               <div class="dlis-hist__bars">
                 <div *ngFor="let bar of histogramBars" class="dlis-hist__col">
-                  <div class="dlis-hist__bar" [style.height.%]="bar.heightPct" [style.background]="bar.color" [title]="bar.label + ': ' + bar.count"></div>
+                  <div class="dlis-hist__bar" [style.height.%]="bar.heightPct" [style.background]="bar.color" [attr.title]="bar.label + ': ' + bar.count" [attr.aria-label]="bar.label + ': ' + bar.count"></div>
                   <span>{{ bar.label }}</span>
                 </div>
               </div>
@@ -150,33 +166,41 @@
           <div class="dlis-empty" *ngIf="!currentFile && !loading">
             <p>Drop DLIS files here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn dlis-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="dlis-loading" *ngIf="loading">Parsing DLIS…</div>
+          <div class="dlis-loading" *ngIf="loading" role="status" aria-live="polite">Parsing DLIS…</div>
         </div>
 
-        <div class="dlis-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="dlis-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="dlis-disclaimer">Education and research preview only — not a full RP66 template decoder and not validated for well operations.</p>
+        <div class="dlis-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dlis-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dlis-disclaimer" *ngIf="currentFile">Education and research preview only — not a full RP66 template decoder and not validated for well operations.</p>
       </section>
 
-      <aside class="dlis-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="dlis-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dlis-empty-panel">Upload a .dlis storage unit or load the sample well to inspect SUL, visible records, channels, and depth-track preview here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="dlis-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search channels</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search channels</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="dlis-search" type="search" placeholder="Search mnemonic / unit (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="dlis-search" type="search" aria-label="Search channels" placeholder="Search mnemonic / unit (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="dlis-search-hint">Filter by mnemonic, unit, or description. Press <kbd>/</kbd> to focus; <kbd>+</kbd>/<kbd>−</kbd> zoom depth; <kbd>f</kbd> fits; <kbd>↑</kbd>/<kbd>↓</kbd> pans or steps records.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="allCurves.length">
-          <header class="ctl__panel-head">Curves</header>
+        </details>
+        <details class="ctl__panel" *ngIf="allCurves.length" open>
+          <summary class="ctl__panel-head">Curves</summary>
           <div class="ctl__panel-body dlis-curves">
             <button type="button" *ngFor="let curve of allCurves; let i = index; trackBy: trackByCurve" [class.is-active]="selectedMnemonic === curve.mnemonic" (click)="selectCurve(curve.mnemonic)">
               <i class="dlis-swatch" [style.background]="curveSwatch(curve.mnemonic, i)"></i>
@@ -188,17 +212,17 @@
               </span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedCurve">
-          <header class="ctl__panel-head">Selected channel</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedCurve" open>
+          <summary class="ctl__panel-head">Selected channel</summary>
           <div class="ctl__panel-body">
             <dl class="dlis-meta">
               <div *ngFor="let row of curveMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedRecord">
-          <header class="ctl__panel-head">Selected record</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedRecord" open>
+          <summary class="ctl__panel-head">Selected record</summary>
           <div class="ctl__panel-body">
             <dl class="dlis-meta">
               <div><dt>Index</dt><dd>{{ selectedRecord.index }}</dd></div>
@@ -210,21 +234,33 @@
               <div><dt>Label</dt><dd>{{ selectedRecord.label }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="extractedNames.length">
-          <header class="ctl__panel-head">Extracted names</header>
+        </details>
+        <details class="ctl__panel" *ngIf="extractedNames.length" open>
+          <summary class="ctl__panel-head">Extracted names</summary>
           <div class="ctl__panel-body dlis-strings">
             <span *ngFor="let name of extractedNames; trackBy: trackByString">{{ name }}</span>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dlis-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dlis-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help dlis-footer-help">
+      <summary>How to use DLIS Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in sample well. Files never leave your browser.</li>
+        <li>Switch Tracks, Records, or Channels views. Toggle curves, log/rev scales, and optional crossplot on Tracks.</li>
+        <li>Use depth min/max, zoom, and Fit. Press <kbd>f</kbd> to fit; <kbd>↑</kbd>/<kbd>↓</kbd> pans depth or steps records.</li>
+        <li>Export the original file, summary JSON, channels CSV, frame CSV, or a PNG snapshot from Tracks.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="dlis-drop" *ngIf="showDropZone"><p>Drop DLIS files to preview</p></div>
   </main>
 </div>

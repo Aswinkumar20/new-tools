@@ -121,6 +121,10 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): PxLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -203,17 +207,9 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return pxTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isSolidHidden(id: string): boolean {
-    return this.hiddenSolidIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -226,11 +222,18 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -238,10 +241,9 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -292,7 +294,7 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -308,20 +310,25 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
+      if (this.viewMode === 'table') this.shiftRow(1);
+      else if (this.viewMode === 'preview') this.shiftSolid(1);
       else if (this.viewMode === 'measurements') this.shiftMeas(1);
       else this.shiftSolid(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
+      if (this.viewMode === 'table') this.shiftRow(-1);
+      else if (this.viewMode === 'preview') this.shiftSolid(-1);
       else if (this.viewMode === 'measurements') this.shiftMeas(-1);
       else this.shiftSolid(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Template helpers
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: PxLoadedFile): string {
     return file.id;
@@ -354,6 +361,22 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatPxFileSize(bytes);
   }
+
+  tint(type: string, index: number): string {
+    return pxTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isSolidHidden(id: string): boolean {
+    return this.hiddenSolidIds.has(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -424,6 +447,129 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedSolidId = '';
+    this.selectedMeasId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenSolidIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: PxViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: PxExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportPxSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportPxSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportPxRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Solids, Measurements, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / solids
+  // ---------------------------------------------------------------------------
+
   selectSolid(id: string): void {
     this.selectedSolidId = id;
     this.renderCanvas();
@@ -439,10 +585,19 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
+    if (!row?.name) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
     const type = (row.type || '').toLowerCase();
-    if (type === 'distance' || type === 'angle' || type === 'volume' || type === 'measurement') this.selectedMeasId = row.name;
-    else if (type !== 'body') this.selectedSolidId = row.name;
+    if (type === 'distance' || type === 'angle' || type === 'volume' || type === 'measurement') {
+      const meas = this.filteredMeasurements.find((m) => m.id === row.name || m.name === row.name);
+      if (meas) this.selectedMeasId = meas.id;
+    } else if (type !== 'body') {
+      const solid = this.filteredSolids.find((s) => s.id === row.name || s.name === row.name);
+      if (solid) this.selectedSolidId = solid.id;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -456,6 +611,21 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  isolateSelectedSolid(): void {
+    if (!this.selectedSolidId || !this.parsed) return;
+    const solids = this.parsed.solids ?? [];
+    this.hiddenSolidIds = new Set(solids.filter((s) => s.id !== this.selectedSolidId).map((s) => s.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllSolids(): void {
+    if (!this.hiddenSolidIds.size) return;
+    this.hiddenSolidIds = new Set();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   onFilterChange(): void {
     if (this.selectedSolidId && !this.filteredSolids.some((s) => s.id === this.selectedSolidId)) {
       this.selectedSolidId = this.filteredSolids[0]?.id ?? '';
@@ -463,130 +633,11 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedMeasId && !this.filteredMeasurements.some((m) => m.id === this.selectedMeasId)) {
       this.selectedMeasId = this.filteredMeasurements[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedSolidId = '';
-    this.selectedMeasId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenSolidIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
-
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: PxViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: PxExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportPxSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportPxSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportPxRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Solids, Measurements, or Preview to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
-
-  zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
-    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  resetView(): void {
-    this.view = defaultCad3dView();
-    this.fitView();
-  }
-
-  async toggleFullscreen(): Promise<void> {
-    const host = this.viewerPanel?.nativeElement;
-    if (!host) return;
-    const requestFs = host.requestFullscreen?.bind(host);
-    if (!requestFs) {
-      this.toast.info('Fullscreen is not available in this browser');
-      return;
-    }
-    try {
-      if (!document.fullscreenElement) await requestFs();
-      else await document.exitFullscreen();
-    } catch {
-      this.toast.info('Fullscreen is not available in this browser');
-    }
   }
 
   clearSearch(): void {
@@ -602,13 +653,46 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // View / canvas
+  // ---------------------------------------------------------------------------
+
+  zoomBy(factor: number): void {
+    if (!this.parsed || this.viewMode === 'table') return;
+    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  resetView(): void {
+    this.view = defaultCad3dView();
+    this.fitView();
+  }
+
   fitView(): void {
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
     const { width, height } = sizeCadCanvas(canvas);
     this.view = fitCad3dView(toCad3dSolids(this.visibleSolids), width, height);
     this.renderCanvas();
     this.cdr.markForCheck();
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
+    const host = this.viewerPanel?.nativeElement;
+    if (!host) return;
+    const requestFs = host.requestFullscreen?.bind(host);
+    if (!requestFs) {
+      this.toast.info('Fullscreen is not available in this browser');
+      return;
+    }
+    try {
+      if (!document.fullscreenElement) await requestFs();
+      else await document.exitFullscreen();
+    } catch {
+      this.toast.info('Fullscreen is not available in this browser');
+    }
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -637,7 +721,7 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'measurements') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -649,17 +733,20 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftSolid(delta: number): void {
-    const list = this.filteredSolids;
+    const list = this.visibleSolids;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedSolidId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -675,10 +762,6 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftSolid(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
@@ -706,6 +789,7 @@ export class ParasolidViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -121,7 +121,7 @@
                 <i class="wf-swatch" [style.background]="layer.colorHex || tint('layer', layer.index)"></i>
                 <strong>{{ layer.name }}</strong>
                 <span>layer</span>
-                <button type="button" class="wf-eye" (click)="toggleLayerVisible(layer.id, $event)" [attr.aria-label]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" [appTooltip]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="wf-eye" (click)="toggleLayerVisible(layer.id, $event)" [attr.aria-label]="isLayerHidden(layer.id) ? 'Show layer' : 'Hide layer'" [appTooltip]="isLayerHidden(layer.id) ? 'Show layer' : 'Hide layer'" tooltipPosition="top">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>ACI {{ layer.color }} · {{ layer.entityCount }} entities</p>
             </article>
@@ -139,7 +139,7 @@
             <p class="wf-empty-filter" *ngIf="parsed && !filteredSheets.length">No sheets match the current filter.</p>
           </div>
           <div class="wf-cards" *ngIf="currentFile && viewMode === 'preview'">
-            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
+            <article *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
               <header>
                 <i class="wf-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
                 <strong>{{ entity.name }}</strong>
@@ -147,7 +147,7 @@
               </header>
               <p>{{ entity.sheet }} · {{ entity.layer }} · {{ entity.text || entity.length || '—' }}</p>
             </article>
-            <p class="wf-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+            <p class="wf-empty-filter" *ngIf="parsed && !visibleEntities.length">No entities match the current filter or visible layers.</p>
           </div>
           <div class="wf-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -171,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="wf-loading" *ngIf="loading">Parsing DWF dump…</div>
+          <div class="wf-loading" *ngIf="loading" role="status">Parsing DWF dump…</div>
         </div>
 
         <div class="wf-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -221,10 +221,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredEntities.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && visibleEntities.length" open>
           <summary class="ctl__panel-head">Entities</summary>
           <div class="ctl__panel-body wf-units">
-            <button type="button" *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
+            <button type="button" *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
               <i class="wf-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
               <span>{{ entity.name }} <small>{{ entity.type }} · {{ entity.sheet }} · {{ entity.layer }}</small></span>
             </button>

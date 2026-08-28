@@ -14,11 +14,17 @@ import {
   parseGbText
 } from './gerber-file-viewer-parse.utils';
 import {
+  buildGbFeatureMetadata,
+  buildGbLayerMetadata,
+  buildGbMetadataRows,
   canExportGb,
   createGbFileRecord,
   createSampleGbFile,
+  exportGbRowsCsv,
   exportGbSchemaCsv,
-  filterValidGbFiles
+  exportGbSummaryJson,
+  filterValidGbFiles,
+  resolveGbSuggestion
 } from './gerber-file-viewer.utils';
 
 describe('gerber-file-viewer-parse.utils', () => {
@@ -126,5 +132,42 @@ describe('canExportGb guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportGb({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportGb(null)).toBe(false);
+  });
+});
+
+describe('gerber-file-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and entity metadata rows', () => {
+    const parsed = parseGbBytes(buildSampleGbBytes(), 'rf-shield.gbr');
+    const rows = buildGbMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Features')).toBe(true);
+
+    expect(buildGbLayerMetadata(parsed.layers[0]).some((r) => r.key === 'Function')).toBe(true);
+    expect(buildGbFeatureMetadata(parsed.features[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createGbFileRecord(createSampleGbFile(), buildSampleGbBytes());
+    const summary = exportGbSummaryJson(file);
+    expect(summary).toContain('"layers"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportGbRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","layers":[],"features":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createGbFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportGb(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveGbSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveGbSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveGbSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

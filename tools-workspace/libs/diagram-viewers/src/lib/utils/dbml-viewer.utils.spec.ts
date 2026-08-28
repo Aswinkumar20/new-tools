@@ -10,7 +10,8 @@ import {
   createDbmlFileRecord,
   createSampleDbmlFile,
   exportDbmlTablesCsv,
-  filterValidDbmlFiles
+  filterValidDbmlFiles,
+  resolveDbmlSuggestion
 } from './dbml-viewer.utils';
 
 describe('dbml-viewer-parse.utils', () => {
@@ -88,5 +89,19 @@ describe('dbml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveDbmlSuggestion covers empty and error states', () => {
+    expect(resolveDbmlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDbmlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDbmlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createDbmlFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportDbml(record)).toBe(false);
+    expect(canExportDbml(null)).toBe(false);
   });
 });

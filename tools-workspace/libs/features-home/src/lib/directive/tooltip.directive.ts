@@ -1,4 +1,15 @@
-import { Directive, ElementRef, Input, OnInit, OnDestroy, Renderer2, HostListener } from '@angular/core';
+import {
+  Directive,
+  ElementRef,
+  Inject,
+  Input,
+  OnInit,
+  OnDestroy,
+  PLATFORM_ID,
+  Renderer2,
+  HostListener,
+} from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 
 @Directive({
   selector: '[appTooltip]',
@@ -14,14 +25,18 @@ export class TooltipDirective implements OnInit, OnDestroy {
   private showTimeout: ReturnType<typeof setTimeout> | null = null;
   private hideTimeout: ReturnType<typeof setTimeout> | null = null;
   private isVisible = false;
+  private readonly isBrowser: boolean;
 
   constructor(
     private readonly el: ElementRef<HTMLElement>,
-    private readonly renderer: Renderer2
-  ) {}
+    private readonly renderer: Renderer2,
+    @Inject(PLATFORM_ID) platformId: object
+  ) {
+    this.isBrowser = isPlatformBrowser(platformId);
+  }
 
   ngOnInit(): void {
-    if (!this.tooltipText) return;
+    if (!this.isBrowser || !this.tooltipText) return;
     this.createTooltip();
   }
 
@@ -32,10 +47,10 @@ export class TooltipDirective implements OnInit, OnDestroy {
 
   @HostListener('mouseenter')
   onMouseEnter(): void {
-    if (!this.tooltipElement || !this.tooltipText) return;
-    
+    if (!this.isBrowser || !this.tooltipElement || !this.tooltipText) return;
+
     this.clearTimeouts();
-    
+
     this.showTimeout = setTimeout(() => {
       this.showTooltip();
     }, this.tooltipDelay);
@@ -43,12 +58,13 @@ export class TooltipDirective implements OnInit, OnDestroy {
 
   @HostListener('mouseleave')
   onMouseLeave(): void {
+    if (!this.isBrowser) return;
     this.scheduleHide();
   }
 
   @HostListener('focus')
   onFocus(): void {
-    if (!this.tooltipElement || !this.tooltipText) return;
+    if (!this.isBrowser || !this.tooltipElement || !this.tooltipText) return;
     this.clearTimeouts();
     this.showTimeout = setTimeout(() => {
       this.showTooltip();
@@ -57,34 +73,36 @@ export class TooltipDirective implements OnInit, OnDestroy {
 
   @HostListener('blur')
   onBlur(): void {
+    if (!this.isBrowser) return;
     this.scheduleHide();
   }
 
   @HostListener('mousemove')
   onMouseMove(): void {
+    if (!this.isBrowser) return;
     if (this.isVisible && this.tooltipElement) {
       this.updateTooltipPosition();
     }
   }
 
   private createTooltip(): void {
-    if (!this.tooltipText) return;
+    if (!this.isBrowser || !this.tooltipText) return;
 
     this.tooltipElement = this.renderer.createElement('span');
     this.renderer.addClass(this.tooltipElement, 'app-tooltip');
     this.renderer.setProperty(this.tooltipElement, 'textContent', this.tooltipText);
-    
+
     // Apply all styles
     this.applyTooltipStyles();
-    
+
     // Add position class
     this.renderer.addClass(this.tooltipElement, `tooltip-${this.tooltipPosition}`);
-    
+
     this.renderer.appendChild(document.body, this.tooltipElement);
   }
 
   private applyTooltipStyles(): void {
-    if (!this.tooltipElement) return;
+    if (!this.isBrowser || !this.tooltipElement) return;
 
     const isDark = document.documentElement.dataset['theme'] === 'dark';
     const bgColor = isDark ? 'rgba(241, 245, 249, 0.95)' : 'rgba(15, 23, 42, 0.95)';
@@ -114,7 +132,7 @@ export class TooltipDirective implements OnInit, OnDestroy {
     this.renderer.setStyle(this.tooltipElement, 'letter-spacing', '0.02em');
     this.renderer.setStyle(this.tooltipElement, 'backdrop-filter', 'blur(8px)');
     this.renderer.setStyle(this.tooltipElement, '-webkit-backdrop-filter', 'blur(8px)');
-    
+
     // Set initial transform based on position
     this.renderer.setStyle(this.tooltipElement, 'transform', this.getInitialTransform());
   }
@@ -123,19 +141,19 @@ export class TooltipDirective implements OnInit, OnDestroy {
     if (!this.tooltipElement) return;
 
     this.updateTooltipPosition();
-    
+
     // Force reflow to ensure position is set before showing
     const _ = this.tooltipElement.offsetHeight;
-    
+
     this.renderer.setStyle(this.tooltipElement, 'opacity', '1');
     this.renderer.setStyle(this.tooltipElement, 'visibility', 'visible');
-    
+
     // Reset transform based on position
-    const resetTransform = this.tooltipPosition === 'top' || this.tooltipPosition === 'bottom' 
-      ? 'translateY(0)' 
+    const resetTransform = this.tooltipPosition === 'top' || this.tooltipPosition === 'bottom'
+      ? 'translateY(0)'
       : 'translateX(0)';
     this.renderer.setStyle(this.tooltipElement, 'transform', resetTransform);
-    
+
     this.isVisible = true;
   }
 
@@ -144,14 +162,14 @@ export class TooltipDirective implements OnInit, OnDestroy {
 
     this.renderer.setStyle(this.tooltipElement, 'opacity', '0');
     this.renderer.setStyle(this.tooltipElement, 'visibility', 'hidden');
-    
+
     // Reset transform after transition
     setTimeout(() => {
       if (this.tooltipElement) {
         this.renderer.setStyle(this.tooltipElement, 'transform', this.getInitialTransform());
       }
     }, 200);
-    
+
     this.isVisible = false;
   }
 
@@ -160,7 +178,7 @@ export class TooltipDirective implements OnInit, OnDestroy {
 
     const rect = this.el.nativeElement.getBoundingClientRect();
     const tooltipRect = this.tooltipElement.getBoundingClientRect();
-    
+
     // Use getBoundingClientRect which already accounts for scroll position
     // No need to add scrollX/scrollY since we're using position: fixed
     let left = 0;
@@ -237,10 +255,9 @@ export class TooltipDirective implements OnInit, OnDestroy {
   }
 
   private removeTooltip(): void {
-    if (this.tooltipElement) {
+    if (this.tooltipElement && this.isBrowser) {
       this.renderer.removeChild(document.body, this.tooltipElement);
       this.tooltipElement = null;
     }
   }
 }
-

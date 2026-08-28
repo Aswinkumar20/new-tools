@@ -12,7 +12,8 @@ import {
   createSwFileRecord,
   createSampleSwFile,
   exportSwSchemaCsv,
-  filterValidSwFiles
+  filterValidSwFiles,
+  resolveSwSuggestion
 } from './solidworks-viewer.utils';
 
 describe('solidworks-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportSw guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportSw({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportSw(null)).toBe(false);
+  });
+});
+
+describe('resolveSwSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveSwSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSwSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSwSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

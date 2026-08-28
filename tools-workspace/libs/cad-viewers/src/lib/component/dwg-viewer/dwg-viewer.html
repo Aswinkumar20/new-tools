@@ -129,14 +129,14 @@
                 <i class="dw-swatch" [style.background]="layer.colorHex || tint('layer', layer.index)"></i>
                 <strong>{{ layer.name }}</strong>
                 <span>layer</span>
-                <button type="button" class="dw-eye" (click)="toggleLayerVisible(layer.id, $event)" [attr.aria-label]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" [appTooltip]="isLayerHidden(layer.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="dw-eye" (click)="toggleLayerVisible(layer.id, $event)" [attr.aria-label]="isLayerHidden(layer.id) ? 'Show layer' : 'Hide layer'" [appTooltip]="isLayerHidden(layer.id) ? 'Show layer' : 'Hide layer'" tooltipPosition="top">{{ isLayerHidden(layer.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>ACI {{ layer.color }} · {{ layer.entityCount }} entities</p>
             </article>
             <p class="dw-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current filter.</p>
           </div>
           <div class="dw-cards" *ngIf="currentFile && viewMode === 'measurements'">
-            <article *ngFor="let meas of filteredMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeas?.id === meas.id" tabindex="0" role="button" (click)="selectMeas(meas.id)" (keydown.enter)="selectMeas(meas.id)" (keydown.space)="selectMeas(meas.id); $event.preventDefault()">
+            <article *ngFor="let meas of visibleMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeas?.id === meas.id" tabindex="0" role="button" (click)="selectMeas(meas.id)" (keydown.enter)="selectMeas(meas.id)" (keydown.space)="selectMeas(meas.id); $event.preventDefault()">
               <header>
                 <i class="dw-swatch" [style.background]="tint(meas.type, meas.index)"></i>
                 <strong>{{ meas.name }}</strong>
@@ -144,10 +144,10 @@
               </header>
               <p>{{ meas.label || meas.value }} {{ meas.unit }} · {{ meas.layer }}</p>
             </article>
-            <p class="dw-empty-filter" *ngIf="parsed && !filteredMeasurements.length">No measurements match the current filter.</p>
+            <p class="dw-empty-filter" *ngIf="parsed && !visibleMeasurements.length">No measurements match the current filter or visible layers.</p>
           </div>
           <div class="dw-cards" *ngIf="currentFile && viewMode === 'preview'">
-            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
+            <article *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
               <header>
                 <i class="dw-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
                 <strong>{{ entity.name }}</strong>
@@ -155,7 +155,7 @@
               </header>
               <p>{{ entity.layer }} · {{ entity.text || entity.length || '—' }}</p>
             </article>
-            <p class="dw-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+            <p class="dw-empty-filter" *ngIf="parsed && !visibleEntities.length">No entities match the current filter or visible layers.</p>
           </div>
           <div class="dw-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -222,19 +222,19 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'measurements' && filteredMeasurements.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'measurements' && visibleMeasurements.length" open>
           <summary class="ctl__panel-head">Measurements</summary>
           <div class="ctl__panel-body dw-units">
-            <button type="button" *ngFor="let meas of filteredMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeasId === meas.id" (click)="selectMeas(meas.id)">
+            <button type="button" *ngFor="let meas of visibleMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeasId === meas.id" (click)="selectMeas(meas.id)">
               <i class="dw-swatch" [style.background]="tint(meas.type, meas.index)"></i>
               <span>{{ meas.name }} <small>{{ meas.label || meas.value }} {{ meas.unit }}</small></span>
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredEntities.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && visibleEntities.length" open>
           <summary class="ctl__panel-head">Entities</summary>
           <div class="ctl__panel-body dw-units">
-            <button type="button" *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
+            <button type="button" *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
               <i class="dw-swatch" [style.background]="entity.colorHex || tint(entity.type, entity.index)"></i>
               <span>{{ entity.name }} <small>{{ entity.type }} · {{ entity.layer }}</small></span>
             </button>

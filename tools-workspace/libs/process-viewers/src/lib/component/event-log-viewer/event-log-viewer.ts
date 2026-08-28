@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   EVENT_LOG_ACCEPT_ATTR,
   EVENT_LOG_FORMATS_HINT,
@@ -64,7 +64,7 @@ import {
   standalone: true,
   templateUrl: './event-log-viewer.html',
   styleUrls: ['./event-log-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
@@ -108,6 +108,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): EventLogLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -124,10 +128,6 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
     return this.currentFile?.warnings ?? [];
   }
 
-  get metadataRows() {
-    return this.parsed ? buildEventLogMetadataRows(this.parsed) : [];
-  }
-
   get filteredCases(): EventLogCase[] {
     return this.parsed ? filterEventLogCases(this.parsed.cases, this.query) : [];
   }
@@ -141,15 +141,19 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedCase(): EventLogCase | null {
-    return this.filteredCases.find((c) => c.id === this.selectedCaseId) ?? this.filteredCases[0] ?? null;
+    return this.filteredCases.find((c) => c.id === this.selectedCaseId) ?? null;
   }
 
   get selectedActivity(): EventLogActivity | null {
-    return this.filteredActivities.find((a) => a.id === this.selectedActivityId) ?? this.filteredActivities[0] ?? null;
+    return this.filteredActivities.find((a) => a.id === this.selectedActivityId) ?? null;
   }
 
   get selectedEvent(): EventLogEvent | null {
-    return this.filteredEvents.find((e) => e.id === this.selectedEventId) ?? this.filteredEvents[0] ?? null;
+    return this.filteredEvents.find((e) => e.id === this.selectedEventId) ?? null;
+  }
+
+  get metadataRows() {
+    return this.parsed ? buildEventLogMetadataRows(this.parsed) : [];
   }
 
   get caseMetadataRows() {
@@ -181,6 +185,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
     return formatEventLogDuration(ms);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -188,6 +196,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -242,6 +254,11 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -262,6 +279,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: EventLogLoadedFile): string {
     return file.id;
@@ -286,6 +307,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatEventLogFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -329,8 +354,13 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no cases — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -349,6 +379,41 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedCaseId = '';
+    this.selectedActivityId = '';
+    this.selectedEventId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
 
   selectCase(id: string): void {
     this.selectedCaseId = id;
@@ -369,41 +434,22 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const item = this.filteredCases[0];
-    if (item && !this.filteredCases.some((c) => c.id === this.selectedCaseId)) this.selectedCaseId = item.id;
-    const activity = this.filteredActivities[0];
-    if (activity && !this.filteredActivities.some((a) => a.id === this.selectedActivityId)) this.selectedActivityId = activity.id;
-    const event = this.filteredEvents[0];
-    if (event && !this.filteredEvents.some((e) => e.id === this.selectedEventId)) this.selectedEventId = event.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedCaseId && !this.filteredCases.some((c) => c.id === this.selectedCaseId)) {
+      this.selectedCaseId = this.filteredCases[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedActivityId && !this.filteredActivities.some((a) => a.id === this.selectedActivityId)) {
+      this.selectedActivityId = this.filteredActivities[0]?.id ?? '';
+    }
+    if (this.selectedEventId && !this.filteredEvents.some((e) => e.id === this.selectedEventId)) {
+      this.selectedEventId = this.filteredEvents[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedCaseId = '';
-    this.selectedActivityId = '';
-    this.selectedEventId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -416,6 +462,7 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: EventLogViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -429,6 +476,11 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -437,20 +489,33 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportEventLogSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'cases-csv') downloadTextFile(exportEventLogCasesCsv(file.parsed), `${file.name}.cases.csv`, 'text/csv');
-      else if (format === 'events-csv') downloadTextFile(exportEventLogEventsCsv(file.parsed), `${file.name}.events.csv`, 'text/csv');
-      else if (format === 'png') {
+      else if (format === 'summary-json') {
+        downloadTextFile(exportEventLogSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'cases-csv') {
+        downloadTextFile(exportEventLogCasesCsv(file.parsed), `${file.name}.cases.csv`, 'text/csv');
+      } else if (format === 'events-csv') {
+        downloadTextFile(exportEventLogEventsCsv(file.parsed), `${file.name}.events.csv`, 'text/csv');
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Cases, Activities, or Events to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -458,6 +523,10 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftCase(delta: number): void {
     const list = this.filteredCases;
@@ -499,12 +568,17 @@ export class EventLogViewerComponent implements AfterViewInit, OnDestroy {
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(this.viewMode === 'events' ? 280 : 220, parent.clientHeight || 240));
     }
-    if (this.viewMode === 'cases') renderEventLogCases(canvas, this.filteredCases, this.selectedCase?.id ?? null);
-    else if (this.viewMode === 'activities') renderEventLogActivities(canvas, this.filteredActivities, this.selectedActivity?.id ?? null);
-    else renderEventLogEvents(canvas, this.filteredEvents, this.selectedEvent?.id ?? null);
+    if (this.viewMode === 'cases') {
+      renderEventLogCases(canvas, this.filteredCases, this.selectedCaseId || null);
+    } else if (this.viewMode === 'activities') {
+      renderEventLogActivities(canvas, this.filteredActivities, this.selectedActivityId || null);
+    } else {
+      renderEventLogEvents(canvas, this.filteredEvents, this.selectedEventId || null);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

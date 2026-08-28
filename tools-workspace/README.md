@@ -14,7 +14,7 @@ Free, browser-based toolkit at [easytoolhub.com](https://easytoolhub.com). Nx mo
 | Framework | Angular 20 (standalone) |
 | Language | TypeScript 5.9 |
 | Styling | SCSS |
-| SSR | `@angular/ssr` + Express |
+| SSG | `@angular/ssr` build-time prerender (`outputMode: static`) |
 | Unit tests | Jest |
 | E2E | Playwright |
 
@@ -49,7 +49,7 @@ Open [http://localhost:4200](http://localhost:4200).
 
 ```
 tools-workspace/
-├── apps/tools-site/         # App shell, routes, SEO, GA, SSR
+├── apps/tools-site/         # App shell, routes, SEO, GA, SSG
 ├── apps/tools-site-e2e/     # Playwright
 ├── libs/                    # Feature libraries (@tools-workspace/*)
 ├── docs/                    # Canonical documentation
@@ -74,15 +74,15 @@ import { Navigation, ToastService } from '@tools-workspace/features-home';
 ## Common commands
 
 ```sh
-# Dev (CSR, ~4GB heap via .npmrc / apps/tools-site/.env)
+# Dev (CSR — fast local iteration)
 npx nx serve tools-site
 # or: npm start
-npx nx serve-ssr tools-site
 
-# Production prerender (use a 16GB machine; runs sitemap first via build-prod)
+# Production SSG (static HTML for every public URL; use a 16GB machine)
 npx nx run tools-site:generate-sitemap
 npx nx run tools-site:build-prod
-npx nx run tools-site:serve-prerender
+# or: npm run build
+npm run serve:ssg
 
 # Quality
 npx nx lint tools-site

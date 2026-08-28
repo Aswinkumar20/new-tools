@@ -8,11 +8,17 @@ import {
   parsePxText
 } from './parasolid-viewer-parse.utils';
 import {
+  buildPxMeasMetadata,
+  buildPxMetadataRows,
+  buildPxSolidMetadata,
   canExportPx,
   createPxFileRecord,
   createSamplePxFile,
+  exportPxRowsCsv,
   exportPxSchemaCsv,
-  filterValidPxFiles
+  exportPxSummaryJson,
+  filterValidPxFiles,
+  resolvePxSuggestion
 } from './parasolid-viewer.utils';
 
 describe('parasolid-viewer-parse.utils', () => {
@@ -111,5 +117,42 @@ describe('canExportPx guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportPx({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportPx(null)).toBe(false);
+  });
+});
+
+describe('parasolid-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and solid/measurement metadata rows', () => {
+    const parsed = parsePxBytes(buildSamplePxBytes(), 'gearbox-housing.x_t');
+    const rows = buildPxMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Solids')).toBe(true);
+
+    expect(buildPxSolidMetadata(parsed.solids[0]).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildPxMeasMetadata(parsed.measurements[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createPxFileRecord(createSamplePxFile(), buildSamplePxBytes());
+    const summary = exportPxSummaryJson(file);
+    expect(summary).toContain('"solids"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportPxRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","bodies":[],"solids":[],"measurements":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createPxFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportPx(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolvePxSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePxSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePxSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

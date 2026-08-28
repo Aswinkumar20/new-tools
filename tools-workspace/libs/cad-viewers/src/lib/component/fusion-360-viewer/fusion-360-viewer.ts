@@ -117,6 +117,10 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): FuLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -164,7 +168,13 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleBodies(): FuBody[] {
+    if (!this.hiddenBodyIds.size) return this.filteredBodies;
     return this.filteredBodies.filter((s) => !this.hiddenBodyIds.has(s.id));
+  }
+
+  get visibleInstances(): FuInstance[] {
+    if (!this.hiddenBodyIds.size) return this.filteredInstances;
+    return this.filteredInstances.filter((inst) => !this.isBodyKeyHidden(inst.body));
   }
 
   get selectedBody(): FuBody | null {
@@ -212,6 +222,10 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     return this.hiddenBodyIds.has(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -223,11 +237,18 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -235,15 +256,14 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -254,13 +274,13 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -271,7 +291,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -282,6 +302,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -320,6 +341,10 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: FuLoadedFile): string {
     return file.id;
   }
@@ -351,6 +376,10 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatFuFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -421,20 +450,82 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedBodyId = '';
+    this.selectedComponentId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenBodyIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / visibility
+  // ---------------------------------------------------------------------------
+
   selectBody(id: string): void {
     this.selectedBodyId = id;
+    const body = this.filteredBodies.find((g) => g.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.body === id || (!!body && (inst.body === body.name || inst.body === body.id))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectComponent(id: string): void {
     this.selectedComponentId = id;
+    const component = this.filteredComponents.find((c) => c.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) =>
+        inst.component === id ||
+        (!!component && (inst.component === component.name || inst.component === component.id))
+    );
+    if (hit) {
+      this.selectedInstanceId = hit.id;
+      this.selectBodyFromInstance(hit);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectInstance(id: string): void {
     this.selectedInstanceId = id;
+    const inst = this.filteredInstances.find((i) => i.id === id);
+    if (inst) {
+      this.selectBodyFromInstance(inst);
+      if (inst.component) {
+        const component = this.parsed?.components.find((c) => c.id === inst.component || c.name === inst.component);
+        this.selectedComponentId = component?.id ?? this.selectedComponentId;
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -442,10 +533,24 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredBodies.some((s) => s.id === row.name || s.name === row.name)) this.selectedBodyId = row.name;
-    if (this.filteredComponents.some((e) => e.id === row.name || e.name === row.name)) this.selectedComponentId = row.name;
-    if (this.filteredInstances.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedInstanceId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'component' || this.parsed.components.some((c) => c.name === name || c.id === name)) {
+      const component = this.parsed.components.find((c) => c.name === name || c.id === name);
+      if (component) this.selectComponent(component.id);
+    } else if (kind === 'instance' || this.parsed.instances.some((i) => i.name === name || i.id === name)) {
+      const inst = this.parsed.instances.find((i) => i.name === name || i.id === name);
+      if (inst) this.selectInstance(inst.id);
+    } else if (name) {
+      const body = this.parsed.bodies.find((g) => g.name === name || g.id === name);
+      if (body) this.selectBody(body.id);
+      else this.selectedBodyId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -469,40 +574,30 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedInstanceId && !this.filteredInstances.some((inst) => inst.id === this.selectedInstanceId)) {
       this.selectedInstanceId = this.filteredInstances[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
+  clearSelection(): void {
     this.selectedBodyId = '';
     this.selectedComponentId = '';
     this.selectedInstanceId = '';
     this.selectedRowIndex = 0;
-    this.hiddenBodyIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -515,9 +610,13 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: FuViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -531,6 +630,11 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -541,6 +645,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     const file = this.currentFile;
     if (!this.canExport || !file?.parsed) {
       this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
       return;
     }
     try {
@@ -552,11 +657,13 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Bodies, Components, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
         if (!url) {
           this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         downloadDataUrl(url, `${file.name}.png`);
@@ -568,8 +675,12 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // Canvas / view controls
+  // ---------------------------------------------------------------------------
+
   zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -581,6 +692,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -596,27 +708,14 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedBodyId = '';
-    this.selectedComponentId = '';
-    this.selectedInstanceId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   fitView(): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas) return;
     const { width, height } = sizeCadCanvas(canvas);
     const solids =
       this.viewMode === 'preview'
-        ? toCad3dInstances(this.visibleBodies, this.filteredInstances)
+        ? toCad3dInstances(this.visibleBodies, this.visibleInstances)
         : toCad3dBodies(this.visibleBodies);
     this.view = fitCad3dView(solids, width, height);
     this.renderCanvas();
@@ -624,6 +723,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
+    if (!this.isBrowser || this.viewMode === 'table' || this.viewMode === 'components') return;
     this.rotating = true;
     this.pointerMoved = 0;
     this.lastX = event.clientX;
@@ -632,7 +732,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerMove(event: PointerEvent): void {
-    if (!this.rotating) return;
+    if (!this.isBrowser || !this.rotating) return;
     const dx = event.clientX - this.lastX;
     const dy = event.clientY - this.lastY;
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
@@ -647,31 +747,51 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerUp(event?: PointerEvent): void {
+    if (!this.isBrowser) return;
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'components') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    const id = pickCad3dSolidAtScreen(this.viewMode === 'preview' ? toCad3dInstances(this.visibleBodies, this.filteredInstances) : toCad3dBodies(this.visibleBodies), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectInstance(id);
-    else this.clearSelection();
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleBodies, this.visibleInstances)
+        : toCad3dBodies(this.visibleBodies);
+    const id = pickCad3dSolidAtScreen(solids, this.view, canvas.width, canvas.height, sx, sy);
+    if (!id) this.clearSelection();
+    else if (this.viewMode === 'preview') this.selectInstance(id);
+    else this.selectBody(id);
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private isBodyKeyHidden(bodyKey: string): boolean {
+    if (this.hiddenBodyIds.has(bodyKey)) return true;
+    const body = this.parsed?.bodies.find((b) => b.id === bodyKey || b.name === bodyKey);
+    return !!body && this.hiddenBodyIds.has(body.id);
+  }
+
+  private selectBodyFromInstance(inst: FuInstance): void {
+    const body = this.parsed?.bodies.find((b) => b.id === inst.body || b.name === inst.body);
+    if (body) this.selectedBodyId = body.id;
+  }
+
   private shiftBody(delta: number): void {
-    const list = this.filteredBodies;
+    const list = this.visibleBodies;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedBodyId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -687,7 +807,7 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftInstance(delta: number): void {
-    const list = this.filteredInstances;
+    const list = this.visibleInstances;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedInstanceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -724,13 +844,14 @@ export class Fusion360ViewerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.viewMode === 'preview') {
-      renderFuInstances(canvas, this.visibleBodies, this.filteredInstances, this.selectedInstanceId || null, this.view);
+      renderFuInstances(canvas, this.visibleBodies, this.visibleInstances, this.selectedInstanceId || null, this.view);
       return;
     }
     renderFuBodies(canvas, this.visibleBodies, this.selectedBodyId || null, this.view);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -16,41 +16,53 @@
       </div>
       <div class="trc-suggest__actions">
         <button type="button" class="trc-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="trc-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="trc-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="trc-toolbar">
+    <div class="trc-toolbar" role="toolbar" aria-label="Trace Explorer actions">
       <div class="trc-toolbar__group">
         <input #fileInput class="trc-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn trc-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn trc-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="trc-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="trc-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('traces-csv', $event)">Traces CSV</button>
-            <button type="button" (click)="exportAs('steps-csv', $event)">Steps CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="trc-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="trc-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('traces-csv', $event)">Traces CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('steps-csv', $event)">Steps CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="trc-files" *ngIf="files.length">
           <div class="trc-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.trc-files__chip--active]="i === currentIndex">
             <button type="button" class="trc-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="trc-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="trc-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="trc-toolbar__status"><span class="trc-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="trc-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="trc-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Trace Explorer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="trc-toolbar__status"><span class="trc-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="trc-workspace" [class.trc-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,14 +73,14 @@
             <span>{{ parsed?.name }} · {{ parsed?.traces?.length || 0 }} traces · {{ parsed?.attributes?.length || 0 }} attrs · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="trc-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="trc-map-wrap" [class.trc-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="trc-map-wrap">
           <canvas #canvasHost class="trc-map" [class.trc-map--tall]="viewMode === 'steps'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="trc-cards" *ngIf="currentFile && viewMode === 'path'">
-            <article *ngFor="let trace of filteredTraces; trackBy: trackByTrace" [class.is-active]="selectedTrace?.id === trace.id" (click)="selectTrace(trace.id)">
+            <article *ngFor="let trace of filteredTraces; trackBy: trackByTrace" [class.is-active]="selectedTraceId === trace.id" (click)="selectTrace(trace.id)">
               <header>
                 <i class="trc-swatch" [style.background]="tint(trace.index)"></i>
                 <strong>{{ trace.caseId }}</strong>
@@ -77,9 +89,10 @@
               <p>{{ trace.pathLabel }}</p>
               <p>{{ formatDuration(trace.durationMs) }}</p>
             </article>
+            <p class="trc-empty-filter" *ngIf="parsed && !filteredTraces.length">No traces match the current filter.</p>
           </div>
           <div class="trc-cards" *ngIf="currentFile && viewMode === 'attributes'">
-            <article *ngFor="let attr of filteredAttributes; trackBy: trackByAttribute" [class.is-active]="selectedAttribute?.id === attr.id" (click)="selectAttribute(attr.id)">
+            <article *ngFor="let attr of filteredAttributes; trackBy: trackByAttribute" [class.is-active]="selectedAttributeId === attr.id" (click)="selectAttribute(attr.id)">
               <header>
                 <i class="trc-swatch" [style.background]="tint(attr.index)"></i>
                 <strong>{{ attr.key }}</strong>
@@ -87,9 +100,10 @@
               </header>
               <p *ngFor="let value of attr.values">{{ value.value }} · {{ value.count }} ({{ value.pct }}%)</p>
             </article>
+            <p class="trc-empty-filter" *ngIf="parsed && !filteredAttributes.length">No attributes match the current filter.</p>
           </div>
           <div class="trc-cards" *ngIf="currentFile && viewMode === 'steps'">
-            <article *ngFor="let step of filteredSteps; trackBy: trackByStep" [class.is-active]="selectedStep?.id === step.id" (click)="selectStep(step.id)">
+            <article *ngFor="let step of filteredSteps; trackBy: trackByStep" [class.is-active]="selectedStepId === step.id" (click)="selectStep(step.id)">
               <header>
                 <i class="trc-swatch" [style.background]="tint(step.step)"></i>
                 <strong>{{ step.caseId }}</strong>
@@ -98,6 +112,7 @@
               <p>{{ step.activity }}</p>
               <p>{{ step.resource || '—' }} · {{ formatDuration(step.durationMs) }}</p>
             </article>
+            <p class="trc-empty-filter" *ngIf="parsed && !filteredSteps.length">No steps match the current filter.</p>
           </div>
           <div class="trc-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -111,7 +126,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let trace of filteredTraces; trackBy: trackByTrace" [class.is-active]="selectedTrace?.id === trace.id" (click)="selectTrace(trace.id)">
+                <tr *ngFor="let trace of filteredTraces; trackBy: trackByTrace" [class.is-active]="selectedTraceId === trace.id" (click)="selectTrace(trace.id)">
                   <td>{{ trace.index + 1 }}</td>
                   <td>{{ trace.caseId }}</td>
                   <td>{{ trace.events }}</td>
@@ -125,90 +140,110 @@
           <div class="trc-empty" *ngIf="!currentFile && !loading">
             <p>Drop traces here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn trc-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="trc-loading" *ngIf="loading">Parsing traces…</div>
+          <div class="trc-loading" *ngIf="loading" role="status" aria-live="polite">Parsing traces…</div>
         </div>
 
-        <div class="trc-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="trc-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="trc-disclaimer">Education and research preview only — not a substitute for ProM, Disco, or production case explorers.</p>
+        <div class="trc-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="trc-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="trc-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for ProM, Disco, or production case explorers.</p>
       </section>
 
-      <aside class="trc-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="trc-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="trc-empty-panel">Upload an XES, XML, JSON, or CSV event log or load the sample insurance claim traces to explore case paths, attributes, and steps here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="trc-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search traces</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search traces</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="trc-search" type="search" placeholder="case:CLM1 reject channel=web (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="trc-search" type="search" aria-label="Search traces" placeholder="case:CLM1 reject channel=web (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="trc-search-hint">Try <code>case:CLM1</code>, <code>reject</code>, or <code>channel=web</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'attributes' && filteredAttributes.length">
-          <header class="ctl__panel-head">Attributes</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'attributes' && filteredAttributes.length" open>
+          <summary class="ctl__panel-head">Attributes</summary>
           <div class="ctl__panel-body trc-units">
             <button type="button" *ngFor="let attr of filteredAttributes; trackBy: trackByAttribute" [class.is-active]="selectedAttributeId === attr.id" (click)="selectAttribute(attr.id)">
               <i class="trc-swatch" [style.background]="tint(attr.index)"></i>
               <span>{{ attr.key }} <small>{{ attr.distinct }} values</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'steps' && filteredSteps.length">
-          <header class="ctl__panel-head">Steps</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'steps' && filteredSteps.length" open>
+          <summary class="ctl__panel-head">Steps</summary>
           <div class="ctl__panel-body trc-units">
             <button type="button" *ngFor="let step of filteredSteps; trackBy: trackByStep" [class.is-active]="selectedStepId === step.id" (click)="selectStep(step.id)">
               <i class="trc-swatch" [style.background]="tint(step.step)"></i>
               <span>{{ step.caseId }} · {{ step.activity }} <small>step {{ step.step }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'path' || viewMode === 'table') && filteredTraces.length">
-          <header class="ctl__panel-head">Traces</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'path' || viewMode === 'table') && filteredTraces.length" open>
+          <summary class="ctl__panel-head">Traces</summary>
           <div class="ctl__panel-body trc-units">
             <button type="button" *ngFor="let trace of filteredTraces; trackBy: trackByTrace" [class.is-active]="selectedTraceId === trace.id" (click)="selectTrace(trace.id)">
               <i class="trc-swatch" [style.background]="tint(trace.index)"></i>
               <span>{{ trace.caseId }} <small>{{ trace.events }} steps · {{ formatDuration(trace.durationMs) }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'attributes' && selectedAttribute">
-          <header class="ctl__panel-head">Selected attribute</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'attributes' && selectedAttribute" open>
+          <summary class="ctl__panel-head">Selected attribute</summary>
           <div class="ctl__panel-body">
             <dl class="trc-meta">
               <div *ngFor="let row of attributeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'steps' && selectedStep">
-          <header class="ctl__panel-head">Selected step</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'steps' && selectedStep" open>
+          <summary class="ctl__panel-head">Selected step</summary>
           <div class="ctl__panel-body">
             <dl class="trc-meta">
               <div *ngFor="let row of stepMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'path' || viewMode === 'table') && selectedTrace">
-          <header class="ctl__panel-head">Selected trace</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'path' || viewMode === 'table') && selectedTrace" open>
+          <summary class="ctl__panel-head">Selected trace</summary>
           <div class="ctl__panel-body">
             <dl class="trc-meta">
               <div *ngFor="let row of traceMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="trc-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="trc-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help trc-footer-help">
+      <summary>How to use Trace Explorer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in insurance claim sample. Files never leave your browser.</li>
+        <li>Switch Path, Attributes, Steps, or Table views to explore case behavior from different angles.</li>
+        <li>Search with tokens like <code>case:CLM1</code>, <code>reject</code>, or <code>channel=web</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, traces CSV, steps CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="trc-drop" *ngIf="showDropZone"><p>Drop traces to inspect</p></div>
   </main>
 </div>

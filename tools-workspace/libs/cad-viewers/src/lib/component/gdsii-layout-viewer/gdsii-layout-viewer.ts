@@ -118,6 +118,10 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): GdLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -217,17 +221,9 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return gdTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isLayerHidden(id: string): boolean {
-    return this.hiddenLayerIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -240,11 +236,18 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -252,10 +255,9 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -306,7 +308,7 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -334,10 +336,13 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
       else this.shiftLayer(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatting
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: GdLoadedFile): string {
     return file.id;
@@ -367,9 +372,25 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     return index;
   }
 
+  tint(type: string, index: number): string {
+    return gdTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isLayerHidden(id: string): boolean {
+    return this.hiddenLayerIds.has(id);
+  }
+
   formatSize(bytes: number): string {
     return formatGdFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -440,6 +461,129 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedCellId = '';
+    this.selectedFeatId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLayerIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: GdViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: GdExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportGdSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportGdSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportGdRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Plot, Layers, or Cells to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / layers
+  // ---------------------------------------------------------------------------
+
   selectLayer(id: string): void {
     this.selectedLayerId = id;
     this.renderCanvas();
@@ -465,7 +609,11 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (row?.name) this.selectedFeatId = row.name;
+    if (row?.name) {
+      const feat = this.filteredFeatures.find((e) => e.id === row.name || e.name === row.name);
+      this.selectedFeatId = feat?.id ?? row.name;
+      if (feat?.cell) this.selectedCellId = feat.cell;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -489,103 +637,45 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedFeatId && !this.filteredFeatures.some((e) => e.id === this.selectedFeatId)) {
       this.selectedFeatId = this.filteredFeatures[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedLayerId = '';
+  clearSelection(): void {
     this.selectedCellId = '';
     this.selectedFeatId = '';
-    this.selectedRowIndex = 0;
+    this.selectedLayerId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelected(): void {
+    if (!this.selectedLayerId || !this.parsed) return;
+    const layers = this.parsed.layers ?? [];
+    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
     this.hiddenLayerIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: GdViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: GdExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportGdSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportGdSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportGdRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Plot, Layers, or Cells to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // View / canvas interaction
+  // ---------------------------------------------------------------------------
 
   zoomBy(factor: number): void {
     const canvas = this.canvasHost?.nativeElement;
@@ -607,7 +697,17 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCadView(toGdFeatGeom(this.visibleFeatures), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -621,43 +721,6 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedCellId = '';
-    this.selectedFeatId = '';
-    this.selectedLayerId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  isolateSelected(): void {
-    if (!this.selectedLayerId || !this.parsed) return;
-    const layers = (this.parsed as { layers?: Array<{ id: string }> }).layers ?? [];
-    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  showAllLayers(): void {
-    this.hiddenLayerIds = new Set();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    this.view = fitCadView(toGdFeatGeom(this.visibleFeatures), width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -694,9 +757,8 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -715,6 +777,10 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -724,7 +790,7 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftFeat(delta: number): void {
-    const list = this.filteredFeatures;
+    const list = this.visibleFeatures;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedFeatId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -742,7 +808,8 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
   private shiftRow(delta: number): void {
     const list = this.filteredRows;
     if (!list.length) return;
-    this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
+    const base = this.selectedRowIndex < 0 ? 0 : this.selectedRowIndex;
+    this.selectRow(Math.min(list.length - 1, Math.max(0, base + delta)));
   }
 
   private resetViewForCurrent(): void {
@@ -763,6 +830,7 @@ export class GdsiiLayoutViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -114,7 +114,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="rv-cards" *ngIf="currentFile && viewMode === 'navigate'">
-            <article *ngFor="let inst of filteredInstances; trackBy: trackByInstance" [class.is-active]="selectedInstance?.id === inst.id" tabindex="0" role="button" (click)="selectInstance(inst.id)" (keydown.enter)="selectInstance(inst.id)" (keydown.space)="selectInstance(inst.id); $event.preventDefault()">
+            <article *ngFor="let inst of visibleInstances; trackBy: trackByInstance" [class.is-active]="selectedInstance?.id === inst.id" tabindex="0" role="button" (click)="selectInstance(inst.id)" (keydown.enter)="selectInstance(inst.id)" (keydown.space)="selectInstance(inst.id); $event.preventDefault()">
               <header>
                 <i class="rv-swatch" [style.background]="inst.colorHex || tint(inst.kind, inst.index)"></i>
                 <strong>{{ inst.name }}</strong>
@@ -122,7 +122,7 @@
               </header>
               <p>{{ inst.family }} · {{ inst.type || inst.category }}</p>
             </article>
-            <p class="rv-empty-filter" *ngIf="parsed && !filteredInstances.length">No instances match the current filter.</p>
+            <p class="rv-empty-filter" *ngIf="parsed && !visibleInstances.length">No instances match the current filter or visible families.</p>
           </div>
           <div class="rv-cards" *ngIf="currentFile && viewMode === 'families'">
             <article *ngFor="let family of filteredFamilies; trackBy: trackByFamily" [class.is-active]="selectedFamily?.id === family.id" tabindex="0" role="button" (click)="selectFamily(family.id)" (keydown.enter)="selectFamily(family.id)" (keydown.space)="selectFamily(family.id); $event.preventDefault()">
@@ -130,14 +130,14 @@
                 <i class="rv-swatch" [style.background]="tint('family', family.index)"></i>
                 <strong>{{ family.name }}</strong>
                 <span>family</span>
-                <button type="button" class="rv-eye" (click)="toggleFamilyVisible(family.name, $event)" [attr.aria-label]="isFamilyHidden(family.name) ? 'Show' : 'Hide'" [appTooltip]="isFamilyHidden(family.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isFamilyHidden(family.name) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="rv-eye" (click)="toggleFamilyVisible(family.id, $event)" [attr.aria-label]="isFamilyHidden(family.id) ? 'Show family' : 'Hide family'" [appTooltip]="isFamilyHidden(family.id) ? 'Show family' : 'Hide family'" tooltipPosition="top">{{ isFamilyHidden(family.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>{{ family.description || '—' }} · {{ family.instanceCount }} instances</p>
             </article>
             <p class="rv-empty-filter" *ngIf="parsed && !filteredFamilies.length">No families match the current filter.</p>
           </div>
           <div class="rv-cards" *ngIf="currentFile && viewMode === 'types'">
-            <article *ngFor="let typ of filteredTypes; trackBy: trackByType" [class.is-active]="selectedType?.id === typ.id" tabindex="0" role="button" (click)="selectType(typ.id)" (keydown.enter)="selectType(typ.id)" (keydown.space)="selectType(typ.id); $event.preventDefault()">
+            <article *ngFor="let typ of visibleTypes; trackBy: trackByType" [class.is-active]="selectedType?.id === typ.id" tabindex="0" role="button" (click)="selectType(typ.id)" (keydown.enter)="selectType(typ.id)" (keydown.space)="selectType(typ.id); $event.preventDefault()">
               <header>
                 <i class="rv-swatch" [style.background]="tint('type', typ.index)"></i>
                 <strong>{{ typ.name }}</strong>
@@ -145,7 +145,7 @@
               </header>
               <p>{{ typ.family }} · {{ typ.category }}</p>
             </article>
-            <p class="rv-empty-filter" *ngIf="parsed && !filteredTypes.length">No types match the current filter.</p>
+            <p class="rv-empty-filter" *ngIf="parsed && !visibleTypes.length">No types match the current filter or visible families.</p>
           </div>
           <div class="rv-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -169,7 +169,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="rv-loading" *ngIf="loading">Parsing Revit dump…</div>
+          <div class="rv-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Revit dump…</div>
         </div>
 
         <div class="rv-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -201,10 +201,10 @@
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'navigate' && filteredInstances.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'navigate' && visibleInstances.length" open>
           <summary class="ctl__panel-head">Navigate</summary>
           <div class="ctl__panel-body rv-units">
-            <button type="button" *ngFor="let inst of filteredInstances; trackBy: trackByInstance" [class.is-active]="selectedInstanceId === inst.id" (click)="selectInstance(inst.id)">
+            <button type="button" *ngFor="let inst of visibleInstances; trackBy: trackByInstance" [class.is-active]="selectedInstanceId === inst.id" (click)="selectInstance(inst.id)">
               <i class="rv-swatch" [style.background]="inst.colorHex || tint(inst.kind, inst.index)"></i>
               <span>{{ inst.name }} <small>{{ inst.kind }} · {{ inst.family }}</small></span>
             </button>
@@ -219,10 +219,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'types' || viewMode === 'table') && filteredTypes.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'types' || viewMode === 'table') && visibleTypes.length" open>
           <summary class="ctl__panel-head">Types</summary>
           <div class="ctl__panel-body rv-units">
-            <button type="button" *ngFor="let typ of filteredTypes; trackBy: trackByType" [class.is-active]="selectedTypeId === typ.id" (click)="selectType(typ.id)">
+            <button type="button" *ngFor="let typ of visibleTypes; trackBy: trackByType" [class.is-active]="selectedTypeId === typ.id" (click)="selectType(typ.id)">
               <i class="rv-swatch" [style.background]="tint('type', typ.index)"></i>
               <span>{{ typ.name }} <small>{{ typ.family }} · {{ typ.category }}</small></span>
             </button>

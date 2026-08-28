@@ -12,7 +12,8 @@ import {
   createPlFileRecord,
   createSamplePlFile,
   exportPlSchemaCsv,
-  filterValidPlFiles
+  filterValidPlFiles,
+  resolvePlSuggestion
 } from './plt-plot-viewer.utils';
 
 describe('plt-plot-viewer-parse.utils', () => {
@@ -115,5 +116,13 @@ describe('canExportPl guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportPl({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportPl(null)).toBe(false);
+  });
+});
+
+describe('resolvePlSuggestion', () => {
+  it('prefers error sample, then upload-or-sample when empty', () => {
+    expect(resolvePlSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

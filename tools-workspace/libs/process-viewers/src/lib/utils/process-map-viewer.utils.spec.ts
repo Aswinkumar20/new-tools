@@ -5,7 +5,8 @@ import {
   createProcessMapFileRecord,
   createSampleProcessMapFile,
   exportProcessMapVariantsCsv,
-  filterValidProcessMapFiles
+  filterValidProcessMapFiles,
+  resolveProcessMapSuggestion
 } from './process-map-viewer.utils';
 
 describe('process-map-parse.utils', () => {
@@ -79,5 +80,24 @@ describe('process-map-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveProcessMapSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveProcessMapSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveProcessMapSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveProcessMapSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportProcessMap returns false for null', () => {
+    expect(canExportProcessMap(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createProcessMapFileRecord(new File(['hello world'], 'bad.json', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportProcessMap(record)).toBe(false);
   });
 });

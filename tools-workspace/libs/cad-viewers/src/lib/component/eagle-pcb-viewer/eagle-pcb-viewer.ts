@@ -120,6 +120,10 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): EgLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -167,7 +171,8 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleBoardItems(): EgBoardItem[] {
-    return this.filteredBoardItems.filter((e) => !this.hiddenLayerIds.has(e.layer));
+    if (!this.hiddenLayerIds.size) return this.filteredBoardItems;
+    return this.filteredBoardItems.filter((e) => !this.isLayerKeyHidden(e.layer));
   }
 
   get selectedLayer(): EgLayer | null {
@@ -186,7 +191,12 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     if (this.viewMode === 'board') return this.selectedBoardId || null;
     if (this.viewMode === 'schematic') return this.selectedSchId || null;
     if (this.viewMode === 'stack' && this.selectedLayerId) {
-      return this.visibleBoardItems.find((e) => e.layer === this.selectedLayerId)?.id ?? null;
+      const layer = this.selectedLayer;
+      return (
+        this.visibleBoardItems.find(
+          (e) => e.layer === this.selectedLayerId || (!!layer && e.layer === layer.name)
+        )?.id ?? null
+      );
     }
     return this.selectedBoardId || null;
   }
@@ -228,6 +238,10 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     return this.hiddenLayerIds.has(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -239,11 +253,18 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -251,15 +272,14 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -270,13 +290,13 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -287,7 +307,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -298,6 +318,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -338,6 +359,10 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: EgLoadedFile): string {
     return file.id;
   }
@@ -369,6 +394,10 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatEgFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -439,6 +468,125 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedBoardId = '';
+    this.selectedSchId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLayerIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: EgViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: EgExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      else if (format === 'summary-json') downloadTextFile(exportEgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      else if (format === 'schema-csv') downloadTextFile(exportEgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      else if (format === 'rows-csv') downloadTextFile(exportEgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Board, Schematic, or Stack to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / layers
+  // ---------------------------------------------------------------------------
+
   selectLayer(id: string): void {
     this.selectedLayerId = id;
     this.renderCanvas();
@@ -447,6 +595,8 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
 
   selectBoard(id: string): void {
     this.selectedBoardId = id;
+    const item = this.filteredBoardItems.find((e) => e.id === id);
+    if (item?.layer) this.syncSelectedLayerFromKey(item.layer);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -461,8 +611,21 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
     if (row?.name) {
-      if (row.type === 'symbol' || row.type === 'wire' || row.type === 'pin' || row.type === 'label') this.selectedSchId = row.name;
-      else this.selectedBoardId = row.name;
+      const schTypes = new Set(['symbol', 'wire', 'pin', 'label', 'instance']);
+      if (schTypes.has(row.type)) {
+        const sch = this.filteredSchItems.find((e) => e.id === row.name || e.name === row.name);
+        if (sch) this.selectedSchId = sch.id;
+      } else {
+        const board = this.filteredBoardItems.find((e) => e.id === row.name || e.name === row.name);
+        if (board) {
+          this.selectedBoardId = board.id;
+          if (board.layer) this.syncSelectedLayerFromKey(board.layer);
+        } else {
+          const sch = this.filteredSchItems.find((e) => e.id === row.name || e.name === row.name);
+          if (sch) this.selectedSchId = sch.id;
+          else this.syncSelectedLayerFromKey(row.name);
+        }
+      }
     }
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -487,110 +650,50 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedSchId && !this.filteredSchItems.some((e) => e.id === this.selectedSchId)) {
       this.selectedSchId = this.filteredSchItems[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedLayerId = '';
+  clearSelection(): void {
     this.selectedBoardId = '';
+    this.selectedLayerId = '';
     this.selectedSchId = '';
     this.selectedRowIndex = 0;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelected(): void {
+    if (!this.selectedLayerId || !this.parsed) return;
+    const layers = this.parsed.layers ?? [];
+    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
     this.hiddenLayerIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: EgViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: EgExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportEgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportEgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportEgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Board, Schematic, or Stack to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Canvas / view controls
+  // ---------------------------------------------------------------------------
 
   zoomBy(factor: number): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    if (!canvas) return;
     const sx = canvas.width / 2;
     const sy = canvas.height / 2;
     const next = clampCadZoom(this.view.scale * factor);
@@ -609,6 +712,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -624,37 +728,10 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedBoardId = '';
-    this.selectedLayerId = '';
-    this.selectedSchId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  isolateSelected(): void {
-    if (!this.selectedLayerId || !this.parsed) return;
-    const layers = (this.parsed as { layers?: Array<{ id: string }> }).layers ?? [];
-    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  showAllLayers(): void {
-    this.hiddenLayerIds = new Set();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   fitView(): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas) return;
     const { width, height } = sizeCadCanvas(canvas);
     const geom = this.viewMode === 'schematic' ? toEgSchGeom(this.filteredSchItems) : toEgBoardGeom(this.visibleBoardItems);
     this.view = fitCadView(geom, width, height);
@@ -663,6 +740,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
+    if (!this.isBrowser || this.viewMode === 'table') return;
     this.panning = true;
     this.pointerMoved = 0;
     this.lastX = event.clientX;
@@ -671,7 +749,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerMove(event: PointerEvent): void {
-    if (!this.panning) return;
+    if (!this.isBrowser || !this.panning) return;
     const dx = event.clientX - this.lastX;
     const dy = event.clientY - this.lastY;
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
@@ -682,6 +760,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerUp(event?: PointerEvent): void {
+    if (!this.isBrowser) return;
     const wasClick = this.panning && this.pointerMoved <= 8;
     this.panning = false;
     if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
@@ -698,9 +777,8 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     else this.selectBoard(id);
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -719,6 +797,21 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private isLayerKeyHidden(layerKey: string): boolean {
+    if (this.hiddenLayerIds.has(layerKey)) return true;
+    const layer = this.parsed?.layers.find((l) => l.id === layerKey || l.name === layerKey);
+    return !!layer && this.hiddenLayerIds.has(layer.id);
+  }
+
+  private syncSelectedLayerFromKey(layerKey: string): void {
+    const layer = this.filteredLayers.find((l) => l.id === layerKey || l.name === layerKey);
+    if (layer) this.selectedLayerId = layer.id;
+  }
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -728,7 +821,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftBoard(delta: number): void {
-    const list = this.filteredBoardItems;
+    const list = this.visibleBoardItems;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedBoardId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -768,6 +861,7 @@ export class EaglePcbViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -14,7 +14,20 @@ import {
   parseMeBytes,
   parseMeText
 } from './mep-model-viewer-parse.utils';
-import { canExportMe, createMeFileRecord, createSampleMeFile, exportMeSchemaCsv, filterValidMeFiles } from './mep-model-viewer.utils';
+import {
+  buildMeDisciplineMetadata,
+  buildMeElementMetadata,
+  buildMeMetadataRows,
+  buildMeSystemMetadata,
+  canExportMe,
+  createMeFileRecord,
+  createSampleMeFile,
+  exportMeRowsCsv,
+  exportMeSchemaCsv,
+  exportMeSummaryJson,
+  filterValidMeFiles,
+  resolveMeSuggestion
+} from './mep-model-viewer.utils';
 
 describe('mep-model-viewer-parse.utils', () => {
   it('parses the hospital ME01 sample', () => {
@@ -122,5 +135,43 @@ describe('canExportMe guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportMe({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportMe(null)).toBe(false);
+  });
+});
+
+describe('mep-model-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and element/system/discipline metadata rows', () => {
+    const parsed = parseMeBytes(buildSampleMeBytes(), 'hospital-hvac.ifc');
+    const rows = buildMeMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Elements')).toBe(true);
+
+    expect(buildMeElementMetadata(parsed.elements[0]).some((r) => r.key === 'Kind')).toBe(true);
+    expect(buildMeSystemMetadata(parsed.systems[0]).some((r) => r.key === 'Elements')).toBe(true);
+    expect(buildMeDisciplineMetadata(parsed.disciplines[0]).some((r) => r.key === 'Name')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createMeFileRecord(createSampleMeFile(), buildSampleMeBytes());
+    const summary = exportMeSummaryJson(file);
+    expect(summary).toContain('"elements"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportMeRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","elements":[],"systems":[],"disciplines":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createMeFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportMe(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveMeSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveMeSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveMeSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

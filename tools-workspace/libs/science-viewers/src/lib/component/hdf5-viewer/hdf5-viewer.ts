@@ -13,11 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import {
-  AssetService,
-  Navigation,
-  ToastService
-} from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   HDF5_ACCEPT_ATTR,
   HDF5_FORMATS_HINT,
@@ -72,7 +68,7 @@ import {
   standalone: true,
   templateUrl: './hdf5-viewer.html',
   styleUrls: ['./hdf5-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
@@ -83,8 +79,9 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
-  @ViewChild('canvasHost') canvasHost!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('treeSearchInput') treeSearchInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
+  @ViewChild('treeSearchInput') treeSearchInput?: ElementRef<HTMLInputElement>;
 
   readonly acceptAttr = HDF5_ACCEPT_ATTR;
   readonly relatedTools = HDF5_RELATED_TOOLS;
@@ -174,6 +171,10 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     return this.parsed ? buildHdf5MetadataRows(this.parsed) : [];
   }
 
+  get allTreeCount(): number {
+    return this.parsed ? flattenTree(this.parsed.tree).length : 0;
+  }
+
   get primarySuggestion() {
     const suggestion = resolveHdf5Suggestion({
       hasFiles: this.files.length > 0,
@@ -183,21 +184,24 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     return suggestion;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'preview' && !!this.preview;
+  }
+
   ngAfterViewInit(): void {
-    if (!this.isBrowser) return;
-    this.observeCanvasResize();
+    if (this.isBrowser) this.observeCanvasResize();
   }
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -241,22 +245,42 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    if (!this.currentFile || this.isTypingTarget(event.target)) return;
+    if (this.isTypingTarget(event.target)) {
+      if (event.key === 'Escape') (event.target as HTMLElement).blur();
+      return;
+    }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    if (event.key === 'Escape' && this.treeQuery) {
+      this.treeQuery = '';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!this.currentFile) return;
     if (event.key === '/' && this.viewMode === 'tree') {
       event.preventDefault();
       this.treeSearchInput?.nativeElement?.focus();
-    } else if (event.key === 'Escape') {
-      this.treeQuery = '';
-      this.cdr.markForCheck();
     } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
       event.preventDefault();
       this.setSlice(this.sliceIndex - 1);
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
       event.preventDefault();
       this.setSlice(this.sliceIndex + 1);
+    } else if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      this.zoomIn();
+    } else if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      this.zoomOut();
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
       this.fitZoom();
+    } else if (event.key.toLowerCase() === 'i') {
+      event.preventDefault();
+      this.toggleInvert();
     }
   }
 
@@ -281,9 +305,10 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: Hdf5ViewMode): void {
+    if (mode === this.viewMode) return;
     this.viewMode = mode;
-    if (mode === 'preview') setTimeout(() => this.renderCanvas(), 0);
     this.cdr.markForCheck();
+    if (mode === 'preview') setTimeout(() => this.renderCanvas(), 0);
   }
 
   openFilePicker(): void {
@@ -331,8 +356,11 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
       this.fitZoom();
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) {
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no tree data — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
           this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
         }
       }
@@ -366,12 +394,27 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     this.currentIndex = Math.min(index, next.length - 1);
     this.syncFromCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
     this.files = [];
     this.currentIndex = -1;
+    this.selectedPath = '';
+    this.treeQuery = '';
+    this.plane = 'axial';
+    this.sliceIndex = 0;
+    this.windowCenter = 0;
+    this.windowWidth = 1;
+    this.invert = false;
+    this.colormap = 'hot';
+    this.zoom = 1;
+    this.viewMode = 'preview';
     this.errorMessage = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
@@ -388,6 +431,7 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
 
   selectNode(node: Hdf5TreeNode): void {
     if (node.kind === 'group') return;
+    if (node.path === this.selectedPath && this.viewMode === 'preview') return;
     this.selectedPath = node.path;
     this.viewMode = 'preview';
     const preview = this.preview;
@@ -403,6 +447,7 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setPlane(plane: Hdf5Plane): void {
+    if (plane === this.plane) return;
     this.plane = plane;
     this.sliceIndex = 0;
     this.renderCanvas();
@@ -410,12 +455,15 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setSlice(index: number): void {
-    this.sliceIndex = Math.max(0, Math.min(this.maxSlice, index));
+    const next = Math.max(0, Math.min(this.maxSlice, index));
+    if (next === this.sliceIndex) return;
+    this.sliceIndex = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setColormap(colormap: Hdf5Colormap): void {
+    if (colormap === this.colormap) return;
     this.colormap = colormap;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -428,13 +476,17 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   zoomIn(): void {
-    this.zoom = Math.min(8, this.zoom * 1.15);
+    const next = Math.min(8, this.zoom * 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   zoomOut(): void {
-    this.zoom = Math.max(0.1, this.zoom / 1.15);
+    const next = Math.max(0.1, this.zoom / 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -443,13 +495,17 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     const preview = this.preview;
     const canvas = this.canvasHost?.nativeElement;
     if (!preview || !canvas) return;
-    const dims = preview.rank >= 3 ? this.getSliceDims(preview) : { width: preview.viewDims[0], height: preview.viewDims[1] };
-    this.zoom = computeZoomFit(canvas.clientWidth, canvas.clientHeight, dims.width, dims.height);
+    const dims =
+      preview.rank >= 3
+        ? this.getSliceDims(preview)
+        : { width: preview.viewDims[0] || preview.data.length, height: preview.viewDims[1] || 1 };
+    this.zoom = computeZoomFit(canvas.clientWidth || 320, canvas.clientHeight || 280, dims.width, dims.height);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   resetZoom(): void {
+    if (this.zoom === 1) return;
     this.zoom = 1;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -463,6 +519,11 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -472,16 +533,43 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     this.showExportMenu = false;
     const file = this.currentFile;
     const preview = this.preview;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/x-hdf5');
       else if (format === 'summary-json') downloadTextFile(exportHdf5SummaryJson(file), `${file.name}.summary.json`, 'application/json');
       else if (format === 'tree-json') downloadTextFile(exportHdf5TreeJson(file), `${file.name}.tree.json`, 'application/json');
-      else if (format === 'dataset-json' && preview) downloadTextFile(exportHdf5DatasetJson(preview), `${preview.path}.json`, 'application/json');
-      else if (format === 'dataset-csv' && preview) downloadTextFile(exportHdf5DatasetCsv(preview), `${preview.path}.csv`, 'text/csv');
-      else if (format === 'png') {
-        const url = canvasToPngDataUrl(this.canvasHost.nativeElement);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+      else if (format === 'dataset-json') {
+        if (!preview) {
+          this.toast.info('Select a dataset to export JSON');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadTextFile(exportHdf5DatasetJson(preview), `${preview.path.replace(/\//g, '_') || 'dataset'}.json`, 'application/json');
+      } else if (format === 'dataset-csv') {
+        if (!preview) {
+          this.toast.info('Select a dataset to export CSV');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadTextFile(exportHdf5DatasetCsv(preview), `${preview.path.replace(/\//g, '_') || 'dataset'}.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || !this.canUseCanvasExport) {
+          this.toast.info('Open Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -497,14 +585,17 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
     else this.zoomOut();
   }
 
-  get allTreeCount(): number {
-    return this.parsed ? flattenTree(this.parsed.tree).length : 0;
-  }
-
   private syncFromCurrent(): void {
     const parsed = this.parsed;
-    if (!parsed) return;
+    if (!parsed) {
+      this.selectedPath = '';
+      this.windowCenter = 0;
+      this.windowWidth = 1;
+      this.sliceIndex = 0;
+      return;
+    }
     this.selectedPath = parsed.defaultDatasetPath;
+    this.treeQuery = '';
     const preview = this.preview;
     if (preview) {
       const win = defaultWindowForPreview(preview);
@@ -529,8 +620,8 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
 
     const parent = canvas.parentElement;
     if (parent) {
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
+      canvas.width = Math.max(320, parent.clientWidth);
+      canvas.height = Math.max(280, Math.min(520, parent.clientHeight || 420));
     }
 
     if (preview.rank === 1) {
@@ -562,6 +653,7 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -570,11 +662,10 @@ export class Hdf5ViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private observeCanvasResize(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    const parent = canvas?.parentElement;
-    if (!parent || typeof ResizeObserver === 'undefined') return;
+    const host = this.mapWrap?.nativeElement ?? this.canvasHost?.nativeElement?.parentElement;
+    if (!host || typeof ResizeObserver === 'undefined') return;
     this.resizeObserver = new ResizeObserver(() => this.fitZoom());
-    this.resizeObserver.observe(parent);
+    this.resizeObserver.observe(host);
   }
 
   private isFileDrag(event: DragEvent): boolean {

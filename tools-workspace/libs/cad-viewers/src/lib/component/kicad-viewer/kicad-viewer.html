@@ -116,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="kc-cards" *ngIf="currentFile && viewMode === 'board'">
-            <article *ngFor="let item of filteredBoardItems; trackBy: trackByBoard" [class.is-active]="selectedBoard?.id === item.id" tabindex="0" role="button" (click)="selectBoard(item.id)" (keydown.enter)="selectBoard(item.id)" (keydown.space)="selectBoard(item.id); $event.preventDefault()">
+            <article *ngFor="let item of visibleBoardItems; trackBy: trackByBoard" [class.is-active]="selectedBoard?.id === item.id" tabindex="0" role="button" (click)="selectBoard(item.id)" (keydown.enter)="selectBoard(item.id)" (keydown.space)="selectBoard(item.id); $event.preventDefault()">
               <header>
                 <i class="kc-swatch" [style.background]="item.colorHex || tint(item.type, item.index)"></i>
                 <strong>{{ item.name }}</strong>
@@ -124,7 +124,7 @@
               </header>
               <p>{{ item.layer }} · {{ item.net || item.text || item.length || '—' }}</p>
             </article>
-            <p class="kc-empty-filter" *ngIf="parsed && !filteredBoardItems.length">No board items match the current filter.</p>
+            <p class="kc-empty-filter" *ngIf="parsed && !visibleBoardItems.length">No board items match the current filter.</p>
           </div>
           <div class="kc-cards" *ngIf="currentFile && viewMode === 'schematic'">
             <article *ngFor="let item of filteredSchItems; trackBy: trackBySch" [class.is-active]="selectedSch?.id === item.id" tabindex="0" role="button" (click)="selectSch(item.id)" (keydown.enter)="selectSch(item.id)" (keydown.space)="selectSch(item.id); $event.preventDefault()">
@@ -171,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="kc-loading" *ngIf="loading">Parsing KiCad dump…</div>
+          <div class="kc-loading" *ngIf="loading" role="status">Parsing KiCad dump…</div>
         </div>
 
         <div class="kc-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -221,10 +221,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'board' || viewMode === 'table') && filteredBoardItems.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'board' || viewMode === 'table') && visibleBoardItems.length" open>
           <summary class="ctl__panel-head">Board</summary>
           <div class="ctl__panel-body kc-units">
-            <button type="button" *ngFor="let item of filteredBoardItems; trackBy: trackByBoard" [class.is-active]="selectedBoardId === item.id" (click)="selectBoard(item.id)">
+            <button type="button" *ngFor="let item of visibleBoardItems; trackBy: trackByBoard" [class.is-active]="selectedBoardId === item.id" (click)="selectBoard(item.id)">
               <i class="kc-swatch" [style.background]="item.colorHex || tint(item.type, item.index)"></i>
               <span>{{ item.name }} <small>{{ item.type }} · {{ item.net || item.layer }}</small></span>
             </button>

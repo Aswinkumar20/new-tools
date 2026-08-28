@@ -11,7 +11,8 @@ import {
   createOwlFileRecord,
   createSampleOwlFile,
   exportOwlClassesCsv,
-  filterValidOwlFiles
+  filterValidOwlFiles,
+  resolveOwlSuggestion
 } from './owl-ontology-viewer.utils';
 
 describe('owl-ontology-viewer-parse.utils', () => {
@@ -95,5 +96,24 @@ describe('owl-ontology-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveOwlSuggestion returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveOwlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveOwlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveOwlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.owl', { lastModified: 9 });
+    const record = createOwlFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportOwl(record)).toBe(false);
+  });
+
+  it('canExportOwl returns false for null', () => {
+    expect(canExportOwl(null)).toBe(false);
   });
 });

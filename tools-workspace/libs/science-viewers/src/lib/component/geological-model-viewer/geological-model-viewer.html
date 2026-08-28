@@ -16,41 +16,53 @@
       </div>
       <div class="geom-suggest__actions">
         <button type="button" class="geom-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="geom-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="geom-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="geom-toolbar">
+    <div class="geom-toolbar" role="toolbar" aria-label="Geological Model Viewer actions">
       <div class="geom-toolbar__group">
         <input #fileInput class="geom-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn geom-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn geom-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="geom-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="geom-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('layers-csv', $event)">Layers CSV</button>
-            <button type="button" (click)="exportAs('section-csv', $event)">Section CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="geom-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="geom-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('layers-csv', $event)">Layers CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('section-csv', $event)">Section CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="geom-files" *ngIf="files.length">
           <div class="geom-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.geom-files__chip--active]="i === currentIndex">
             <button type="button" class="geom-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="geom-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="geom-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="geom-toolbar__status"><span class="geom-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="geom-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="geom-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Geological Model Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="geom-toolbar__status"><span class="geom-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="geom-workspace" [class.geom-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,20 +73,20 @@
             <span>{{ parsed?.layers?.length || 0 }} layers · {{ parsed?.wells?.length || 0 }} wells · {{ parsed?.faults?.length || 0 }} faults · {{ parsed?.crs }}</span>
           </div>
           <div class="geom-view-controls">
-            <button type="button" *ngIf="viewMode === 'section'" (click)="setExaggeration(exaggeration * 1.25)" title="Exaggerate (+)">+</button>
-            <button type="button" *ngIf="viewMode === 'section'" (click)="setExaggeration(exaggeration / 1.25)" title="Flatten (−)">−</button>
-            <button type="button" (click)="setExaggeration(1)" title="Fit (F)">Fit</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'section'" (click)="setExaggeration(exaggeration * 1.25)" aria-label="Increase vertical exaggeration" appTooltip="Exaggerate (+)" tooltipPosition="top">+</button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode === 'section'" (click)="setExaggeration(exaggeration / 1.25)" aria-label="Decrease vertical exaggeration" appTooltip="Flatten (−)" tooltipPosition="top">−</button>
+            <button type="button" class="ctl__tool-btn" *ngIf="viewMode === 'section'" (click)="fitExaggeration()" aria-label="Reset vertical exaggeration" appTooltip="Reset exaggeration (F)" tooltipPosition="top">Fit</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
         <div class="geom-filters" *ngIf="currentFile && parsed && viewMode === 'section'">
-          <label>Vertical exaggeration <input type="range" min="0.25" max="5" step="0.05" [ngModel]="exaggeration" (ngModelChange)="setExaggeration(+$event)" /></label>
+          <label>Vertical exaggeration <input type="range" min="0.25" max="5" step="0.05" [ngModel]="exaggeration" (ngModelChange)="setExaggeration(+$event)" aria-label="Vertical exaggeration" /></label>
           <span>{{ exaggeration | number:'1.2-2' }}×</span>
         </div>
 
         <div #mapWrap class="geom-map-wrap" [class.geom-map-wrap--empty]="!currentFile">
-          <canvas #canvasHost class="geom-map" *ngIf="currentFile && (viewMode === 'map' || viewMode === 'section')"></canvas>
+          <canvas #canvasHost class="geom-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="geom-column" *ngIf="currentFile && viewMode === 'column'">
             <div *ngFor="let layer of filteredLayers; trackBy: trackByLayer" class="geom-column__unit" [class.is-active]="selectedLayer?.id === layer.id" [style.background]="layer.color" [style.flex-grow]="layer.base - layer.top" (click)="selectLayer(layer.id)">
               <strong>{{ layer.name }}</strong>
@@ -107,77 +119,98 @@
                 </tr>
               </tbody>
             </table>
+            <p class="geom-empty-filter" *ngIf="parsed && !filteredLayers.length">No layers match the current search.</p>
           </div>
           <div class="geom-empty" *ngIf="!currentFile && !loading">
             <p>Drop geological models here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn geom-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="geom-loading" *ngIf="loading">Parsing model…</div>
+          <div class="geom-loading" *ngIf="loading" role="status" aria-live="polite">Parsing model…</div>
         </div>
 
-        <div class="geom-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="geom-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="geom-disclaimer">Education and research preview only — not validated for reservoir modeling or geosteering.</p>
+        <div class="geom-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="geom-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="geom-disclaimer" *ngIf="currentFile">Education and research preview only — not validated for reservoir modeling or geosteering.</p>
       </section>
 
-      <aside class="geom-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="geom-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="geom-empty-panel">Upload a {{ formatsLabel }} geological model or load the sample basin to inspect the map, cross-section, and stratigraphic column here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="geom-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search layers</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search layers</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="geom-search" type="search" placeholder="Search name / lithology (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="geom-search" type="search" aria-label="Search layers" placeholder="Search name / lithology (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="geom-search-hint">Filter by name, lithology, or age. Press <kbd>/</kbd> to focus; <kbd>↑</kbd>/<kbd>↓</kbd> change layer; <kbd>+</kbd>/<kbd>−</kbd> exaggerate; <kbd>f</kbd> resets Fit.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="filteredLayers.length">
-          <header class="ctl__panel-head">Layers</header>
+        </details>
+        <details class="ctl__panel" *ngIf="filteredLayers.length" open>
+          <summary class="ctl__panel-head">Layers</summary>
           <div class="ctl__panel-body geom-layers">
             <button type="button" *ngFor="let layer of filteredLayers; trackBy: trackByLayer" [class.is-active]="selectedLayerId === layer.id" (click)="selectLayer(layer.id)">
               <i class="geom-swatch" [style.background]="layer.color"></i>
               <span>{{ layer.name }} <small>{{ layer.lithology }}</small></span>
-              <label (click)="$event.stopPropagation()"><input type="checkbox" [checked]="visibleIds.has(layer.id)" (change)="toggleLayer(layer.id)" /> show</label>
+              <label (click)="$event.stopPropagation()"><input type="checkbox" [checked]="visibleIds.has(layer.id)" (change)="toggleLayer(layer.id)" [attr.aria-label]="'Toggle visibility for ' + layer.name" /> show</label>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedLayer">
-          <header class="ctl__panel-head">Selected layer</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedLayer" open>
+          <summary class="ctl__panel-head">Selected layer</summary>
           <div class="ctl__panel-body">
             <dl class="geom-meta">
               <div *ngFor="let row of layerMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="wells.length">
-          <header class="ctl__panel-head">Wells</header>
+        </details>
+        <details class="ctl__panel" *ngIf="wells.length" open>
+          <summary class="ctl__panel-head">Wells</summary>
           <div class="ctl__panel-body geom-wells">
             <button type="button" *ngFor="let well of wells; trackBy: trackByWell" [class.is-active]="selectedWellId === well.id" (click)="selectWell(well.id)">
               {{ well.name }} <span>{{ well.x }}, {{ well.y }} · TD {{ well.td }}</span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="faults.length">
-          <header class="ctl__panel-head">Faults</header>
+        </details>
+        <details class="ctl__panel" *ngIf="faults.length" open>
+          <summary class="ctl__panel-head">Faults</summary>
           <div class="ctl__panel-body">
             <dl class="geom-meta">
               <div *ngFor="let fault of faults"><dt>{{ fault.name }}</dt><dd>{{ fault.dip == null ? '—' : fault.dip + '°' }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="geom-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="geom-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help geom-footer-help">
+      <summary>How to use Geological Model Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in basin sample. Files never leave your browser.</li>
+        <li>Switch Map, Section, Column, or Table views. Search and toggle layer visibility in the details panel.</li>
+        <li>On Section, adjust vertical exaggeration with the slider or <kbd>+</kbd>/<kbd>−</kbd>; press <kbd>f</kbd> to reset.</li>
+        <li>Export the original file, summary JSON, layers CSV, section CSV, or a PNG map/section snapshot.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="geom-drop" *ngIf="showDropZone"><p>Drop geological models to preview</p></div>
   </main>
 </div>

@@ -1,6 +1,6 @@
 import { FM_JSON_SAMPLE, FM_MARKDOWN_SAMPLE, FM_MM_SAMPLE } from '../constants/freemind-viewer-sample.data';
 import { filterFmNodes, parseFreemindText, toggleFmCollapsed, visibleFmNodes } from './freemind-viewer-parse.utils';
-import { canExportFm, createFmFileRecord, createSampleFmFile, exportFmNotesTxt, filterValidFmFiles } from './freemind-viewer.utils';
+import { canExportFm, createFmFileRecord, createSampleFmFile, exportFmNotesTxt, filterValidFmFiles, resolveFmSuggestion } from './freemind-viewer.utils';
 
 describe('freemind-viewer-parse.utils', () => {
   it('parses the shop FreeMind sample', () => {
@@ -77,5 +77,21 @@ describe('freemind-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveFmSuggestion covers empty and error states', () => {
+    expect(resolveFmSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveFmSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveFmSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createFmFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportFm(record)).toBe(false);
+  });
+
+  it('canExportFm returns false for null', () => {
+    expect(canExportFm(null)).toBe(false);
   });
 });

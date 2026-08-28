@@ -1,6 +1,13 @@
 import { PUML_C4_SAMPLE, PUML_CLASS_SAMPLE, PUML_JSON_SAMPLE, PUML_MARKDOWN_SAMPLE } from '../constants/plantuml-viewer-sample.data';
 import { filterPumlElements, parsePlantUmlText } from './plantuml-viewer-parse.utils';
-import { canExportPuml, createPumlFileRecord, createSamplePumlFile, exportPumlElementsCsv, filterValidPumlFiles } from './plantuml-viewer.utils';
+import {
+  canExportPuml,
+  createPumlFileRecord,
+  createSamplePumlFile,
+  exportPumlElementsCsv,
+  filterValidPumlFiles,
+  resolvePumlSuggestion
+} from './plantuml-viewer.utils';
 
 describe('plantuml-viewer-parse.utils', () => {
   it('parses the shop class sample', () => {
@@ -73,5 +80,24 @@ describe('plantuml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolvePumlSuggestion returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolvePumlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePumlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePumlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.puml', { lastModified: 9 });
+    const record = createPumlFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportPuml(record)).toBe(false);
+  });
+
+  it('canExportPuml returns false for null', () => {
+    expect(canExportPuml(null)).toBe(false);
   });
 });

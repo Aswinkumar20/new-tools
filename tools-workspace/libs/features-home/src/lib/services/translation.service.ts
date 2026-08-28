@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
@@ -16,12 +17,16 @@ export class TranslationService {
   public translations$: Observable<Translations> = this.translationsSubject.asObservable();
 
   private translationsCache: Map<string, Translations> = new Map();
+  private readonly isBrowser: boolean;
 
   constructor(
     private http: HttpClient,
-    private languageService: LanguageService
+    private languageService: LanguageService,
+    @Inject(PLATFORM_ID) platformId: object
   ) {
-    // Load initial translations
+    this.isBrowser = isPlatformBrowser(platformId);
+
+    // Load initial translations (browser only — assets are unavailable during prerender)
     this.loadTranslations(this.languageService.getCurrentLanguage());
 
     // Reload translations when language changes
@@ -37,9 +42,16 @@ export class TranslationService {
       return;
     }
 
+    if (!this.isBrowser) {
+      const emptyTranslations: Translations = {};
+      this.translationsCache.set(languageCode, emptyTranslations);
+      this.translationsSubject.next(emptyTranslations);
+      return;
+    }
+
     // Try to load from assets
     const translationPath = `assets/i18n/${languageCode}.json`;
-    
+
     this.http.get<Translations>(translationPath).pipe(
       map(translations => {
         this.translationsCache.set(languageCode, translations);
@@ -96,4 +108,3 @@ export class TranslationService {
     return this.translationsSubject.value;
   }
 }
-

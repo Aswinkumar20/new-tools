@@ -23,7 +23,9 @@
           type="button"
           class="bpmn-suggest__dismiss"
           (click)="dismissSuggestion(suggestion.id)"
-          aria-label="Dismiss suggestion">
+          aria-label="Dismiss suggestion"
+          appTooltip="Dismiss suggestion"
+          tooltipPosition="bottom">
           Dismiss
         </button>
       </div>
@@ -62,15 +64,16 @@
           <span class="ctl__tool-btn-label">Sample</span>
         </button>
 
-        <div class="bpmn-export" *ngIf="canExport">
+        <div class="bpmn-export">
           <button
             type="button"
             class="ctl__tool-btn ctl__tool-btn--icon"
             (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
             [attr.aria-expanded]="showExportMenu"
             aria-haspopup="menu"
-            aria-label="Export options"
-            appTooltip="Export options"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
             tooltipPosition="bottom">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -79,7 +82,7 @@
             </svg>
             <span class="ctl__tool-btn-label">Export</span>
           </button>
-          <div class="bpmn-export__menu" *ngIf="showExportMenu" role="menu" aria-label="Export formats">
+          <div class="bpmn-export__menu" *ngIf="showExportMenu && canExport" role="menu" aria-label="Export formats">
             <button type="button" role="menuitem" (click)="exportAs('svg', $event)">
               <strong>SVG</strong>
               <span>Vector snapshot of the diagram</span>
@@ -114,7 +117,8 @@
           class="ctl__tool-btn ctl__tool-btn--icon"
           (click)="clearAll()"
           [disabled]="bpmnFiles.length === 0"
-          appTooltip="Clear all"
+          [attr.aria-label]="bpmnFiles.length ? 'Clear loaded files' : 'Nothing to clear'"
+          [appTooltip]="bpmnFiles.length ? 'Clear all loaded files' : 'Nothing to clear'"
           tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Clear</span>
@@ -137,6 +141,8 @@
               type="button"
               class="bpmn-files__remove"
               [attr.aria-label]="'Remove ' + file.name"
+              [appTooltip]="'Remove ' + file.name"
+              tooltipPosition="bottom"
               (click)="removeFile(i, $event)">
               ×
             </button>
@@ -217,25 +223,32 @@
               <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
             </div>
           </div>
-          <div class="bpmn-loading" *ngIf="loading">Loading diagram…</div>
+          <div class="bpmn-loading" *ngIf="loading" role="status" aria-live="polite">Loading diagram…</div>
         </div>
 
         <div class="bpmn-error" *ngIf="errorMessage" role="alert">
           <p class="bpmn-error__text">{{ errorMessage }}</p>
+          <button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button>
           <button type="button" class="ctl__tool-btn" (click)="loadSample()">
             Load sample diagram
           </button>
         </div>
-        <ul class="bpmn-warnings" *ngIf="importWarnings.length > 0">
+        <ul class="bpmn-warnings" *ngIf="importWarnings.length > 0" role="alert">
           <li *ngFor="let warning of importWarnings">{{ warning }}</li>
         </ul>
       </section>
 
       <aside
+        *ngIf="!sidebarCollapsed"
         id="bpmn-details-sidebar"
         class="bpmn-sidebar"
-        aria-label="Diagram details"
-        [attr.aria-hidden]="sidebarCollapsed">
+        aria-label="Diagram details">
+        <div class="ctl__panel" *ngIf="!stats">
+          <header class="ctl__panel-head">Get started</header>
+          <div class="ctl__panel-body">
+            <p class="bpmn-empty-panel">Upload a BPMN diagram or load the sample to inspect process stats, elements, and selection details here.</p>
+          </div>
+        </div>
         <div class="ctl__panel" *ngIf="stats">
           <header class="ctl__panel-head">
             <span>Process overview</span>
@@ -263,7 +276,7 @@
             <p class="bpmn-selection__name">{{ element.name }}</p>
             <p class="bpmn-selection__type">{{ element.typeLabel }} · {{ element.kind }}</p>
             <p class="bpmn-selection__id">{{ element.id }}</p>
-            <button type="button" class="bpmn-selection__copy" (click)="copySelectedId()">Copy ID</button>
+            <button type="button" class="bpmn-selection__copy" (click)="copySelectedId()" appTooltip="Copy element ID" tooltipPosition="bottom">Copy ID</button>
           </div>
         </div>
 

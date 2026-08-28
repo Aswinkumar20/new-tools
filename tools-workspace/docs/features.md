@@ -12,7 +12,7 @@ Each category is one Nx library (except home/shell in `features-home`). Flows ar
 | SEO | `SeoService` + generated catalog | See [guides/seo.md](./guides/seo.md) |
 | Analytics | GA4 + AutoGA | See [guides/analytics.md](./guides/analytics.md) |
 | i18n | 4 JSON locales, ~20 keys | Chrome only; tools English; asset path may not ship — see [quality.md](./quality.md) |
-| SSR / prerender | Express + `prerender-routes.txt` | Transparent to users |
+| SSG / prerender | `outputMode: static` + `RenderMode.Prerender` | Crawlable HTML; deploy browser dist only |
 
 ## Categories
 

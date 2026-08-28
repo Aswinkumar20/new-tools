@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   BPEL_ACCEPT_ATTR,
   BPEL_FORMATS_HINT,
@@ -53,7 +53,7 @@ import {
   standalone: true,
   templateUrl: './bpel-viewer.html',
   styleUrls: ['./bpel-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BpelViewerComponent implements AfterViewInit, OnDestroy {
@@ -96,6 +96,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): BpelLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -125,11 +129,11 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedActivity(): BpelActivity | null {
-    return this.filteredActivities.find((a) => a.id === this.selectedActivityId) ?? this.filteredActivities[0] ?? null;
+    return this.filteredActivities.find((a) => a.id === this.selectedActivityId) ?? null;
   }
 
   get selectedPartner(): BpelPartner | null {
-    return this.filteredPartners.find((p) => p.id === this.selectedPartnerId) ?? this.filteredPartners[0] ?? null;
+    return this.filteredPartners.find((p) => p.id === this.selectedPartnerId) ?? null;
   }
 
   get activityMetadataRows() {
@@ -149,6 +153,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
     return bpelKindColor(kind);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -156,6 +164,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -210,6 +222,11 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -228,6 +245,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: BpelLoadedFile): string {
     return file.id;
@@ -248,6 +269,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatBpelFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -292,7 +317,11 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no activities — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -312,6 +341,40 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedActivityId = '';
+    this.selectedPartnerId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
   selectActivity(id: string): void {
     this.selectedActivityId = id;
     const activity = this.filteredActivities.find((a) => a.id === id);
@@ -330,38 +393,19 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const activity = this.filteredActivities[0];
-    if (activity && !this.filteredActivities.some((a) => a.id === this.selectedActivityId)) this.selectedActivityId = activity.id;
-    const partner = this.filteredPartners[0];
-    if (partner && !this.filteredPartners.some((p) => p.id === this.selectedPartnerId)) this.selectedPartnerId = partner.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedActivityId && !this.filteredActivities.some((a) => a.id === this.selectedActivityId)) {
+      this.selectedActivityId = this.filteredActivities[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedPartnerId && !this.filteredPartners.some((p) => p.id === this.selectedPartnerId)) {
+      this.selectedPartnerId = this.filteredPartners[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedActivityId = '';
-    this.selectedPartnerId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -374,6 +418,7 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: BpelViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -387,6 +432,11 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -395,7 +445,11 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportBpelSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -405,10 +459,16 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Orchestration, Partners, or Activities to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -416,6 +476,10 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftActivity(delta: number): void {
     const list = this.filteredActivities;
@@ -448,12 +512,17 @@ export class BpelViewerComponent implements AfterViewInit, OnDestroy {
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(this.viewMode === 'orchestration' ? 320 : 220, parent.clientHeight || 240));
     }
-    if (this.viewMode === 'orchestration') renderBpelOrchestration(canvas, this.filteredActivities, this.selectedActivity?.id ?? null);
-    else if (this.viewMode === 'partners') renderBpelPartners(canvas, this.filteredPartners, this.selectedPartner?.id ?? null);
-    else renderBpelKinds(canvas, this.parsed.kinds, this.selectedActivity?.kind ?? null);
+    if (this.viewMode === 'orchestration') {
+      renderBpelOrchestration(canvas, this.filteredActivities, this.selectedActivity?.id ?? null);
+    } else if (this.viewMode === 'partners') {
+      renderBpelPartners(canvas, this.filteredPartners, this.selectedPartner?.id ?? null);
+    } else {
+      renderBpelKinds(canvas, this.parsed.kinds, this.selectedActivity?.kind ?? null);
+    }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

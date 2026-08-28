@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   FITS_ACCEPT_ATTR,
   FITS_FORMATS_HINT,
@@ -65,7 +65,7 @@ import {
   standalone: true,
   templateUrl: './fits-viewer.html',
   styleUrls: ['./fits-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FitsViewerComponent implements AfterViewInit, OnDestroy {
@@ -76,8 +76,9 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
-  @ViewChild('canvasHost') canvasHost!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('headerSearchInput') headerSearchInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
+  @ViewChild('headerSearchInput') headerSearchInput?: ElementRef<HTMLInputElement>;
 
   readonly acceptAttr = FITS_ACCEPT_ATTR;
   readonly relatedTools = FITS_RELATED_TOOLS;
@@ -114,6 +115,10 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
 
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
+
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
 
   get currentFile(): FitsLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
@@ -174,6 +179,14 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'preview';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -181,6 +194,10 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -195,13 +212,16 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
-    this.showDropZone = true;
-    this.cdr.markForCheck();
+    if (!this.showDropZone) {
+      this.showDropZone = true;
+      this.cdr.markForCheck();
+    }
   }
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (this.isFileDrag(event)) event.preventDefault();
+    if (!this.isFileDrag(event)) return;
+    event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
@@ -209,7 +229,7 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
-    if (this.dragDepth === 0) {
+    if (this.dragDepth === 0 && this.showDropZone) {
       this.showDropZone = false;
       this.cdr.markForCheck();
     }
@@ -227,7 +247,16 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    if (!this.currentFile || this.isTypingTarget(event.target)) return;
+    if (this.isTypingTarget(event.target)) {
+      if (event.key === 'Escape') (event.target as HTMLElement).blur();
+      return;
+    }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!this.currentFile) return;
     if (event.key === '/' && this.viewMode === 'header') {
       event.preventDefault();
       this.headerSearchInput?.nativeElement?.focus();
@@ -237,11 +266,24 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
       event.preventDefault();
       this.setSlice(this.sliceIndex + 1);
+    } else if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      this.zoomIn();
+    } else if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      this.zoomOut();
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
       this.fitZoom();
+    } else if (event.key.toLowerCase() === 'i') {
+      event.preventDefault();
+      this.toggleInvert();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, f: FitsLoadedFile): string {
     return f.id;
@@ -259,11 +301,9 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     return formatFitsFileSize(bytes);
   }
 
-  setViewMode(mode: FitsViewMode): void {
-    this.viewMode = mode;
-    if (mode === 'preview') setTimeout(() => this.renderCanvas(), 0);
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -278,7 +318,7 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
 
   async handleFiles(files: File[]): Promise<void> {
     const { accepted, rejected } = filterValidFitsFiles(files);
-    rejected.forEach((r) => this.toast.error(`${r.name}: ${r.reason}`));
+    for (const item of rejected) this.toast.error(`${item.name}: ${item.reason}`);
     if (!accepted.length) {
       this.cdr.markForCheck();
       return;
@@ -288,21 +328,34 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
     try {
       for (const file of accepted) {
-        const bytes = await readFitsFileBytes(file);
-        const record = createFitsFileRecord(file, bytes);
-        const existing = this.files.findIndex((f) => f.id === record.id);
-        if (existing >= 0) {
-          this.files[existing] = record;
-          this.currentIndex = existing;
-        } else {
-          this.files = [...this.files, record];
-          this.currentIndex = this.files.length - 1;
+        try {
+          const bytes = await readFitsFileBytes(file);
+          const record = createFitsFileRecord(file, bytes);
+          const existing = this.files.findIndex((f) => f.id === record.id);
+          if (existing >= 0) {
+            this.files[existing] = record;
+            this.currentIndex = existing;
+          } else {
+            this.files = [...this.files, record];
+            this.currentIndex = this.files.length - 1;
+          }
+          this.syncFromCurrent();
+        } catch (error) {
+          this.errorMessage = `${file.name}: ${error instanceof Error ? error.message : 'Invalid FITS'}`;
+          this.toast.error(this.errorMessage);
         }
-        this.syncFromCurrent();
       }
       this.fitZoom();
       this.renderCanvas();
-      if (this.currentFile) this.toast.success(`Loaded ${this.currentFile.name}`);
+      if (this.currentFile) {
+        this.errorMessage = '';
+        this.toast.success(`Loaded ${this.currentFile.name}`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with incomplete HDUs — preview may be limited');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
+      }
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -323,36 +376,56 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
 
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
-    this.files = this.files.filter((_, i) => i !== index);
-    if (!this.files.length) {
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
       this.clearAll();
       return;
     }
-    this.currentIndex = Math.min(index, this.files.length - 1);
+    this.currentIndex = Math.min(index, next.length - 1);
     this.syncFromCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
     this.files = [];
     this.currentIndex = -1;
+    this.selectedHduIndex = 0;
     this.errorMessage = '';
+    this.headerQuery = '';
+    this.plane = 'axial';
+    this.sliceIndex = 0;
+    this.windowCenter = 0;
+    this.windowWidth = 1;
+    this.invert = false;
+    this.colormap = 'hot';
+    this.zoom = 1;
+    this.viewMode = 'preview';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
 
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Selection / filters / view controls
+  // ---------------------------------------------------------------------------
 
-  applySuggestion(s: { action: string }): void {
-    if (s.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
+  setViewMode(mode: FitsViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    if (mode === 'preview') setTimeout(() => this.renderCanvas(), 0);
   }
 
   selectHdu(index: number): void {
+    if (this.selectedHduIndex === index) return;
     this.selectedHduIndex = index;
+    this.headerQuery = '';
     const preview = this.preview;
     if (preview) {
       const win = defaultWindowForPreview(preview);
@@ -366,6 +439,7 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setPlane(plane: FitsPlane): void {
+    if (this.plane === plane) return;
     this.plane = plane;
     this.sliceIndex = 0;
     this.renderCanvas();
@@ -373,12 +447,15 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setSlice(index: number): void {
-    this.sliceIndex = Math.max(0, Math.min(this.maxSlice, index));
+    const next = Math.max(0, Math.min(this.maxSlice, Math.round(index)));
+    if (next === this.sliceIndex) return;
+    this.sliceIndex = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setColormap(c: FitsColormap): void {
+    if (this.colormap === c) return;
     this.colormap = c;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -391,13 +468,17 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   zoomIn(): void {
-    this.zoom = Math.min(8, this.zoom * 1.15);
+    const next = Math.min(8, this.zoom * 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   zoomOut(): void {
-    this.zoom = Math.max(0.1, this.zoom / 1.15);
+    const next = Math.max(0.1, this.zoom / 1.15);
+    if (next === this.zoom) return;
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -407,15 +488,39 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     const canvas = this.canvasHost?.nativeElement;
     if (!preview || !canvas) return;
     const dims = this.getSliceDims(preview);
-    this.zoom = computeZoomFit(canvas.clientWidth, canvas.clientHeight, dims.width, dims.height);
+    const next = computeZoomFit(canvas.clientWidth || 320, canvas.clientHeight || 280, dims.width, dims.height);
+    if (next === this.zoom) {
+      this.renderCanvas();
+      return;
+    }
+    this.zoom = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   resetZoom(): void {
+    if (this.zoom === 1) return;
     this.zoom = 1;
     this.renderCanvas();
     this.cdr.markForCheck();
+  }
+
+  onHeaderQueryChange(): void {
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / chrome / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(s: { action: string }): void {
+    if (s.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
   }
 
   toggleSidebar(): void {
@@ -426,6 +531,11 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -435,15 +545,36 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
     this.showExportMenu = false;
     const file = this.currentFile;
     const preview = this.preview;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/fits');
       else if (format === 'summary-json') downloadTextFile(exportFitsSummaryJson(file), `${file.name}.summary.json`, 'application/json');
       else if (format === 'header-json') downloadTextFile(exportFitsHeaderJson(file, this.selectedHduIndex), `${file.name}.header.json`, 'application/json');
-      else if (format === 'data-csv' && preview) downloadTextFile(exportFitsDataCsv(preview), `${preview.name}.csv`, 'text/csv');
-      else if (format === 'png') {
-        const url = canvasToPngDataUrl(this.canvasHost.nativeElement);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+      else if (format === 'data-csv') {
+        if (!preview) {
+          this.toast.info('No image data available for CSV export');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadTextFile(exportFitsDataCsv(preview), `${preview.name}.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || !this.canUseCanvasExport) {
+          this.toast.info('Open Preview view to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (e) {
@@ -453,15 +584,30 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.preview) return;
+    if (!this.preview || !this.canUseCanvasExport) return;
     event.preventDefault();
     if (event.deltaY < 0) this.zoomIn();
     else this.zoomOut();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private syncFromCurrent(): void {
     const parsed = this.parsed;
-    if (!parsed) return;
+    this.headerQuery = '';
+    this.plane = 'axial';
+    this.sliceIndex = 0;
+    this.invert = false;
+    this.colormap = 'hot';
+    this.zoom = 1;
+    if (!parsed) {
+      this.selectedHduIndex = 0;
+      this.windowCenter = 0;
+      this.windowWidth = 1;
+      return;
+    }
     this.selectedHduIndex = parsed.defaultHduIndex;
     const preview = this.preview;
     if (preview) {
@@ -479,14 +625,14 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private renderCanvas(): void {
-    if (!this.isBrowser || this.viewMode !== 'preview') return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const preview = this.preview;
     if (!canvas || !preview) return;
     const parent = canvas.parentElement;
     if (parent) {
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
+      canvas.width = Math.max(320, parent.clientWidth);
+      canvas.height = Math.max(280, parent.clientHeight || 420);
     }
     if (preview.naxis === 1) {
       drawLineChartToCanvas(canvas, preview.data, { color: '#f59e0b' });
@@ -515,16 +661,21 @@ export class FitsViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
-    const ctx = this.canvasHost?.nativeElement?.getContext('2d');
-    const c = this.canvasHost?.nativeElement;
-    if (ctx && c) ctx.clearRect(0, 0, c.width, c.height);
+    if (!this.isBrowser) return;
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
   private observeCanvasResize(): void {
-    const parent = this.canvasHost?.nativeElement?.parentElement;
-    if (!parent || typeof ResizeObserver === 'undefined') return;
-    this.resizeObserver = new ResizeObserver(() => this.fitZoom());
-    this.resizeObserver.observe(parent);
+    const host = this.mapWrap?.nativeElement;
+    if (!host || typeof ResizeObserver === 'undefined') return;
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.canUseCanvasExport) this.fitZoom();
+    });
+    this.resizeObserver.observe(host);
   }
 
   private isFileDrag(event: DragEvent): boolean {

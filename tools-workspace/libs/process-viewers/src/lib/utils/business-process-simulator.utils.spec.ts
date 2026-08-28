@@ -15,7 +15,8 @@ import {
   createBpsimFileRecord,
   createSampleBpsimFile,
   exportBpsimScenariosCsv,
-  filterValidBpsimFiles
+  filterValidBpsimFiles,
+  resolveBpsimSuggestion
 } from './business-process-simulator.utils';
 
 describe('business-process-simulator-parse.utils', () => {
@@ -111,5 +112,24 @@ describe('business-process-simulator.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveBpsimSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveBpsimSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveBpsimSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveBpsimSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportBpsim returns false for null', () => {
+    expect(canExportBpsim(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createBpsimFileRecord(new File(['hello world'], 'bad.bpmn', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportBpsim(record)).toBe(false);
   });
 });

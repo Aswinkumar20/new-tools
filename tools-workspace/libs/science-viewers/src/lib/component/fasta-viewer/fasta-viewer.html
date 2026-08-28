@@ -16,41 +16,53 @@
       </div>
       <div class="fa-suggest__actions">
         <button type="button" class="fa-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="fa-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="fa-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="fa-toolbar">
+    <div class="fa-toolbar" role="toolbar" aria-label="FASTA Viewer actions">
       <div class="fa-toolbar__group">
         <input #fileInput class="fa-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn fa-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn fa-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="fa-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="fa-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('sequences-csv', $event)">Sequences CSV</button>
-            <button type="button" (click)="exportAs('selected-fasta', $event)">Selected FASTA</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="fa-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="fa-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('sequences-csv', $event)">Sequences CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('selected-fasta', $event)">Selected FASTA</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="fa-files" *ngIf="files.length">
           <div class="fa-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.fa-files__chip--active]="i === currentIndex">
             <button type="button" class="fa-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="fa-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="fa-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="fa-toolbar__status"><span class="fa-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="fa-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="fa-tab-bar" *ngIf="currentFile" role="tablist" aria-label="FASTA Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="fa-toolbar__status"><span class="fa-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="fa-workspace" [class.fa-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,23 +73,23 @@
             <span>{{ selectedRecord?.length || 0 | number }} bp · {{ selectedRecord?.alphabet || formatsLabel }}</span>
           </div>
           <div class="fa-view-controls">
-            <button type="button" *ngFor="let w of wraps" [class.is-active]="wrap === w" (click)="setWrap(w)">{{ w === 0 ? 'None' : w }}</button>
-            <button type="button" (click)="toggleColor()" [class.is-active]="colorize">Color</button>
-            <button type="button" (click)="setDisplayMode('original')" [class.is-active]="displayMode === 'original'">Seq</button>
-            <button type="button" (click)="setDisplayMode('rc')" [class.is-active]="displayMode === 'rc'" title="Reverse complement (R)">RC</button>
-            <button type="button" (click)="setDisplayMode('translate')" [class.is-active]="displayMode === 'translate'" title="Translate (T)">AA</button>
-            <button type="button" (click)="copySequence()">Copy</button>
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__tool-btn" *ngFor="let w of wraps" [class.is-active]="wrap === w" [attr.aria-pressed]="wrap === w" (click)="setWrap(w)" [attr.aria-label]="w === 0 ? 'No wrap' : 'Wrap at ' + w" [appTooltip]="w === 0 ? 'No wrap' : 'Wrap at ' + w" tooltipPosition="top">{{ w === 0 ? 'None' : w }}</button>
+            <button type="button" class="ctl__tool-btn" (click)="toggleColor()" [class.is-active]="colorize" [attr.aria-pressed]="colorize" aria-label="Toggle residue colors" appTooltip="Toggle residue colors" tooltipPosition="top">Color</button>
+            <button type="button" class="ctl__tool-btn" (click)="setDisplayMode('original')" [class.is-active]="displayMode === 'original'" [attr.aria-pressed]="displayMode === 'original'" aria-label="Original sequence" appTooltip="Original sequence" tooltipPosition="top">Seq</button>
+            <button type="button" class="ctl__tool-btn" (click)="setDisplayMode('rc')" [class.is-active]="displayMode === 'rc'" [attr.aria-pressed]="displayMode === 'rc'" aria-label="Reverse complement" appTooltip="Reverse complement (R)" tooltipPosition="top">RC</button>
+            <button type="button" class="ctl__tool-btn" (click)="setDisplayMode('translate')" [class.is-active]="displayMode === 'translate'" [attr.aria-pressed]="displayMode === 'translate'" aria-label="Translate to amino acids" appTooltip="Translate (T)" tooltipPosition="top">AA</button>
+            <button type="button" class="ctl__tool-btn" (click)="copySequence()" [disabled]="!canCopy" [attr.aria-label]="canCopy ? 'Copy sequence' : 'Nothing to copy'" [appTooltip]="canCopy ? 'Copy sequence (C)' : 'Nothing to copy'" tooltipPosition="top">Copy</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
         <div class="fa-controls" *ngIf="currentFile && displayMode === 'translate'">
-          <label *ngFor="let frame of [0, 1, 2]">
-            <input type="radio" name="frame" [checked]="translateFrame === frame" (change)="setTranslateFrame(frame)" /> Frame {{ frame + 1 }}
+          <label *ngFor="let frame of translateFrames">
+            <input type="radio" name="frame" [checked]="translateFrame === frame" (change)="setTranslateFrame(frame)" [attr.aria-label]="'Translation frame ' + (frame + 1)" /> Frame {{ frame + 1 }}
           </label>
         </div>
 
-        <div #mapWrap class="fa-map-wrap" [class.fa-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="fa-map-wrap">
           <div class="fa-seq" *ngIf="currentFile && viewMode === 'sequence' && selectedRecord">
             <div class="fa-line" *ngFor="let line of wrappedLines; trackBy: trackByLine" [class.is-hit]="lineHighlighted(line)">
               <span class="fa-pos">{{ line.start }}</span>
@@ -90,66 +102,91 @@
             </div>
             <p class="fa-clip" *ngIf="sequenceClipped">Preview truncated — export the full sequence.</p>
           </div>
-          <canvas #canvasHost class="fa-map" *ngIf="viewMode === 'composition'"></canvas>
+          <p class="fa-empty-filter fa-empty-filter--panel" *ngIf="currentFile && viewMode === 'sequence' && !selectedRecord && !loading">No records match the current filter.</p>
+          <canvas #canvasHost class="fa-map" *ngIf="currentFile && canUseCanvasExport"></canvas>
           <div class="fa-empty" *ngIf="!currentFile && !loading">
             <p>Drop FASTA files here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn fa-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="fa-loading" *ngIf="loading">Parsing FASTA…</div>
+          <div class="fa-loading" *ngIf="loading" role="status" aria-live="polite">Parsing FASTA…</div>
         </div>
 
-        <div class="fa-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="fa-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="fa-disclaimer">Education and research preview only — not a substitute for genome browsers or production bioinformatics pipelines.</p>
+        <div class="fa-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="fa-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="fa-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for genome browsers or production bioinformatics pipelines.</p>
       </section>
 
-      <aside class="fa-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="fa-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="fa-empty-panel">Upload a multi-FASTA file or load the sample (DNA, peptide, RNA) to search, wrap, reverse-complement, and chart composition here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="fa-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Records</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Records</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="fa-search" type="search" placeholder="Search id / sequence (/)" [(ngModel)]="query" (ngModelChange)="onQueryChange()" />
-            <button type="button" class="fa-rec" *ngFor="let record of visibleRecords; let i = index; trackBy: trackByRecord" [class.is-active]="selectedRecord?.index === record.index" (click)="selectRecord(i)">
-              <strong>{{ record.id }}</strong>
-              <span>{{ record.length | number }} · {{ record.alphabet }}<ng-container *ngIf="record.gcPercent != null"> · GC {{ record.gcPercent | number:'1.0-0' }}%</ng-container></span>
-            </button>
+            <input #searchInput class="fa-search" type="search" aria-label="Search records" placeholder="Search id / sequence (/)" [(ngModel)]="query" (ngModelChange)="onQueryChange()" />
+            <p class="fa-search-hint">Filter by id, description, or sequence. Press <kbd>/</kbd> to focus; <kbd>↑</kbd>/<kbd>↓</kbd> change record; <kbd>r</kbd> RC; <kbd>t</kbd> translate; <kbd>c</kbd> copy.</p>
+            <div class="fa-rec-list">
+              <button type="button" class="fa-rec" *ngFor="let record of visibleRecords; let i = index; trackBy: trackByRecord" [class.is-active]="selectedRecord?.index === record.index" (click)="selectRecord(i)">
+                <strong>{{ record.id }}</strong>
+                <span>{{ record.length | number }} · {{ record.alphabet }}<ng-container *ngIf="record.gcPercent != null"> · GC {{ record.gcPercent | number:'1.0-0' }}%</ng-container></span>
+              </button>
+            </div>
             <p class="fa-empty-filter" *ngIf="parsed && !visibleRecords.length">No records match the current filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="selectedRecord">
-          <header class="ctl__panel-head">Selected record</header>
+        </details>
+        <details class="ctl__panel" *ngIf="selectedRecord" open>
+          <summary class="ctl__panel-head">Selected record</summary>
           <div class="ctl__panel-body">
             <dl class="fa-meta">
               <div *ngFor="let row of recordMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
-            <label class="fa-jump">Jump <input type="number" min="1" [(ngModel)]="jumpPos" (ngModelChange)="jumpToPosition()" placeholder="position" /></label>
+            <label class="fa-jump">Jump
+              <input type="number" min="1" [(ngModel)]="jumpPos" (ngModelChange)="jumpToPosition()" placeholder="position" aria-label="Jump to sequence position" />
+            </label>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="compositionBars.length">
-          <header class="ctl__panel-head">Composition</header>
+        </details>
+        <details class="ctl__panel" *ngIf="compositionBars.length" open>
+          <summary class="ctl__panel-head">Composition</summary>
           <div class="ctl__panel-body fa-hist">
-            <div class="fa-hist__item" *ngFor="let bar of compositionBars" [title]="bar.label + ': ' + bar.count">
+            <div class="fa-hist__item" *ngFor="let bar of compositionBars" [attr.title]="bar.label + ': ' + bar.count" [attr.aria-label]="bar.label + ': ' + bar.count">
               <div class="fa-hist__bar" [style.height.%]="bar.heightPct" [style.background]="bar.color"></div>
               <span>{{ bar.label }}</span>
             </div>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="fa-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="fa-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help fa-footer-help">
+      <summary>How to use FASTA Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in multi-FASTA sample. Files never leave your browser.</li>
+        <li>Switch Sequence or Composition views. Wrap, color residues, reverse-complement, or translate nucleic records.</li>
+        <li>Search records, jump to a position, and copy the displayed sequence. Press <kbd>c</kbd> to copy; <kbd>r</kbd>/<kbd>t</kbd> toggle RC/AA.</li>
+        <li>Export the original file, summary JSON, sequences CSV, selected FASTA, or a PNG composition snapshot.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="fa-drop" *ngIf="showDropZone"><p>Drop FASTA files to preview</p></div>
   </main>
 </div>

@@ -16,41 +16,53 @@
       </div>
       <div class="ptl-suggest__actions">
         <button type="button" class="ptl-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="ptl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="ptl-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="ptl-toolbar">
+    <div class="ptl-toolbar" role="toolbar" aria-label="Process Timeline Viewer actions">
       <div class="ptl-toolbar__group">
         <input #fileInput class="ptl-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn ptl-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn ptl-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="ptl-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="ptl-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('timeline-csv', $event)">Timeline CSV</button>
-            <button type="button" (click)="exportAs('lanes-csv', $event)">Lanes CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="ptl-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="ptl-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('timeline-csv', $event)">Timeline CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('lanes-csv', $event)">Lanes CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="ptl-files" *ngIf="files.length">
           <div class="ptl-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.ptl-files__chip--active]="i === currentIndex">
             <button type="button" class="ptl-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="ptl-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="ptl-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="ptl-toolbar__status"><span class="ptl-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="ptl-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="ptl-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Process Timeline Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="ptl-toolbar__status"><span class="ptl-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="ptl-workspace" [class.ptl-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,14 +73,14 @@
             <span>{{ parsed?.name }} · {{ parsed?.items?.length || 0 }} events · {{ parsed?.caseLanes?.length || 0 }} cases · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="ptl-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="ptl-map-wrap" [class.ptl-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="ptl-map-wrap">
           <canvas #canvasHost class="ptl-map" [class.ptl-map--tall]="viewMode === 'gantt'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="ptl-cards" *ngIf="currentFile && viewMode === 'gantt'">
-            <article *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" (click)="selectItem(item.id)">
+            <article *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
               <header>
                 <i class="ptl-swatch" [style.background]="tint(item.index)"></i>
                 <strong>{{ item.caseId }}</strong>
@@ -76,9 +88,10 @@
               </header>
               <p>{{ item.activity }} · {{ item.resource }}</p>
             </article>
+            <p class="ptl-empty-filter" *ngIf="parsed && !filteredItems.length">No events match the current filter.</p>
           </div>
           <div class="ptl-cards" *ngIf="currentFile && viewMode === 'lanes'">
-            <article *ngFor="let lane of filteredResourceLanes; trackBy: trackByLane" [class.is-active]="selectedLane?.id === lane.id" (click)="selectLane(lane.id)">
+            <article *ngFor="let lane of filteredResourceLanes; trackBy: trackByLane" [class.is-active]="selectedLaneId === lane.id" (click)="selectLane(lane.id)">
               <header>
                 <i class="ptl-swatch" [style.background]="tint(lane.index)"></i>
                 <strong>{{ lane.name }}</strong>
@@ -86,9 +99,10 @@
               </header>
               <p>{{ formatDuration(lane.durationMs) }}</p>
             </article>
+            <p class="ptl-empty-filter" *ngIf="parsed && !filteredResourceLanes.length">No resource lanes match the current filter.</p>
           </div>
           <div class="ptl-cards" *ngIf="currentFile && viewMode === 'events'">
-            <article *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" (click)="selectItem(item.id)">
+            <article *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
               <header>
                 <i class="ptl-swatch" [style.background]="tint(item.index)"></i>
                 <strong>{{ item.activity }}</strong>
@@ -97,6 +111,7 @@
               <p>{{ item.resource }} · {{ formatDuration(item.durationMs) }}</p>
               <p>{{ item.startTime }}</p>
             </article>
+            <p class="ptl-empty-filter" *ngIf="parsed && !filteredItems.length">No events match the current filter.</p>
           </div>
           <div class="ptl-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -110,7 +125,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" (click)="selectItem(item.id)">
+                <tr *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
                   <td>{{ item.index + 1 }}</td>
                   <td>{{ item.caseId }}</td>
                   <td>{{ item.activity }}</td>
@@ -124,82 +139,102 @@
           <div class="ptl-empty" *ngIf="!currentFile && !loading">
             <p>Drop timeline events here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn ptl-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="ptl-loading" *ngIf="loading">Parsing timeline…</div>
+          <div class="ptl-loading" *ngIf="loading" role="status" aria-live="polite">Parsing timeline…</div>
         </div>
 
-        <div class="ptl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="ptl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="ptl-disclaimer">Education and research preview only — not a substitute for Disco, Celonis, or production timeline tools.</p>
+        <div class="ptl-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="ptl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="ptl-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Disco, Celonis, or production timeline tools.</p>
       </section>
 
-      <aside class="ptl-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="ptl-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="ptl-empty-panel">Upload an XES, XML, JSON, or CSV event log or load the sample warehouse timeline to explore gantt, lane, and event views here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="ptl-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search timeline</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search timeline</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="ptl-search" type="search" placeholder="case:W1 activity:Pack resource:Cara (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="ptl-search" type="search" aria-label="Search timeline" placeholder="case:W1 activity:Pack resource:Cara (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="ptl-search-hint">Try <code>case:W1</code>, <code>activity:Pack</code>, or <code>resource:Cara</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'lanes' && filteredResourceLanes.length">
-          <header class="ctl__panel-head">Resource lanes</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'lanes' && filteredResourceLanes.length" open>
+          <summary class="ctl__panel-head">Resource lanes</summary>
           <div class="ctl__panel-body ptl-units">
             <button type="button" *ngFor="let lane of filteredResourceLanes; trackBy: trackByLane" [class.is-active]="selectedLaneId === lane.id" (click)="selectLane(lane.id)">
               <i class="ptl-swatch" [style.background]="tint(lane.index)"></i>
               <span>{{ lane.name }} <small>{{ lane.events }} events</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'gantt' && filteredCaseLanes.length">
-          <header class="ctl__panel-head">Case lanes</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'gantt' && filteredCaseLanes.length" open>
+          <summary class="ctl__panel-head">Case lanes</summary>
           <div class="ctl__panel-body ptl-units">
             <button type="button" *ngFor="let lane of filteredCaseLanes; trackBy: trackByLane" [class.is-active]="selectedLaneId === lane.id" (click)="selectLane(lane.id)">
               <i class="ptl-swatch" [style.background]="tint(lane.index)"></i>
               <span>{{ lane.name }} <small>{{ lane.events }} events</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'events' || viewMode === 'table') && filteredItems.length">
-          <header class="ctl__panel-head">Events</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'events' || viewMode === 'table') && filteredItems.length" open>
+          <summary class="ctl__panel-head">Events</summary>
           <div class="ctl__panel-body ptl-units">
             <button type="button" *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
               <i class="ptl-swatch" [style.background]="tint(item.index)"></i>
               <span>{{ item.caseId }} · {{ item.activity }} <small>{{ item.resource }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'lanes' && selectedLane">
-          <header class="ctl__panel-head">Selected lane</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'lanes' && selectedLane" open>
+          <summary class="ctl__panel-head">Selected lane</summary>
           <div class="ctl__panel-body">
             <dl class="ptl-meta">
               <div *ngFor="let row of laneMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'lanes' && selectedItem">
-          <header class="ctl__panel-head">Selected event</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'lanes' && selectedItem" open>
+          <summary class="ctl__panel-head">Selected event</summary>
           <div class="ctl__panel-body">
             <dl class="ptl-meta">
               <div *ngFor="let row of itemMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ptl-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="ptl-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help ptl-footer-help">
+      <summary>How to use Process Timeline Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in warehouse timeline sample. Files never leave your browser.</li>
+        <li>Switch Gantt, Lanes, Events, or Table views to explore overlapping cases and resource utilization.</li>
+        <li>Search with tokens like <code>case:W1</code>, <code>activity:Pack</code>, or <code>resource:Cara</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, timeline CSV, lanes CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="ptl-drop" *ngIf="showDropZone"><p>Drop timeline events to inspect</p></div>
   </main>
 </div>

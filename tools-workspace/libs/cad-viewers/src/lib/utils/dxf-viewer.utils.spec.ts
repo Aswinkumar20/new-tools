@@ -12,7 +12,8 @@ import {
   createDxFileRecord,
   createSampleDxFile,
   exportDxSchemaCsv,
-  filterValidDxFiles
+  filterValidDxFiles,
+  resolveDxSuggestion
 } from './dxf-viewer.utils';
 
 describe('dxf-viewer-parse.utils', () => {
@@ -116,5 +117,13 @@ describe('canExportDx guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportDx({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportDx(null)).toBe(false);
+  });
+});
+
+describe('resolveDxSuggestion', () => {
+  it('returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveDxSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDxSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDxSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

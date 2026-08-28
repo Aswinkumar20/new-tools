@@ -137,7 +137,7 @@ export class NavigationComponent implements OnInit, OnDestroy {
 
   loadThemePreference(): void {
     // Check localStorage first, default to light mode
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = this.getLocalStorage()?.getItem('theme');
     if (savedTheme) {
       this.isDarkMode = savedTheme === 'dark';
     } else {
@@ -151,16 +151,27 @@ export class NavigationComponent implements OnInit, OnDestroy {
     this.isDarkMode = !this.isDarkMode;
     this.applyTheme();
     // Save preference to localStorage
-    localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+    this.getLocalStorage()?.setItem('theme', this.isDarkMode ? 'dark' : 'light');
   }
 
   applyTheme(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     const root = document.documentElement;
     if (this.isDarkMode) {
       root.setAttribute('data-theme', 'dark');
     } else {
       root.setAttribute('data-theme', 'light');
     }
+  }
+
+  private getLocalStorage(): Storage | null {
+    if (typeof globalThis === 'undefined') {
+      return null;
+    }
+    const globalObject = globalThis as typeof globalThis & { localStorage?: Storage };
+    return globalObject.localStorage ?? null;
   }
 
   @HostListener('window:resize')

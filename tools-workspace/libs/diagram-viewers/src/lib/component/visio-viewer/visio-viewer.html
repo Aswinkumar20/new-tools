@@ -94,7 +94,7 @@
           <div class="vsd-view-controls">
             <label class="vsd-page-select" *ngIf="parsed?.pages?.length">
               <span>Page</span>
-              <select [(ngModel)]="selectedPageId" (ngModelChange)="onPageChange()">
+              <select [(ngModel)]="selectedPageId" (ngModelChange)="onPageChange()" aria-label="Select page">
                 <option *ngFor="let page of parsed?.pages; trackBy: trackByPage" [value]="page.id">{{ page.name }}</option>
               </select>
             </label>
@@ -152,17 +152,24 @@
           <div class="vsd-empty" *ngIf="!currentFile && !loading">
             <p>Drop Visio diagram here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn vsd-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="vsd-loading" *ngIf="loading">Parsing Visio…</div>
+          <div class="vsd-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Visio…</div>
         </div>
 
-        <div class="vsd-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="vsd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="vsd-disclaimer">Education and research preview only — not a substitute for Microsoft Visio. Binary .vsdx zips need a .vdx export.</p>
+        <div class="vsd-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="vsd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="vsd-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Microsoft Visio. Binary .vsdx zips need a .vdx export.</p>
       </section>
 
-      <aside class="vsd-sidebar">
+      <aside class="vsd-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="vsd-empty-panel">Upload a Visio diagram or load the sample to see overview, pages, shapes, and connectors here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -174,7 +181,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="vsd-search" type="search" placeholder="page:Shop shape:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="vsd-search" type="search" aria-label="Search Visio diagram" placeholder="page:Shop shape:Customer rel:uses from:Cart (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="vsd-search-hint">Try <code>page:Shop</code>, <code>shape:Customer</code>, or <code>rel:uses</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'pages' && filteredPages.length" open>
@@ -247,12 +255,12 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Pages, Shapes, or Table views, pick a page, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter pages, shapes, or connectors, then review properties in Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>

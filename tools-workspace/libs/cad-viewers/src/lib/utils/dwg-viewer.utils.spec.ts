@@ -13,7 +13,8 @@ import {
   createDwFileRecord,
   createSampleDwFile,
   exportDwSchemaCsv,
-  filterValidDwFiles
+  filterValidDwFiles,
+  resolveDwSuggestion
 } from './dwg-viewer.utils';
 
 describe('dwg-viewer-parse.utils', () => {
@@ -113,5 +114,13 @@ describe('canExportDw guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportDw({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportDw(null)).toBe(false);
+  });
+});
+
+describe('resolveDwSuggestion', () => {
+  it('returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveDwSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDwSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDwSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

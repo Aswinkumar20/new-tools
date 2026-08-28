@@ -13,7 +13,8 @@ import {
   createDgFileRecord,
   createSampleDgFile,
   exportDgSchemaCsv,
-  filterValidDgFiles
+  filterValidDgFiles,
+  resolveDgSuggestion
 } from './dgn-viewer.utils';
 
 describe('dgn-viewer-parse.utils', () => {
@@ -115,5 +116,13 @@ describe('canExportDg guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportDg({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportDg(null)).toBe(false);
+  });
+});
+
+describe('resolveDgSuggestion', () => {
+  it('returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveDgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveDgSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveDgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

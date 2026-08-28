@@ -16,11 +16,19 @@ import {
   parseAlText
 } from './altium-pcb-viewer-parse.utils';
 import {
+  buildAlCopperMetadata,
+  buildAlDesMetadata,
+  buildAlLayerMetadata,
+  buildAlMetadataRows,
+  buildAlNetMetadata,
   canExportAl,
   createAlFileRecord,
   createSampleAlFile,
+  exportAlRowsCsv,
   exportAlSchemaCsv,
-  filterValidAlFiles
+  exportAlSummaryJson,
+  filterValidAlFiles,
+  resolveAlSuggestion
 } from './altium-pcb-viewer.utils';
 
 describe('altium-pcb-viewer-parse.utils', () => {
@@ -103,13 +111,55 @@ describe('altium-pcb-viewer.utils', () => {
     expect(canExportAl(record)).toBe(true);
   });
 
-  it('exports schema csv', () => {
+  it('marks unparseable bytes as soft-fail without throwing', () => {
+    const file = new File([new Uint8Array([1, 2, 3])], 'broken.pcbdoc', { lastModified: 9 });
+    const record = createAlFileRecord(file, new Uint8Array([1, 2, 3]));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(record.warnings.length).toBeGreaterThan(0);
+    expect(canExportAl(record)).toBe(false);
+  });
+
+  it('builds overview and entity metadata rows', () => {
     const parsed = parseAlBytes(buildSampleAlBytes(), 'power-module.pcbdoc');
-    const csv = exportAlSchemaCsv(parsed);
-    expect(csv).toContain('kind,name,type,layer,net,x');
-    expect(csv).toContain('GND');
-    expect(csv).toContain('designator');
-    expect(csv.split('\n').length).toBe(parsed.layers.length + parsed.nets.length + parsed.coppers.length + parsed.designators.length + 1);
+    const meta = buildAlMetadataRows(parsed);
+    expect(meta.some((r) => r.key === 'Name' && r.value === 'Power Module')).toBe(true);
+    expect(meta.some((r) => r.key === 'Copper')).toBe(true);
+
+    const layer = buildAlLayerMetadata(parsed.layers[0]);
+    expect(layer.some((r) => r.key === 'Name')).toBe(true);
+
+    const net = buildAlNetMetadata(parsed.nets[0]);
+    expect(net.some((r) => r.key === 'Class')).toBe(true);
+
+    const copper = buildAlCopperMetadata(parsed.coppers[0]);
+    expect(copper.some((r) => r.key === 'Type')).toBe(true);
+
+    const des = buildAlDesMetadata(parsed.designators[0]);
+    expect(des.some((r) => r.key === 'Text')).toBe(true);
+  });
+
+  it('exports schema csv, rows csv, and summary json', () => {
+    const file = createSampleAlFile();
+    const record = createAlFileRecord(file, buildSampleAlBytes());
+    const parsed = record.parsed!;
+
+    const schema = exportAlSchemaCsv(parsed);
+    expect(schema).toContain('kind,name,type,layer,net,x');
+    expect(schema).toContain('GND');
+    expect(schema).toContain('designator');
+    expect(schema.split('\n').length).toBe(
+      parsed.layers.length + parsed.nets.length + parsed.coppers.length + parsed.designators.length + 1
+    );
+
+    const rows = exportAlRowsCsv(parsed);
+    expect(rows.split('\n')[0]).toContain('name');
+    expect(rows.split('\n').length).toBe(parsed.rows.length + 1);
+
+    const summary = JSON.parse(exportAlSummaryJson(record));
+    expect(summary.file).toBe(file.name);
+    expect(summary.layers.length).toBe(parsed.layers.length);
+    expect(summary.coppers.length).toBe(parsed.coppers.length);
   });
 
   it('rejects empty, huge, gzip, wrong extension, and duplicates', () => {
@@ -124,14 +174,23 @@ describe('altium-pcb-viewer.utils', () => {
       new File(['x'], 'note.doc', { lastModified: 1 }),
       new File(['x'], 'plan.pcbdoc.gz', { lastModified: 2 }),
       empty,
-      huge
+      huge,
+      new File(['x'], 'board.prjpcb', { lastModified: 5 })
     ]);
-    expect(accepted.length).toBe(1);
+    expect(accepted.length).toBe(2);
+    expect(accepted.some((f) => f.name.endsWith('.prjpcb'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('Duplicate'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
     expect(rejected.some((item) => /empty/i.test(item.reason))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('too large'))).toBe(true);
+  });
+
+  it('resolves contextual suggestions', () => {
+    expect(resolveAlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveAlSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveAlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+    expect(resolveAlSuggestion({ hasFiles: true, hasError: true })?.action).toBe('sample');
   });
 });
 

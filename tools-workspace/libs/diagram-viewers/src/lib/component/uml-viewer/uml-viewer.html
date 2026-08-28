@@ -107,6 +107,7 @@
               </header>
               <p>{{ node.members.length ? node.members.join(', ') : node.id }}</p>
             </article>
+            <p class="uml-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="uml-cards" *ngIf="currentFile && viewMode === 'class'">
             <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
@@ -117,7 +118,7 @@
               </header>
               <p>{{ node.members.length ? node.members.join(', ') : 'no members' }}</p>
             </article>
-            <p class="uml-empty-filter" *ngIf="parsed && !filteredNodes.length">No class classifiers in this diagram.</p>
+            <p class="uml-empty-filter" *ngIf="parsed && !filteredNodes.length">No class classifiers match the current filter.</p>
           </div>
           <div class="uml-cards" *ngIf="currentFile && viewMode === 'sequence'">
             <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
@@ -128,7 +129,7 @@
               </header>
               <p>lifeline</p>
             </article>
-            <p class="uml-empty-filter" *ngIf="parsed && !filteredNodes.length">No sequence lifelines in this diagram.</p>
+            <p class="uml-empty-filter" *ngIf="parsed && !filteredNodes.length">No sequence lifelines match the current filter.</p>
           </div>
           <div class="uml-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -158,17 +159,24 @@
           <div class="uml-empty" *ngIf="!currentFile && !loading">
             <p>Drop UML source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn uml-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="uml-loading" *ngIf="loading">Parsing UML…</div>
+          <div class="uml-loading" *ngIf="loading" role="status" aria-live="polite">Parsing UML…</div>
         </div>
 
-        <div class="uml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="uml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="uml-disclaimer">Education and research preview only — not a substitute for enterprise UML tools.</p>
+        <div class="uml-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="uml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="uml-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for enterprise UML tools.</p>
       </section>
 
-      <aside class="uml-sidebar">
+      <aside class="uml-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="uml-empty-panel">Upload a UML diagram or load the sample to see overview, classifiers, and links here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -180,7 +188,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="uml-search" type="search" placeholder="kind:class from:Customer msg:Checkout (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="uml-search" type="search" aria-label="Search UML diagram" placeholder="kind:class from:Customer msg:Checkout (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="uml-search-hint">Try <code>kind:class</code>, <code>from:Customer</code>, or <code>msg:Checkout</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredLinks.length" open>
@@ -236,12 +245,12 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Class, Sequence, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter classifiers or links, then review properties in Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>

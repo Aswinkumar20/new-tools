@@ -5,7 +5,8 @@ import {
   createPnmlFileRecord,
   createSamplePnmlFile,
   exportPnmlPlacesCsv,
-  filterValidPnmlFiles
+  filterValidPnmlFiles,
+  resolvePnmlSuggestion
 } from './pnml-viewer.utils';
 
 describe('pnml-parse.utils', () => {
@@ -79,5 +80,24 @@ describe('pnml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolvePnmlSuggestion returns upload-or-sample when empty', () => {
+    expect(resolvePnmlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolvePnmlSuggestion returns sample-after-error when hasError', () => {
+    expect(resolvePnmlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportPnml returns false for null', () => {
+    expect(canExportPnml(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createPnmlFileRecord(new File(['hello world'], 'bad.pnml', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportPnml(record)).toBe(false);
   });
 });

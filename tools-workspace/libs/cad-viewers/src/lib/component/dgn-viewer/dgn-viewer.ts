@@ -126,6 +126,10 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): DgLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -173,11 +177,13 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleEntities(): DgEntity[] {
-    return this.filteredEntities.filter((e) => !this.hiddenLayerIds.has(e.level));
+    if (!this.hiddenLayerIds.size) return this.filteredEntities;
+    return this.filteredEntities.filter((e) => !this.isLevelKeyHidden(e.level));
   }
 
   get visibleCivil(): DgCivil[] {
-    return this.filteredCivil.filter((c) => !this.hiddenLayerIds.has(c.level));
+    if (!this.hiddenLayerIds.size) return this.filteredCivil;
+    return this.filteredCivil.filter((c) => !this.isLevelKeyHidden(c.level));
   }
 
   get selectedLayer(): DgLayer | null {
@@ -195,7 +201,12 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   get drawingSelectedId(): string | null {
     if (this.viewMode === 'preview') return this.selectedEntityId || null;
     if (this.viewMode === 'layers' && this.selectedLayerId) {
-      return this.visibleEntities.find((e) => e.level === this.selectedLayerId)?.id ?? null;
+      const layer = this.selectedLayer;
+      return (
+        this.visibleEntities.find(
+          (e) => e.level === this.selectedLayerId || (!!layer && e.level === layer.name)
+        )?.id ?? null
+      );
     }
     if (this.viewMode === 'civil') return this.selectedCivilId || null;
     return this.selectedEntityId || null;
@@ -238,6 +249,10 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     return this.hiddenLayerIds.has(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -249,11 +264,18 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -261,15 +283,14 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -280,13 +301,13 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -297,7 +318,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -308,6 +329,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -346,6 +368,10 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatters
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: DgLoadedFile): string {
     return file.id;
   }
@@ -377,6 +403,10 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatDgFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -447,6 +477,125 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedLayerId = '';
+    this.selectedCivilId = '';
+    this.selectedEntityId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenLayerIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: DgViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: DgExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      else if (format === 'summary-json') downloadTextFile(exportDgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      else if (format === 'schema-csv') downloadTextFile(exportDgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      else if (format === 'rows-csv') downloadTextFile(exportDgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Levels, Civil, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / levels
+  // ---------------------------------------------------------------------------
+
   selectLayer(id: string): void {
     this.selectedLayerId = id;
     this.renderCanvas();
@@ -455,12 +604,16 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   selectCivil(id: string): void {
     this.selectedCivilId = id;
+    const item = this.filteredCivil.find((c) => c.id === id);
+    if (item?.level) this.syncSelectedLevelFromKey(item.level);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectEntity(id: string): void {
     this.selectedEntityId = id;
+    const entity = this.filteredEntities.find((e) => e.id === id);
+    if (entity?.level) this.syncSelectedLevelFromKey(entity.level);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -468,7 +621,21 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (row?.name) this.selectedEntityId = row.name;
+    if (row?.name) {
+      const entity = this.filteredEntities.find((e) => e.id === row.name || e.name === row.name);
+      if (entity) {
+        this.selectedEntityId = entity.id;
+        if (entity.level) this.syncSelectedLevelFromKey(entity.level);
+      } else {
+        const civil = this.filteredCivil.find((c) => c.id === row.name || c.name === row.name);
+        if (civil) {
+          this.selectedCivilId = civil.id;
+          if (civil.level) this.syncSelectedLevelFromKey(civil.level);
+        } else {
+          this.syncSelectedLevelFromKey(row.name);
+        }
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -492,107 +659,50 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedEntityId && !this.filteredEntities.some((e) => e.id === this.selectedEntityId)) {
       this.selectedEntityId = this.filteredEntities[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
   }
 
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedLayerId = '';
+  clearSelection(): void {
     this.selectedCivilId = '';
     this.selectedEntityId = '';
+    this.selectedLayerId = '';
     this.selectedRowIndex = 0;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelected(): void {
+    if (!this.selectedLayerId || !this.parsed) return;
+    const layers = this.parsed.layers ?? [];
+    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllLayers(): void {
+    if (!this.hiddenLayerIds.size) return;
     this.hiddenLayerIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
+    this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: DgViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: DgExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportDgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportDgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportDgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Levels, Civil, or Preview to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
+  // ---------------------------------------------------------------------------
+  // Canvas / view controls
+  // ---------------------------------------------------------------------------
 
   zoomBy(factor: number): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    if (!canvas) return;
     const sx = canvas.width / 2;
     const sy = canvas.height / 2;
     const next = clampCadZoom(this.view.scale * factor);
@@ -611,6 +721,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -626,37 +737,10 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedCivilId = '';
-    this.selectedEntityId = '';
-    this.selectedLayerId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  isolateSelected(): void {
-    if (!this.selectedLayerId || !this.parsed) return;
-    const layers = (this.parsed as { layers?: Array<{ id: string }> }).layers ?? [];
-    this.hiddenLayerIds = new Set(layers.filter((l) => l.id !== this.selectedLayerId).map((l) => l.id));
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  showAllLayers(): void {
-    this.hiddenLayerIds = new Set();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   fitView(): void {
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas) return;
     const { width, height } = sizeCadCanvas(canvas);
     this.view = fitCadView(toCadGeom(this.visibleEntities, this.visibleCivil), width, height);
     this.renderCanvas();
@@ -664,6 +748,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
+    if (!this.isBrowser || this.viewMode === 'table') return;
     this.panning = true;
     this.pointerMoved = 0;
     this.lastX = event.clientX;
@@ -672,7 +757,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerMove(event: PointerEvent): void {
-    if (!this.panning) return;
+    if (!this.isBrowser || !this.panning) return;
     const dx = event.clientX - this.lastX;
     const dy = event.clientY - this.lastY;
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
@@ -683,6 +768,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onCanvasPointerUp(event?: PointerEvent): void {
+    if (!this.isBrowser) return;
     const wasClick = this.panning && this.pointerMoved <= 8;
     this.panning = false;
     if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
@@ -697,9 +783,8 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.isBrowser || !this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -718,6 +803,21 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
+  private isLevelKeyHidden(levelKey: string): boolean {
+    if (this.hiddenLayerIds.has(levelKey)) return true;
+    const layer = this.parsed?.layers.find((l) => l.id === levelKey || l.name === levelKey);
+    return !!layer && this.hiddenLayerIds.has(layer.id);
+  }
+
+  private syncSelectedLevelFromKey(levelKey: string): void {
+    const layer = this.filteredLayers.find((l) => l.id === levelKey || l.name === levelKey);
+    if (layer) this.selectedLayerId = layer.id;
+  }
+
   private shiftLayer(delta: number): void {
     const list = this.filteredLayers;
     if (!list.length) return;
@@ -727,7 +827,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftCivil(delta: number): void {
-    const list = this.filteredCivil;
+    const list = this.visibleCivil;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((c) => c.id === this.selectedCivilId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -736,7 +836,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
 
   private shiftRow(delta: number): void {
     if (this.viewMode === 'preview') {
-      const list = this.filteredEntities;
+      const list = this.visibleEntities;
       if (!list.length) return;
       const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedEntityId));
       const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -766,6 +866,7 @@ export class DgnViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

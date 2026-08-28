@@ -21,7 +21,7 @@ import {
   PL_RELATED_TOOLS,
   PL_SUPPORTED_EXTENSIONS
 } from '../../constants/plt-plot-viewer.constants';
-import type { PlColumn, PlCommand, PlExportFormat, PlPen, PlLoadedFile, PlViewMode } from '../../types/plt-plot-viewer.types';
+import type { PlColumn, PlCommand, PlExportFormat, PlLoadedFile, PlPen, PlViewMode } from '../../types/plt-plot-viewer.types';
 import {
   buildCadInsightStats,
   clampCadZoom,
@@ -30,8 +30,8 @@ import {
 } from '../../utils/cad-file.utils';
 import {
   buildPlCommandMetadata,
-  buildPlPenMetadata,
   buildPlMetadataRows,
+  buildPlPenMetadata,
   canExportPl,
   canvasToPngDataUrl,
   createPlFileRecord,
@@ -39,7 +39,6 @@ import {
   downloadBinaryFile,
   downloadDataUrl,
   downloadTextFile,
-  plTypeColor,
   exportPlRowsCsv,
   exportPlSchemaCsv,
   exportPlSummaryJson,
@@ -48,12 +47,13 @@ import {
   filterPlRows,
   filterValidPlFiles,
   fitCadView,
-  pickCadEntityAtScreen,
-  sizeCadCanvas,
   formatPlFileSize,
+  pickCadEntityAtScreen,
+  plTypeColor,
   readPlFileBytes,
   renderPlPlot,
   resolvePlSuggestion,
+  sizeCadCanvas,
   toCadGeom
 } from '../../utils/plt-plot-viewer.utils';
 
@@ -66,18 +66,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = PL_ACCEPT_ATTR;
   readonly relatedTools = PL_RELATED_TOOLS;
   readonly supportedExtensions = PL_SUPPORTED_EXTENSIONS;
@@ -90,23 +93,30 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: PlLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: PlViewMode = 'plot';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedPenId = '';
   selectedCommandId = '';
   selectedRowIndex = 0;
   hiddenPenIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: CadViewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
   panning = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -115,6 +125,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): PlLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -127,6 +138,10 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     return canExportPl(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -135,10 +150,6 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredPens(): PlPen[] {
@@ -158,21 +169,25 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleCommands(): PlCommand[] {
-    return this.filteredCommands.filter((e) => !this.hiddenPenIds.has(e.pen));
+    if (!this.hiddenPenIds.size) return this.filteredCommands;
+    return this.filteredCommands.filter((c) => !this.isPenKeyHidden(c.pen));
   }
 
   get selectedPen(): PlPen | null {
-    return this.filteredPens.find((l) => l.id === this.selectedPenId) ?? null;
+    return this.filteredPens.find((p) => p.id === this.selectedPenId) ?? null;
   }
 
   get selectedCommand(): PlCommand | null {
-    return this.filteredCommands.find((e) => e.id === this.selectedCommandId) ?? null;
+    return this.filteredCommands.find((c) => c.id === this.selectedCommandId) ?? null;
   }
 
   get plotSelectedId(): string | null {
     if (this.viewMode === 'commands' || this.viewMode === 'plot') return this.selectedCommandId || null;
     if (this.viewMode === 'pens' && this.selectedPenId) {
-      return this.visibleCommands.find((e) => e.pen === this.selectedPenId)?.id ?? null;
+      const pen = this.selectedPen;
+      return (
+        this.visibleCommands.find((c) => c.pen === this.selectedPenId || (!!pen && c.pen === pen.name))?.id ?? null
+      );
     }
     return this.selectedCommandId || null;
   }
@@ -198,18 +213,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return plTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isPenHidden(id: string): boolean {
-    return this.hiddenPenIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -221,11 +225,15 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -233,15 +241,14 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -252,13 +259,13 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -269,7 +276,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -280,6 +287,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -318,6 +326,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: PlLoadedFile): string {
     return file.id;
   }
@@ -346,6 +355,19 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     return formatPlFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return plTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isPenHidden(id: string): boolean {
+    return this.hiddenPenIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -415,14 +437,58 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedPenId = '';
+    this.selectedCommandId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenPenIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'plot';
+    this.view = { scale: 1, offsetX: 0, offsetY: 0 };
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectPen(id: string): void {
     this.selectedPenId = id;
+    const pen = this.filteredPens.find((p) => p.id === id);
+    const hit = this.visibleCommands.find((c) => c.pen === id || (!!pen && c.pen === pen.name));
+    if (hit) this.selectedCommandId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectCommand(id: string): void {
     this.selectedCommandId = id;
+    const command = this.filteredCommands.find((c) => c.id === id);
+    if (command?.pen) {
+      const pen = this.parsed?.pens.find((p) => p.id === command.pen || p.name === command.pen);
+      this.selectedPenId = pen?.id ?? this.selectedPenId;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -430,7 +496,21 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (row?.name) this.selectedCommandId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const type = (row['type'] || row['Type'] || '').toLowerCase();
+    if (type === 'pen' || this.parsed.pens.some((p) => p.name === name || p.id === name)) {
+      const pen = this.parsed.pens.find((p) => p.name === name || p.id === name);
+      if (pen) this.selectPen(pen.id);
+    } else if (name) {
+      const command = this.parsed.commands.find((c) => c.name === name || c.id === name);
+      if (command) this.selectCommand(command.id);
+      else this.selectedCommandId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -445,45 +525,33 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    if (this.selectedPenId && !this.filteredPens.some((l) => l.id === this.selectedPenId)) {
+    if (this.selectedPenId && !this.filteredPens.some((p) => p.id === this.selectedPenId)) {
       this.selectedPenId = this.filteredPens[0]?.id ?? '';
     }
-    if (this.selectedCommandId && !this.filteredCommands.some((e) => e.id === this.selectedCommandId)) {
+    if (this.selectedCommandId && !this.filteredCommands.some((c) => c.id === this.selectedCommandId)) {
       this.selectedCommandId = this.filteredCommands[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedPenId = '';
-    this.selectedCommandId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenPenIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedCommandId = '';
+    this.selectedPenId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -495,9 +563,13 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: PlViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -511,6 +583,11 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -548,6 +625,7 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas || !this.parsed || this.viewMode === 'table') return;
@@ -568,7 +646,17 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCadView(toCadGeom(this.visibleCommands), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -582,28 +670,6 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedCommandId = '';
-    this.selectedPenId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    this.view = fitCadView(toCadGeom(this.visibleCommands), width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -640,9 +706,8 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
@@ -661,18 +726,25 @@ export class PltPlotViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isPenKeyHidden(penKey: string): boolean {
+    if (this.hiddenPenIds.has(penKey)) return true;
+    const pen = this.parsed?.pens.find((p) => p.id === penKey || p.name === penKey);
+    return !!pen && this.hiddenPenIds.has(pen.id);
+  }
+
   private shiftPen(delta: number): void {
     const list = this.filteredPens;
     if (!list.length) return;
-    const idx = Math.max(0, list.findIndex((l) => l.id === this.selectedPenId));
+    const idx = Math.max(0, list.findIndex((p) => p.id === this.selectedPenId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
     if (next) this.selectPen(next.id);
   }
 
   private shiftCommand(delta: number): void {
-    const list = this.filteredCommands;
+    const list = this.visibleCommands;
     if (!list.length) return;
-    const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedCommandId));
+    const idx = Math.max(0, list.findIndex((c) => c.id === this.selectedCommandId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
     if (next) this.selectCommand(next.id);
   }

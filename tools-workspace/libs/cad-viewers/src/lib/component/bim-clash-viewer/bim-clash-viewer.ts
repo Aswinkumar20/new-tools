@@ -116,6 +116,10 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): BcLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -163,13 +167,20 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleItems(): BcItem[] {
-    let items = this.filteredItems.filter((s) => !this.hiddenTestIds.has(s.test));
+    let items = this.hiddenTestIds.size
+      ? this.filteredItems.filter((s) => !this.isTestKeyHidden(s.test))
+      : this.filteredItems;
     if (this.viewMode === 'focus' && this.selectedClash) {
       const a = this.selectedClash.itemA;
       const b = this.selectedClash.itemB;
       items = items.filter((e) => e.name === a || e.id === a || e.name === b || e.id === b);
     }
     return items;
+  }
+
+  get visibleClashes(): BcClash[] {
+    if (!this.hiddenTestIds.size) return this.filteredClashes;
+    return this.filteredClashes.filter((c) => !this.isTestKeyHidden(c.test));
   }
 
   get selectedItem(): BcItem | null {
@@ -209,17 +220,9 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return bcTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isTestHidden(id: string): boolean {
-    return this.hiddenTestIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -232,11 +235,18 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -244,15 +254,14 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -263,13 +272,13 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -280,7 +289,7 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -291,6 +300,7 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -326,10 +336,13 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
       else this.shiftItem(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy / formatting
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: BcLoadedFile): string {
     return file.id;
@@ -359,9 +372,25 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     return index;
   }
 
+  tint(type: string, index: number): string {
+    return bcTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isTestHidden(id: string): boolean {
+    return this.hiddenTestIds.has(id);
+  }
+
   formatSize(bytes: number): string {
     return formatBcFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -432,16 +461,153 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedItemId = '';
+    this.selectedTestId = '';
+    this.selectedClashId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenTestIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.viewMode = 'clashes';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
+
+  dismissSuggestion(id: string): void {
+    this.dismissedSuggestionId = id;
+    this.cdr.markForCheck();
+  }
+
+  applySuggestion(suggestion: { action: string }): void {
+    if (suggestion.action === 'sample') void this.loadSample();
+    else this.openFilePicker();
+  }
+
+  setViewMode(mode: BcViewMode): void {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      if (mode !== 'table' && mode !== 'tests') this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleSidebar(): void {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    this.cdr.markForCheck();
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
+  }
+
+  toggleExportMenu(event: Event): void {
+    event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.showExportMenu = !this.showExportMenu;
+    this.cdr.markForCheck();
+  }
+
+  exportAs(format: BcExportFormat, event: Event): void {
+    event.stopPropagation();
+    this.showExportMenu = false;
+    const file = this.currentFile;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
+    try {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportBcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportBcSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportBcRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
+        const canvas = this.canvasHost?.nativeElement;
+        if (!canvas || this.viewMode === 'table') {
+          this.toast.info('Open Clashes, Focus, or Tests to export a PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        const url = canvasToPngDataUrl(canvas);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
+      }
+      this.toast.success('Export started');
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Export failed');
+    }
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter / tests
+  // ---------------------------------------------------------------------------
+
   selectItem(id: string): void {
     this.selectedItemId = id;
+    const item = this.filteredItems.find((e) => e.id === id);
+    if (item?.test) {
+      const test = this.parsed?.tests.find((t) => t.id === item.test || t.name === item.test);
+      this.selectedTestId = test?.id ?? this.selectedTestId;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectTest(id: string): void {
     this.selectedTestId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
+    const test = this.filteredTests.find((t) => t.id === id);
+    const hit = this.visibleClashes.find(
+      (c) => c.test === id || (!!test && (c.test === test.name || c.test === test.id))
+    );
+    if (hit) this.selectClash(hit.id);
+    else {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+    }
   }
 
   selectClash(id: string): void {
@@ -450,6 +616,10 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     if (clash) {
       const hit = this.filteredItems.find((e) => e.name === clash.itemA || e.id === clash.itemA);
       if (hit) this.selectedItemId = hit.id;
+      if (clash.test) {
+        const test = this.parsed?.tests.find((t) => t.id === clash.test || t.name === clash.test);
+        this.selectedTestId = test?.id ?? this.selectedTestId;
+      }
     }
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -458,10 +628,30 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredItems.some((s) => s.id === row.name || s.name === row.name)) this.selectedItemId = row.name;
-    if (this.filteredTests.some((e) => e.id === row.name || e.name === row.name)) this.selectedTestId = row.name;
-    if (this.filteredClashes.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedClashId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (
+      kind === 'clash' ||
+      kind === 'hard' ||
+      kind === 'clearance' ||
+      kind === 'duplicate' ||
+      this.parsed.clashes.some((c) => c.name === name || c.id === name)
+    ) {
+      const clash = this.parsed.clashes.find((c) => c.name === name || c.id === name);
+      if (clash) this.selectClash(clash.id);
+    } else if (kind === 'test' || this.parsed.tests.some((t) => t.name === name || t.id === name)) {
+      const test = this.parsed.tests.find((t) => t.name === name || t.id === name);
+      if (test) this.selectTest(test.id);
+    } else if (name) {
+      const item = this.parsed.items.find((e) => e.name === name || e.id === name);
+      if (item) this.selectItem(item.id);
+      else this.selectedItemId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -471,6 +661,13 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     if (this.hiddenTestIds.has(id)) this.hiddenTestIds.delete(id);
     else this.hiddenTestIds.add(id);
     this.hiddenTestIds = new Set(this.hiddenTestIds);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllTests(): void {
+    if (!this.hiddenTestIds.size) return;
+    this.hiddenTestIds = new Set();
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -485,131 +682,11 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedClashId && !this.filteredClashes.some((inst) => inst.id === this.selectedClashId)) {
       this.selectedClashId = this.filteredClashes[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
-    }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedItemId = '';
-    this.selectedTestId = '';
-    this.selectedClashId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenTestIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
-    this.cdr.markForCheck();
-  }
-
-  dismissSuggestion(id: string): void {
-    this.dismissedSuggestionId = id;
-    this.cdr.markForCheck();
-  }
-
-  applySuggestion(suggestion: { action: string }): void {
-    if (suggestion.action === 'sample') void this.loadSample();
-    else this.openFilePicker();
-  }
-
-  setViewMode(mode: BcViewMode): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
-  }
-
-  toggleSidebar(): void {
-    this.sidebarCollapsed = !this.sidebarCollapsed;
-    this.cdr.markForCheck();
-    setTimeout(() => {
-      this.fitView();
-      this.renderCanvas();
-    }, 0);
-  }
-
-  toggleExportMenu(event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = !this.showExportMenu;
-    this.cdr.markForCheck();
-  }
-
-  exportAs(format: BcExportFormat, event: Event): void {
-    event.stopPropagation();
-    this.showExportMenu = false;
-    const file = this.currentFile;
-    if (!this.canExport || !file?.parsed) {
-      this.toast.info('Nothing to export');
-      return;
-    }
-    try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportBcSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportBcSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportBcRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
-        const canvas = this.canvasHost?.nativeElement;
-        if (!canvas || this.viewMode === 'table') {
-          this.toast.info('Open Clashes, Focus, or Tests to export a PNG snapshot');
-          return;
-        }
-        const url = canvasToPngDataUrl(canvas);
-        if (!url) {
-          this.toast.error('Could not capture PNG snapshot');
-          return;
-        }
-        downloadDataUrl(url, `${file.name}.png`);
-      }
-      this.toast.success('Export started');
-    } catch (error) {
-      this.toast.error(error instanceof Error ? error.message : 'Export failed');
-    }
-    this.cdr.markForCheck();
-  }
-
-  zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
-    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  resetView(): void {
-    this.view = defaultCad3dView();
-    this.fitView();
-  }
-
-  async toggleFullscreen(): Promise<void> {
-    const host = this.viewerPanel?.nativeElement;
-    if (!host) return;
-    const requestFs = host.requestFullscreen?.bind(host);
-    if (!requestFs) {
-      this.toast.info('Fullscreen is not available in this browser');
-      return;
-    }
-    try {
-      if (!document.fullscreenElement) await requestFs();
-      else await document.exitFullscreen();
-    } catch {
-      this.toast.info('Fullscreen is not available in this browser');
-    }
   }
 
   clearSearch(): void {
@@ -626,7 +703,24 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // View / canvas interaction
+  // ---------------------------------------------------------------------------
+
+  zoomBy(factor: number): void {
+    if (!this.parsed || this.viewMode === 'table' || this.viewMode === 'tests') return;
+    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  resetView(): void {
+    this.view = defaultCad3dView();
+    this.fitView();
+  }
+
   fitView(): void {
+    if (!this.isBrowser || this.viewMode === 'table' || this.viewMode === 'tests') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas || !this.parsed) return;
     const { width, height } = sizeCadCanvas(canvas);
@@ -634,6 +728,23 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     this.view = fitCad3dView(solids, width, height);
     this.renderCanvas();
     this.cdr.markForCheck();
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
+    const host = this.viewerPanel?.nativeElement;
+    if (!host) return;
+    const requestFs = host.requestFullscreen?.bind(host);
+    if (!requestFs) {
+      this.toast.info('Fullscreen is not available in this browser');
+      return;
+    }
+    try {
+      if (!document.fullscreenElement) await requestFs();
+      else await document.exitFullscreen();
+    } catch {
+      this.toast.info('Fullscreen is not available in this browser');
+    }
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -651,6 +762,7 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
     this.lastX = event.clientX;
     this.lastY = event.clientY;
+    if (this.viewMode === 'tests') return;
     this.view = {
       ...this.view,
       rotY: this.view.rotY + dx * 0.01,
@@ -662,7 +774,7 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'tests') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -674,17 +786,20 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table' || this.viewMode === 'tests') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftItem(delta: number): void {
-    const list = this.viewMode === 'focus' ? this.visibleItems : this.filteredItems;
+    const list = this.visibleItems;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedItemId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -700,7 +815,7 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftClash(delta: number): void {
-    const list = this.filteredClashes;
+    const list = this.visibleClashes;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedClashId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -710,7 +825,15 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
   private shiftRow(delta: number): void {
     const list = this.filteredRows;
     if (!list.length) return;
-    this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
+    const base = this.selectedRowIndex < 0 ? 0 : this.selectedRowIndex;
+    this.selectRow(Math.min(list.length - 1, Math.max(0, base + delta)));
+  }
+
+  private isTestKeyHidden(testKey: string): boolean {
+    if (!testKey) return false;
+    if (this.hiddenTestIds.has(testKey)) return true;
+    const test = this.parsed?.tests.find((t) => t.id === testKey || t.name === testKey);
+    return !!test && this.hiddenTestIds.has(test.id);
   }
 
   private resetViewForCurrent(): void {
@@ -735,12 +858,14 @@ export class BimClashViewerComponent implements AfterViewInit, OnDestroy {
     let selectedId = this.selectedItemId || null;
     if (this.viewMode === 'clashes' && this.selectedClash) {
       selectedId =
-        this.visibleItems.find((e) => e.name === this.selectedClash?.itemA || e.id === this.selectedClash?.itemA)?.id ?? selectedId;
+        this.visibleItems.find((e) => e.name === this.selectedClash?.itemA || e.id === this.selectedClash?.itemA)?.id ??
+        selectedId;
     }
     renderBcFocus(canvas, this.visibleItems, selectedId, this.view);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -16,41 +16,53 @@
       </div>
       <div class="dmod-suggest__actions">
         <button type="button" class="dmod-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="dmod-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="dmod-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="dmod-toolbar">
+    <div class="dmod-toolbar" role="toolbar" aria-label="Decision Model Viewer actions">
       <div class="dmod-toolbar__group">
         <input #fileInput class="dmod-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn dmod-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn dmod-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="dmod-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="dmod-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('rules-csv', $event)">Rules CSV</button>
-            <button type="button" (click)="exportAs('dependencies-csv', $event)">Dependencies CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="dmod-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="dmod-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('rules-csv', $event)">Rules CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('dependencies-csv', $event)">Dependencies CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="dmod-files" *ngIf="files.length">
           <div class="dmod-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.dmod-files__chip--active]="i === currentIndex">
             <button type="button" class="dmod-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="dmod-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="dmod-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="dmod-toolbar__status"><span class="dmod-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="dmod-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="dmod-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Decision Model Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="dmod-toolbar__status"><span class="dmod-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="dmod-workspace" [class.dmod-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,11 +73,11 @@
             <span>{{ parsed?.name }} · {{ filteredDecisions.length }} decisions · {{ parsed?.dependencies?.length || 0 }} deps · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="dmod-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="dmod-map-wrap" [class.dmod-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="dmod-map-wrap">
           <canvas #canvasHost class="dmod-map" [class.dmod-map--tall]="viewMode === 'dependencies'" *ngIf="currentFile && (viewMode === 'tables' || viewMode === 'dependencies')"></canvas>
           <div class="dmod-cards" *ngIf="currentFile && viewMode === 'tables'">
             <article *ngFor="let decision of filteredDecisions; trackBy: trackByDecision" [class.is-active]="selectedDecision?.id === decision.id" (click)="selectDecision(decision.id)">
@@ -77,6 +89,7 @@
               <p>{{ decision.name }}</p>
               <p>{{ decision.ruleCount }} rules · {{ decision.dependsOn.length }} deps</p>
             </article>
+            <p class="dmod-empty-filter" *ngIf="parsed && !filteredDecisions.length">No decisions match the current filter.</p>
           </div>
           <div class="dmod-cards" *ngIf="currentFile && viewMode === 'dependencies'">
             <article *ngFor="let dep of filteredDependencies; trackBy: trackByDep" [class.is-active]="selectedDependency?.id === dep.id" (click)="selectDep(dep.id)">
@@ -86,6 +99,7 @@
               </header>
               <p>{{ dep.sourceName }} → {{ dep.targetName }}</p>
             </article>
+            <p class="dmod-empty-filter" *ngIf="parsed && !filteredDependencies.length">No dependencies match the current filter.</p>
           </div>
           <div class="dmod-cards" *ngIf="currentFile && viewMode === 'rules'">
             <article *ngFor="let rule of filteredRules; trackBy: trackByRule" [class.is-active]="selectedRule?.id === rule.id" (click)="selectRule(rule.id)">
@@ -96,6 +110,7 @@
               <p>when {{ rule.when || '—' }}</p>
               <p>then {{ rule.then || '—' }}</p>
             </article>
+            <p class="dmod-empty-filter" *ngIf="parsed && !filteredRules.length">No rules match the current filter.</p>
           </div>
           <div class="dmod-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -123,90 +138,110 @@
           <div class="dmod-empty" *ngIf="!currentFile && !loading">
             <p>Drop decision models here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn dmod-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="dmod-loading" *ngIf="loading">Parsing decision model…</div>
+          <div class="dmod-loading" *ngIf="loading" role="status" aria-live="polite">Parsing decision model…</div>
         </div>
 
-        <div class="dmod-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="dmod-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="dmod-disclaimer">Education and research preview only — not a substitute for Camunda DMN, Drools, or production decision management platforms.</p>
+        <div class="dmod-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="dmod-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="dmod-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Camunda DMN, Drools, or production decision management platforms.</p>
       </section>
 
-      <aside class="dmod-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="dmod-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="dmod-empty-panel">Upload a JSON, DMN, XML, or CSV decision model or load the sample to explore tables, rules, and dependencies here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="dmod-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search decisions</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search decisions</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="dmod-search" type="search" placeholder="expression collect decision:Price (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="dmod-search" type="search" aria-label="Search decisions" placeholder="expression collect decision:Price (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="dmod-search-hint">Try <code>expression</code>, <code>collect</code>, or <code>decision:Price</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'dependencies' && filteredDependencies.length">
-          <header class="ctl__panel-head">Dependencies</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'dependencies' && filteredDependencies.length" open>
+          <summary class="ctl__panel-head">Dependencies</summary>
           <div class="ctl__panel-body dmod-units">
             <button type="button" *ngFor="let dep of filteredDependencies; trackBy: trackByDep" [class.is-active]="selectedDepId === dep.id" (click)="selectDep(dep.id)">
               <i class="dmod-swatch" [style.background]="depTint(dep.type)"></i>
               <span>{{ dep.sourceName }} → {{ dep.targetName }} <small>{{ dep.type }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'tables' && filteredDecisions.length">
-          <header class="ctl__panel-head">Decisions</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'tables' && filteredDecisions.length" open>
+          <summary class="ctl__panel-head">Decisions</summary>
           <div class="ctl__panel-body dmod-units">
             <button type="button" *ngFor="let decision of filteredDecisions; trackBy: trackByDecision" [class.is-active]="selectedDecisionId === decision.id" (click)="selectDecision(decision.id)">
               <i class="dmod-swatch" [style.background]="kindTint(decision.kind)"></i>
               <span>{{ decision.name }} <small>{{ decision.kind }} · {{ decision.ruleCount }} rules</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'dependencies' && viewMode !== 'tables' && filteredRules.length">
-          <header class="ctl__panel-head">Rules</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'dependencies' && viewMode !== 'tables' && filteredRules.length" open>
+          <summary class="ctl__panel-head">Rules</summary>
           <div class="ctl__panel-body dmod-units">
             <button type="button" *ngFor="let rule of filteredRules; trackBy: trackByRule" [class.is-active]="selectedRuleId === rule.id" (click)="selectRule(rule.id)">
               <i class="dmod-swatch" [style.background]="kindTint('table')"></i>
               <span>{{ rule.decisionName }} <small>{{ rule.then }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'dependencies' && selectedDependency">
-          <header class="ctl__panel-head">Selected dependency</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'dependencies' && selectedDependency" open>
+          <summary class="ctl__panel-head">Selected dependency</summary>
           <div class="ctl__panel-body">
             <dl class="dmod-meta">
               <div *ngFor="let row of dependencyMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'tables' && selectedDecision">
-          <header class="ctl__panel-head">Selected decision</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'tables' && selectedDecision" open>
+          <summary class="ctl__panel-head">Selected decision</summary>
           <div class="ctl__panel-body">
             <dl class="dmod-meta">
               <div *ngFor="let row of decisionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode !== 'dependencies' && viewMode !== 'tables' && selectedRule">
-          <header class="ctl__panel-head">Selected rule</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode !== 'dependencies' && viewMode !== 'tables' && selectedRule" open>
+          <summary class="ctl__panel-head">Selected rule</summary>
           <div class="ctl__panel-body">
             <dl class="dmod-meta">
               <div *ngFor="let row of ruleMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dmod-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="dmod-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help dmod-footer-help">
+      <summary>How to use Decision Model Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in order pricing sample. Files never leave your browser.</li>
+        <li>Switch Tables, Dependencies, Rules, or Table views to explore decision structure and rule rows.</li>
+        <li>Search with tokens like <code>expression</code>, <code>collect</code>, or <code>decision:Price</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, rules CSV, dependencies CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }} Education/research preview only — not a substitute for production decision platforms.</li>
+      </ul>
+    </details>
+
     <div class="dmod-drop" *ngIf="showDropZone"><p>Drop decision models to inspect</p></div>
   </main>
 </div>

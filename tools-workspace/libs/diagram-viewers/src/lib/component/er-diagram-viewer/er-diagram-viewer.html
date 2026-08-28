@@ -151,17 +151,24 @@
           <div class="erd-empty" *ngIf="!currentFile && !loading">
             <p>Drop ER diagram source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn erd-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="erd-loading" *ngIf="loading">Parsing ER diagram…</div>
+          <div class="erd-loading" *ngIf="loading" role="status" aria-live="polite">Parsing ER diagram…</div>
         </div>
 
-        <div class="erd-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="erd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="erd-disclaimer">Education and research preview only — not a substitute for database design or modeling tools.</p>
+        <div class="erd-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="erd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="erd-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for database design or modeling tools.</p>
       </section>
 
-      <aside class="erd-sidebar">
+      <aside class="erd-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="erd-empty-panel">Upload an ER diagram source or load the sample to see overview, entities, keys, and relations here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -173,7 +180,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="erd-search" type="search" placeholder="entity:Customer key:pk attr:email rel:places (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="erd-search" type="search" aria-label="Search ER diagram" placeholder="entity:Customer key:pk attr:email rel:places (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="erd-search-hint">Try <code>entity:Customer</code>, <code>key:pk</code>, or <code>rel:places</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'keys' && filteredKeys.length" open>
@@ -246,17 +254,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Entities, Keys, or Table views, search the side panel, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>entity:Customer</code> or <code>key:pk</code>, then review Overview and Selected cards.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original dump, summary JSON, entities/keys CSV, or a PNG snapshot.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

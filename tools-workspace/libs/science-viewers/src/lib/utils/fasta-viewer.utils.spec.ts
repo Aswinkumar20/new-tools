@@ -6,7 +6,8 @@ import {
   createFastaFileRecord,
   createSampleFastaFile,
   filterFastaRecords,
-  filterValidFastaFiles
+  filterValidFastaFiles,
+  resolveFastaSuggestion
 } from './fasta-viewer.utils';
 
 describe('fasta-parse.utils', () => {
@@ -60,5 +61,26 @@ describe('fasta-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('.gz'))).toBe(true);
+  });
+
+  it('canExportFasta is false for null', () => {
+    expect(canExportFasta(null)).toBe(false);
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.fasta', { lastModified: 3 });
+    const record = createFastaFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportFasta(record)).toBe(false);
+    expect(record.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('resolveFastaSuggestion returns upload when empty', () => {
+    expect(resolveFastaSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-fasta');
+  });
+
+  it('resolveFastaSuggestion returns sample after error', () => {
+    expect(resolveFastaSuggestion({ hasFiles: false, hasError: true })?.id).toBe('try-sample');
+    expect(resolveFastaSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import {
   UML_XMI_SAMPLE
 } from '../constants/uml-viewer-sample.data';
 import { filterUmlLinks, filterUmlNodes, parseUmlText } from './uml-viewer-parse.utils';
-import { canExportUml, createSampleUmlFile, createUmlFileRecord, exportUmlClassifiersCsv, filterValidUmlFiles } from './uml-viewer.utils';
+import { canExportUml, createSampleUmlFile, createUmlFileRecord, exportUmlClassifiersCsv, filterValidUmlFiles, resolveUmlSuggestion } from './uml-viewer.utils';
 
 describe('uml-viewer-parse.utils', () => {
   it('parses the order class sample', () => {
@@ -92,5 +92,22 @@ describe('uml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveUmlSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveUmlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveUmlSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveUmlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createUmlFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportUml(record)).toBe(false);
+  });
+
+  it('canExportUml returns false for null', () => {
+    expect(canExportUml(null)).toBe(false);
   });
 });

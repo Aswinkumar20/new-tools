@@ -13,7 +13,8 @@ import {
   createPbFileRecord,
   createSamplePbFile,
   exportPbSchemaCsv,
-  filterValidPbFiles
+  filterValidPbFiles,
+  resolvePbSuggestion
 } from './pcb-layout-viewer.utils';
 
 describe('pcb-layout-viewer-parse.utils', () => {
@@ -119,5 +120,13 @@ describe('canExportPb guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportPb({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportPb(null)).toBe(false);
+  });
+});
+
+describe('resolvePbSuggestion', () => {
+  it('prefers error sample, then upload-or-sample when empty', () => {
+    expect(resolvePbSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePbSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePbSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

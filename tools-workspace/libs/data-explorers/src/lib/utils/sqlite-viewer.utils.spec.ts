@@ -12,7 +12,8 @@ import {
   createSampleSqFile,
   createSqFileRecord,
   exportSqSchemaCsv,
-  filterValidSqFiles
+  filterValidSqFiles,
+  resolveSqSuggestion
 } from './sqlite-viewer.utils';
 
 describe('sqlite-viewer-parse.utils', () => {
@@ -98,5 +99,20 @@ describe('sqlite-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveSqSuggestion covers empty and error states', () => {
+    expect(resolveSqSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSqSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSqSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode(JSON.stringify({ tables: [] }));
+    const file = new File([payload], 'empty.json', { lastModified: 9 });
+    const record = createSqFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(canExportSq(record)).toBe(false);
+    expect(canExportSq(null)).toBe(false);
   });
 });

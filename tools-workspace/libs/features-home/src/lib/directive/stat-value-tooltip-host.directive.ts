@@ -28,6 +28,9 @@ export class StatValueTooltipHostDirective implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    if (typeof MutationObserver === 'undefined') {
+      return;
+    }
     this.scan(this.host.nativeElement);
     this.mutationObserver = new MutationObserver(() => {
       this.scan(this.host.nativeElement);

@@ -10,7 +10,8 @@ import {
   createPrmFileRecord,
   createSamplePrmFile,
   exportPrmModelsCsv,
-  filterValidPrmFiles
+  filterValidPrmFiles,
+  resolvePrmSuggestion
 } from './prisma-schema-viewer.utils';
 
 describe('prisma-schema-viewer-parse.utils', () => {
@@ -87,5 +88,22 @@ describe('prisma-schema-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolvePrmSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolvePrmSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolvePrmSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolvePrmSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createPrmFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportPrm(record)).toBe(false);
+  });
+
+  it('canExportPrm returns false for null', () => {
+    expect(canExportPrm(null)).toBe(false);
   });
 });

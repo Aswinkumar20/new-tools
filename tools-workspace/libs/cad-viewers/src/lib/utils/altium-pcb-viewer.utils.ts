@@ -46,7 +46,7 @@ export function filterValidAlFiles(files: FileList | File[]): {
   return filterValidCadFiles(files, {
     extensions: AL_SUPPORTED_EXTENSIONS,
     maxBytes: AL_MAX_FILE_BYTES,
-    formatsLabel: '.pcbdoc, .schdoc, .json, .csv, .md, or .txt',
+    formatsLabel: '.pcbdoc, .schdoc, .prjpcb, .json, .csv, .md, or .txt',
     gzipReason: 'Compressed Altium files are not supported — decompress first'
   });
 }

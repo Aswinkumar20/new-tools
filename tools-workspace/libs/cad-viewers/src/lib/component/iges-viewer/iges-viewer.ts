@@ -113,6 +113,10 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): IgLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -159,6 +163,16 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     return this.filteredSurfaces.filter((s) => !this.hiddenSurfaceIds.has(s.id));
   }
 
+  get visibleEntities(): IgEntity[] {
+    if (!this.hiddenSurfaceIds.size) return this.filteredEntities;
+    return this.filteredEntities.filter((e) => {
+      if (!e.surface) return true;
+      if (this.hiddenSurfaceIds.has(e.surface)) return false;
+      const matched = this.parsed?.surfaces.find((s) => s.name === e.surface || s.id === e.surface);
+      return !matched || !this.hiddenSurfaceIds.has(matched.id);
+    });
+  }
+
   get selectedSurface(): IgSurface | null {
     return this.filteredSurfaces.find((s) => s.id === this.selectedSurfaceId) ?? null;
   }
@@ -188,17 +202,9 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return igTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isSurfaceHidden(id: string): boolean {
-    return this.hiddenSurfaceIds.has(id);
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
@@ -211,11 +217,18 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -223,10 +236,9 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -277,7 +289,7 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return;
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (this.isFullscreen) void document.exitFullscreen?.();
+      if (this.isFullscreen && this.isBrowser) void document.exitFullscreen?.();
       else this.clearSelection();
     } else if (event.key === '0') {
       event.preventDefault();
@@ -293,20 +305,23 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
-      else if (this.viewMode === 'entities') this.shiftEntity(1);
+      if (this.viewMode === 'table') this.shiftRow(1);
+      else if (this.viewMode === 'preview' || this.viewMode === 'entities') this.shiftEntity(1);
       else this.shiftSurface(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
-      else if (this.viewMode === 'entities') this.shiftEntity(-1);
+      if (this.viewMode === 'table') this.shiftRow(-1);
+      else if (this.viewMode === 'preview' || this.viewMode === 'entities') this.shiftEntity(-1);
       else this.shiftSurface(-1);
     } else if (event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      this.query = '';
-      this.onFilterChange();
+      this.clearSearch();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Template helpers
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: IgLoadedFile): string {
     return file.id;
@@ -335,6 +350,22 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatIgFileSize(bytes);
   }
+
+  tint(type: string, index: number): string {
+    return igTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isSurfaceHidden(id: string): boolean {
+    return this.hiddenSurfaceIds.has(id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // File load / selection
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -405,54 +436,12 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  selectSurface(id: string): void {
-    this.selectedSurfaceId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectEntity(id: string): void {
-    this.selectedEntityId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectRow(index: number): void {
-    this.selectedRowIndex = index;
-    const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredSurfaces.some((s) => s.id === row.name || s.name === row.name)) this.selectedSurfaceId = row.name;
-    if (this.filteredEntities.some((e) => e.id === row.name || e.name === row.name)) this.selectedEntityId = row.name;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  toggleSurfaceVisible(id: string, event: Event): void {
-    event.stopPropagation();
-    if (this.hiddenSurfaceIds.has(id)) this.hiddenSurfaceIds.delete(id);
-    else this.hiddenSurfaceIds.add(id);
-    this.hiddenSurfaceIds = new Set(this.hiddenSurfaceIds);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  onFilterChange(): void {
-    if (this.selectedSurfaceId && !this.filteredSurfaces.some((s) => s.id === this.selectedSurfaceId)) {
-      this.selectedSurfaceId = this.filteredSurfaces[0]?.id ?? '';
-    }
-    if (this.selectedEntityId && !this.filteredEntities.some((e) => e.id === this.selectedEntityId)) {
-      this.selectedEntityId = this.filteredEntities[0]?.id ?? '';
-    }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
   removeFile(index: number, event: Event): void {
     event.stopPropagation();
     if (index < 0 || index >= this.files.length) return;
     const next = this.files.filter((_, i) => i !== index);
     this.files = next;
+    this.showExportMenu = false;
     if (!next.length) {
       this.clearAll();
       return;
@@ -461,6 +450,7 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     this.resetViewForCurrent();
     this.fitView();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -472,10 +462,18 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     this.hiddenSurfaceIds = new Set();
     this.errorMessage = '';
     this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.view = defaultCad3dView();
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / sidebar / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -488,9 +486,13 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: IgViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -504,6 +506,11 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -514,22 +521,29 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     const file = this.currentFile;
     if (!this.canExport || !file?.parsed) {
       this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
       return;
     }
     try {
-      if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
-      else if (format === 'summary-json') downloadTextFile(exportIgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
-      else if (format === 'schema-csv') downloadTextFile(exportIgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
-      else if (format === 'rows-csv') downloadTextFile(exportIgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
-      else if (format === 'png') {
+      if (format === 'original') {
+        downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
+      } else if (format === 'summary-json') {
+        downloadTextFile(exportIgSummaryJson(file), `${file.name}.summary.json`, 'application/json');
+      } else if (format === 'schema-csv') {
+        downloadTextFile(exportIgSchemaCsv(file.parsed), `${file.name}.schema.csv`, 'text/csv');
+      } else if (format === 'rows-csv') {
+        downloadTextFile(exportIgRowsCsv(file.parsed), `${file.name}.rows.csv`, 'text/csv');
+      } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Surfaces, Entities, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
         if (!url) {
           this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         downloadDataUrl(url, `${file.name}.png`);
@@ -541,32 +555,76 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
-    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
+  // ---------------------------------------------------------------------------
+  // Selection / filter / surfaces
+  // ---------------------------------------------------------------------------
+
+  selectSurface(id: string): void {
+    this.selectedSurfaceId = id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
-  resetView(): void {
-    this.view = defaultCad3dView();
-    this.fitView();
+  selectEntity(id: string): void {
+    this.selectedEntityId = id;
+    const ent = this.filteredEntities.find((e) => e.id === id);
+    if (ent?.surface) {
+      const surf = this.filteredSurfaces.find((s) => s.id === ent.surface || s.name === ent.surface);
+      if (surf) this.selectedSurfaceId = surf.id;
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
-  async toggleFullscreen(): Promise<void> {
-    const host = this.viewerPanel?.nativeElement;
-    if (!host) return;
-    const requestFs = host.requestFullscreen?.bind(host);
-    if (!requestFs) {
-      this.toast.info('Fullscreen is not available in this browser');
-      return;
+  selectRow(index: number): void {
+    this.selectedRowIndex = index;
+    const row = this.filteredRows[index];
+    if (row?.name) {
+      const surf = this.filteredSurfaces.find((s) => s.id === row.name || s.name === row.name);
+      if (surf) this.selectedSurfaceId = surf.id;
+      const ent = this.filteredEntities.find((e) => e.id === row.name || e.name === row.name);
+      if (ent) this.selectedEntityId = ent.id;
     }
-    try {
-      if (!document.fullscreenElement) await requestFs();
-      else await document.exitFullscreen();
-    } catch {
-      this.toast.info('Fullscreen is not available in this browser');
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  toggleSurfaceVisible(id: string, event: Event): void {
+    event.stopPropagation();
+    if (this.hiddenSurfaceIds.has(id)) this.hiddenSurfaceIds.delete(id);
+    else this.hiddenSurfaceIds.add(id);
+    this.hiddenSurfaceIds = new Set(this.hiddenSurfaceIds);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  isolateSelectedSurface(): void {
+    if (!this.selectedSurfaceId || !this.parsed) return;
+    const surfaces = this.parsed.surfaces ?? [];
+    this.hiddenSurfaceIds = new Set(surfaces.filter((s) => s.id !== this.selectedSurfaceId).map((s) => s.id));
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  showAllSurfaces(): void {
+    if (!this.hiddenSurfaceIds.size) return;
+    this.hiddenSurfaceIds = new Set();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  onFilterChange(): void {
+    if (this.selectedSurfaceId && !this.filteredSurfaces.some((s) => s.id === this.selectedSurfaceId)) {
+      this.selectedSurfaceId = this.filteredSurfaces[0]?.id ?? '';
     }
+    if (this.selectedEntityId && !this.filteredEntities.some((e) => e.id === this.selectedEntityId)) {
+      this.selectedEntityId = this.filteredEntities[0]?.id ?? '';
+    }
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearSearch(): void {
@@ -582,13 +640,46 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ---------------------------------------------------------------------------
+  // View / canvas
+  // ---------------------------------------------------------------------------
+
+  zoomBy(factor: number): void {
+    if (!this.parsed || this.viewMode === 'table') return;
+    this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  resetView(): void {
+    this.view = defaultCad3dView();
+    this.fitView();
+  }
+
   fitView(): void {
     const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
     const { width, height } = sizeCadCanvas(canvas);
     this.view = fitCad3dView(toCad3dSurfaces(this.visibleSurfaces), width, height);
     this.renderCanvas();
     this.cdr.markForCheck();
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
+    const host = this.viewerPanel?.nativeElement;
+    if (!host) return;
+    const requestFs = host.requestFullscreen?.bind(host);
+    if (!requestFs) {
+      this.toast.info('Fullscreen is not available in this browser');
+      return;
+    }
+    try {
+      if (!document.fullscreenElement) await requestFs();
+      else await document.exitFullscreen();
+    } catch {
+      this.toast.info('Fullscreen is not available in this browser');
+    }
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -617,7 +708,7 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'entities') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -625,21 +716,24 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
     const id = pickCad3dSolidAtScreen(toCad3dSurfaces(this.visibleSurfaces), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectEntity(id);
+    if (id) this.selectSurface(id);
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
+
   private shiftSurface(delta: number): void {
-    const list = this.filteredSurfaces;
+    const list = this.visibleSurfaces;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedSurfaceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -647,7 +741,7 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftEntity(delta: number): void {
-    const list = this.filteredEntities;
+    const list = this.visibleEntities;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((e) => e.id === this.selectedEntityId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -655,10 +749,6 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftEntity(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
@@ -679,13 +769,14 @@ export class IgesViewerComponent implements AfterViewInit, OnDestroy {
     if (!canvas || !this.parsed) return;
     sizeCadCanvas(canvas);
     if (this.viewMode === 'entities') {
-      renderIgEntities(canvas, this.filteredEntities, this.selectedEntityId || null);
+      renderIgEntities(canvas, this.visibleEntities, this.selectedEntityId || null);
       return;
     }
     renderIgSurfaces(canvas, this.visibleSurfaces, this.selectedSurfaceId || null, this.view);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

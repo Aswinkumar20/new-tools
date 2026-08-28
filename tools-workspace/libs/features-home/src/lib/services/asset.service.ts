@@ -2,43 +2,16 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 
 /**
- * AssetService - Core service for resolving asset paths correctly
- * 
- * This service ensures assets are loaded correctly in both:
- * - Localhost (dev server): /assets/icons/copy.svg
- * - Production (SSR/deployed): Handles base href and ensures proper path resolution
- * 
- * Why this is needed:
- * 1. In production, if the app is served from a subdirectory, absolute paths break
- * 2. SSR may not properly resolve asset paths without considering base href
- * 3. Different servers/configurations require different path resolution strategies
- * 4. Some servers (nginx, Apache, etc.) may not serve static files correctly, causing
- *    requests to return index.html (text/html) instead of the actual asset file
- * 
+ * AssetService - resolves `/assets/...` paths with optional base href.
+ *
+ * Use in both CSR dev and static SSG deploys (`dist/apps/tools-site/browser`).
+ * CDN/Apache/Netlify/Vercel must serve hashed assets and `/assets/*` as static
+ * files — never SPA-fallback asset URLs to `index.html`.
+ *
  * Usage:
  * ```typescript
- * import { AssetService } from '@tools-workspace/features-home';
- * 
- * constructor(private assetService: AssetService) {}
- * 
  * iconPath = this.assetService.getAssetPath('icons/copy.svg');
  * ```
- * 
- * In template:
- * ```html
- * <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" />
- * ```
- * 
- * How it works:
- * - In localhost: Angular dev server serves assets from /assets/ directly
- * - In production: Express/Nginx needs to serve static files BEFORE Angular routing
- *   catches them. If routing catches asset requests, it returns index.html (text/html)
- *   instead of the actual asset, causing 200 OK responses with wrong content type.
- * 
- * The solution:
- * 1. Server must serve static files BEFORE the catch-all Angular route (server.ts)
- * 2. Service properly resolves paths considering base href
- * 3. Always use this service instead of hardcoded '/assets/...' paths
  */
 @Injectable({
   providedIn: 'root',
@@ -50,14 +23,11 @@ export class AssetService {
     @Inject(DOCUMENT) private document: Document,
     @Inject(PLATFORM_ID) private platformId: Object
   ) {
-    // Get base href from the document, fallback to '/' if not found
-    // In SSR, document might not have a base tag, so we handle that
     if (isPlatformBrowser(this.platformId)) {
       const baseTag = this.document.querySelector('base');
       this.baseHref = baseTag?.getAttribute('href') || '/';
     } else {
-      // For SSR, use default base href
-      // This will be properly set by Angular SSR when rendering
+      // Build-time prerender: default base href
       this.baseHref = '/';
     }
   }

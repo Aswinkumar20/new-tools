@@ -1,12 +1,17 @@
 import { GEO_MODEL_GMOD_SAMPLE, GEO_MODEL_SAMPLE } from '../constants/geological-model-sample.data';
 import { parseGeologicalModelText } from './geological-model-parse.utils';
 import {
+  buildGeoModelMetadataRows,
+  buildLayerMetadata,
   canExportGeoModel,
   createGeoModelFileRecord,
   createSampleGeoModelFile,
   exportGeoLayersCsv,
+  exportGeoModelSummaryJson,
+  exportGeoSectionCsv,
   filterGeoLayers,
-  filterValidGeoModelFiles
+  filterValidGeoModelFiles,
+  resolveGeoModelSuggestion
 } from './geological-model-viewer.utils';
 
 describe('geological-model-parse.utils', () => {
@@ -74,5 +79,30 @@ describe('geological-model-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('soft-fails unparseable text and disables export', () => {
+    const file = new File(['hello world'], 'bad.json', { lastModified: 3 });
+    const record = createGeoModelFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportGeoModel(record)).toBe(false);
+  });
+
+  it('builds metadata, summary, and section csv exports', () => {
+    const file = createSampleGeoModelFile();
+    const record = createGeoModelFileRecord(file, new TextEncoder().encode(GEO_MODEL_SAMPLE));
+    expect(buildGeoModelMetadataRows(record.parsed!).some((r) => r.key === 'Layers')).toBe(true);
+    expect(buildLayerMetadata(record.parsed!.layers[0]).some((r) => r.key === 'Name')).toBe(true);
+    const summary = exportGeoModelSummaryJson(record);
+    expect(summary).toContain('sample-basin.json');
+    const section = exportGeoSectionCsv(record.parsed!);
+    expect(section.split('\n').length).toBeGreaterThan(2);
+  });
+
+  it('resolves upload and sample suggestions', () => {
+    expect(resolveGeoModelSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-model');
+    expect(resolveGeoModelSuggestion({ hasFiles: false, hasError: true })?.id).toBe('try-sample');
+    expect(resolveGeoModelSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

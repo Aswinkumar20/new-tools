@@ -16,41 +16,53 @@
       </div>
       <div class="pmap-suggest__actions">
         <button type="button" class="pmap-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="pmap-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="pmap-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="pmap-toolbar">
+    <div class="pmap-toolbar" role="toolbar" aria-label="Process Map Viewer actions">
       <div class="pmap-toolbar__group">
         <input #fileInput class="pmap-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn pmap-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn pmap-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="pmap-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="pmap-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('variants-csv', $event)">Variants CSV</button>
-            <button type="button" (click)="exportAs('flows-csv', $event)">Flows CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pmap-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="pmap-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('variants-csv', $event)">Variants CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('flows-csv', $event)">Flows CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="pmap-files" *ngIf="files.length">
           <div class="pmap-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pmap-files__chip--active]="i === currentIndex">
             <button type="button" class="pmap-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="pmap-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="pmap-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="pmap-toolbar__status"><span class="pmap-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="pmap-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="pmap-tab-bar" *ngIf="currentFile" role="tablist" aria-label="Process Map Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="pmap-toolbar__status"><span class="pmap-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="pmap-workspace" [class.pmap-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,14 +73,14 @@
             <span>{{ parsed?.name }} · {{ parsed?.cases || 0 }} cases · {{ parsed?.variants?.length || 0 }} variants · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="pmap-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="pmap-map-wrap" [class.pmap-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="pmap-map-wrap">
           <canvas #canvasHost class="pmap-map" [class.pmap-map--tall]="viewMode === 'map'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="pmap-cards" *ngIf="currentFile && viewMode === 'variants'">
-            <article *ngFor="let variant of filteredVariants; trackBy: trackByVariant" [class.is-active]="selectedVariant?.id === variant.id" (click)="selectVariant(variant.id)">
+            <article *ngFor="let variant of filteredVariants; trackBy: trackByVariant" [class.is-active]="selectedVariantId === variant.id" (click)="selectVariant(variant.id)">
               <header>
                 <i class="pmap-swatch" [style.background]="variantTint(variant.index)"></i>
                 <strong>{{ variant.pct }}%</strong>
@@ -77,9 +89,10 @@
               <p>{{ variant.name }}</p>
               <p>{{ variant.pathLabel }}</p>
             </article>
+            <p class="pmap-empty-filter" *ngIf="parsed && !filteredVariants.length">No variants match the current filter.</p>
           </div>
           <div class="pmap-cards" *ngIf="currentFile && viewMode === 'frequencies'">
-            <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivity?.id === activity.id" (click)="selectActivity(activity.id)">
+            <article *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivityId === activity.id" (click)="selectActivity(activity.id)">
               <header>
                 <i class="pmap-swatch" [style.background]="frequencyTint(activity.pct)"></i>
                 <strong>{{ activity.frequency }}</strong>
@@ -88,9 +101,10 @@
               <p>{{ activity.name }}</p>
               <p>{{ formatDuration(activity.avgDurationMs) }}</p>
             </article>
+            <p class="pmap-empty-filter" *ngIf="parsed && !filteredActivities.length">No activities match the current filter.</p>
           </div>
           <div class="pmap-cards" *ngIf="currentFile && viewMode === 'map'">
-            <article *ngFor="let flow of filteredFlows; trackBy: trackByFlow" [class.is-active]="selectedFlow?.id === flow.id" (click)="selectFlow(flow.id)">
+            <article *ngFor="let flow of filteredFlows; trackBy: trackByFlow" [class.is-active]="selectedFlowId === flow.id" (click)="selectFlow(flow.id)">
               <header>
                 <i class="pmap-swatch" [style.background]="frequencyTint(flow.pct)"></i>
                 <strong>{{ flow.frequency }}</strong>
@@ -98,6 +112,7 @@
               </header>
               <p>{{ flow.sourceName }} → {{ flow.targetName }}</p>
             </article>
+            <p class="pmap-empty-filter" *ngIf="parsed && !filteredFlows.length">No flows match the current filter.</p>
           </div>
           <div class="pmap-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -111,7 +126,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let variant of filteredVariants; trackBy: trackByVariant" [class.is-active]="selectedVariant?.id === variant.id" (click)="selectVariant(variant.id)">
+                <tr *ngFor="let variant of filteredVariants; trackBy: trackByVariant" [class.is-active]="selectedVariantId === variant.id" (click)="selectVariant(variant.id)">
                   <td>{{ variant.index + 1 }}</td>
                   <td>{{ variant.name }}</td>
                   <td>{{ variant.cases }}</td>
@@ -125,90 +140,110 @@
           <div class="pmap-empty" *ngIf="!currentFile && !loading">
             <p>Drop process maps here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn pmap-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="pmap-loading" *ngIf="loading">Parsing process map…</div>
+          <div class="pmap-loading" *ngIf="loading" role="status" aria-live="polite">Parsing process map…</div>
         </div>
 
-        <div class="pmap-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="pmap-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="pmap-disclaimer">Education and research preview only — not a substitute for Disco, Celonis, or production process-mining platforms.</p>
+        <div class="pmap-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pmap-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pmap-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Disco, Celonis, or production process-mining platforms.</p>
       </section>
 
-      <aside class="pmap-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="pmap-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="pmap-empty-panel">Upload a JSON, XML, or CSV process map or load the sample order fulfillment map to explore variants, activities, and flows here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="pmap-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search map</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search map</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="pmap-search" type="search" placeholder="happy reject activity:Pack (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="pmap-search" type="search" aria-label="Search map" placeholder="happy reject activity:Pack (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="pmap-search-hint">Try <code>happy</code>, <code>reject</code>, or <code>activity:Pack</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'frequencies' && filteredActivities.length">
-          <header class="ctl__panel-head">Activities</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'frequencies' && filteredActivities.length" open>
+          <summary class="ctl__panel-head">Activities</summary>
           <div class="ctl__panel-body pmap-units">
             <button type="button" *ngFor="let activity of filteredActivities; trackBy: trackByActivity" [class.is-active]="selectedActivityId === activity.id" (click)="selectActivity(activity.id)">
               <i class="pmap-swatch" [style.background]="frequencyTint(activity.pct)"></i>
               <span>{{ activity.name }} <small>{{ activity.frequency }} · {{ activity.pct }}%</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'map' && filteredFlows.length">
-          <header class="ctl__panel-head">Flows</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'map' && filteredFlows.length" open>
+          <summary class="ctl__panel-head">Flows</summary>
           <div class="ctl__panel-body pmap-units">
             <button type="button" *ngFor="let flow of filteredFlows; trackBy: trackByFlow" [class.is-active]="selectedFlowId === flow.id" (click)="selectFlow(flow.id)">
               <i class="pmap-swatch" [style.background]="frequencyTint(flow.pct)"></i>
               <span>{{ flow.sourceName }} → {{ flow.targetName }} <small>{{ flow.frequency }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'variants' || viewMode === 'table') && filteredVariants.length">
-          <header class="ctl__panel-head">Variants</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'variants' || viewMode === 'table') && filteredVariants.length" open>
+          <summary class="ctl__panel-head">Variants</summary>
           <div class="ctl__panel-body pmap-units">
             <button type="button" *ngFor="let variant of filteredVariants; trackBy: trackByVariant" [class.is-active]="selectedVariantId === variant.id" (click)="selectVariant(variant.id)">
               <i class="pmap-swatch" [style.background]="variantTint(variant.index)"></i>
               <span>{{ variant.name }} <small>{{ variant.cases }} cases · {{ variant.pct }}%</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'frequencies' && selectedActivity">
-          <header class="ctl__panel-head">Selected activity</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'frequencies' && selectedActivity" open>
+          <summary class="ctl__panel-head">Selected activity</summary>
           <div class="ctl__panel-body">
             <dl class="pmap-meta">
               <div *ngFor="let row of activityMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'map' && selectedFlow">
-          <header class="ctl__panel-head">Selected flow</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'map' && selectedFlow" open>
+          <summary class="ctl__panel-head">Selected flow</summary>
           <div class="ctl__panel-body">
             <dl class="pmap-meta">
               <div *ngFor="let row of flowMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'variants' || viewMode === 'table') && selectedVariant">
-          <header class="ctl__panel-head">Selected variant</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'variants' || viewMode === 'table') && selectedVariant" open>
+          <summary class="ctl__panel-head">Selected variant</summary>
           <div class="ctl__panel-body">
             <dl class="pmap-meta">
               <div *ngFor="let row of variantMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pmap-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pmap-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help pmap-footer-help">
+      <summary>How to use Process Map Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in order fulfillment sample. Files never leave your browser.</li>
+        <li>Switch Variants, Frequencies, Map, or Table views to explore the discovered process from different angles.</li>
+        <li>Search with tokens like <code>happy</code>, <code>reject</code>, or <code>activity:Pack</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, variants CSV, flows CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="pmap-drop" *ngIf="showDropZone"><p>Drop process maps to inspect</p></div>
   </main>
 </div>

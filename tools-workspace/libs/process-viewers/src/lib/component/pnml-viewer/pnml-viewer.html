@@ -16,41 +16,53 @@
       </div>
       <div class="pnml-suggest__actions">
         <button type="button" class="pnml-suggest__action" (click)="applySuggestion(suggestion)">{{ suggestion.actionLabel }}</button>
-        <button type="button" class="pnml-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)">Dismiss</button>
+        <button type="button" class="pnml-suggest__dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion" appTooltip="Dismiss suggestion" tooltipPosition="bottom">Dismiss</button>
       </div>
     </aside>
 
-    <div class="pnml-toolbar">
+    <div class="pnml-toolbar" role="toolbar" aria-label="PNML Viewer actions">
       <div class="pnml-toolbar__group">
         <input #fileInput class="pnml-file-input" type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" tabindex="-1" aria-hidden="true" />
-        <button type="button" class="ctl__tool-btn pnml-primary-action" (click)="openFilePicker()">
+        <button type="button" class="ctl__tool-btn pnml-primary-action" (click)="openFilePicker()" aria-label="Upload files" appTooltip="Upload · Supported formats: {{ formatsLabel }}" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
         </button>
-        <button type="button" class="ctl__tool-btn" (click)="loadSample()"><span class="ctl__tool-btn-label">Sample</span></button>
-        <div class="pnml-export" *ngIf="canExport">
-          <button type="button" class="ctl__tool-btn" (click)="toggleExportMenu($event)">Export</button>
-          <div class="pnml-export__menu" *ngIf="showExportMenu" role="menu">
-            <button type="button" (click)="exportAs('original', $event)">Original file</button>
-            <button type="button" (click)="exportAs('summary-json', $event)">Summary JSON</button>
-            <button type="button" (click)="exportAs('places-csv', $event)">Places CSV</button>
-            <button type="button" (click)="exportAs('arcs-csv', $event)">Arcs CSV</button>
-            <button type="button" (click)="exportAs('png', $event)">PNG snapshot</button>
+        <button type="button" class="ctl__tool-btn" (click)="loadSample()" aria-label="Load sample" appTooltip="Load the built-in sample" tooltipPosition="bottom"><span class="ctl__tool-btn-label">Sample</span></button>
+        <div class="pnml-export">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="toggleExportMenu($event)"
+            [disabled]="!canExport"
+            [attr.aria-expanded]="showExportMenu"
+            aria-haspopup="menu"
+            [attr.aria-label]="canExport ? 'Export options' : 'Nothing to export'"
+            [appTooltip]="canExport ? 'Export options' : 'Nothing to export'"
+            tooltipPosition="bottom">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span class="ctl__tool-btn-label">Export</span>
+          </button>
+          <div class="pnml-export__menu" *ngIf="showExportMenu && canExport" role="menu">
+            <button type="button" role="menuitem" (click)="exportAs('original', $event)">Original file</button>
+            <button type="button" role="menuitem" (click)="exportAs('summary-json', $event)">Summary JSON</button>
+            <button type="button" role="menuitem" (click)="exportAs('places-csv', $event)">Places CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('arcs-csv', $event)">Arcs CSV</button>
+            <button type="button" role="menuitem" (click)="exportAs('png', $event)">PNG snapshot</button>
           </div>
         </div>
-        <button type="button" class="ctl__tool-btn" (click)="clearAll()" [disabled]="files.length === 0">Clear</button>
+        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="files.length === 0" [attr.aria-label]="files.length ? 'Clear loaded files' : 'Nothing to clear'" [appTooltip]="files.length ? 'Clear loaded files' : 'Nothing to clear'" tooltipPosition="bottom"><img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" /><span class="ctl__tool-btn-label">Clear</span></button>
         <div class="pnml-files" *ngIf="files.length">
           <div class="pnml-files__chip" *ngFor="let file of files; let i = index; trackBy: trackByFileId" [class.pnml-files__chip--active]="i === currentIndex">
             <button type="button" class="pnml-files__select" (click)="selectFile(i)">{{ file.name }}</button>
-            <button type="button" class="pnml-files__remove" (click)="removeFile(i, $event)">×</button>
+            <button type="button" class="pnml-files__remove" (click)="removeFile(i, $event)" [attr.aria-label]="'Remove ' + file.name" [appTooltip]="'Remove ' + file.name" tooltipPosition="bottom">×</button>
           </div>
         </div>
       </div>
-      <div class="pnml-toolbar__status"><span class="pnml-toolbar__status-dot"></span>Files never leave your browser</div>
-    </div>
 
-    <div class="pnml-tab-bar" *ngIf="currentFile" role="tablist">
-      <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      <div class="pnml-tab-bar" *ngIf="currentFile" role="tablist" aria-label="PNML Viewer views">
+        <button type="button" role="tab" *ngFor="let mode of viewModes" [class.is-active]="viewMode === mode.id" [attr.aria-selected]="viewMode === mode.id" (click)="setViewMode(mode.id)">{{ mode.label }}</button>
+      </div>
+      <div class="pnml-toolbar__status"><span class="pnml-toolbar__status-dot" aria-hidden="true"></span>Files never leave your browser</div>
     </div>
 
     <div class="pnml-workspace" [class.pnml-workspace--sidebar-collapsed]="sidebarCollapsed">
@@ -61,14 +73,14 @@
             <span>{{ parsed?.name }} · {{ parsed?.places?.length || 0 }} places · {{ parsed?.tokenTotal || 0 }} tokens · {{ parsed?.sourceKind }}</span>
           </div>
           <div class="pnml-view-controls">
-            <button type="button" (click)="toggleSidebar()">Panel</button>
+            <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
         </header>
 
-        <div #mapWrap class="pnml-map-wrap" [class.pnml-map-wrap--empty]="!currentFile">
+        <div #mapWrap class="pnml-map-wrap">
           <canvas #canvasHost class="pnml-map" [class.pnml-map--tall]="viewMode === 'places'" *ngIf="currentFile && viewMode !== 'table'"></canvas>
           <div class="pnml-cards" *ngIf="currentFile && viewMode === 'places'">
-            <article *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlace?.id === place.id" (click)="selectPlace(place.id)">
+            <article *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlaceId === place.id" (click)="selectPlace(place.id)">
               <header>
                 <i class="pnml-swatch" [style.background]="placeTint(place.tokens)"></i>
                 <strong>{{ place.tokens }} tokens</strong>
@@ -76,9 +88,10 @@
               <p>{{ place.name }}</p>
               <p>{{ place.inCount }} in · {{ place.outCount }} out</p>
             </article>
+            <p class="pnml-empty-filter" *ngIf="parsed && !filteredPlaces.length">No places match the current filter.</p>
           </div>
           <div class="pnml-cards" *ngIf="currentFile && viewMode === 'transitions'">
-            <article *ngFor="let trans of filteredTransitions; trackBy: trackByTransition" [class.is-active]="selectedTransition?.id === trans.id" (click)="selectTransition(trans.id)">
+            <article *ngFor="let trans of filteredTransitions; trackBy: trackByTransition" [class.is-active]="selectedTransitionId === trans.id" (click)="selectTransition(trans.id)">
               <header>
                 <i class="pnml-swatch" [style.background]="transitionTint(trans.enabled)"></i>
                 <strong>{{ trans.enabled ? 'enabled' : 'disabled' }}</strong>
@@ -86,15 +99,17 @@
               <p>{{ trans.name }}</p>
               <p>{{ trans.inCount }} in · {{ trans.outCount }} out</p>
             </article>
+            <p class="pnml-empty-filter" *ngIf="parsed && !filteredTransitions.length">No transitions match the current filter.</p>
           </div>
           <div class="pnml-cards" *ngIf="currentFile && viewMode === 'tokens'">
-            <article *ngFor="let token of filteredTokens; trackBy: trackByToken" [class.is-active]="selectedToken?.id === token.id" (click)="selectToken(token.id)">
+            <article *ngFor="let token of filteredTokens; trackBy: trackByToken" [class.is-active]="selectedTokenId === token.id" (click)="selectToken(token.id)">
               <header>
                 <i class="pnml-swatch" [style.background]="placeTint(token.tokens)"></i>
                 <strong>{{ token.tokens }}</strong>
               </header>
               <p>{{ token.placeName }}</p>
             </article>
+            <p class="pnml-empty-filter" *ngIf="parsed && !filteredTokens.length">No markings match the current filter.</p>
           </div>
           <div class="pnml-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -108,7 +123,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlace?.id === place.id" (click)="selectPlace(place.id)">
+                <tr *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlaceId === place.id" (click)="selectPlace(place.id)">
                   <td>{{ place.index + 1 }}</td>
                   <td>{{ place.name }}</td>
                   <td><i class="pnml-swatch" [style.background]="placeTint(place.tokens)"></i>{{ place.tokens }}</td>
@@ -122,90 +137,110 @@
           <div class="pnml-empty" *ngIf="!currentFile && !loading">
             <p>Drop PNML nets here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn pnml-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="pnml-loading" *ngIf="loading">Parsing PNML…</div>
+          <div class="pnml-loading" *ngIf="loading" role="status" aria-live="polite">Parsing PNML…</div>
         </div>
 
-        <div class="pnml-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="pnml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="pnml-disclaimer">Education and research preview only — not a substitute for PIPE, WoPeD, or production Petri-net tools.</p>
+        <div class="pnml-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="pnml-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="pnml-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for PIPE, WoPeD, or production Petri-net tools.</p>
       </section>
 
-      <aside class="pnml-sidebar">
-        <div class="ctl__panel" *ngIf="parsed">
-          <header class="ctl__panel-head">Overview</header>
+      <aside class="pnml-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="pnml-empty-panel">Upload a PNML, XML, JSON, or CSV net or load the sample order fulfillment net to explore places, transitions, and tokens here.</p>
+          </div>
+        </details>
+        <details class="ctl__panel" *ngIf="parsed" open>
+          <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
             <dl class="pnml-meta">
               <div *ngFor="let row of metadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Search net</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Search net</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="pnml-search" type="search" placeholder="marked enabled place:Incoming (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="pnml-search" type="search" aria-label="Search net" placeholder="marked enabled place:Incoming (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="pnml-search-hint">Try <code>marked</code>, <code>enabled</code>, or <code>place:Incoming</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'places' && filteredPlaces.length">
-          <header class="ctl__panel-head">Places</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'places' && filteredPlaces.length" open>
+          <summary class="ctl__panel-head">Places</summary>
           <div class="ctl__panel-body pnml-units">
             <button type="button" *ngFor="let place of filteredPlaces; trackBy: trackByPlace" [class.is-active]="selectedPlaceId === place.id" (click)="selectPlace(place.id)">
               <i class="pnml-swatch" [style.background]="placeTint(place.tokens)"></i>
               <span>{{ place.name }} <small>{{ place.tokens }} tokens</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'transitions' && filteredTransitions.length">
-          <header class="ctl__panel-head">Transitions</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'transitions' && filteredTransitions.length" open>
+          <summary class="ctl__panel-head">Transitions</summary>
           <div class="ctl__panel-body pnml-units">
             <button type="button" *ngFor="let trans of filteredTransitions; trackBy: trackByTransition" [class.is-active]="selectedTransitionId === trans.id" (click)="selectTransition(trans.id)">
               <i class="pnml-swatch" [style.background]="transitionTint(trans.enabled)"></i>
               <span>{{ trans.name }} <small>{{ trans.enabled ? 'enabled' : 'disabled' }}</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && filteredTokens.length">
-          <header class="ctl__panel-head">Markings</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && filteredTokens.length" open>
+          <summary class="ctl__panel-head">Markings</summary>
           <div class="ctl__panel-body pnml-units">
             <button type="button" *ngFor="let token of filteredTokens; trackBy: trackByToken" [class.is-active]="selectedTokenId === token.id" (click)="selectToken(token.id)">
               <i class="pnml-swatch" [style.background]="placeTint(token.tokens)"></i>
               <span>{{ token.placeName }} <small>{{ token.tokens }} tokens</small></span>
             </button>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'places' && selectedPlace">
-          <header class="ctl__panel-head">Selected place</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'places' && selectedPlace" open>
+          <summary class="ctl__panel-head">Selected place</summary>
           <div class="ctl__panel-body">
             <dl class="pnml-meta">
               <div *ngFor="let row of placeMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="viewMode === 'transitions' && selectedTransition">
-          <header class="ctl__panel-head">Selected transition</header>
+        </details>
+        <details class="ctl__panel" *ngIf="viewMode === 'transitions' && selectedTransition" open>
+          <summary class="ctl__panel-head">Selected transition</summary>
           <div class="ctl__panel-body">
             <dl class="pnml-meta">
               <div *ngFor="let row of transitionMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && selectedToken">
-          <header class="ctl__panel-head">Selected marking</header>
+        </details>
+        <details class="ctl__panel" *ngIf="(viewMode === 'tokens' || viewMode === 'table') && selectedToken" open>
+          <summary class="ctl__panel-head">Selected marking</summary>
           <div class="ctl__panel-body">
             <dl class="pnml-meta">
               <div *ngFor="let row of tokenMetadataRows"><dt>{{ row.key }}</dt><dd>{{ row.value }}</dd></div>
             </dl>
           </div>
-        </div>
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Related tools</header>
+        </details>
+        <details class="ctl__panel" open>
+          <summary class="ctl__panel-head">Related tools</summary>
           <div class="ctl__panel-body">
-            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pnml-related">{{ tool.label }}<span>{{ tool.description }}</span></a>
+            <a *ngFor="let tool of relatedTools" [routerLink]="tool.path" class="pnml-related"><strong>{{ tool.label }}</strong><span>{{ tool.description }}</span></a>
           </div>
-        </div>
+        </details>
       </aside>
     </div>
+
+    <details class="ctl__help pnml-footer-help">
+      <summary>How to use PNML Viewer</summary>
+      <ul>
+        <li>Upload {{ formatsLabel }} locally, or load the built-in order fulfillment sample. Files never leave your browser.</li>
+        <li>Switch Places, Transitions, Tokens, or Table views to explore the net from different angles.</li>
+        <li>Search with tokens like <code>marked</code>, <code>enabled</code>, or <code>place:Incoming</code>. Press <kbd>/</kbd> to focus search; <kbd>↑</kbd>/<kbd>↓</kbd> to move selection.</li>
+        <li>Export the original file, summary JSON, places CSV, arcs CSV, or a PNG snapshot from canvas views.</li>
+        <li>{{ formatsHint }}</li>
+      </ul>
+    </details>
+
     <div class="pnml-drop" *ngIf="showDropZone"><p>Drop PNML nets to inspect</p></div>
   </main>
 </div>

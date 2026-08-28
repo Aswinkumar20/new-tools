@@ -107,6 +107,7 @@
               </header>
               <p>{{ node.id }}</p>
             </article>
+            <p class="mmd-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="mmd-cards" *ngIf="currentFile && viewMode === 'nodes'">
             <article *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNode?.id === node.id" (click)="selectNode(node.id)">
@@ -117,6 +118,7 @@
               </header>
               <p>{{ node.group || 'ungrouped' }}</p>
             </article>
+            <p class="mmd-empty-filter" *ngIf="parsed && !filteredNodes.length">No nodes match the current filter.</p>
           </div>
           <div class="mmd-cards" *ngIf="currentFile && viewMode === 'edges'">
             <article *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdge?.id === edge.id" (click)="selectEdge(edge.id)">
@@ -127,6 +129,7 @@
               </header>
               <p>{{ edge.label || 'unlabeled' }}</p>
             </article>
+            <p class="mmd-empty-filter" *ngIf="parsed && !filteredEdges.length">No edges match the current filter.</p>
           </div>
           <div class="mmd-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -154,17 +157,24 @@
           <div class="mmd-empty" *ngIf="!currentFile && !loading">
             <p>Drop Mermaid source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn mmd-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="mmd-loading" *ngIf="loading">Parsing Mermaid…</div>
+          <div class="mmd-loading" *ngIf="loading" role="status" aria-live="polite">Parsing Mermaid…</div>
         </div>
 
-        <div class="mmd-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="mmd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="mmd-disclaimer">Education and research preview only — not a substitute for mermaid.live or production diagram tools.</p>
+        <div class="mmd-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="mmd-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="mmd-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for mermaid.live or production diagram tools.</p>
       </section>
 
-      <aside class="mmd-sidebar">
+      <aside class="mmd-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="mmd-empty-panel">Upload a Mermaid diagram or load the sample to see overview, nodes, edges, and selected item details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -176,10 +186,11 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search diagram</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="mmd-search" type="search" placeholder="node:Cart shape:diamond label:yes (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="mmd-search" type="search" aria-label="Search Mermaid diagram" placeholder="node:Cart shape:diamond label:yes (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="mmd-search-hint">Try <code>node:Cart</code>, <code>shape:diamond</code>, or <code>label:yes</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'edges' && filteredEdges.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'edges' || viewMode === 'table') && filteredEdges.length" open>
           <summary class="ctl__panel-head">Edges</summary>
           <div class="ctl__panel-body mmd-units">
             <button type="button" *ngFor="let edge of filteredEdges; trackBy: trackByEdge" [class.is-active]="selectedEdgeId === edge.id" (click)="selectEdge(edge.id)">
@@ -188,7 +199,7 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && filteredNodes.length" open>
+        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && viewMode !== 'table' && filteredNodes.length" open>
           <summary class="ctl__panel-head">{{ parsed?.kind === 'sequence' ? 'Participants' : 'Nodes' }}</summary>
           <div class="ctl__panel-body mmd-units">
             <button type="button" *ngFor="let node of filteredNodes; trackBy: trackByNode" [class.is-active]="selectedNodeId === node.id" (click)="selectNode(node.id)">
@@ -197,7 +208,7 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'edges' && selectedEdge" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'edges' || viewMode === 'table') && selectedEdge" open>
           <summary class="ctl__panel-head">Selected edge</summary>
           <div class="ctl__panel-body">
             <dl class="mmd-meta">
@@ -205,7 +216,7 @@
             </dl>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && selectedNode" open>
+        <details class="ctl__panel" *ngIf="viewMode !== 'edges' && viewMode !== 'table' && selectedNode" open>
           <summary class="ctl__panel-head">Selected node</summary>
           <div class="ctl__panel-body">
             <dl class="mmd-meta">
@@ -232,17 +243,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Nodes, Edges, or Table views and inspect the selected node or edge.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Cart</code> or <code>label:yes</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, nodes/edges CSV, or a PNG snapshot from Diagram, Nodes, or Edges view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

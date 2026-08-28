@@ -14,7 +14,14 @@ import {
   parseSrBytes,
   parseSrText
 } from './structural-model-viewer-parse.utils';
-import { canExportSr, createSampleSrFile, createSrFileRecord, exportSrSchemaCsv, filterValidSrFiles } from './structural-model-viewer.utils';
+import {
+  canExportSr,
+  createSampleSrFile,
+  createSrFileRecord,
+  exportSrSchemaCsv,
+  filterValidSrFiles,
+  resolveSrSuggestion
+} from './structural-model-viewer.utils';
 
 describe('structural-model-viewer-parse.utils', () => {
   it('parses the parking SM01 sample', () => {
@@ -125,5 +132,13 @@ describe('canExportSr guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportSr({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportSr(null)).toBe(false);
+  });
+});
+
+describe('resolveSrSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveSrSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveSrSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveSrSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

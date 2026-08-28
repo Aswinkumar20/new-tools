@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   TRACE_EXPLORER_ACCEPT_ATTR,
   TRACE_EXPLORER_FORMATS_HINT,
@@ -63,7 +63,7 @@ import {
   standalone: true,
   templateUrl: './trace-explorer.html',
   styleUrls: ['./trace-explorer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
@@ -107,6 +107,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): TraceExplorerLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -140,15 +144,15 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedTrace(): TraceCase | null {
-    return this.filteredTraces.find((t) => t.id === this.selectedTraceId) ?? this.filteredTraces[0] ?? null;
+    return this.filteredTraces.find((t) => t.id === this.selectedTraceId) ?? null;
   }
 
   get selectedAttribute(): TraceAttributeStat | null {
-    return this.filteredAttributes.find((a) => a.id === this.selectedAttributeId) ?? this.filteredAttributes[0] ?? null;
+    return this.filteredAttributes.find((a) => a.id === this.selectedAttributeId) ?? null;
   }
 
   get selectedStep(): TraceStep | null {
-    return this.filteredSteps.find((s) => s.id === this.selectedStepId) ?? this.filteredSteps[0] ?? null;
+    return this.filteredSteps.find((s) => s.id === this.selectedStepId) ?? null;
   }
 
   get traceMetadataRows() {
@@ -176,6 +180,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
     return formatTraceDuration(ms);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -183,6 +191,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -237,6 +249,11 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -257,6 +274,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: TraceExplorerLoadedFile): string {
     return file.id;
@@ -281,6 +302,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatTraceExplorerFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -324,8 +349,13 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no trace data — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -344,6 +374,41 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedTraceId = '';
+    this.selectedAttributeId = '';
+    this.selectedStepId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
 
   selectTrace(id: string): void {
     this.selectedTraceId = id;
@@ -364,41 +429,22 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const trace = this.filteredTraces[0];
-    if (trace && !this.filteredTraces.some((t) => t.id === this.selectedTraceId)) this.selectedTraceId = trace.id;
-    const attr = this.filteredAttributes[0];
-    if (attr && !this.filteredAttributes.some((a) => a.id === this.selectedAttributeId)) this.selectedAttributeId = attr.id;
-    const step = this.filteredSteps[0];
-    if (step && !this.filteredSteps.some((s) => s.id === this.selectedStepId)) this.selectedStepId = step.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedTraceId && !this.filteredTraces.some((t) => t.id === this.selectedTraceId)) {
+      this.selectedTraceId = this.filteredTraces[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedAttributeId && !this.filteredAttributes.some((a) => a.id === this.selectedAttributeId)) {
+      this.selectedAttributeId = this.filteredAttributes[0]?.id ?? '';
+    }
+    if (this.selectedStepId && !this.filteredSteps.some((s) => s.id === this.selectedStepId)) {
+      this.selectedStepId = this.filteredSteps[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedTraceId = '';
-    this.selectedAttributeId = '';
-    this.selectedStepId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -411,6 +457,7 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: TraceExplorerViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -424,6 +471,11 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -432,7 +484,11 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportTraceExplorerSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -442,10 +498,16 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Path, Attributes, or Steps to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -453,6 +515,10 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftTrace(delta: number): void {
     const list = this.filteredTraces;
@@ -494,12 +560,13 @@ export class TraceExplorerComponent implements AfterViewInit, OnDestroy {
       canvas.width = Math.max(320, parent.clientWidth);
       canvas.height = Math.max(180, Math.min(this.viewMode === 'steps' ? 280 : 220, parent.clientHeight || 240));
     }
-    if (this.viewMode === 'path') renderTracePaths(canvas, this.filteredTraces, this.selectedTrace?.id ?? null);
-    else if (this.viewMode === 'attributes') renderTraceAttributes(canvas, this.filteredAttributes, this.selectedAttribute?.id ?? null);
-    else renderTraceSteps(canvas, this.filteredSteps, this.selectedStep?.id ?? null);
+    if (this.viewMode === 'path') renderTracePaths(canvas, this.filteredTraces, this.selectedTraceId || null);
+    else if (this.viewMode === 'attributes') renderTraceAttributes(canvas, this.filteredAttributes, this.selectedAttributeId || null);
+    else renderTraceSteps(canvas, this.filteredSteps, this.selectedStepId || null);
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

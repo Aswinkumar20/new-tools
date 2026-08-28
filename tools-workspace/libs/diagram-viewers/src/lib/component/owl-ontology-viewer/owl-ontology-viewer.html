@@ -144,17 +144,24 @@
           <div class="owl-empty" *ngIf="!currentFile && !loading">
             <p>Drop OWL ontology here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn owl-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="owl-loading" *ngIf="loading">Parsing OWL…</div>
+          <div class="owl-loading" *ngIf="loading" role="status" aria-live="polite">Parsing OWL…</div>
         </div>
 
-        <div class="owl-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="owl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="owl-disclaimer">Education and research preview only — not a substitute for Protégé, OWL API, or reasoners.</p>
+        <div class="owl-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="owl-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="owl-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Protégé, OWL API, or reasoners.</p>
       </section>
 
-      <aside class="owl-sidebar">
+      <aside class="owl-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="owl-empty-panel">Upload an OWL ontology or load the sample to see overview, classes, properties, axioms, and selected item details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -166,7 +173,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search ontology</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="owl-search" type="search" placeholder="class:Book kind:object rel:subclass (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="owl-search" type="search" aria-label="Search OWL ontology" placeholder="class:Book kind:object rel:subclass (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="owl-search-hint">Try <code>class:Book</code>, <code>kind:object</code>, or <code>rel:subclass</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'table' && filteredAxioms.length" open>
@@ -239,17 +247,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Classes, Properties, or Table views and inspect the selected class, property, or axiom.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>class:Book</code> or <code>rel:subclass</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, classes/properties CSV, or a PNG snapshot from Diagram, Classes, or Properties view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

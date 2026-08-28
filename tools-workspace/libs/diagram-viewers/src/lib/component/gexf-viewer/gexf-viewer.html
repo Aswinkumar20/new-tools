@@ -94,7 +94,7 @@
           <div class="gxf-view-controls">
             <label class="gxf-time" *ngIf="viewMode === 'timeline' && parsed">
               t={{ timeValue }}
-              <input type="range" [min]="parsed.timeMin" [max]="parsed.timeMax" [step]="1" [ngModel]="timeValue" (ngModelChange)="setTime($event)" />
+              <input type="range" [min]="parsed.timeMin" [max]="parsed.timeMax" [step]="1" [ngModel]="timeValue" (ngModelChange)="setTime($event)" aria-label="Timeline position" appTooltip="Scrub network time" tooltipPosition="top" />
             </label>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
           </div>
@@ -154,17 +154,24 @@
           <div class="gxf-empty" *ngIf="!currentFile && !loading">
             <p>Drop GEXF source here</p>
             <p>{{ formatsHint }}</p>
+            <button type="button" class="ctl__tool-btn gxf-primary-action" (click)="openFilePicker()">Upload file</button>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="gxf-loading" *ngIf="loading">Parsing GEXF…</div>
+          <div class="gxf-loading" *ngIf="loading" role="status" aria-live="polite">Parsing GEXF…</div>
         </div>
 
-        <div class="gxf-warnings" *ngIf="warnings.length"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
-        <div class="gxf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
-        <p class="gxf-disclaimer">Education and research preview only — not a substitute for Gephi or Sigma.</p>
+        <div class="gxf-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
+        <div class="gxf-error" *ngIf="errorMessage" role="alert"><p>{{ errorMessage }}</p><button type="button" class="ctl__tool-btn" (click)="openFilePicker()">Upload another file</button> <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button></div>
+        <p class="gxf-disclaimer" *ngIf="currentFile">Education and research preview only — not a substitute for Gephi or Sigma.</p>
       </section>
 
-      <aside class="gxf-sidebar">
+      <aside class="gxf-sidebar" *ngIf="!sidebarCollapsed">
+        <details class="ctl__panel" *ngIf="!parsed" open>
+          <summary class="ctl__panel-head">Get started</summary>
+          <div class="ctl__panel-body">
+            <p class="gxf-empty-panel">Upload a GEXF network or load the sample to see overview, nodes, edges, communities, and timeline details here.</p>
+          </div>
+        </details>
         <details class="ctl__panel" *ngIf="parsed" open>
           <summary class="ctl__panel-head">Overview</summary>
           <div class="ctl__panel-body">
@@ -176,7 +183,8 @@
         <details class="ctl__panel" open>
           <summary class="ctl__panel-head">Search network</summary>
           <div class="ctl__panel-body">
-            <input #searchInput class="gxf-search" type="search" placeholder="comm:shoppers t:2 from:Customer (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <input #searchInput class="gxf-search" type="search" aria-label="Search GEXF network" placeholder="comm:shoppers t:2 from:Customer (/)" [(ngModel)]="query" (ngModelChange)="onFilterChange()" />
+            <p class="gxf-search-hint">Try <code>node:Customer</code>, <code>comm:shoppers</code>, or <code>t:2</code>. Press <kbd>/</kbd> to focus; <kbd>f</kbd> clears the filter. In Timeline, use arrow keys to step time.</p>
           </div>
         </details>
         <details class="ctl__panel" *ngIf="viewMode === 'communities' && communities.length" open>
@@ -249,17 +257,17 @@
         <li class="dv-help-step">
           <span class="dv-help-step__n">2</span>
           <h3>Navigate</h3>
-          <p>Switch Diagram / list / table views, search the side panel, and inspect the selected item.</p>
+          <p>Switch Diagram, Timeline, Communities, or Table views, scrub time in Timeline, and inspect the selected item.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">3</span>
           <h3>Inspect</h3>
-          <p>Filter nodes or connectors, then review properties in Overview and Selected cards.</p>
+          <p>Filter with tokens like <code>node:Customer</code> or <code>comm:shoppers</code>, then review Overview and Selected panels.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">4</span>
           <h3>Export</h3>
-          <p>Download the original dump, summary JSON, CSV, or a PNG snapshot.</p>
+          <p>Download the original file, summary JSON, nodes/edges CSV, or a PNG snapshot from Diagram, Timeline, or Communities view.</p>
         </li>
         <li class="dv-help-step">
           <span class="dv-help-step__n">5</span>

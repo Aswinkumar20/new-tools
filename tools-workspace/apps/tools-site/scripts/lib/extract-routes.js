@@ -152,6 +152,14 @@ function readRoutesFile() {
   return chunks.join('\n');
 }
 
+/** Tools that use a real component but mark themselves as coming-soon placeholders. */
+const EXTRA_COMING_SOON_PATHS = [
+  '/file-viewers/video-player',
+  '/media-tools/audio-trimmer',
+  '/media-tools/video-to-gif',
+  '/media-tools/webcam-snapshot',
+];
+
 function extractRoutedTools() {
   const toolsByCategory = new Map();
   if (!fs.existsSync(ROUTES_DIR)) {
@@ -176,6 +184,32 @@ function extractRoutedTools() {
   return toolsByCategory;
 }
 
+/**
+ * Routes that load ComingSoonPageComponent (thin placeholders — noindex / omit from sitemap).
+ */
+function extractComingSoonPaths() {
+  const paths = new Set(EXTRA_COMING_SOON_PATHS);
+  if (!fs.existsSync(ROUTES_DIR)) {
+    return [...paths].sort();
+  }
+
+  for (const name of fs.readdirSync(ROUTES_DIR).filter((f) => f.endsWith('.routes.ts'))) {
+    const slug = name.replace(/\.routes\.ts$/, '');
+    if (slug === 'tools') continue;
+    const src = fs.readFileSync(path.join(ROUTES_DIR, name), 'utf8');
+    const re =
+      /path:\s*'([^']*)',(?:(?!\bpath:\s*')[\s\S])*?ComingSoonPageComponent/g;
+    let match;
+    while ((match = re.exec(src))) {
+      const toolPath = match[1];
+      if (!toolPath || toolPath === '404') continue;
+      paths.add(`/${slug}/${toolPath}`);
+    }
+  }
+
+  return [...paths].sort();
+}
+
 function extractPrerenderRoutes() {
   const routes = ['/tools/home'];
   for (const [category, tools] of extractRoutedTools()) {
@@ -185,6 +219,12 @@ function extractPrerenderRoutes() {
     }
   }
   return [...new Set(routes)].sort();
+}
+
+/** Public sitemap routes — excludes coming-soon placeholders. */
+function extractSitemapRoutes() {
+  const comingSoon = new Set(extractComingSoonPaths());
+  return extractPrerenderRoutes().filter((route) => !comingSoon.has(route));
 }
 
 function slugToTitle(slug) {
@@ -198,8 +238,11 @@ module.exports = {
   ROUTES_FILE,
   ROUTES_DIR,
   CATEGORY_META,
+  EXTRA_COMING_SOON_PATHS,
   readRoutesFile,
   extractRoutedTools,
+  extractComingSoonPaths,
   extractPrerenderRoutes,
+  extractSitemapRoutes,
   slugToTitle,
 };

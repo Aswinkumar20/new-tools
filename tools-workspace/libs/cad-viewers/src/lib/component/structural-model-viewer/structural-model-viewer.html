@@ -114,7 +114,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="sr-cards" *ngIf="currentFile && (viewMode === 'preview' || viewMode === 'members')">
-            <article *ngFor="let member of filteredMembers; trackBy: trackByMember" [class.is-active]="selectedMember?.id === member.id" tabindex="0" role="button" (click)="selectMember(member.id)" (keydown.enter)="selectMember(member.id)" (keydown.space)="selectMember(member.id); $event.preventDefault()">
+            <article *ngFor="let member of visibleMembers; trackBy: trackByMember" [class.is-active]="selectedMember?.id === member.id" tabindex="0" role="button" (click)="selectMember(member.id)" (keydown.enter)="selectMember(member.id)" (keydown.space)="selectMember(member.id); $event.preventDefault()">
               <header>
                 <i class="sr-swatch" [style.background]="member.colorHex || tint(member.memberType, member.index)"></i>
                 <strong>{{ member.name }}</strong>
@@ -123,10 +123,10 @@
               </header>
               <p>{{ member.kind === 'cylinder' ? 'r ' + member.r + ' · h ' + member.h : member.sx + ' × ' + member.sy + ' × ' + member.sz }}</p>
             </article>
-            <p class="sr-empty-filter" *ngIf="parsed && !filteredMembers.length">No members match the current filter.</p>
+            <p class="sr-empty-filter" *ngIf="parsed && !visibleMembers.length">No members match the current filter or visible sections.</p>
           </div>
           <div class="sr-cards" *ngIf="currentFile && viewMode === 'properties'">
-            <article *ngFor="let prop of filteredProperties; trackBy: trackByProperty" [class.is-active]="selectedProperty?.id === prop.id" tabindex="0" role="button" (click)="selectProperty(prop.id)" (keydown.enter)="selectProperty(prop.id)" (keydown.space)="selectProperty(prop.id); $event.preventDefault()">
+            <article *ngFor="let prop of visibleProperties; trackBy: trackByProperty" [class.is-active]="selectedProperty?.id === prop.id" tabindex="0" role="button" (click)="selectProperty(prop.id)" (keydown.enter)="selectProperty(prop.id)" (keydown.space)="selectProperty(prop.id); $event.preventDefault()">
               <header>
                 <i class="sr-swatch" [style.background]="tint(prop.pset, prop.index)"></i>
                 <strong>{{ prop.name }}</strong>
@@ -135,7 +135,7 @@
               </header>
               <p>{{ prop.value || '—' }} <span *ngIf="prop.unit">{{ prop.unit }}</span></p>
             </article>
-            <p class="sr-empty-filter" *ngIf="parsed && !filteredProperties.length">No properties match the current filter.</p>
+            <p class="sr-empty-filter" *ngIf="parsed && !visibleProperties.length">No properties match the current filter or visible sections.</p>
           </div>
           <div class="sr-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -159,7 +159,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="sr-loading" *ngIf="loading">Parsing structural dump…</div>
+          <div class="sr-loading" *ngIf="loading" role="status" aria-live="polite">Parsing structural dump…</div>
         </div>
 
         <div class="sr-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -199,23 +199,23 @@
                 <i class="sr-swatch" [style.background]="tint(section.name, section.index)"></i>
                 <span>{{ section.name }} <small>{{ section.memberCount }} members · {{ section.description || '—' }}</small></span>
               </button>
-              <button type="button" class="sr-eye" (click)="toggleSectionVisible(section.name, $event)" [attr.aria-label]="isSectionHidden(section.name) ? 'Show' : 'Hide'" [appTooltip]="isSectionHidden(section.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isSectionHidden(section.name) ? 'Show' : 'Hide' }}</button>
+              <button type="button" class="sr-eye" (click)="toggleSectionVisible(section.id, $event)" [attr.aria-label]="isSectionHidden(section.id) ? 'Show section' : 'Hide section'" [appTooltip]="isSectionHidden(section.id) ? 'Show section' : 'Hide section'" tooltipPosition="top">{{ isSectionHidden(section.id) ? 'Show' : 'Hide' }}</button>
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'members') && filteredMembers.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'members') && visibleMembers.length" open>
           <summary class="ctl__panel-head">Members</summary>
           <div class="ctl__panel-body sr-units">
-            <button type="button" *ngFor="let member of filteredMembers; trackBy: trackByMember" [class.is-active]="selectedMemberId === member.id" (click)="selectMember(member.id)">
+            <button type="button" *ngFor="let member of visibleMembers; trackBy: trackByMember" [class.is-active]="selectedMemberId === member.id" (click)="selectMember(member.id)">
               <i class="sr-swatch" [style.background]="member.colorHex || tint(member.memberType, member.index)"></i>
               <span>{{ member.name }} <small>{{ member.memberType }} · {{ member.section }}</small></span>
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'properties' || viewMode === 'table') && filteredProperties.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'properties' || viewMode === 'table') && visibleProperties.length" open>
           <summary class="ctl__panel-head">Properties</summary>
           <div class="ctl__panel-body sr-units">
-            <button type="button" *ngFor="let prop of filteredProperties; trackBy: trackByProperty" [class.is-active]="selectedPropId === prop.id" (click)="selectProperty(prop.id)">
+            <button type="button" *ngFor="let prop of visibleProperties; trackBy: trackByProperty" [class.is-active]="selectedPropId === prop.id" (click)="selectProperty(prop.id)">
               <i class="sr-swatch" [style.background]="tint(prop.pset, prop.index)"></i>
               <span>{{ prop.name }} <small>{{ prop.member || '—' }} · {{ prop.value || '—' }}</small></span>
             </button>

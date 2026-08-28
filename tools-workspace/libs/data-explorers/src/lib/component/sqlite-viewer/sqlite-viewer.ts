@@ -99,6 +99,10 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): SqLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -120,7 +124,6 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
       (n) => this.formatSize(n)
     );
   }
-
 
   get warnings(): string[] {
     return this.currentFile?.warnings ?? [];
@@ -167,6 +170,14 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get selectedRowEntries() {
+    return this.selectedRow ? entriesFromRecord(this.selectedRow) : [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Display helpers
+  // ---------------------------------------------------------------------------
+
   tint(type: string, index: number): string {
     return sqColumnColor(type, index);
   }
@@ -179,9 +190,13 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     return previewRecordLabel(row, fallback);
   }
 
-  get selectedRowEntries() {
-    return this.selectedRow ? entriesFromRecord(this.selectedRow) : [];
+  formatSize(bytes: number): string {
+    return formatSqFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
@@ -190,6 +205,10 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -267,6 +286,10 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: SqLoadedFile): string {
     return file.id;
   }
@@ -287,9 +310,9 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     return table.id;
   }
 
-  formatSize(bytes: number): string {
-    return formatSqFileSize(bytes);
-  }
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -334,7 +357,11 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
       this.renderCanvas();
       if (this.currentFile) {
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no tables — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -350,35 +377,6 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     if (index < 0 || index >= this.files.length || index === this.currentIndex) return;
     this.currentIndex = index;
     this.resetViewForCurrent();
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectColumn(id: string): void {
-    this.selectedColumnId = id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectRow(index: number): void {
-    this.selectedRowIndex = index;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  selectDbTable(index: number): void {
-    this.selectedTableIndex = index;
-    this.selectedColumnId = this.selectedDbTable?.columns[0]?.id ?? '';
-    this.selectedRowIndex = 0;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  onFilterChange(): void {
-    if (this.selectedTableIndex >= this.filteredTables.length) this.selectedTableIndex = Math.max(0, this.filteredTables.length - 1);
-    const col = this.filteredColumns[0];
-    if (col && !this.filteredColumns.some((c) => c.id === this.selectedColumnId)) this.selectedColumnId = col.id;
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -406,9 +404,55 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedTableIndex = 0;
     this.errorMessage = '';
     this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
+
+  selectColumn(id: string): void {
+    this.selectedColumnId = id;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  selectRow(index: number): void {
+    this.selectedRowIndex = index;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  selectDbTable(index: number): void {
+    this.selectedTableIndex = index;
+    this.selectedColumnId = this.selectedDbTable?.columns[0]?.id ?? '';
+    this.selectedRowIndex = 0;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  onFilterChange(): void {
+    if (this.selectedTableIndex >= this.filteredTables.length) {
+      this.selectedTableIndex = Math.max(0, this.filteredTables.length - 1);
+    }
+    if (this.selectedColumnId && !this.filteredColumns.some((c) => c.id === this.selectedColumnId)) {
+      this.selectedColumnId = this.filteredColumns[0]?.id ?? '';
+    }
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
+    }
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -421,6 +465,7 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: SqViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -434,6 +479,11 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -442,7 +492,11 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportSqSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -450,6 +504,7 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
       else if (format === 'rows-csv') {
         if (!this.selectedDbTable) {
           this.toast.info('Select a table to export rows');
+          this.cdr.markForCheck();
           return;
         }
         downloadTextFile(exportSqRowsCsv(this.selectedDbTable), `${file.name}.${this.selectedDbTable.name}.csv`, 'text/csv');
@@ -457,10 +512,16 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Tables, Schema, or Preview to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -468,6 +529,10 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftColumn(delta: number): void {
     const list = this.filteredColumns;
@@ -511,6 +576,7 @@ export class SqliteViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

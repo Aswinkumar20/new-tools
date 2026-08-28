@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   LAS_ACCEPT_ATTR,
   LAS_FORMATS_HINT,
@@ -21,11 +21,7 @@ import {
   LAS_RELATED_TOOLS,
   LAS_SUPPORTED_EXTENSIONS
 } from '../../constants/las-well-log-viewer.constants';
-import type {
-  LasExportFormat,
-  LasLoadedFile,
-  LasViewMode
-} from '../../types/las-well-log-viewer.types';
+import type { LasExportFormat, LasLoadedFile, LasViewMode } from '../../types/las-well-log-viewer.types';
 import type { WellLogCurve } from '../../types/well-log.types';
 import { canvasToPngDataUrl } from '../../utils/science-image-render.utils';
 import {
@@ -56,7 +52,7 @@ import {
   standalone: true,
   templateUrl: './las-well-log-viewer.html',
   styleUrls: ['./las-well-log-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
@@ -135,7 +131,7 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.selectedMnemonic) ?? this.visibleCurves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.selectedMnemonic) ?? null;
   }
 
   get curveMetadataRows() {
@@ -147,11 +143,11 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get xCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotX) ?? this.parsed?.curves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotX) ?? null;
   }
 
   get yCurve(): WellLogCurve | null {
-    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotY) ?? this.parsed?.curves[1] ?? this.parsed?.curves[0] ?? null;
+    return this.parsed?.curves.find((c) => c.mnemonic === this.crossplotY) ?? null;
   }
 
   get tableRows(): number[] {
@@ -177,20 +173,24 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'tracks' || this.viewMode === 'crossplot';
+  }
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
@@ -236,6 +236,11 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   onKeydown(event: KeyboardEvent): void {
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
+      return;
+    }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
       return;
     }
     if (!this.currentFile) return;
@@ -332,8 +337,13 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no depth samples — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -354,6 +364,7 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   selectCurve(mnemonic: string): void {
+    if (mnemonic === this.selectedMnemonic) return;
     this.selectedMnemonic = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -385,7 +396,7 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   selectRow(index: number): void {
-    if (index < 0 || index >= this.tableRows.length) return;
+    if (index < 0 || index >= this.tableRows.length || index === this.selectedRowIndex) return;
     this.selectedRowIndex = index;
     this.cdr.markForCheck();
   }
@@ -402,18 +413,23 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
+    if (this.selectedMnemonic && !this.filteredCurveList.some((c) => c.mnemonic === this.selectedMnemonic)) {
+      this.selectedMnemonic = this.filteredCurveList[0]?.mnemonic ?? '';
+    }
     this.selectedRowIndex = 0;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setCrossplotX(mnemonic: string): void {
+    if (mnemonic === this.crossplotX) return;
     this.crossplotX = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setCrossplotY(mnemonic: string): void {
+    if (mnemonic === this.crossplotY) return;
     this.crossplotY = mnemonic;
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -474,6 +490,7 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
     this.currentIndex = Math.min(index, next.length - 1);
     this.resetViewForCurrent();
     this.renderCanvas();
+    this.cdr.markForCheck();
   }
 
   clearAll(): void {
@@ -482,8 +499,17 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedRowIndex = 0;
     this.errorMessage = '';
     this.query = '';
+    this.depthMin = 0;
+    this.depthMax = 1;
     this.enabledMnemonics = new Set();
     this.selectedMnemonic = '';
+    this.crossplotX = '';
+    this.crossplotY = '';
+    this.viewMode = 'tracks';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
     this.clearCanvas();
     this.cdr.markForCheck();
   }
@@ -499,6 +525,7 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: LasViewMode): void {
+    if (mode === this.viewMode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -512,6 +539,11 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -520,7 +552,11 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       const mnemonics = this.visibleCurves.map((c) => c.mnemonic);
       if (format === 'original') downloadBinaryFile(new TextEncoder().encode(file.text), file.name, 'text/plain');
@@ -534,12 +570,18 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
         );
       } else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
-        if (!canvas) {
+        if (!canvas || !this.canUseCanvasExport) {
           this.toast.info('Open Tracks or Crossplot to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -565,19 +607,24 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
     this.selectedMnemonic = parsed.curves[0].mnemonic;
     this.crossplotX = parsed.curves[0].mnemonic;
     this.crossplotY = parsed.curves[1]?.mnemonic || parsed.curves[0].mnemonic;
+    if (!parsed.depth.length) {
+      this.depthMin = 0;
+      this.depthMax = 1;
+      return;
+    }
     this.depthMin = parsed.depth[0];
     this.depthMax = parsed.depth[parsed.depth.length - 1];
   }
 
   private renderCanvas(): void {
-    if (!this.isBrowser || (this.viewMode !== 'tracks' && this.viewMode !== 'crossplot')) return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const parsed = this.parsed;
     if (!canvas) return;
     const parent = canvas.parentElement;
     if (parent) {
       canvas.width = Math.max(320, parent.clientWidth);
-      canvas.height = Math.max(280, parent.clientHeight || 420);
+      canvas.height = Math.max(280, Math.min(520, parent.clientHeight || 420));
     }
     if (!parsed?.depth.length) {
       this.clearCanvas();
@@ -596,10 +643,13 @@ export class LasWellLogViewerComponent implements AfterViewInit, OnDestroy {
         depthMin: this.depthMin,
         depthMax: this.depthMax
       });
+    } else {
+      this.clearCanvas();
     }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

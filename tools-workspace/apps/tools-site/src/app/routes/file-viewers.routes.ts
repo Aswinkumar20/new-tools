@@ -132,6 +132,11 @@ export const FILE_VIEWERS_ROUTES: Routes = [
       import('@tools-workspace/file-viewers/rtf-viewer/rtf-viewer').then(m => m.RtfViewerComponent),
   },
   {
+    path: 'ics-viewer',
+    loadComponent: () =>
+      import('@tools-workspace/file-viewers/ics-viewer/ics-viewer').then(m => m.IcsViewerComponent),
+  },
+  {
     path: 'subtitle-viewer',
     loadComponent: () =>
       import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),

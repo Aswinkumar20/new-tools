@@ -20,7 +20,8 @@ import {
   createEgFileRecord,
   createSampleEgFile,
   exportEgSchemaCsv,
-  filterValidEgFiles
+  filterValidEgFiles,
+  resolveEgSuggestion
 } from './eagle-pcb-viewer.utils';
 
 describe('eagle-pcb-viewer-parse.utils', () => {
@@ -141,5 +142,13 @@ describe('canExportEg guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportEg({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportEg(null)).toBe(false);
+  });
+});
+
+describe('resolveEgSuggestion', () => {
+  it('returns upload-or-sample, sample-after-error, or null', () => {
+    expect(resolveEgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveEgSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveEgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

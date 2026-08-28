@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   PNML_ACCEPT_ATTR,
   PNML_FORMATS_HINT,
@@ -63,7 +63,7 @@ import {
   standalone: true,
   templateUrl: './pnml-viewer.html',
   styleUrls: ['./pnml-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
@@ -107,6 +107,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): PnmlLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -140,15 +144,15 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedPlace(): PnmlPlace | null {
-    return this.filteredPlaces.find((p) => p.id === this.selectedPlaceId) ?? this.filteredPlaces[0] ?? null;
+    return this.filteredPlaces.find((p) => p.id === this.selectedPlaceId) ?? null;
   }
 
   get selectedTransition(): PnmlTransition | null {
-    return this.filteredTransitions.find((t) => t.id === this.selectedTransitionId) ?? this.filteredTransitions[0] ?? null;
+    return this.filteredTransitions.find((t) => t.id === this.selectedTransitionId) ?? null;
   }
 
   get selectedToken(): PnmlTokenMarking | null {
-    return this.filteredTokens.find((t) => t.id === this.selectedTokenId) ?? this.filteredTokens[0] ?? null;
+    return this.filteredTokens.find((t) => t.id === this.selectedTokenId) ?? null;
   }
 
   get placeMetadataRows() {
@@ -176,6 +180,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
     return pnmlTransitionColor(enabled);
   }
 
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -183,6 +191,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -237,18 +249,23 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'places') this.shiftPlace(1);
+      if (this.viewMode === 'places' || this.viewMode === 'table') this.shiftPlace(1);
       else if (this.viewMode === 'transitions') this.shiftTransition(1);
       else this.shiftToken(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'places') this.shiftPlace(-1);
+      if (this.viewMode === 'places' || this.viewMode === 'table') this.shiftPlace(-1);
       else if (this.viewMode === 'transitions') this.shiftTransition(-1);
       else this.shiftToken(-1);
     } else if (event.key.toLowerCase() === 'f') {
@@ -257,6 +274,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
       this.onFilterChange();
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
 
   trackByFileId(_i: number, file: PnmlLoadedFile): string {
     return file.id;
@@ -281,6 +302,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatPnmlFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -324,8 +349,13 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no places/transitions — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -344,6 +374,41 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
     this.renderCanvas();
     this.cdr.markForCheck();
   }
+
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedPlaceId = '';
+    this.selectedTransitionId = '';
+    this.selectedTokenId = '';
+    this.errorMessage = '';
+    this.query = '';
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filter
+  // ---------------------------------------------------------------------------
 
   selectPlace(id: string): void {
     this.selectedPlaceId = id;
@@ -368,41 +433,22 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    const place = this.filteredPlaces[0];
-    if (place && !this.filteredPlaces.some((p) => p.id === this.selectedPlaceId)) this.selectedPlaceId = place.id;
-    const trans = this.filteredTransitions[0];
-    if (trans && !this.filteredTransitions.some((t) => t.id === this.selectedTransitionId)) this.selectedTransitionId = trans.id;
-    const token = this.filteredTokens[0];
-    if (token && !this.filteredTokens.some((t) => t.id === this.selectedTokenId)) this.selectedTokenId = token.id;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedPlaceId && !this.filteredPlaces.some((p) => p.id === this.selectedPlaceId)) {
+      this.selectedPlaceId = this.filteredPlaces[0]?.id ?? '';
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
+    if (this.selectedTransitionId && !this.filteredTransitions.some((t) => t.id === this.selectedTransitionId)) {
+      this.selectedTransitionId = this.filteredTransitions[0]?.id ?? '';
+    }
+    if (this.selectedTokenId && !this.filteredTokens.some((t) => t.id === this.selectedTokenId)) {
+      this.selectedTokenId = this.filteredTokens[0]?.id ?? '';
+    }
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedPlaceId = '';
-    this.selectedTransitionId = '';
-    this.selectedTokenId = '';
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / view mode / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -415,6 +461,7 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: PnmlViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -428,6 +475,11 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -436,7 +488,11 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(file.bytes, file.name, 'application/octet-stream');
       else if (format === 'summary-json') downloadTextFile(exportPnmlSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -446,10 +502,16 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasHost?.nativeElement;
         if (!canvas || this.viewMode === 'table') {
           this.toast.info('Open Places, Transitions, or Tokens to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -457,6 +519,10 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private shiftPlace(delta: number): void {
     const list = this.filteredPlaces;
@@ -499,15 +565,17 @@ export class PnmlViewerComponent implements AfterViewInit, OnDestroy {
       canvas.height = Math.max(180, Math.min(this.viewMode === 'places' ? 320 : 220, parent.clientHeight || 240));
     }
     if (this.viewMode === 'places') {
-      renderPnmlNet(canvas, this.parsed.places, this.parsed.transitions, this.parsed.arcs, this.selectedPlace?.id ?? null);
+      renderPnmlNet(canvas, this.parsed.places, this.parsed.transitions, this.parsed.arcs, this.selectedPlaceId || null);
     } else if (this.viewMode === 'transitions') {
-      renderPnmlTransitions(canvas, this.filteredTransitions, this.selectedTransition?.id ?? null);
+      renderPnmlTransitions(canvas, this.filteredTransitions, this.selectedTransitionId || null);
     } else {
-      renderPnmlMarkings(canvas, this.filteredTokens, this.selectedToken?.placeId ?? null);
+      const token = this.filteredTokens.find((t) => t.id === this.selectedTokenId);
+      renderPnmlMarkings(canvas, this.filteredTokens, token?.placeId ?? null);
     }
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

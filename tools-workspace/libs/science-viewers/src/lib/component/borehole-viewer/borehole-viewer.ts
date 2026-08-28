@@ -13,7 +13,7 @@ import {
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AssetService, Navigation, ToastService } from '@tools-workspace/features-home';
+import { AssetService, Navigation, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import {
   BOREHOLE_ACCEPT_ATTR,
   BOREHOLE_FORMATS_HINT,
@@ -57,7 +57,7 @@ import {
   standalone: true,
   templateUrl: './borehole-viewer.html',
   styleUrls: ['./borehole-viewer.scss'],
-  imports: [CommonModule, FormsModule, RouterLink, Navigation],
+  imports: [CommonModule, FormsModule, RouterLink, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
@@ -104,6 +104,10 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   private dragDepth = 0;
   private resizeObserver: ResizeObserver | null = null;
 
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   get currentFile(): BoreholeLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -129,7 +133,7 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get selectedStation(): BoreholeSurveyRow | null {
-    return this.parsed?.survey[this.selectedStationIndex] ?? this.visibleStations[0] ?? null;
+    return this.parsed?.survey[this.selectedStationIndex] ?? null;
   }
 
   get stationMetadataRows() {
@@ -145,6 +149,23 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
+  get surveyMdMin(): number {
+    return this.parsed?.survey[0]?.md ?? 0;
+  }
+
+  get surveyMdMax(): number {
+    const survey = this.parsed?.survey;
+    return survey?.length ? survey[survey.length - 1].md : 1;
+  }
+
+  get canUseCanvasExport(): boolean {
+    return this.viewMode === 'plan' || this.viewMode === 'section' || this.viewMode === '3d';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngAfterViewInit(): void {
     if (this.isBrowser) this.observeCanvasResize();
   }
@@ -152,6 +173,10 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
   }
+
+  // ---------------------------------------------------------------------------
+  // Host listeners
+  // ---------------------------------------------------------------------------
 
   @HostListener('document:click')
   onDocumentClick(): void {
@@ -206,6 +231,11 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
     }
+    if (event.key === 'Escape' && this.showExportMenu) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     if (!this.parsed) return;
     if (event.key === '/') {
       event.preventDefault();
@@ -228,6 +258,10 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // TrackBy
+  // ---------------------------------------------------------------------------
+
   trackByFileId(_i: number, file: BoreholeLoadedFile): string {
     return file.id;
   }
@@ -247,6 +281,10 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   formatSize(bytes: number): string {
     return formatBoreholeFileSize(bytes);
   }
+
+  // ---------------------------------------------------------------------------
+  // File load / clear
+  // ---------------------------------------------------------------------------
 
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
@@ -290,8 +328,13 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
       }
       this.renderCanvas();
       if (this.currentFile) {
+        this.errorMessage = '';
         this.toast.success(`Loaded ${this.currentFile.name}`);
-        if (this.currentFile.warnings.length) this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        if (this.currentFile.softFail) {
+          this.toast.warning('Parsed with little or no survey stations — metadata may still be available');
+        } else if (this.currentFile.warnings.length) {
+          this.toast.info(`${this.currentFile.warnings.length} note(s) about this file`);
+        }
       }
     } finally {
       this.loading = false;
@@ -311,15 +354,54 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedStationIndex = 0;
+    this.errorMessage = '';
+    this.query = '';
+    this.exaggeration = 1;
+    this.mdMin = 0;
+    this.mdMax = 1;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.dismissedSuggestionId = null;
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selection / filters / view
+  // ---------------------------------------------------------------------------
+
   selectStation(index: number): void {
     if (!this.parsed || index < 0 || index >= this.parsed.survey.length) return;
+    if (index === this.selectedStationIndex) return;
     this.selectedStationIndex = index;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   setExaggeration(value: number): void {
-    this.exaggeration = Math.max(0.25, Math.min(8, value));
+    const next = Math.max(0.25, Math.min(8, value));
+    if (next === this.exaggeration) return;
+    this.exaggeration = next;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -343,32 +425,20 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   onFilterChange(): void {
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (
+      this.selectedStation &&
+      this.query.trim() &&
+      !this.visibleStations.some((row) => row.index === this.selectedStationIndex)
+    ) {
+      this.selectedStationIndex = this.visibleStations[0]?.index ?? 0;
+      this.renderCanvas();
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedStationIndex = 0;
-    this.errorMessage = '';
-    this.query = '';
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Suggestions / chrome / export
+  // ---------------------------------------------------------------------------
 
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
@@ -381,6 +451,7 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: BoreholeViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -394,6 +465,11 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -402,7 +478,11 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.showExportMenu = false;
     const file = this.currentFile;
-    if (!file?.parsed) return;
+    if (!this.canExport || !file?.parsed) {
+      this.toast.info('Nothing to export');
+      this.cdr.markForCheck();
+      return;
+    }
     try {
       if (format === 'original') downloadBinaryFile(new TextEncoder().encode(file.text), file.name, 'application/json');
       else if (format === 'summary-json') downloadTextFile(exportBoreholeSummaryJson(file), `${file.name}.summary.json`, 'application/json');
@@ -410,12 +490,18 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
       else if (format === 'lithology-csv') downloadTextFile(exportBoreholeLithCsv(file.parsed), `${file.name}.lithology.csv`, 'text/csv');
       else if (format === 'png') {
         const canvas = this.canvasHost?.nativeElement;
-        if (!canvas) {
+        if (!canvas || !this.canUseCanvasExport) {
           this.toast.info('Open Plan, Section, or 3D to export a PNG snapshot');
+          this.cdr.markForCheck();
           return;
         }
         const url = canvasToPngDataUrl(canvas);
-        if (url) downloadDataUrl(url, `${file.name}.png`);
+        if (!url) {
+          this.toast.error('Could not capture PNG snapshot');
+          this.cdr.markForCheck();
+          return;
+        }
+        downloadDataUrl(url, `${file.name}.png`);
       }
       this.toast.success('Export started');
     } catch (error) {
@@ -423,6 +509,10 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
     }
     this.cdr.markForCheck();
   }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
   private resetViewForCurrent(): void {
     const parsed = this.parsed;
@@ -439,14 +529,14 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private renderCanvas(): void {
-    if (!this.isBrowser || (this.viewMode !== 'plan' && this.viewMode !== 'section' && this.viewMode !== '3d')) return;
+    if (!this.isBrowser || !this.canUseCanvasExport) return;
     const canvas = this.canvasHost?.nativeElement;
     const parsed = this.parsed;
     if (!canvas) return;
     const parent = canvas.parentElement;
     if (parent) {
       canvas.width = Math.max(320, parent.clientWidth);
-      canvas.height = Math.max(280, parent.clientHeight || 420);
+      canvas.height = Math.max(280, Math.min(520, parent.clientHeight || 420));
     }
     if (!parsed?.survey.length) {
       this.clearCanvas();
@@ -459,6 +549,7 @@ export class BoreholeViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private clearCanvas(): void {
+    if (!this.isBrowser) return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

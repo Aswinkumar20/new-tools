@@ -114,16 +114,16 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="st-cards" *ngIf="currentFile && viewMode === 'solids'">
-            <article *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
+            <article *ngFor="let solid of visibleSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
               <header>
                 <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
                 <strong>{{ solid.name }}</strong>
                 <span>{{ solid.kind }}</span>
-                <button type="button" class="st-eye" (click)="toggleSolidVisible(solid.id, $event)" [attr.aria-label]="isSolidHidden(solid.id) ? 'Show' : 'Hide'" [appTooltip]="isSolidHidden(solid.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isSolidHidden(solid.id) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="st-eye" (click)="toggleSolidVisible(solid.id, $event)" [attr.aria-label]="isSolidHidden(solid.id) ? 'Show solid' : 'Hide solid'" [appTooltip]="isSolidHidden(solid.id) ? 'Show solid' : 'Hide solid'" tooltipPosition="top">{{ isSolidHidden(solid.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>vol {{ solid.volume }} · {{ solid.kind === 'cylinder' ? 'r ' + solid.r + ' · h ' + solid.h : solid.sx + ' × ' + solid.sy + ' × ' + solid.sz }}</p>
             </article>
-            <p class="st-empty-filter" *ngIf="parsed && !filteredSolids.length">No solids match the current filter.</p>
+            <p class="st-empty-filter" *ngIf="parsed && !visibleSolids.length">No solids match the current filter or visibility.</p>
           </div>
           <div class="st-cards" *ngIf="currentFile && viewMode === 'measurements'">
             <article *ngFor="let meas of filteredMeasurements; trackBy: trackByMeas" [class.is-active]="selectedMeas?.id === meas.id" tabindex="0" role="button" (click)="selectMeas(meas.id)" (keydown.enter)="selectMeas(meas.id)" (keydown.space)="selectMeas(meas.id); $event.preventDefault()">
@@ -145,7 +145,7 @@
               </header>
               <p>{{ product.description || '—' }}</p>
             </article>
-            <article *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
+            <article *ngFor="let solid of visibleSolids; trackBy: trackBySolid" [class.is-active]="selectedSolid?.id === solid.id" tabindex="0" role="button" (click)="selectSolid(solid.id)" (keydown.enter)="selectSolid(solid.id)" (keydown.space)="selectSolid(solid.id); $event.preventDefault()">
               <header>
                 <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
                 <strong>{{ solid.name }}</strong>
@@ -153,7 +153,7 @@
               </header>
               <p>vol {{ solid.volume }}</p>
             </article>
-            <p class="st-empty-filter" *ngIf="parsed && !filteredProducts.length && !filteredSolids.length">No products or solids match the current filter.</p>
+            <p class="st-empty-filter" *ngIf="parsed && !filteredProducts.length && !visibleSolids.length">No products or solids match the current filter or visibility.</p>
           </div>
           <div class="st-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -177,7 +177,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="st-loading" *ngIf="loading">Parsing STEP dump…</div>
+          <div class="st-loading" *ngIf="loading" role="status" aria-live="polite">Parsing STEP dump…</div>
         </div>
 
         <div class="st-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -209,10 +209,10 @@
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'solids' && filteredSolids.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'solids' && visibleSolids.length" open>
           <summary class="ctl__panel-head">Solids</summary>
           <div class="ctl__panel-body st-units">
-            <button type="button" *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
+            <button type="button" *ngFor="let solid of visibleSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
               <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
               <span>{{ solid.name }} <small>{{ solid.kind }} · vol {{ solid.volume }}</small></span>
             </button>
@@ -227,10 +227,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && filteredSolids.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'preview' || viewMode === 'table') && visibleSolids.length" open>
           <summary class="ctl__panel-head">Solids</summary>
           <div class="ctl__panel-body st-units">
-            <button type="button" *ngFor="let solid of filteredSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
+            <button type="button" *ngFor="let solid of visibleSolids; trackBy: trackBySolid" [class.is-active]="selectedSolidId === solid.id" (click)="selectSolid(solid.id)">
               <i class="st-swatch" [style.background]="solid.colorHex || tint(solid.kind, solid.index)"></i>
               <span>{{ solid.name }} <small>{{ solid.kind }}</small></span>
             </button>

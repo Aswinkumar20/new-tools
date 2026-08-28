@@ -95,6 +95,8 @@
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="isolateSelectedModel()" [disabled]="!selectedModelId" [attr.aria-label]="selectedModelId ? 'Isolate selected model' : 'Select a model to isolate'" [appTooltip]="selectedModelId ? 'Isolate selected model' : 'Select a model to isolate'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="showAllModels()" [disabled]="!hiddenModelIds.size" [attr.aria-label]="hiddenModelIds.size ? 'Show all models' : 'All models visible'" [appTooltip]="hiddenModelIds.size ? 'Show all models' : 'All models visible'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
@@ -114,7 +116,7 @@
             (wheel)="onCanvasWheel($event)"
           ></canvas>
           <div class="nw-cards" *ngIf="currentFile && viewMode === 'navigate'">
-            <article *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" tabindex="0" role="button" (click)="selectItem(item.id)" (keydown.enter)="selectItem(item.id)" (keydown.space)="selectItem(item.id); $event.preventDefault()">
+            <article *ngFor="let item of visibleItems; trackBy: trackByItem" [class.is-active]="selectedItem?.id === item.id" tabindex="0" role="button" (click)="selectItem(item.id)" (keydown.enter)="selectItem(item.id)" (keydown.space)="selectItem(item.id); $event.preventDefault()">
               <header>
                 <i class="nw-swatch" [style.background]="item.colorHex || tint(item.kind, item.index)"></i>
                 <strong>{{ item.name }}</strong>
@@ -123,7 +125,7 @@
               </header>
               <p>{{ item.kind === 'cylinder' ? 'r ' + item.r + ' · h ' + item.h : item.sx + ' × ' + item.sy }}</p>
             </article>
-            <p class="nw-empty-filter" *ngIf="parsed && !filteredItems.length">No items match the current filter.</p>
+            <p class="nw-empty-filter" *ngIf="parsed && !visibleItems.length">No items match the current filter.</p>
           </div>
           <div class="nw-cards" *ngIf="currentFile && viewMode === 'models'">
             <article *ngFor="let model of filteredModels; trackBy: trackByModel" [class.is-active]="selectedModel?.id === model.id" tabindex="0" role="button" (click)="selectModel(model.id)" (keydown.enter)="selectModel(model.id)" (keydown.space)="selectModel(model.id); $event.preventDefault()">
@@ -131,14 +133,14 @@
                 <i class="nw-swatch" [style.background]="tint('model', model.index)"></i>
                 <strong>{{ model.name }}</strong>
                 <span>model</span>
-                <button type="button" class="nw-eye" (click)="toggleModelVisible(model.name, $event)" [attr.aria-label]="isModelHidden(model.name) ? 'Show' : 'Hide'" [appTooltip]="isModelHidden(model.name) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isModelHidden(model.name) ? 'Show' : 'Hide' }}</button>
+                <button type="button" class="nw-eye" (click)="toggleModelVisible(model.id, $event)" [attr.aria-label]="isModelHidden(model.id) ? 'Show' : 'Hide'" [appTooltip]="isModelHidden(model.id) ? 'Show' : 'Hide'" tooltipPosition="top">{{ isModelHidden(model.id) ? 'Show' : 'Hide' }}</button>
               </header>
               <p>{{ model.description || '—' }} · {{ model.itemCount }} items</p>
             </article>
             <p class="nw-empty-filter" *ngIf="parsed && !filteredModels.length">No models match the current filter.</p>
           </div>
           <div class="nw-cards" *ngIf="currentFile && viewMode === 'clashes'">
-            <article *ngFor="let clash of filteredClashes; trackBy: trackByClash" [class.is-active]="selectedClash?.id === clash.id" tabindex="0" role="button" (click)="selectClash(clash.id)" (keydown.enter)="selectClash(clash.id)" (keydown.space)="selectClash(clash.id); $event.preventDefault()">
+            <article *ngFor="let clash of visibleClashes; trackBy: trackByClash" [class.is-active]="selectedClash?.id === clash.id" tabindex="0" role="button" (click)="selectClash(clash.id)" (keydown.enter)="selectClash(clash.id)" (keydown.space)="selectClash(clash.id); $event.preventDefault()">
               <header>
                 <i class="nw-swatch" [style.background]="tint(clash.clashType, clash.index)"></i>
                 <strong>{{ clash.name }}</strong>
@@ -146,7 +148,7 @@
               </header>
               <p>{{ clash.itemA }} vs {{ clash.itemB }} · {{ clash.status }} · {{ clash.distance }}</p>
             </article>
-            <p class="nw-empty-filter" *ngIf="parsed && !filteredClashes.length">No clashes match the current filter.</p>
+            <p class="nw-empty-filter" *ngIf="parsed && !visibleClashes.length">No clashes match the current filter.</p>
           </div>
           <div class="nw-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -170,7 +172,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="nw-loading" *ngIf="loading">Parsing Navisworks dump…</div>
+          <div class="nw-loading" *ngIf="loading" role="status">Parsing Navisworks dump…</div>
         </div>
 
         <div class="nw-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -202,10 +204,10 @@
             </div>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="viewMode === 'navigate' && filteredItems.length" open>
+        <details class="ctl__panel" *ngIf="viewMode === 'navigate' && visibleItems.length" open>
           <summary class="ctl__panel-head">Navigate</summary>
           <div class="ctl__panel-body nw-units">
-            <button type="button" *ngFor="let item of filteredItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
+            <button type="button" *ngFor="let item of visibleItems; trackBy: trackByItem" [class.is-active]="selectedItemId === item.id" (click)="selectItem(item.id)">
               <i class="nw-swatch" [style.background]="item.colorHex || tint(item.kind, item.index)"></i>
               <span>{{ item.name }} <small>{{ item.kind }}</small></span>
             </button>
@@ -220,10 +222,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'clashes' || viewMode === 'table') && filteredClashes.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'clashes' || viewMode === 'table') && visibleClashes.length" open>
           <summary class="ctl__panel-head">Clashes</summary>
           <div class="ctl__panel-body nw-units">
-            <button type="button" *ngFor="let clash of filteredClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
+            <button type="button" *ngFor="let clash of visibleClashes; trackBy: trackByClash" [class.is-active]="selectedClashId === clash.id" (click)="selectClash(clash.id)">
               <i class="nw-swatch" [style.background]="tint(clash.clashType, clash.index)"></i>
               <span>{{ clash.name }} <small>{{ clash.clashType }} · {{ clash.itemA }} vs {{ clash.itemB }}</small></span>
             </button>

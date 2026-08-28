@@ -10,7 +10,8 @@ import {
   createKgFileRecord,
   createSampleKgFile,
   exportKgEntitiesCsv,
-  filterValidKgFiles
+  filterValidKgFiles,
+  resolveKgSuggestion
 } from './knowledge-graph-viewer.utils';
 
 describe('knowledge-graph-viewer-parse.utils', () => {
@@ -87,5 +88,21 @@ describe('knowledge-graph-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveKgSuggestion covers empty and error states', () => {
+    expect(resolveKgSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveKgSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveKgSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createKgFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportKg(record)).toBe(false);
+  });
+
+  it('canExportKg returns false for null', () => {
+    expect(canExportKg(null)).toBe(false);
   });
 });

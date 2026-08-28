@@ -12,7 +12,8 @@ import {
   createSampleStFile,
   createStFileRecord,
   exportStSchemaCsv,
-  filterValidStFiles
+  filterValidStFiles,
+  resolveStSuggestion
 } from './step-viewer.utils';
 
 describe('step-viewer-parse.utils', () => {
@@ -111,5 +112,13 @@ describe('canExportSt guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportSt({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportSt(null)).toBe(false);
+  });
+});
+
+describe('resolveStSuggestion', () => {
+  it('returns sample-after-error, upload-or-sample, or null', () => {
+    expect(resolveStSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveStSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveStSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

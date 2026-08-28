@@ -1147,6 +1147,14 @@ export const TOOL_SEO_CATALOG: Record<string, ToolSeoEntry> = {
     description: 'RTF Viewer — free online file viewers tool. Free, fast, and private — runs in your browser on EasyToolHub.',
     keywords: 'rtf viewer, rtf viewer online, free rtf viewer, file viewer online, document viewer, open file in browser, local rich text format parser, word wordpad alternative, rtf json csv html export, free online tool, no signup, easytoolhub',
   },
+  '/file-viewers/ics-viewer': {
+    name: 'ICS Calendar Viewer',
+    category: 'File Viewers',
+    categorySlug: 'file-viewers',
+    title: 'ICS Calendar Viewer - Free Online File Viewers Tool',
+    description: 'ICS Calendar Viewer — free online file viewers tool. Free, fast, and private — runs in your browser on EasyToolHub.',
+    keywords: 'ics calendar viewer, ics calendar viewer online, free ics calendar viewer, ics viewer, file viewer online, document viewer, open file in browser, ics viewer online, icalendar viewer, open ics file, calendar viewer, ics file preview, outlook ics viewer, google calendar ics viewer, apple calendar export viewer, read-only calendar',
+  },
   '/file-viewers/subtitle-viewer': {
     name: 'Subtitle Viewer',
     category: 'File Viewers',
@@ -3108,3 +3116,30 @@ export const TOOL_SEO_CATALOG: Record<string, ToolSeoEntry> = {
     keywords: 'pako compress & decompress, pako compress & decompress online, free pako compress & decompress, pako encode decode, pako encode, encode decode, text tool, text editor online, string utility, free online tool, no signup, easytoolhub',
   },
 };
+
+/** Coming-soon placeholder routes — noindex; omitted from sitemap. */
+export const COMING_SOON_PATHS: readonly string[] = [
+  '/file-viewers/apk-viewer',
+  '/file-viewers/audit-log-viewer',
+  '/file-viewers/elf-binary-viewer',
+  '/file-viewers/figma-export-viewer',
+  '/file-viewers/game-save-viewer',
+  '/file-viewers/indesign-viewer',
+  '/file-viewers/invoice-data-viewer',
+  '/file-viewers/ipa-viewer',
+  '/file-viewers/midi-viewer',
+  '/file-viewers/minecraft-world-viewer',
+  '/file-viewers/musicxml-viewer',
+  '/file-viewers/nft-metadata-viewer',
+  '/file-viewers/pe-binary-viewer',
+  '/file-viewers/sketch-file-viewer',
+  '/file-viewers/smart-contract-viewer',
+  '/file-viewers/spectrogram-viewer',
+  '/file-viewers/subtitle-viewer',
+  '/file-viewers/unity-asset-viewer',
+  '/file-viewers/video-player',
+  '/file-viewers/wav-spectrum-viewer',
+  '/media-tools/audio-trimmer',
+  '/media-tools/video-to-gif',
+  '/media-tools/webcam-snapshot',
+];

@@ -10,7 +10,7 @@
 | AutoGA map lags routes (365) | Missing analytics |
 | GA directives rarely used in templates | Dead surface |
 | i18n: 28 languages listed, 4 JSON files, tools English-only | False capability |
-| Theme keys `theme` vs `easytoolhub.theme` | Dark mode desync |
+| Theme keys | Unified on `theme` (migrates legacy `easytoolhub.theme`) |
 | Folder typo `textDifferrence` | Naming debt |
 
 **Coupling:** feature libs → `features-home` (`type:shared`) for nav/toast/assets. Home + shared kit still share one library (Navigation is coupled to the generated catalog). `shared-utils` for clipboard/download helpers is still future work.
@@ -86,4 +86,4 @@
 
 ## Positive patterns to keep
 
-Standalone + lazy `loadComponent`, pure utils + specs, `AssetService`, toast bus, SEO on SSR+client, PDF workbench modes, `TextToolBase`.
+Standalone + lazy `loadComponent`, pure utils + specs, `AssetService`, toast bus, SEO on prerender+client, PDF workbench modes, `TextToolBase`.

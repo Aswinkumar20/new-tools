@@ -10,7 +10,8 @@ import {
   createSampleTfFile,
   createTfFileRecord,
   exportTfResourcesCsv,
-  filterValidTfFiles
+  filterValidTfFiles,
+  resolveTfSuggestion
 } from './terraform-graph-viewer.utils';
 
 describe('terraform-graph-viewer-parse.utils', () => {
@@ -87,5 +88,22 @@ describe('terraform-graph-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveTfSuggestion returns upload-or-sample and sample-after-error', () => {
+    expect(resolveTfSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveTfSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveTfSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createTfFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportTf(record)).toBe(false);
+  });
+
+  it('canExportTf returns false for null', () => {
+    expect(canExportTf(null)).toBe(false);
   });
 });

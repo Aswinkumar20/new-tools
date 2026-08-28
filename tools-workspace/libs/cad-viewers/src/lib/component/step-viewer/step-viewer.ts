@@ -52,13 +52,13 @@ import {
   filterStSolids,
   filterValidStFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatStFileSize,
+  pickCad3dSolidAtScreen,
   readStFileBytes,
   renderStMeasurements,
   renderStSolids,
   resolveStSuggestion,
+  sizeCadCanvas,
   stTypeColor,
   toCad3dSolids
 } from '../../utils/step-viewer.utils';
@@ -72,18 +72,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class StepViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = ST_ACCEPT_ATTR;
   readonly relatedTools = ST_RELATED_TOOLS;
   readonly supportedExtensions = ST_SUPPORTED_EXTENSIONS;
@@ -96,23 +99,30 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: StLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: StViewMode = 'solids';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedSolidId = '';
   selectedMeasId = '';
   selectedRowIndex = 0;
   hiddenSolidIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -121,6 +131,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): StLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -133,6 +144,10 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     return canExportSt(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -141,10 +156,6 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredSolids(): StSolid[] {
@@ -159,7 +170,9 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     if (!this.parsed) return [];
     const q = this.query.trim().toLowerCase();
     if (!q) return this.parsed.products;
-    return this.parsed.products.filter((p) => `${p.name} ${p.description}`.toLowerCase().includes(q.replace(/^name:/, '')));
+    return this.parsed.products.filter((p) =>
+      `${p.name} ${p.description}`.toLowerCase().includes(q.replace(/^name:/, ''))
+    );
   }
 
   get filteredColumns(): StColumn[] {
@@ -171,6 +184,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleSolids(): StSolid[] {
+    if (!this.hiddenSolidIds.size) return this.filteredSolids;
     return this.filteredSolids.filter((s) => !this.hiddenSolidIds.has(s.id));
   }
 
@@ -203,18 +217,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return stTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isSolidHidden(id: string): boolean {
-    return this.hiddenSolidIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -226,11 +229,15 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -238,15 +245,14 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -257,13 +263,13 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -274,7 +280,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -285,6 +291,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -308,12 +315,14 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
+      if (this.viewMode === 'preview') this.shiftSolid(1);
+      else if (this.viewMode === 'table') this.shiftRow(1);
       else if (this.viewMode === 'measurements') this.shiftMeas(1);
       else this.shiftSolid(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
+      if (this.viewMode === 'preview') this.shiftSolid(-1);
+      else if (this.viewMode === 'table') this.shiftRow(-1);
       else if (this.viewMode === 'measurements') this.shiftMeas(-1);
       else this.shiftSolid(-1);
     } else if (event.key.toLowerCase() === 'f') {
@@ -323,6 +332,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: StLoadedFile): string {
     return file.id;
   }
@@ -355,6 +365,19 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     return formatStFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return stTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isSolidHidden(id: string): boolean {
+    return this.hiddenSolidIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -424,6 +447,43 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    this.showExportMenu = false;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedSolidId = '';
+    this.selectedMeasId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenSolidIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'solids';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectSolid(id: string): void {
     this.selectedSolidId = id;
     this.renderCanvas();
@@ -439,10 +499,29 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    const type = (row.type || '').toLowerCase();
-    if (type === 'distance' || type === 'angle' || type === 'volume' || type === 'measurement') this.selectedMeasId = row.name;
-    else if (type !== 'product') this.selectedSolidId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (
+      kind === 'distance' ||
+      kind === 'angle' ||
+      kind === 'volume' ||
+      kind === 'measurement' ||
+      this.parsed.measurements.some((m) => m.name === name || m.id === name)
+    ) {
+      const meas = this.parsed.measurements.find((m) => m.name === name || m.id === name);
+      if (meas) this.selectMeas(meas.id);
+    } else if (kind === 'product') {
+      // Products are informational only in this viewer.
+    } else if (name) {
+      const solid = this.parsed.solids.find((s) => s.name === name || s.id === name);
+      if (solid) this.selectSolid(solid.id);
+      else this.selectedSolidId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -463,40 +542,27 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedMeasId && !this.filteredMeasurements.some((m) => m.id === this.selectedMeasId)) {
       this.selectedMeasId = this.filteredMeasurements[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedSolidId = '';
-    this.selectedMeasId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenSolidIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedMeasId = '';
+    this.selectedSolidId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -508,9 +574,13 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: StViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -524,6 +594,11 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -561,8 +636,9 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
-    if (!this.parsed || this.viewMode === 'table') return;
+    if (!this.parsed || this.viewMode === 'table' || this.viewMode === 'measurements') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
     this.cdr.markForCheck();
@@ -573,7 +649,18 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    if (!this.isBrowser || this.viewMode === 'table' || this.viewMode === 'measurements') return;
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed) return;
+    const { width, height } = sizeCadCanvas(canvas);
+    this.view = fitCad3dView(toCad3dSolids(this.visibleSolids), width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -587,28 +674,6 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedMeasId = '';
-    this.selectedSolidId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    this.view = fitCad3dView(toCad3dSolids(this.visibleSolids), width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -626,6 +691,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     this.pointerMoved += Math.abs(dx) + Math.abs(dy);
     this.lastX = event.clientX;
     this.lastY = event.clientY;
+    if (this.viewMode === 'measurements') return;
     this.view = {
       ...this.view,
       rotY: this.view.rotY + dx * 0.01,
@@ -637,7 +703,7 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'measurements') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -649,17 +715,17 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
     else this.clearSelection();
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table' || this.viewMode === 'measurements') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
   private shiftSolid(delta: number): void {
-    const list = this.filteredSolids;
+    const list = this.visibleSolids;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedSolidId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -675,10 +741,6 @@ export class StepViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftSolid(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));

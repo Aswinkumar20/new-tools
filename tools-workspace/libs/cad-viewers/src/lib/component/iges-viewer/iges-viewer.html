@@ -95,6 +95,8 @@
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="zoomBy(1.2)" [disabled]="!parsed" aria-label="Zoom in" appTooltip="Zoom in" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="fitView()" [disabled]="!parsed" aria-label="Fit view" appTooltip="Fit view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="resetView()" [disabled]="!parsed" aria-label="Reset view" appTooltip="Reset view" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.64"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="isolateSelectedSurface()" [disabled]="!selectedSurfaceId" [attr.aria-label]="selectedSurfaceId ? 'Isolate selected surface' : 'Select a surface to isolate'" [appTooltip]="selectedSurfaceId ? 'Isolate selected surface' : 'Select a surface to isolate'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></button>
+            <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="showAllSurfaces()" [disabled]="!hiddenSurfaceIds.size" [attr.aria-label]="hiddenSurfaceIds.size ? 'Show all surfaces' : 'All surfaces visible'" [appTooltip]="hiddenSurfaceIds.size ? 'Show all surfaces' : 'All surfaces visible'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="clearSelection()" [disabled]="!hasSelection" [attr.aria-label]="hasSelection ? 'Clear selection' : 'Nothing selected'" [appTooltip]="hasSelection ? 'Clear selection' : 'Nothing selected'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/></svg></button>
             <button type="button" class="ctl__icon-btn" *ngIf="viewMode !== 'table'" (click)="toggleFullscreen()" [disabled]="!currentFile" [attr.aria-label]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" [appTooltip]="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
             <button type="button" class="ctl__icon-btn" (click)="toggleSidebar()" [attr.aria-pressed]="!sidebarCollapsed" [attr.aria-label]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" [appTooltip]="sidebarCollapsed ? 'Show details panel' : 'Hide details panel'" tooltipPosition="top"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
@@ -126,7 +128,7 @@
             <p class="ig-empty-filter" *ngIf="parsed && !filteredSurfaces.length">No surfaces match the current filter.</p>
           </div>
           <div class="ig-cards" *ngIf="currentFile && viewMode === 'entities'">
-            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
+            <article *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
               <header>
                 <i class="ig-swatch" [style.background]="tint(entity.type, entity.index)"></i>
                 <strong>{{ entity.name }}</strong>
@@ -134,10 +136,10 @@
               </header>
               <p>{{ entity.surface || '—' }} · {{ entity.text || entity.typeCode || '—' }}</p>
             </article>
-            <p class="ig-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+            <p class="ig-empty-filter" *ngIf="parsed && !visibleEntities.length">No entities match the current filter.</p>
           </div>
           <div class="ig-cards" *ngIf="currentFile && viewMode === 'preview'">
-            <article *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
+            <article *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntity?.id === entity.id" tabindex="0" role="button" (click)="selectEntity(entity.id)" (keydown.enter)="selectEntity(entity.id)" (keydown.space)="selectEntity(entity.id); $event.preventDefault()">
               <header>
                 <i class="ig-swatch" [style.background]="tint(entity.type, entity.index)"></i>
                 <strong>{{ entity.name }}</strong>
@@ -145,7 +147,7 @@
               </header>
               <p>{{ entity.surface || '—' }} · {{ entity.text || entity.x + ', ' + entity.y }}</p>
             </article>
-            <p class="ig-empty-filter" *ngIf="parsed && !filteredEntities.length">No entities match the current filter.</p>
+            <p class="ig-empty-filter" *ngIf="parsed && !visibleEntities.length">No entities match the current filter.</p>
           </div>
           <div class="ig-table" *ngIf="currentFile && viewMode === 'table'">
             <table>
@@ -169,7 +171,7 @@
             <p>{{ formatsHint }}</p>
             <button type="button" class="ctl__tool-btn" (click)="loadSample()">Load sample</button>
           </div>
-          <div class="ig-loading" *ngIf="loading">Parsing IGES dump…</div>
+          <div class="ig-loading" *ngIf="loading" role="status">Parsing IGES dump…</div>
         </div>
 
         <div class="ig-warnings" *ngIf="warnings.length" role="alert"><p *ngFor="let warning of warnings; trackBy: trackByWarning">{{ warning }}</p></div>
@@ -210,10 +212,10 @@
             </button>
           </div>
         </details>
-        <details class="ctl__panel" *ngIf="(viewMode === 'entities' || viewMode === 'preview' || viewMode === 'table') && filteredEntities.length" open>
+        <details class="ctl__panel" *ngIf="(viewMode === 'entities' || viewMode === 'preview' || viewMode === 'table') && visibleEntities.length" open>
           <summary class="ctl__panel-head">Entities</summary>
           <div class="ctl__panel-body ig-units">
-            <button type="button" *ngFor="let entity of filteredEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
+            <button type="button" *ngFor="let entity of visibleEntities; trackBy: trackByEntity" [class.is-active]="selectedEntityId === entity.id" (click)="selectEntity(entity.id)">
               <i class="ig-swatch" [style.background]="tint(entity.type, entity.index)"></i>
               <span>{{ entity.name }} <small>{{ entity.type }} · {{ entity.surface || '—' }}</small></span>
             </button>

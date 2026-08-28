@@ -12,7 +12,8 @@ import {
   createSampleInFile,
   createInFileRecord,
   exportInSchemaCsv,
-  filterValidInFiles
+  filterValidInFiles,
+  resolveInSuggestion
 } from './ini-viewer.utils';
 
 describe('ini-viewer-parse.utils', () => {
@@ -91,5 +92,21 @@ describe('ini-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveInSuggestion covers empty and error states', () => {
+    expect(resolveInSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveInSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveInSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail record disables export', () => {
+    const payload = new TextEncoder().encode('hello world');
+    const file = new File([payload], 'bad.txt', { lastModified: 9 });
+    const record = createInFileRecord(file, payload);
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportIn(record)).toBe(false);
+    expect(canExportIn(null)).toBe(false);
   });
 });

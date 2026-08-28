@@ -5,7 +5,14 @@ import {
   GML_NO_COMMUNITY_SAMPLE
 } from '../constants/graphml-viewer-sample.data';
 import { filterGmlEdges, filterGmlNodes, parseGraphmlText, relayoutGml } from './graphml-viewer-parse.utils';
-import { canExportGml, createGmlFileRecord, createSampleGmlFile, exportGmlNodesCsv, filterValidGmlFiles } from './graphml-viewer.utils';
+import {
+  canExportGml,
+  createGmlFileRecord,
+  createSampleGmlFile,
+  exportGmlNodesCsv,
+  filterValidGmlFiles,
+  resolveGmlSuggestion
+} from './graphml-viewer.utils';
 
 describe('graphml-viewer-parse.utils', () => {
   it('parses the shop GraphML sample', () => {
@@ -85,5 +92,21 @@ describe('graphml-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveGmlSuggestion covers empty and error states', () => {
+    expect(resolveGmlSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveGmlSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveGmlSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const record = createGmlFileRecord(new File(['hello world'], 'bad.txt', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportGml(record)).toBe(false);
+  });
+
+  it('canExportGml returns false for null', () => {
+    expect(canExportGml(null)).toBe(false);
   });
 });

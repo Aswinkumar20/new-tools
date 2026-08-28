@@ -16,11 +16,18 @@ import {
   parseKcText
 } from './kicad-viewer-parse.utils';
 import {
+  buildKcBoardMetadata,
+  buildKcLayerMetadata,
+  buildKcMetadataRows,
+  buildKcSchMetadata,
   canExportKc,
   createKcFileRecord,
   createSampleKcFile,
+  exportKcRowsCsv,
   exportKcSchemaCsv,
-  filterValidKcFiles
+  exportKcSummaryJson,
+  filterValidKcFiles,
+  resolveKcSuggestion
 } from './kicad-viewer.utils';
 
 describe('kicad-viewer-parse.utils', () => {
@@ -139,5 +146,43 @@ describe('canExportKc guards', () => {
   it('disables export on soft-fail', () => {
     expect(canExportKc({ parsed: { name: 'x' }, softFail: true } as never)).toBe(false);
     expect(canExportKc(null)).toBe(false);
+  });
+});
+
+describe('kicad-viewer metadata + exports + suggestions', () => {
+  it('builds dataset and layer/board/sch metadata rows', () => {
+    const parsed = parseKcBytes(buildSampleKcBytes(), 'nucleo-hat.kicad_pcb');
+    const rows = buildKcMetadataRows(parsed);
+    expect(rows.some((r) => r.key === 'Name' && r.value === parsed.name)).toBe(true);
+    expect(rows.some((r) => r.key === 'Stack')).toBe(true);
+
+    expect(buildKcLayerMetadata(parsed.layers[0]).some((r) => r.key === 'Function')).toBe(true);
+    expect(buildKcBoardMetadata(parsed.boardItems[0]).some((r) => r.key === 'Type')).toBe(true);
+    expect(buildKcSchMetadata(parsed.schItems[0]).some((r) => r.key === 'Type')).toBe(true);
+  });
+
+  it('exports summary json and rows csv', () => {
+    const file = createKcFileRecord(createSampleKcFile(), buildSampleKcBytes());
+    const summary = exportKcSummaryJson(file);
+    expect(summary).toContain('"boardItems"');
+    expect(summary).toContain(file.parsed!.name);
+
+    const rowsCsv = exportKcRowsCsv(file.parsed!);
+    expect(rowsCsv.split('\n').length).toBe(file.parsed!.rows.length + 1);
+  });
+
+  it('soft-fails empty parseable dumps without crashing export guard', () => {
+    const payload = '{"name":"Empty","layers":[],"nets":[],"boardItems":[],"schItems":[]}';
+    const emptyJson = new File([payload], 'empty.json', { lastModified: 1 });
+    const bytes = new TextEncoder().encode(payload);
+    const record = createKcFileRecord(emptyJson, bytes);
+    expect(record.softFail).toBe(true);
+    expect(canExportKc(record)).toBe(false);
+  });
+
+  it('resolves upload and error suggestions', () => {
+    expect(resolveKcSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveKcSuggestion({ hasFiles: false, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveKcSuggestion({ hasFiles: true, hasError: false })).toBeNull();
   });
 });

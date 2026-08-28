@@ -10,7 +10,8 @@ import {
   createProcessMiningFileRecord,
   createSampleProcessMiningFile,
   exportProcessMiningVariantsCsv,
-  filterValidProcessMiningFiles
+  filterValidProcessMiningFiles,
+  resolveProcessMiningSuggestion
 } from './process-mining-viewer.utils';
 
 describe('process-mining-parse.utils', () => {
@@ -82,5 +83,24 @@ describe('process-mining-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveProcessMiningSuggestion returns upload-or-sample when empty', () => {
+    expect(resolveProcessMiningSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+  });
+
+  it('resolveProcessMiningSuggestion returns sample-after-error when hasError', () => {
+    expect(resolveProcessMiningSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+  });
+
+  it('canExportProcessMining returns false for null', () => {
+    expect(canExportProcessMining(null)).toBe(false);
+  });
+
+  it('soft-fail record has parsed null and disables export', () => {
+    const record = createProcessMiningFileRecord(new File(['hello world'], 'bad.xes', { lastModified: 9 }), new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(record.parsed).toBeNull();
+    expect(canExportProcessMining(record)).toBe(false);
   });
 });

@@ -26,12 +26,12 @@ import type { Cad3dView } from '../../utils/cad-3d.utils';
 import { buildCadInsightStats, clampCadZoom, observeCadDocumentTheme } from '../../utils/cad-file.utils';
 import {
   buildSwAssemblyMetadata,
-  buildSwMetadataRows,
   buildSwPartMetadata,
+  buildSwMetadataRows,
   canExportSw,
   canvasToPngDataUrl,
-  createSwFileRecord,
   createSampleSwFile,
+  createSwFileRecord,
   defaultCad3dView,
   downloadBinaryFile,
   downloadDataUrl,
@@ -40,22 +40,22 @@ import {
   exportSwSchemaCsv,
   exportSwSummaryJson,
   filterSwAssemblies,
-  filterSwInstances,
   filterSwParts,
+  filterSwInstances,
   filterSwRows,
   filterValidSwFiles,
   fitCad3dView,
-  pickCad3dSolidAtScreen,
-  sizeCadCanvas,
   formatSwFileSize,
-  swTypeColor,
+  pickCad3dSolidAtScreen,
   readSwFileBytes,
   renderSwAssemblies,
-  renderSwInstances,
   renderSwParts,
+  renderSwInstances,
   resolveSwSuggestion,
-  toCad3dInstances,
-  toCad3dParts
+  sizeCadCanvas,
+  swTypeColor,
+  toCad3dParts,
+  toCad3dInstances
 } from '../../utils/solidworks-viewer.utils';
 
 @Component({
@@ -67,18 +67,21 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
+  // ─── Dependencies ───────────────────────────────────────────────────────────
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
+  // ─── View children ──────────────────────────────────────────────────────────
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('canvasHost') canvasHost?: ElementRef<HTMLCanvasElement>;
   @ViewChild('mapWrap') mapWrap?: ElementRef<HTMLElement>;
   @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('viewerPanel') viewerPanel?: ElementRef<HTMLElement>;
 
+  // ─── Constants / labels ─────────────────────────────────────────────────────
   readonly acceptAttr = SW_ACCEPT_ATTR;
   readonly relatedTools = SW_RELATED_TOOLS;
   readonly supportedExtensions = SW_SUPPORTED_EXTENSIONS;
@@ -91,24 +94,31 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     { id: 'table', label: 'Rows' }
   ];
 
+  // ─── File / parse state ─────────────────────────────────────────────────────
   files: SwLoadedFile[] = [];
   currentIndex = -1;
   loading = false;
   errorMessage = '';
+
+  // ─── UI chrome ──────────────────────────────────────────────────────────────
   showDropZone = false;
   showExportMenu = false;
   sidebarCollapsed = false;
   dismissedSuggestionId: string | null = null;
   viewMode: SwViewMode = 'parts';
   query = '';
+  isFullscreen = false;
+
+  // ─── Selection / visibility ─────────────────────────────────────────────────
   selectedPartId = '';
   selectedAssemblyId = '';
   selectedInstanceId = '';
   selectedRowIndex = 0;
   hiddenPartIds = new Set<string>();
+
+  // ─── Canvas interaction ─────────────────────────────────────────────────────
   view: Cad3dView = defaultCad3dView();
   rotating = false;
-  isFullscreen = false;
 
   private dragDepth = 0;
   private lastX = 0;
@@ -117,6 +127,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | null = null;
   private stopThemeWatch: (() => void) | null = null;
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
   get currentFile(): SwLoadedFile | null {
     return this.currentIndex >= 0 ? this.files[this.currentIndex] ?? null : null;
   }
@@ -129,6 +140,10 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     return canExportSw(this.currentFile);
   }
 
+  get warnings(): string[] {
+    return this.currentFile?.warnings ?? [];
+  }
+
   get insights() {
     return buildCadInsightStats(
       this.parsed as Record<string, unknown> | null,
@@ -137,10 +152,6 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
       this.warnings,
       (n) => this.formatSize(n)
     );
-  }
-
-  get warnings(): string[] {
-    return this.currentFile?.warnings ?? [];
   }
 
   get filteredParts(): SwPart[] {
@@ -164,7 +175,13 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get visibleParts(): SwPart[] {
-    return this.filteredParts.filter((s) => !this.hiddenPartIds.has(s.id));
+    if (!this.hiddenPartIds.size) return this.filteredParts;
+    return this.filteredParts.filter((g) => !this.hiddenPartIds.has(g.id));
+  }
+
+  get visibleInstances(): SwInstance[] {
+    if (!this.hiddenPartIds.size) return this.filteredInstances;
+    return this.filteredInstances.filter((inst) => !this.isPartKeyHidden(inst.part));
   }
 
   get selectedPart(): SwPart | null {
@@ -192,7 +209,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   get hasSelection(): boolean {
-    return !!(this.selectedAssemblyId || this.selectedInstanceId || this.selectedPartId);
+    return !!(this.selectedAssemblyId || this.selectedPartId || this.selectedInstanceId);
   }
 
   get primarySuggestion() {
@@ -200,18 +217,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     return !s || s.id === this.dismissedSuggestionId ? null : s;
   }
 
-  tint(type: string, index: number): string {
-    return swTypeColor(type, index);
-  }
-
-  rowValue(row: Record<string, string>, column: string): string {
-    return row[column] || '';
-  }
-
-  isPartHidden(id: string): boolean {
-    return this.hiddenPartIds.has(id);
-  }
-
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   ngAfterViewInit(): void {
     if (!this.isBrowser) return;
     this.observeCanvasResize();
@@ -223,11 +229,15 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stopThemeWatch?.();
+    this.stopThemeWatch = null;
   }
 
+  // ─── Host listeners ─────────────────────────────────────────────────────────
   @HostListener('document:fullscreenchange')
   onFullscreenChange(): void {
+    if (!this.isBrowser) return;
     this.isFullscreen = !!document.fullscreenElement;
     this.cdr.markForCheck();
     setTimeout(() => this.renderCanvas(), 0);
@@ -235,15 +245,14 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
-    if (this.showExportMenu) {
-      this.showExportMenu = false;
-      this.cdr.markForCheck();
-    }
+    if (!this.showExportMenu) return;
+    this.showExportMenu = false;
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:dragenter', ['$event'])
   onWindowDragEnter(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth += 1;
     if (!this.showDropZone) {
@@ -254,13 +263,13 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:dragover', ['$event'])
   onWindowDragOver(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
   }
 
   @HostListener('window:dragleave', ['$event'])
   onWindowDragLeave(event: DragEvent): void {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = Math.max(0, this.dragDepth - 1);
     if (this.dragDepth === 0 && this.showDropZone) {
@@ -271,7 +280,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:drop', ['$event'])
   async onWindowDrop(event: DragEvent): Promise<void> {
-    if (!this.isFileDrag(event)) return;
+    if (!this.isBrowser || !this.isFileDrag(event)) return;
     event.preventDefault();
     this.dragDepth = 0;
     this.showDropZone = false;
@@ -282,6 +291,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isBrowser) return;
     if (this.isTypingTarget(event.target)) {
       if (event.key === 'Escape') (event.target as HTMLElement).blur();
       return;
@@ -305,12 +315,14 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
       this.searchInput?.nativeElement?.focus();
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(1);
+      if (this.viewMode === 'preview') this.shiftInstance(1);
+      else if (this.viewMode === 'table') this.shiftRow(1);
       else if (this.viewMode === 'assemblies') this.shiftAssembly(1);
       else this.shiftPart(1);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (this.viewMode === 'preview' || this.viewMode === 'table') this.shiftRow(-1);
+      if (this.viewMode === 'preview') this.shiftInstance(-1);
+      else if (this.viewMode === 'table') this.shiftRow(-1);
       else if (this.viewMode === 'assemblies') this.shiftAssembly(-1);
       else this.shiftPart(-1);
     } else if (event.key.toLowerCase() === 'f') {
@@ -320,6 +332,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  // ─── TrackBy / format helpers ───────────────────────────────────────────────
   trackByFileId(_i: number, file: SwLoadedFile): string {
     return file.id;
   }
@@ -352,6 +365,19 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     return formatSwFileSize(bytes);
   }
 
+  tint(type: string, index: number): string {
+    return swTypeColor(type, index);
+  }
+
+  rowValue(row: Record<string, string>, column: string): string {
+    return row[column] || '';
+  }
+
+  isPartHidden(id: string): boolean {
+    return this.hiddenPartIds.has(id);
+  }
+
+  // ─── File load / sample ─────────────────────────────────────────────────────
   openFilePicker(): void {
     this.fileInput?.nativeElement?.click();
   }
@@ -421,20 +447,79 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  removeFile(index: number, event: Event): void {
+    event.stopPropagation();
+    if (index < 0 || index >= this.files.length) return;
+    const next = this.files.filter((_, i) => i !== index);
+    this.files = next;
+    if (!next.length) {
+      this.clearAll();
+      return;
+    }
+    this.currentIndex = Math.min(index, next.length - 1);
+    this.resetViewForCurrent();
+    this.fitView();
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  clearAll(): void {
+    this.files = [];
+    this.currentIndex = -1;
+    this.selectedPartId = '';
+    this.selectedAssemblyId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = 0;
+    this.hiddenPartIds = new Set();
+    this.errorMessage = '';
+    this.query = '';
+    this.dismissedSuggestionId = null;
+    this.showExportMenu = false;
+    this.showDropZone = false;
+    this.dragDepth = 0;
+    this.viewMode = 'parts';
+    this.view = defaultCad3dView();
+    this.clearCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Selection / filter / visibility ────────────────────────────────────────
   selectPart(id: string): void {
     this.selectedPartId = id;
+    const group = this.filteredParts.find((g) => g.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) => inst.part === id || (!!group && (inst.part === group.name || inst.part === group.id))
+    );
+    if (hit) this.selectedInstanceId = hit.id;
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectAssembly(id: string): void {
     this.selectedAssemblyId = id;
+    const component = this.filteredAssemblies.find((c) => c.id === id);
+    const hit = this.visibleInstances.find(
+      (inst) =>
+        inst.assembly === id || (!!component && (inst.assembly === component.name || inst.assembly === component.id))
+    );
+    if (hit) {
+      this.selectedInstanceId = hit.id;
+      this.selectPartFromInstance(hit);
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
 
   selectInstance(id: string): void {
     this.selectedInstanceId = id;
+    const inst = this.filteredInstances.find((i) => i.id === id);
+    if (inst) {
+      this.selectPartFromInstance(inst);
+      if (inst.assembly) {
+        const component = this.parsed?.assemblies.find((c) => c.id === inst.assembly || c.name === inst.assembly);
+        this.selectedAssemblyId = component?.id ?? this.selectedAssemblyId;
+      }
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -442,10 +527,24 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   selectRow(index: number): void {
     this.selectedRowIndex = index;
     const row = this.filteredRows[index];
-    if (!row?.name) return;
-    if (this.filteredParts.some((s) => s.id === row.name || s.name === row.name)) this.selectedPartId = row.name;
-    if (this.filteredAssemblies.some((e) => e.id === row.name || e.name === row.name)) this.selectedAssemblyId = row.name;
-    if (this.filteredInstances.some((inst) => inst.id === row.name || inst.name === row.name)) this.selectedInstanceId = row.name;
+    if (!row || !this.parsed) {
+      this.renderCanvas();
+      this.cdr.markForCheck();
+      return;
+    }
+    const name = row['name'] || row['Name'] || '';
+    const kind = (row['kind'] || row['type'] || row['Type'] || '').toLowerCase();
+    if (kind === 'assembly' || this.parsed.assemblies.some((c) => c.name === name || c.id === name)) {
+      const component = this.parsed.assemblies.find((c) => c.name === name || c.id === name);
+      if (component) this.selectAssembly(component.id);
+    } else if (kind === 'instance' || this.parsed.instances.some((i) => i.name === name || i.id === name)) {
+      const inst = this.parsed.instances.find((i) => i.name === name || i.id === name);
+      if (inst) this.selectInstance(inst.id);
+    } else if (name) {
+      const group = this.parsed.parts.find((g) => g.name === name || g.id === name);
+      if (group) this.selectPart(group.id);
+      else this.selectedPartId = name;
+    }
     this.renderCanvas();
     this.cdr.markForCheck();
   }
@@ -469,41 +568,28 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     if (this.selectedInstanceId && !this.filteredInstances.some((inst) => inst.id === this.selectedInstanceId)) {
       this.selectedInstanceId = this.filteredInstances[0]?.id ?? '';
     }
-    if (this.selectedRowIndex >= this.filteredRows.length) this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  removeFile(index: number, event: Event): void {
-    event.stopPropagation();
-    if (index < 0 || index >= this.files.length) return;
-    const next = this.files.filter((_, i) => i !== index);
-    this.files = next;
-    if (!next.length) {
-      this.clearAll();
-      return;
+    if (this.selectedRowIndex >= this.filteredRows.length) {
+      this.selectedRowIndex = Math.max(0, this.filteredRows.length - 1);
     }
-    this.currentIndex = Math.min(index, next.length - 1);
-    this.resetViewForCurrent();
-    this.fitView();
     this.renderCanvas();
-  }
-
-  clearAll(): void {
-    this.files = [];
-    this.currentIndex = -1;
-    this.selectedPartId = '';
-    this.selectedAssemblyId = '';
-    this.selectedInstanceId = '';
-    this.selectedRowIndex = 0;
-    this.hiddenPartIds = new Set();
-    this.errorMessage = '';
-    this.query = '';
-    this.view = defaultCad3dView();
-    this.clearCanvas();
     this.cdr.markForCheck();
   }
 
+  clearSearch(): void {
+    this.query = '';
+    this.onFilterChange();
+  }
+
+  clearSelection(): void {
+    this.selectedAssemblyId = '';
+    this.selectedPartId = '';
+    this.selectedInstanceId = '';
+    this.selectedRowIndex = -1;
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
+  // ─── Suggestions / view mode / chrome ───────────────────────────────────────
   dismissSuggestion(id: string): void {
     this.dismissedSuggestionId = id;
     this.cdr.markForCheck();
@@ -515,9 +601,13 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   setViewMode(mode: SwViewMode): void {
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
     this.cdr.markForCheck();
-    setTimeout(() => this.renderCanvas(), 0);
+    setTimeout(() => {
+      if (mode !== 'table') this.fitView();
+      this.renderCanvas();
+    }, 0);
   }
 
   toggleSidebar(): void {
@@ -531,6 +621,11 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
 
   toggleExportMenu(event: Event): void {
     event.stopPropagation();
+    if (!this.canExport) {
+      this.showExportMenu = false;
+      this.cdr.markForCheck();
+      return;
+    }
     this.showExportMenu = !this.showExportMenu;
     this.cdr.markForCheck();
   }
@@ -568,6 +663,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  // ─── Canvas / view controls ─────────────────────────────────────────────────
   zoomBy(factor: number): void {
     if (!this.parsed || this.viewMode === 'table') return;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
@@ -580,7 +676,21 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     this.fitView();
   }
 
+  fitView(): void {
+    const canvas = this.canvasHost?.nativeElement;
+    if (!canvas || !this.parsed || this.viewMode === 'table') return;
+    const { width, height } = sizeCadCanvas(canvas);
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleParts, this.visibleInstances)
+        : toCad3dParts(this.visibleParts);
+    this.view = fitCad3dView(solids, width, height);
+    this.renderCanvas();
+    this.cdr.markForCheck();
+  }
+
   async toggleFullscreen(): Promise<void> {
+    if (!this.isBrowser) return;
     const host = this.viewerPanel?.nativeElement;
     if (!host) return;
     const requestFs = host.requestFullscreen?.bind(host);
@@ -594,33 +704,6 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
     } catch {
       this.toast.info('Fullscreen is not available in this browser');
     }
-  }
-
-  clearSearch(): void {
-    this.query = '';
-    this.onFilterChange();
-  }
-
-  clearSelection(): void {
-    this.selectedAssemblyId = '';
-    this.selectedInstanceId = '';
-    this.selectedPartId = '';
-    this.selectedRowIndex = -1;
-    this.renderCanvas();
-    this.cdr.markForCheck();
-  }
-
-  fitView(): void {
-    const canvas = this.canvasHost?.nativeElement;
-    if (!canvas || !this.parsed) return;
-    const { width, height } = sizeCadCanvas(canvas);
-    const solids =
-      this.viewMode === 'preview'
-        ? toCad3dInstances(this.visibleParts, this.filteredInstances)
-        : toCad3dParts(this.visibleParts);
-    this.view = fitCad3dView(solids, width, height);
-    this.renderCanvas();
-    this.cdr.markForCheck();
   }
 
   onCanvasPointerDown(event: PointerEvent): void {
@@ -649,29 +732,49 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   onCanvasPointerUp(event?: PointerEvent): void {
     const wasClick = this.rotating && this.pointerMoved <= 8;
     this.rotating = false;
-    if (!wasClick || !event || !this.parsed || this.viewMode === 'table') return;
+    if (!wasClick || !event || !this.parsed || this.viewMode === 'table' || this.viewMode === 'assemblies') return;
     const canvas = this.canvasHost?.nativeElement;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const sx = ((event.clientX - rect.left) * canvas.width) / rect.width;
     const sy = ((event.clientY - rect.top) * canvas.height) / rect.height;
-    const id = pickCad3dSolidAtScreen(this.viewMode === 'preview' ? toCad3dInstances(this.visibleParts, this.filteredInstances) : toCad3dParts(this.visibleParts), this.view, canvas.width, canvas.height, sx, sy);
-    if (id) this.selectInstance(id);
-    else this.clearSelection();
+    const solids =
+      this.viewMode === 'preview'
+        ? toCad3dInstances(this.visibleParts, this.visibleInstances)
+        : toCad3dParts(this.visibleParts);
+    const id = pickCad3dSolidAtScreen(solids, this.view, canvas.width, canvas.height, sx, sy);
+    if (!id) {
+      this.clearSelection();
+      return;
+    }
+    if (this.viewMode === 'preview') this.selectInstance(id);
+    else this.selectPart(id);
   }
 
-
   onCanvasWheel(event: WheelEvent): void {
-    if (!this.parsed) return;
+    if (!this.parsed || this.viewMode === 'table') return;
     event.preventDefault();
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
     this.view = { ...this.view, zoom: clampCadZoom(this.view.zoom * factor, 0.08, 12) };
     this.renderCanvas();
   }
 
+  // ─── Private helpers ────────────────────────────────────────────────────────
+  private isPartKeyHidden(groupKey: string): boolean {
+    if (this.hiddenPartIds.has(groupKey)) return true;
+    const group = this.parsed?.parts.find((g) => g.id === groupKey || g.name === groupKey);
+    return !!group && this.hiddenPartIds.has(group.id);
+  }
+
+  private selectPartFromInstance(inst: SwInstance): void {
+    if (!inst.part) return;
+    const group = this.parsed?.parts.find((g) => g.id === inst.part || g.name === inst.part);
+    this.selectedPartId = group?.id ?? this.selectedPartId;
+  }
+
   private shiftPart(delta: number): void {
-    const list = this.filteredParts;
+    const list = this.visibleParts;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((s) => s.id === this.selectedPartId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -687,7 +790,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftInstance(delta: number): void {
-    const list = this.filteredInstances;
+    const list = this.visibleInstances;
     if (!list.length) return;
     const idx = Math.max(0, list.findIndex((inst) => inst.id === this.selectedInstanceId));
     const next = list[Math.min(list.length - 1, Math.max(0, idx + delta))];
@@ -695,10 +798,6 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
   }
 
   private shiftRow(delta: number): void {
-    if (this.viewMode === 'preview') {
-      this.shiftInstance(delta);
-      return;
-    }
     const list = this.filteredRows;
     if (!list.length) return;
     this.selectRow(Math.min(list.length - 1, Math.max(0, this.selectedRowIndex + delta)));
@@ -724,7 +823,7 @@ export class SolidworksViewerComponent implements AfterViewInit, OnDestroy {
       return;
     }
     if (this.viewMode === 'preview') {
-      renderSwInstances(canvas, this.visibleParts, this.filteredInstances, this.selectedInstanceId || null, this.view);
+      renderSwInstances(canvas, this.visibleParts, this.visibleInstances, this.selectedInstanceId || null, this.view);
       return;
     }
     renderSwParts(canvas, this.visibleParts, this.selectedPartId || null, this.view);

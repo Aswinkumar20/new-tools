@@ -11,7 +11,8 @@ import {
   createCmapFileRecord,
   createSampleCmapFile,
   exportCmapNodesCsv,
-  filterValidCmapFiles
+  filterValidCmapFiles,
+  resolveCmapSuggestion
 } from './concept-map-viewer.utils';
 
 describe('concept-map-viewer-parse.utils', () => {
@@ -92,5 +93,19 @@ describe('concept-map-viewer.utils', () => {
     expect(accepted.length).toBe(1);
     expect(rejected.some((item) => item.reason.includes('Unsupported'))).toBe(true);
     expect(rejected.some((item) => item.reason.includes('gz') || item.reason.includes('Compressed'))).toBe(true);
+  });
+
+  it('resolveCmapSuggestion covers empty and error states', () => {
+    expect(resolveCmapSuggestion({ hasFiles: false, hasError: false })?.id).toBe('upload-or-sample');
+    expect(resolveCmapSuggestion({ hasFiles: true, hasError: true })?.id).toBe('sample-after-error');
+    expect(resolveCmapSuggestion({ hasFiles: true, hasError: false })).toBeNull();
+  });
+
+  it('soft-fail unparseable text disables export', () => {
+    const file = new File(['hello world'], 'bad.txt', { lastModified: 9 });
+    const record = createCmapFileRecord(file, new TextEncoder().encode('hello world'));
+    expect(record.softFail).toBe(true);
+    expect(canExportCmap(record)).toBe(false);
+    expect(canExportCmap(null)).toBe(false);
   });
 });

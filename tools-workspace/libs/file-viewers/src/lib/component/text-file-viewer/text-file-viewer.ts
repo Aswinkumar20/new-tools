@@ -158,6 +158,9 @@ export class TextFileViewerComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   setupDragAndDrop(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of ['dragenter', 'dragover', 'dragleave', 'drop']) {
       document.addEventListener(eventName, this.preventDefaultsFn, false);
       document.body.addEventListener(eventName, this.preventDefaultsFn, false);
@@ -683,6 +686,9 @@ export class TextFileViewerComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   setupFullscreenListeners(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
     for (const eventName of TEXT_FULLSCREEN_EVENTS) {
       document.addEventListener(eventName, this.fullscreenChangeHandler);
     }
