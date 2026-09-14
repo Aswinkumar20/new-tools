@@ -13,6 +13,13 @@ const SEO_OVERRIDES: Record<string, Partial<SeoMetadata>> = {
     keywords:
       'free online tools, online utilities, text tools, PDF tools, file converter, image tools, JSON formatter, developer tools, password generator, QR code generator, unit converter, hash generator, word counter, merge PDF, compress PDF, easytoolhub',
   },
+  '/about': {
+    title: 'About EasyToolHub',
+    description:
+      'Learn how EasyToolHub delivers 350+ free browser-based tools for text, files, data, media, and developer workflows — private, fast, and signup-free.',
+    keywords:
+      'about easytoolhub, free online tools, browser utilities, privacy-first tools, online toolkit, no signup tools',
+  },
   '/text-utilities/character-counter': {
     title: 'Character Counter - Count Words, Characters, Lines',
     description:
@@ -126,6 +133,14 @@ const SEO_OVERRIDES: Record<string, Partial<SeoMetadata>> = {
       'ics viewer online, icalendar viewer, open ics file, calendar viewer, ics file preview, outlook ics viewer, google calendar ics viewer, apple calendar export viewer, read-only calendar',
   },
 };
+
+/** Static marketing pages that are not in the tool catalog. */
+const STATIC_MARKETING_ROUTES = new Set(['/about']);
+
+export function isStaticMarketingRoute(route: string): boolean {
+  const cleanRoute = route.split('?')[0].replace(/\/$/, '') || '';
+  return STATIC_MARKETING_ROUTES.has(cleanRoute);
+}
 
 /**
  * Get SEO metadata for a route

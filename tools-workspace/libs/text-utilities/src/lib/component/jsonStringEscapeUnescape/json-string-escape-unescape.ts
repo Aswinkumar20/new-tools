@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   JSON_STRING_DEFAULT_MODE,
@@ -21,7 +22,7 @@ import {
   standalone: true,
   templateUrl: './json-string-escape-unescape.html',
   styleUrls: ['./json-string-escape-unescape.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class JsonStringEscapeUnescapeComponent extends TextToolBase {
   mode: JsonStringConversionMode = JSON_STRING_DEFAULT_MODE;

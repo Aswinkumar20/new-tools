@@ -510,5 +510,48 @@ describe('WordsAndCharacterCounterComponent', () => {
 
       expect(component.charCount).toBeGreaterThan(0);
     }));
+
+    it('rejects empty uploaded files', () => {
+      const toastSpy = jest.spyOn(component['toastService'], 'error');
+      component['handleUploadedFile'](new File([''], 'empty.txt', { type: 'text/plain' }));
+      expect(toastSpy).toHaveBeenCalledWith('The file is empty. Choose a file with text content.');
+    });
+
+    it('ignores stale upload callbacks when a new upload starts', fakeAsync(() => {
+      const firstReader = {
+        onload: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        onprogress: null as ((event: ProgressEvent<FileReader>) => void) | null,
+        onabort: null as (() => void) | null,
+        abort: jest.fn(),
+        readAsText: jest.fn(),
+      };
+      const secondReader = {
+        onload: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        onprogress: null as ((event: ProgressEvent<FileReader>) => void) | null,
+        onabort: null as (() => void) | null,
+        abort: jest.fn(),
+        readAsText: jest.fn(function (this: FileReader) {
+          Object.defineProperty(this, 'result', { value: 'second file text' });
+          secondReader.onload?.call(this);
+        }),
+      };
+
+      const readerCtor = jest
+        .fn()
+        .mockImplementationOnce(() => firstReader)
+        .mockImplementationOnce(() => secondReader);
+      (globalThis as { FileReader: typeof FileReader }).FileReader = readerCtor as unknown as typeof FileReader;
+
+      component['handleUploadedFile'](new File(['first'], 'first.txt', { type: 'text/plain' }));
+      component['handleUploadedFile'](new File(['second file text'], 'second.txt', { type: 'text/plain' }));
+
+      expect(firstReader.abort).toHaveBeenCalled();
+      tick(0);
+      fixture.detectChanges();
+
+      expect(component.paragraphControl.value).toBe('second file text');
+    }));
   });
 });

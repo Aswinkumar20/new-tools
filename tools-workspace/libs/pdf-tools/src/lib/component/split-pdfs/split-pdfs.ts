@@ -1,14 +1,16 @@
 import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { Navigation, TooltipDirective, AssetService, ToastService, toUserFacingError } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
 import { validatePageRangeInput } from '../../shared/pdf.validation';
 import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
 import { downloadBytes, downloadBlob, cloneBytes } from '../../shared/pdf.utils';
 import { PdfPreviewService } from '../../services/pdf-preview.service';
+import { PdfBackendApiService } from '../../api/pdf-backend-api.service';
+import { isPdfBackendEnabled } from '../../api/pdf-backend.config';
 import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
 
 interface PdfFile {
@@ -40,6 +42,7 @@ export class SplitPdfsComponent implements OnInit {
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly preview = inject(PdfPreviewService);
+  private readonly pdfBackend = inject(PdfBackendApiService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfPreviewCanvas') pdfPreviewCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('pdfPreviewCanvasWrap') pdfPreviewCanvasWrap?: ElementRef<HTMLElement>;
@@ -94,6 +97,9 @@ export class SplitPdfsComponent implements OnInit {
 
   get splitConfigHint(): string {
     if (!this.pdfFile) return '';
+    if (this.splitResults.length > 0) {
+      return `${this.splitResults.length} output file${this.splitResults.length === 1 ? '' : 's'} ready — click Split to download.`;
+    }
     return 'Choose a split mode and enter page ranges in Configuration before splitting.';
   }
 
@@ -256,7 +262,7 @@ export class SplitPdfsComponent implements OnInit {
       }
       this.cdr.detectChanges();
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not load the PDF');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -502,9 +508,9 @@ export class SplitPdfsComponent implements OnInit {
       if (generation !== this.previewRenderGeneration) return;
     } catch (error) {
       if (generation !== this.previewRenderGeneration) return;
-      const message = error instanceof Error ? error.message : 'Could not render PDF preview';
-      if (message.toLowerCase().includes('cancel') || message.toLowerCase().includes('same canvas')) return;
-      this.previewError = message;
+      const raw = error instanceof Error ? error.message : '';
+      if (raw.toLowerCase().includes('cancel') || raw.toLowerCase().includes('same canvas')) return;
+      this.previewError = toUserFacingError(error, 'Could not render the PDF preview');
       pdfNotifyError(this.toast, this.previewError);
     } finally {
       if (generation === this.previewRenderGeneration) {
@@ -561,6 +567,57 @@ export class SplitPdfsComponent implements OnInit {
     this.loadingMessage = 'Splitting PDF...';
 
     try {
+      if (isPdfBackendEnabled(this.pdfBackend.settings, 'split-pdfs') && this.pdfFile.pdfBytes?.length) {
+        try {
+          const ranges = this.splitResults
+            .map((r) => (r.startPage === r.endPage ? `${r.startPage}` : `${r.startPage}-${r.endPage}`))
+            .join(';');
+          const fileBlob = new Blob([this.pdfFile.pdfBytes as BlobPart], { type: 'application/pdf' });
+          const threshold =
+            (this.pdfBackend.settings.largeFileThresholdMb || 8) * 1024 * 1024;
+          const useAsync = (this.pdfFile.pdfBytes?.length || 0) >= threshold;
+
+          let zipBlob: Blob;
+          if (useAsync) {
+            this.loadingMessage = 'Large split queued on secure server…';
+            this.cdr.detectChanges();
+            const submitted = await this.pdfBackend.splitAsync(
+              fileBlob,
+              ranges,
+              this.outputPrefix || 'split',
+              this.pdfFile.name || 'document.pdf'
+            );
+            zipBlob = await this.pdfBackend.awaitJobDownload(submitted.jobId, (s) => {
+              this.loadingMessage = s.message || `Splitting… ${Math.round((s.progress || 0) * 100)}%`;
+              this.cdr.detectChanges();
+            });
+          } else {
+            zipBlob = await this.pdfBackend.split(
+              fileBlob,
+              ranges,
+              this.outputPrefix || 'split',
+              this.pdfFile.name || 'document.pdf'
+            );
+          }
+          if (this.downloadAsZip) {
+            downloadBlob(zipBlob, `${this.outputPrefix || 'split'}-files.zip`);
+          } else {
+            const zip = await JSZip.loadAsync(zipBlob);
+            const entries = Object.keys(zip.files).filter((n) => !zip.files[n].dir);
+            const files: Array<{ name: string; bytes: Uint8Array }> = [];
+            for (const name of entries) {
+              const data = await zip.files[name].async('uint8array');
+              files.push({ name, bytes: cloneBytes(data) });
+            }
+            await this.downloadFilesIndividually(files);
+          }
+          pdfNotifySuccess(this.toast, `Split on secure server into ${this.splitResults.length} file(s)`);
+          return;
+        } catch {
+          /* hybrid: fall through to browser split */
+        }
+      }
+
       const sourcePdf = this.pdfFile.pdfDoc;
       const files: Array<{ name: string; bytes: Uint8Array }> = [];
 
@@ -590,7 +647,7 @@ export class SplitPdfsComponent implements OnInit {
       pdfNotifySuccess(this.toast, `Successfully split PDF into ${files.length} file(s)!`);
       this.cdr.detectChanges();
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to split PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not split the PDF');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();

@@ -38,8 +38,15 @@ describe('video-player.utils', () => {
     expect(formatVideoFileSize(2048)).toContain('KB');
   });
 
-  it('resolves coming-soon suggestion to audio player', () => {
-    expect(resolveVideoSuggestion({ isComingSoon: true })?.id).toBe('vp-audio');
-    expect(resolveVideoSuggestion({ isComingSoon: false })?.id).toBe('vp-meta');
+  it('resolves suggestions by playback state', () => {
+    expect(resolveVideoSuggestion({ hasVideos: false, hasError: false, isPlaying: false, videoCount: 0 })?.id).toBe(
+      'vp-audio'
+    );
+    expect(resolveVideoSuggestion({ hasVideos: true, hasError: false, isPlaying: false, videoCount: 1 })?.id).toBe(
+      'vp-meta-loaded'
+    );
+    expect(resolveVideoSuggestion({ hasVideos: true, hasError: true, isPlaying: false, videoCount: 1 })?.id).toBe(
+      'vp-meta'
+    );
   });
 });

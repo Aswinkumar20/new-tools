@@ -1,0 +1,220 @@
+<div class="ctl fv">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    <div class="ctl__top">
+      <header class="ctl__header">
+        <h1>{{ title }}</h1>
+        <p>{{ description }}</p>
+      </header>
+
+      <div class="ctl__stats" aria-label="Audit log statistics">
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ eventCount || '—' }}</span>
+          <span class="ctl__stat-label">Events</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ uniqueActorCount || '—' }}</span>
+          <span class="ctl__stat-label">Actors</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ allEvents.length > 0 ? shownCount : '—' }}</span>
+          <span class="ctl__stat-label">Shown</span>
+        </div>
+        <div class="ctl__stat ctl__stat--mode">
+          <span class="ctl__stat-value">Local</span>
+          <span class="ctl__stat-label">Review</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="fv-workflow" aria-label="Audit log controls">
+      <div class="fv-workflow__group fv-workflow__group--files">
+        <label class="ctl__tool-btn" aria-label="Upload audit log" appTooltip="Upload audit log" tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Upload</span>
+          <input #fileInput type="file" [accept]="acceptAttr" (change)="onFileSelected($event)" />
+        </label>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="allEvents.length === 0"
+          aria-label="Clear audit log"
+          appTooltip="Clear audit log"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
+      </div>
+
+      @if (allEvents.length > 0) {
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+
+        <div class="fv-workflow__group fv-workflow__group--search" role="search" aria-label="Search audit events">
+          <input
+            type="search"
+            class="search-input fv-workflow__search al-search"
+            placeholder="Search actions, resources, details…"
+            [ngModel]="searchText"
+            (ngModelChange)="onSearchChange($event)"
+            aria-label="Search audit events" />
+          @if (searchText) {
+            <button
+              type="button"
+              class="fv-icon-btn al-search__clear"
+              (click)="clearSearch()"
+              aria-label="Clear search"
+              appTooltip="Clear search"
+              tooltipPosition="bottom">
+              ×
+            </button>
+          }
+        </div>
+
+        <span class="fv-workflow__divider" aria-hidden="true"></span>
+
+        <div class="fv-workflow__group al-actor-filter">
+          <label class="al-actor-filter__label" for="auditActorFilter">Actor</label>
+          <select
+            id="auditActorFilter"
+            class="al-actor-filter__select"
+            [ngModel]="selectedActor"
+            (ngModelChange)="onActorChange($event)"
+            aria-label="Filter by actor">
+            <option value="">All actors</option>
+            @for (actor of actors; track actor) {
+              <option [value]="actor">{{ actor }}</option>
+            }
+          </select>
+        </div>
+      }
+    </div>
+
+    <div class="ctl__workspace">
+      <div class="ctl__editors">
+        <section class="ctl__editor fv-viewer-panel al-panel" aria-label="Audit timeline">
+          <div class="fv-loading" *ngIf="loading" role="status" aria-live="polite">
+            <div class="fv-spinner" aria-hidden="true"></div>
+            <p>Parsing audit log…</p>
+          </div>
+
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert">
+            <p>{{ errorMessage }}</p>
+          </div>
+
+          <aside class="al__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
+            <div class="al__suggest-body">
+              <p class="al__suggest-title">{{ suggestion.title }}</p>
+              <p class="al__suggest-reason">{{ suggestion.reason }}</p>
+            </div>
+            <div class="al__suggest-actions">
+              <a class="al__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
+              <button
+                type="button"
+                class="al__suggest-dismiss"
+                (click)="dismissSuggestion(suggestion.id)"
+                aria-label="Dismiss suggestion">
+                Dismiss
+              </button>
+            </div>
+          </aside>
+
+          @if (allEvents.length > 0) {
+            <header class="fv-viewer-bar">
+              <p class="fv-viewer-bar__name" [title]="loadedFileName">{{ loadedFileName }}</p>
+              <p class="fv-viewer-bar__hint">
+                {{ shownCount }} of {{ eventCount }} events
+                @if (selectedActor || searchText) {
+                  · filtered
+                }
+              </p>
+            </header>
+
+            <div class="al-timeline">
+              <div class="al-timeline__table-wrap">
+                <table class="al-timeline__table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Timestamp</th>
+                      <th scope="col">Actor</th>
+                      <th scope="col">Action</th>
+                      <th scope="col">Resource</th>
+                      <th scope="col">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (event of filteredEvents; track trackByEventId($index, event)) {
+                      <tr>
+                        <td class="al-timeline__timestamp">{{ formatTimestamp(event.timestamp) }}</td>
+                        <td class="al-timeline__actor">{{ event.actor }}</td>
+                        <td class="al-timeline__action">{{ event.action }}</td>
+                        <td class="al-timeline__resource">{{ event.resource }}</td>
+                        <td class="al-timeline__details" [title]="event.details">{{ event.details }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              @if (filteredEvents.length === 0) {
+                <p class="al-timeline__empty">No events match the current filters.</p>
+              }
+            </div>
+          }
+
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="allEvents.length === 0 && !loading"
+            [class.fv-dropzone--active]="showDropZone"
+            (click)="openFileDialog()"
+            aria-label="Upload audit logs by clicking or dragging files here">
+            <svg class="fv-dropzone__icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            <p class="fv-dropzone__title">Drop audit logs here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">{{ formatsLabel }} · local review only</p>
+          </button>
+        </section>
+      </div>
+
+      <aside class="ctl__sidebar" aria-label="Audit log sidebar">
+        <div class="ctl__panel">
+          <header class="ctl__panel-head">Related tools</header>
+          <div class="ctl__panel-body al__related">
+            <ul class="al__related-list">
+              @for (tool of relatedTools; track tool.path) {
+                <li>
+                  <a class="al__related-link" [routerLink]="tool.path">
+                    <strong>{{ tool.label }}</strong>
+                    <span>{{ tool.description }}</span>
+                  </a>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+        <div class="ctl__info">
+          <div class="ctl__info-item">
+            <span class="ctl__info-dot ctl__info-dot--accent"></span>
+            <p>Audit logs are parsed <strong>locally</strong> — nothing is uploaded to a server.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <details class="ctl__help">
+      <summary>How to use</summary>
+      <ul>
+        @for (item of helpItems; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    </details>
+  </main>
+</div>

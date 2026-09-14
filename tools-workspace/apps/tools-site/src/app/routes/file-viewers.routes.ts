@@ -139,12 +139,12 @@ export const FILE_VIEWERS_ROUTES: Routes = [
   {
     path: 'subtitle-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/subtitle-viewer/subtitle-viewer').then(m => m.SubtitleViewerComponent),
   },
   {
     path: 'midi-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/midi-viewer/midi-viewer').then(m => m.MidiViewerComponent),
   },
   {
     path: 'musicxml-viewer',
@@ -154,32 +154,32 @@ export const FILE_VIEWERS_ROUTES: Routes = [
   {
     path: 'apk-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/apk-viewer/apk-viewer').then(m => m.ApkViewerComponent),
   },
   {
     path: 'ipa-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/ipa-viewer/ipa-viewer').then(m => m.IpaViewerComponent),
   },
   {
     path: 'elf-binary-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/elf-binary-viewer/elf-binary-viewer').then(m => m.ElfBinaryViewerComponent),
   },
   {
     path: 'pe-binary-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/pe-binary-viewer/pe-binary-viewer').then(m => m.PeBinaryViewerComponent),
   },
   {
     path: 'wav-spectrum-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/wav-spectrum-viewer/wav-spectrum-viewer').then(m => m.WavSpectrumViewerComponent),
   },
   {
     path: 'spectrogram-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/spectrogram-viewer/spectrogram-viewer').then(m => m.SpectrogramViewerComponent),
   },
   {
     path: 'minecraft-world-viewer',
@@ -199,7 +199,7 @@ export const FILE_VIEWERS_ROUTES: Routes = [
   {
     path: 'nft-metadata-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/nft-metadata-viewer/nft-metadata-viewer').then(m => m.NftMetadataViewerComponent),
   },
   {
     path: 'smart-contract-viewer',
@@ -209,12 +209,12 @@ export const FILE_VIEWERS_ROUTES: Routes = [
   {
     path: 'invoice-data-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/invoice-data-viewer/invoice-data-viewer').then(m => m.InvoiceDataViewerComponent),
   },
   {
     path: 'audit-log-viewer',
     loadComponent: () =>
-      import('@tools-workspace/features-home/coming-soon-page/coming-soon-page').then(m => m.ComingSoonPageComponent),
+      import('@tools-workspace/file-viewers/audit-log-viewer/audit-log-viewer').then(m => m.AuditLogViewerComponent),
   },
   {
     path: 'figma-export-viewer',

@@ -10,19 +10,19 @@
 
       <div class="ctl__stats" aria-label="Tool status">
         <div class="ctl__stat">
-          <span class="ctl__stat-value">0</span>
+          <span class="ctl__stat-value">{{ hasSource() ? 1 : 0 }}</span>
           <span class="ctl__stat-label">Files</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">—</span>
+          <span class="ctl__stat-value">{{ lastOutputSizeLabel() }}</span>
           <span class="ctl__stat-label">Output</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">Planned</span>
+          <span class="ctl__stat-value">{{ statusLabel() }}</span>
           <span class="ctl__stat-label">Status</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ acceptHint }}</span>
+          <span class="ctl__stat-value">{{ formatsLabel }}</span>
           <span class="ctl__stat-label">Formats</span>
         </div>
       </div>
@@ -30,24 +30,84 @@
 
     <div class="mt-workflow" aria-label="Video to GIF controls">
       <div class="mt-workflow__group mt-workflow__group--files">
-        <span
-          class="ctl__tool-btn ctl__tool-btn--disabled"
-          aria-label="Upload video (coming soon)"
-          appTooltip="Upload coming soon"
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="openFileDialog()"
+          aria-label="Upload video"
+          appTooltip="Upload video"
           tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-        </span>
+        </button>
+        <input #fileInput type="file" hidden [accept]="acceptAttr" (change)="onFileSelected($event)" />
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="convertToGif()"
+          [disabled]="!hasSource() || isConverting() || isLoading()"
+          aria-label="Convert to GIF"
+          appTooltip="Convert to GIF"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M8 12h8" />
+            <path d="M12 8v8" />
+          </svg>
+          <span class="ctl__tool-btn-label">Convert</span>
+        </button>
+        @if (isConverting()) {
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="cancelConversion()"
+            aria-label="Cancel conversion"
+            appTooltip="Cancel"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+            <span class="ctl__tool-btn-label">Cancel</span>
+          </button>
+        }
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="downloadGif()"
+          [disabled]="!gifPreviewUrl()"
+          aria-label="Download GIF"
+          appTooltip="Download GIF"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Download</span>
+        </button>
+        @if (hasSource()) {
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="clearSource()"
+            aria-label="Clear file"
+            appTooltip="Clear file"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+            <span class="ctl__tool-btn-label">Clear</span>
+          </button>
+        }
       </div>
     </div>
 
     <div class="ctl__workspace ctl__workspace--viewer">
-      <section class="ctl__editor mt-viewer-panel" aria-label="Video to GIF workspace">
+      <section class="ctl__editor mt-viewer-panel vg-panel" aria-label="Video to GIF workspace">
         <header class="ctl__editor-head">
           <span>{{ uploadLabel }}</span>
+          @if (sourceFile(); as file) {
+            <span class="vg-panel__file-meta">{{ file.name }} · {{ formatFileSize(file.size) }}</span>
+          }
         </header>
 
-        @if (primarySuggestion; as suggestion) {
+        @if (primarySuggestion(); as suggestion) {
           <aside class="vg__suggest" aria-label="Suggested next step">
             <div class="vg__suggest-body">
               <p class="vg__suggest-title">{{ suggestion.title }}</p>
@@ -55,23 +115,77 @@
             </div>
             <div class="vg__suggest-actions">
               <a class="vg__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button
-                type="button"
-                class="vg__suggest-dismiss"
-                (click)="dismissSuggestion(suggestion.id)"
-                aria-label="Dismiss suggestion">
+              <button type="button" class="vg__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
                 Dismiss
               </button>
             </div>
           </aside>
         }
 
-        <div class="ctl__empty ctl-planned__upload" aria-disabled="true" aria-live="polite">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
-          <p><strong>{{ uploadHint }}</strong></p>
-          <p>Accepted: {{ acceptHint }}</p>
-          <span class="ctl-planned__badge">In development</span>
-        </div>
+        @if (errors().length) {
+          <div class="vg-panel__errors" role="alert">
+            @for (error of errors(); track error) {
+              <p>{{ error }}</p>
+            }
+          </div>
+        }
+
+        @if (hasSource()) {
+          <div class="vg-panel__layout">
+            <div class="vg-panel__video-col">
+              <video
+                #previewVideo
+                class="vg-panel__video"
+                [src]="videoUrl()!"
+                controls
+                playsinline
+                (loadedmetadata)="onVideoLoadedMetadata()"></video>
+
+              <div class="vg-panel__trim">
+                <label class="vg-panel__field">
+                  <span>Trim start</span>
+                  <input type="text" [ngModel]="trimStartInput()" (ngModelChange)="trimStartInput.set($event)" (change)="onTrimStartCommit()" />
+                </label>
+                <label class="vg-panel__field">
+                  <span>Trim end</span>
+                  <input type="text" [ngModel]="trimEndInput()" (ngModelChange)="trimEndInput.set($event)" (change)="onTrimEndCommit()" />
+                </label>
+                <div class="vg-panel__duration">
+                  <span>Clip length</span>
+                  <strong>{{ formatTime(trimDurationSeconds()) }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="vg-panel__preview-col">
+              @if (gifPreviewUrl(); as gifUrl) {
+                <img class="vg-panel__gif" [src]="gifUrl" alt="Generated GIF preview" />
+              } @else {
+                <div class="vg-panel__gif-placeholder">
+                  <p>Generated GIF preview will appear here.</p>
+                </div>
+              }
+
+              @if (isConverting()) {
+                <div class="vg-panel__progress" aria-live="polite">
+                  <div class="vg-panel__progress-bar" [style.width.%]="conversionProgress()"></div>
+                  <span>{{ conversionProgress() }}% · {{ conversionMessage() }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced vg-panel__dropzone"
+            [class.fv-dropzone--active]="showDropZone()"
+            (click)="openFileDialog()"
+            aria-live="polite">
+            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+            <p class="fv-dropzone__title">Drop video here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">{{ uploadHint }} · {{ formatsLabel }} · 200&nbsp;MB max</p>
+          </button>
+        }
       </section>
 
       <details class="mt-options-flyout">
@@ -94,20 +208,62 @@
           class="mt-options-flyout__backdrop"
           aria-label="Close options panel"
           (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside
-          class="ctl__sidebar mt-options-flyout__panel"
-          (wheel)="$event.stopPropagation()"
-          aria-label="Planned functionality">
+        <aside class="ctl__sidebar mt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="GIF options">
           <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              Planned features
-              <span class="ctl__panel-badge">Preview</span>
-            </header>
-            <ul class="ctl-planned__features">
-              @for (feature of features; track feature.id) {
-                <li>{{ feature.label }}</li>
+            <header class="ctl__panel-head">Quality preset</header>
+            <div class="ctl__panel-body vg-panel__options">
+              @for (preset of qualityPresets; track preset.id) {
+                <label class="vg-panel__radio">
+                  <input
+                    type="radio"
+                    name="vg-preset"
+                    [checked]="!useCustomQuality() && selectedPresetId() === preset.id"
+                    (change)="applyPreset(preset.id)" />
+                  <span>{{ preset.label }} · {{ preset.fps }} fps · {{ preset.maxWidth }}px</span>
+                </label>
               }
-            </ul>
+              <label class="vg-panel__radio">
+                <input type="radio" name="vg-preset" [checked]="useCustomQuality()" (change)="useCustomQuality.set(true)" />
+                <span>Custom</span>
+              </label>
+              @if (useCustomQuality()) {
+                <label class="vg-panel__field">
+                  <span>FPS</span>
+                  <input type="number" min="1" max="30" [ngModel]="customFps()" (ngModelChange)="customFps.set(+$event || 1)" />
+                </label>
+                <label class="vg-panel__field">
+                  <span>Max width (px)</span>
+                  <input type="number" min="64" max="1280" [ngModel]="customWidth()" (ngModelChange)="customWidth.set(+$event || 320)" />
+                </label>
+              }
+              <p class="vg-panel__estimate">Estimated size ≈ {{ formatEstimate(estimatedBytes()) }}</p>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Playback</header>
+            <div class="ctl__panel-body vg-panel__options">
+              <label class="vg-panel__field">
+                <span>Loop count (0 = infinite)</span>
+                <input type="number" min="0" max="100" [ngModel]="loopCount()" (ngModelChange)="loopCount.set(+$event || 0)" />
+              </label>
+              <label class="vg-panel__checkbox">
+                <input type="checkbox" [ngModel]="reversePlayback()" (ngModelChange)="reversePlayback.set($event)" />
+                <span>Reverse frames</span>
+              </label>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Engine</header>
+            <div class="ctl__panel-body vg-panel__options">
+              <label class="vg-panel__radio">
+                <input type="radio" name="vg-engine" [checked]="engine() === 'standard'" (change)="engine.set('standard')" />
+                <span>Standard (gif.js · fast)</span>
+              </label>
+              <label class="vg-panel__radio">
+                <input type="radio" name="vg-engine" [checked]="engine() === 'hq'" (change)="engine.set('hq')" />
+                <span>High quality (FFmpeg palette)</span>
+              </label>
+            </div>
           </div>
           <div class="ctl__panel">
             <header class="ctl__panel-head">Related tools</header>

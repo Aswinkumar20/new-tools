@@ -220,7 +220,46 @@ function motifForSlug(categorySlug: string | undefined): LoaderMotif {
   return MOTIF_BY_CATEGORY[categorySlug] ?? 'default';
 }
 
-const ICON_SET = new Set(AVAILABLE_TOOL_ICON_SLUGS);
+/** Vector icons that render reliably as loader forge glyphs. */
+const LOADER_SAFE_ICON_SLUGS: readonly string[] = [
+  'cad-viewers',
+  'data-explorers',
+  'dev-design-tools',
+  'diagram-viewers',
+  'file-code-tools',
+  'file-viewers',
+  'fun-productivity-tools',
+  'gis-viewers',
+  'image-color-tools',
+  'json-data-converters',
+  'media-audio-tools',
+  'medical-viewers',
+  'ml-viewers',
+  'network-viewers',
+  'number-date-tools',
+  'pdf-tools',
+  'pdf-viewer',
+  'process-viewers',
+  'science-viewers',
+  'security-crypto-tools',
+  'system-browser-utilities',
+  'text-utilities',
+  'validation-testing-tools',
+];
+
+/** Route category slug → on-disk category icon filename. */
+const ROUTE_CATEGORY_ICON: Readonly<Record<string, string>> = {
+  'browser-utils': 'system-browser-utilities',
+  'code-file-tools': 'file-code-tools',
+  'data-converters': 'json-data-converters',
+  'fun-tools': 'fun-productivity-tools',
+  'math-date-utils': 'number-date-tools',
+  'media-tools': 'media-audio-tools',
+  'security-tools': 'security-crypto-tools',
+  'testing-tools': 'validation-testing-tools',
+};
+
+const LOADER_SAFE_ICON_SET = new Set(LOADER_SAFE_ICON_SLUGS);
 
 function shuffle<T>(items: T[]): T[] {
   const arr = [...items];
@@ -232,39 +271,67 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function iconsForCategory(categorySlug: string): string[] {
-  return AVAILABLE_TOOL_ICON_SLUGS.filter(
-    (slug) => TOOL_ICON_CATEGORY[slug] === categorySlug || slug === categorySlug
-  );
+  return LOADER_SAFE_ICON_SLUGS.filter((slug) => {
+    const mappedCategory = TOOL_ICON_CATEGORY[slug];
+    const routeIcon = ROUTE_CATEGORY_ICON[categorySlug];
+    return (
+      mappedCategory === categorySlug ||
+      slug === categorySlug ||
+      slug === routeIcon ||
+      (routeIcon !== undefined && slug === routeIcon)
+    );
+  });
+}
+
+function loaderIconForCategory(categorySlug: string | undefined): string {
+  if (!categorySlug) {
+    return 'pdf-tools';
+  }
+  const mapped = ROUTE_CATEGORY_ICON[categorySlug];
+  if (mapped && LOADER_SAFE_ICON_SET.has(mapped)) {
+    return mapped;
+  }
+  if (LOADER_SAFE_ICON_SET.has(categorySlug)) {
+    return categorySlug;
+  }
+  return 'pdf-tools';
 }
 
 /**
- * Pick real tool icons: prefer destination category, then fill with random catalog icons.
+ * Pick forge icons from the safe vector pool (avoids text-placeholder tool SVGs).
  */
 function pickLoaderIcons(
   path: string,
   categorySlug: string | undefined,
   isHome: boolean
 ): { centerIconSlug: string; orbitIconSlugs: string[] } {
-  const parts = path.split('/').filter(Boolean);
-  const toolSlug = parts.length >= 2 ? parts[parts.length - 1] : '';
-  const preferredPool = categorySlug ? iconsForCategory(categorySlug) : [];
-  const globalPool = shuffle([...AVAILABLE_TOOL_ICON_SLUGS]);
+  const safePool = shuffle([...LOADER_SAFE_ICON_SLUGS]);
+  const categoryIcon = loaderIconForCategory(categorySlug);
 
-  let centerIconSlug = 'pdf-tools';
-  if (!isHome && toolSlug && ICON_SET.has(toolSlug)) {
-    centerIconSlug = toolSlug;
-  } else if (categorySlug && ICON_SET.has(categorySlug)) {
-    centerIconSlug = categorySlug;
-  } else if (preferredPool.length) {
-    centerIconSlug = shuffle(preferredPool)[0];
-  } else if (globalPool.length) {
-    centerIconSlug = globalPool[0];
+  let centerIconSlug = isHome ? (safePool[0] ?? 'pdf-tools') : categoryIcon;
+
+  const preferredPool = categorySlug ? iconsForCategory(categorySlug) : [];
+  if (!isHome && preferredPool.length) {
+    centerIconSlug = preferredPool.includes(categoryIcon)
+      ? categoryIcon
+      : (preferredPool[0] ?? categoryIcon);
   }
 
   const used = new Set<string>([centerIconSlug]);
   const orbitIconSlugs: string[] = [];
 
-  for (const slug of shuffle(preferredPool)) {
+  for (const slug of shuffle([...preferredPool, ...safePool])) {
+    if (orbitIconSlugs.length >= 4) {
+      break;
+    }
+    if (!LOADER_SAFE_ICON_SET.has(slug) || used.has(slug)) {
+      continue;
+    }
+    used.add(slug);
+    orbitIconSlugs.push(slug);
+  }
+
+  for (const slug of safePool) {
     if (orbitIconSlugs.length >= 4) {
       break;
     }
@@ -273,23 +340,6 @@ function pickLoaderIcons(
     }
     used.add(slug);
     orbitIconSlugs.push(slug);
-  }
-
-  for (const slug of globalPool) {
-    if (orbitIconSlugs.length >= 4) {
-      break;
-    }
-    if (used.has(slug)) {
-      continue;
-    }
-    used.add(slug);
-    orbitIconSlugs.push(slug);
-  }
-
-  while (orbitIconSlugs.length < 4 && AVAILABLE_TOOL_ICON_SLUGS.length) {
-    orbitIconSlugs.push(
-      AVAILABLE_TOOL_ICON_SLUGS[orbitIconSlugs.length % AVAILABLE_TOOL_ICON_SLUGS.length]
-    );
   }
 
   return { centerIconSlug, orbitIconSlugs: orbitIconSlugs.slice(0, 4) };

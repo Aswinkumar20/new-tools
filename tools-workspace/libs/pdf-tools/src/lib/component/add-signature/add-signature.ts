@@ -2,12 +2,14 @@ import { Component, OnInit, AfterViewInit, OnDestroy, ViewChild, ElementRef, Cha
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import { PDFDocument } from 'pdf-lib';
 import SignaturePad from 'signature_pad';
 import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
 import { downloadBytes } from '../../shared/pdf.utils';
 import { PdfJsLoaderService, type PdfJsLib } from '../../services/pdf-js-loader.service';
+import { PdfBackendApiService } from '../../api/pdf-backend-api.service';
+import { isPdfBackendEnabled } from '../../api/pdf-backend.config';
 import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
 
 interface SignaturePosition {
@@ -29,6 +31,7 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly pdfJsLoader = inject(PdfJsLoaderService);
+  private readonly pdfBackend = inject(PdfBackendApiService);
   @ViewChild('signatureCanvas') signatureCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('pdfPreviewCanvas') pdfPreviewCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
@@ -56,6 +59,9 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
   typedSignature: string = '';
   typedFontSize: number = 48;
   typedFontFamily: string = 'Dancing Script';
+  /** Snapshots of SignaturePad stroke data for undo/redo. */
+  private signatureStrokeHistory: ReturnType<SignaturePad['toData']>[] = [[]];
+  private signatureRedoStack: ReturnType<SignaturePad['toData']>[] = [];
   
   // Signature placement
   signaturePosition: SignaturePosition = {
@@ -139,6 +145,15 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
     canvas.height = canvas.offsetHeight * ratio;
     canvas.getContext('2d')?.scale(ratio, ratio);
     this.signaturePad.clear();
+    this.signatureStrokeHistory = [[]];
+    this.signatureRedoStack = [];
+
+    this.signaturePad.addEventListener('endStroke', () => {
+      if (!this.signaturePad) return;
+      this.signatureStrokeHistory.push(this.signaturePad.toData());
+      this.signatureRedoStack = [];
+      this.cdr.detectChanges();
+    });
   }
 
   onFileSelected(event: Event): void {
@@ -180,7 +195,7 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
       this.openOptionsPanel();
       this.cdr.detectChanges();
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not load the PDF');
       this.pdfFile = null;
       this.pdfDoc = null;
     } finally {
@@ -302,29 +317,37 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.signaturePad) {
       this.signaturePad.clear();
     }
+    this.signatureStrokeHistory = [[]];
+    this.signatureRedoStack = [];
     this.signatureImage = null;
     this.typedSignature = '';
     this.cdr.detectChanges();
   }
 
   undoSignature(): void {
-    if (this.signaturePad) {
-      const data = this.signaturePad.toData();
-      if (data.length > 0) {
-        data.pop();
-        this.signaturePad.fromData(data);
-      }
-    }
+    if (!this.signaturePad || this.signatureStrokeHistory.length <= 1) return;
+    const current = this.signatureStrokeHistory.pop();
+    if (current) this.signatureRedoStack.push(current);
+    const previous = this.signatureStrokeHistory[this.signatureStrokeHistory.length - 1] ?? [];
+    this.signaturePad.fromData(previous);
+    this.cdr.detectChanges();
   }
 
   redoSignature(): void {
-    // SignaturePad doesn't have built-in redo, so we'll track history
-    // For now, this is a placeholder - full implementation would require history tracking
-    // This is a limitation of SignaturePad library
+    if (!this.signaturePad || !this.signatureRedoStack.length) return;
+    const next = this.signatureRedoStack.pop();
+    if (!next) return;
+    this.signatureStrokeHistory.push(next);
+    this.signaturePad.fromData(next);
+    this.cdr.detectChanges();
   }
 
   canUndo(): boolean {
-    return this.signaturePad ? this.signaturePad.toData().length > 0 : false;
+    return this.signatureStrokeHistory.length > 1;
+  }
+
+  canRedo(): boolean {
+    return this.signatureRedoStack.length > 0;
   }
 
   saveSignature(): void {
@@ -399,18 +422,17 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
 
   getCanvasCoordinates(event: MouseEvent): { x: number; y: number } | null {
     const canvas = this.pdfPreviewCanvas?.nativeElement;
-    if (!canvas) return null;
+    if (!canvas || !this.pdfDoc) return null;
 
     const rect = canvas.getBoundingClientRect();
-    // Get mouse position relative to canvas element
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-    
-    // Convert to PDF coordinate system
-    // Canvas display size matches viewport, so we divide by scale to get PDF coordinates
-    const x = mouseX / this.pdfPreviewScale;
-    const y = mouseY / this.pdfPreviewScale;
-    
+    if (rect.width <= 0 || rect.height <= 0) return null;
+
+    const page = this.pdfDoc.getPage(this.currentPage - 1);
+    const pageWidth = page.getWidth();
+    const pageHeight = page.getHeight();
+    // CSS click → PDF points (origin top-left for placement UI; saveSignedPdf flips Y)
+    const x = ((event.clientX - rect.left) / rect.width) * pageWidth;
+    const y = ((event.clientY - rect.top) / rect.height) * pageHeight;
     return { x, y };
   }
 
@@ -552,17 +574,36 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
         throw new Error('Invalid page number');
       }
 
-      // Load signature image
-      const signatureImageBytes = await fetch(this.signatureImage).then(res => res.arrayBuffer());
-      const signatureImage = await this.pdfDoc.embedPng(signatureImageBytes);
-      
       const pageHeight = targetPage.getHeight();
-      
-      // Convert preview coordinates to PDF coordinates
-      // PDF coordinates start from bottom-left, canvas from top-left
       const pdfX = this.signaturePosition.x;
       const pdfY = pageHeight - this.signaturePosition.y - this.signaturePosition.height;
-      
+
+      if (isPdfBackendEnabled(this.pdfBackend.settings, 'add-signature') && this.pdfBytes?.length) {
+        try {
+          const signatureImageBytes = await fetch(this.signatureImage).then((res) => res.arrayBuffer());
+          const imageBlob = new Blob([signatureImageBytes], { type: 'image/png' });
+          const fileBlob = new Blob([this.pdfBytes as BlobPart], { type: 'application/pdf' });
+          const result = await this.pdfBackend.stampImage(fileBlob, imageBlob, {
+            page: this.signaturePosition.page,
+            x: pdfX,
+            y: pdfY,
+            width: this.signaturePosition.width,
+            height: this.signaturePosition.height,
+            fileName: this.pdfFile?.name || 'document.pdf',
+            imageName: 'signature.png',
+          });
+          const pdfBytes = new Uint8Array(await result.arrayBuffer());
+          downloadBytes(pdfBytes, this.pdfFile?.name.replace('.pdf', '_signed.pdf') || 'signed_document.pdf');
+          pdfNotifySuccess(this.toast, 'Signed on secure server · download ready');
+          return;
+        } catch {
+          /* hybrid: fall through to pdf-lib stamp */
+        }
+      }
+
+      const signatureImageBytes = await fetch(this.signatureImage).then(res => res.arrayBuffer());
+      const signatureImage = await this.pdfDoc.embedPng(signatureImageBytes);
+
       targetPage.drawImage(signatureImage, {
         x: pdfX,
         y: pdfY,
@@ -574,7 +615,7 @@ export class AddSignatureComponent implements OnInit, AfterViewInit, OnDestroy {
       downloadBytes(pdfBytes, this.pdfFile?.name.replace('.pdf', '_signed.pdf') || 'signed_document.pdf');
       pdfNotifySuccess(this.toast, 'Signed PDF downloaded');
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not save the signed PDF');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();

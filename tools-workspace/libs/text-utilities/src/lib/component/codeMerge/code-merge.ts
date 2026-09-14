@@ -6,8 +6,9 @@ import {
   Navigation,
   TooltipDirective,
   AssetService,
-  ToastService
 } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import { tuCopyText } from '../../shared/tu-clipboard.util';
 import {
@@ -27,11 +28,10 @@ import {
   standalone: true,
   templateUrl: './code-merge.html',
   styleUrls: ['./code-merge.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
-export class CodeMergeComponent {
+export class CodeMergeComponent extends TextToolProcessingHost {
   readonly assetService = inject(AssetService);
-  private readonly toast = inject(ToastService);
 
   readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = CODE_MERGE_RELATED_TOOLS;
 
@@ -79,33 +79,37 @@ export class CodeMergeComponent {
 
   merge(): void {
     this.dismissedSuggestionId = null;
-    this.mergedPreview = buildCodeMergePreview({
-      leftBranch: this.leftBranch,
-      rightBranch: this.rightBranch,
-      baseLabel: this.baseLabel,
-      incomingLabel: this.incomingLabel,
-      includeConflictMarkers: this.includeConflictMarkers
-    });
+    const totalLen = this.leftBranch.length + this.rightBranch.length;
+    this.scheduleDebouncedWork(() => {
+      this.mergedPreview = buildCodeMergePreview({
+        leftBranch: this.leftBranch,
+        rightBranch: this.rightBranch,
+        baseLabel: this.baseLabel,
+        incomingLabel: this.incomingLabel,
+        includeConflictMarkers: this.includeConflictMarkers
+      });
+    }, totalLen);
   }
 
   clear(): void {
+    this.cancelInFlightOperations();
     this.leftBranch = '';
     this.rightBranch = '';
     this.mergedPreview = '';
     this.dismissedSuggestionId = null;
-    this.toast.info('Cleared');
+    this.toastService.info('Cleared');
   }
 
   async copyLeft(): Promise<void> {
-    await tuCopyText(this.toast, this.leftBranch, 'Left branch');
+    await tuCopyText(this.toastService, this.leftBranch, 'Left branch');
   }
 
   async copyRight(): Promise<void> {
-    await tuCopyText(this.toast, this.rightBranch, 'Right branch');
+    await tuCopyText(this.toastService, this.rightBranch, 'Right branch');
   }
 
   async copyMerged(): Promise<void> {
-    await tuCopyText(this.toast, this.mergedPreview, 'Merged preview');
+    await tuCopyText(this.toastService, this.mergedPreview, 'Merged preview');
   }
 
   dismissSuggestion(suggestionId: string): void {

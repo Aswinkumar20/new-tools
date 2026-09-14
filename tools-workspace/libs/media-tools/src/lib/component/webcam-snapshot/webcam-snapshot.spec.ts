@@ -18,30 +18,20 @@ describe('WebcamSnapshotComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create as coming-soon with image viewer suggestion', () => {
+  it('should create with live camera workflow', () => {
     expect(component).toBeTruthy();
-    expect(component.isComingSoon).toBe(true);
-    expect(component.primarySuggestion?.id).toBe('ws-image-viewer');
+    expect(component.statusLabel()).toBe('Idle');
+    expect(component.primarySuggestion()?.id).toBe('ws-meta');
     expect(component.relatedTools.length).toBeGreaterThan(0);
-    expect(component.roadmapItems.length).toBe(4);
-    expect(component.plannedExportCount).toBe(2);
-    expect(component.countdownOptionCount).toBe(4);
-    expect(component.acceptHint).toBe('Webcam');
+    expect(component.exportFormats.length).toBe(2);
   });
 
   it('dismisses contextual suggestions', () => {
-    const suggestion = component.primarySuggestion;
-    expect(suggestion?.id).toBe('ws-image-viewer');
+    const suggestion = component.primarySuggestion();
+    expect(suggestion?.id).toBe('ws-meta');
     if (suggestion) {
       component.dismissSuggestion(suggestion.id);
-      expect(component.primarySuggestion).toBeNull();
+      expect(component.primarySuggestion()).toBeNull();
     }
-  });
-
-  it('exposes planned copy for the empty state', () => {
-    expect(component.title).toBe('Webcam Snapshot');
-    expect(component.emptyHint).toContain('Camera preview');
-    expect(component.exportFormatsLabel).toContain('PNG');
-    expect(component.helpItems.length).toBe(3);
   });
 });

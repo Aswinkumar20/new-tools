@@ -2,10 +2,11 @@ import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementR
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { Navigation, ToastService, AssetService, TooltipDirective } from '@tools-workspace/features-home';
+import { Navigation, AssetService, TooltipDirective } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
-  TEXT_TO_ASCII_DEBOUNCE_MS,
   TEXT_TO_ASCII_DEFAULT_LEFT,
   TEXT_TO_ASCII_DEFAULT_RIGHT,
   TEXT_TO_ASCII_FORMAT_OPTIONS,
@@ -29,15 +30,17 @@ import {
   standalone: true,
   templateUrl: './text-to-ASCII.html',
   styleUrls: ['./text-to-ASCII.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
-export class TextToASCIIComponent implements OnInit, OnDestroy {
+export class TextToASCIIComponent extends TextToolProcessingHost implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
 
   inputValue = '';
   outputValue = '';
   errorMessage = '';
   isConverting = false;
+
+  override maxUploadBytes = TEXT_TO_ASCII_MAX_UPLOAD_BYTES;
 
   leftType: TextToAsciiFormat = TEXT_TO_ASCII_DEFAULT_LEFT;
   rightType: TextToAsciiFormat = TEXT_TO_ASCII_DEFAULT_RIGHT;
@@ -48,15 +51,10 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   private historyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingHistoryValue = '';
 
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = TEXT_TO_ASCII_MAX_UPLOAD_BYTES;
-  private fileInput?: HTMLInputElement;
+  override get isProcessing(): boolean {
+    return super.isProcessing || this.isConverting;
+  }
 
-  private convertTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly debounceDelay = TEXT_TO_ASCII_DEBOUNCE_MS;
-
-  private readonly toastService = inject(ToastService);
   readonly assetService = inject(AssetService);
 
   readonly typeOptions: ReadonlyArray<TextToAsciiFormatOption> = TEXT_TO_ASCII_FORMAT_OPTIONS;
@@ -137,15 +135,12 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.seedHistory('');
   }
 
-  ngOnDestroy(): void {
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-    }
+  override ngOnDestroy(): void {
+    this.cancelDebouncedWork();
     if (this.historyTimer) {
       clearTimeout(this.historyTimer);
     }
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    super.ngOnDestroy();
   }
 
   private seedHistory(value: string): void {
@@ -183,22 +178,17 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     }
 
     this.dismissedSuggestionId = null;
-
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-    }
-
     this.errorMessage = '';
     this.isConverting = true;
 
-    this.convertTimer = setTimeout(() => {
+    this.scheduleDebouncedWork(() => {
       if (this.inputValue && this.inputValue.trim()) {
         this.convert();
       } else {
         this.outputValue = '';
         this.isConverting = false;
       }
-    }, this.debounceDelay);
+    }, this.inputValue.length);
 
     this.scheduleHistoryPush(this.inputValue);
   }
@@ -222,10 +212,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
       clearTimeout(this.historyTimer);
       this.historyTimer = null;
     }
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-      this.convertTimer = null;
-    }
+    this.cancelDebouncedWork();
     this.pendingHistoryValue = value;
     this.isRestoringHistory = true;
     this.inputValue = value;
@@ -275,10 +262,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   onFormatChange(): void {
     this.dismissedSuggestionId = null;
 
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-      this.convertTimer = null;
-    }
+    this.cancelDebouncedWork();
 
     this.errorMessage = '';
 
@@ -303,10 +287,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.dismissedSuggestionId = null;
 
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-      this.convertTimer = null;
-    }
+    this.cancelDebouncedWork();
 
     this.toastService.info('Formats swapped');
 
@@ -340,10 +321,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
       clearTimeout(this.historyTimer);
       this.historyTimer = null;
     }
-    if (this.convertTimer) {
-      clearTimeout(this.convertTimer);
-      this.convertTimer = null;
-    }
+    this.cancelDebouncedWork();
     this.applyInputState('');
     this.seedHistory('');
     this.errorMessage = '';
@@ -352,105 +330,13 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
     this.toastService.info('Text cleared');
   }
 
-  uploadTextFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) {
-          this.handleUploadedFile(file);
-        }
-        if (this.fileInput) {
-          this.fileInput.value = '';
-        }
-      });
-      document.body.appendChild(this.fileInput);
+  protected override onUploadedTextApplied(text: string): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
     }
-
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
-    this.fileInput.click();
-  }
-
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
-      return;
-    }
-
-    if (!this.isLikelyTextFile(file)) {
-      this.toastService.error('Please upload a text-based file (.txt, .md, .csv, .json, etc.).');
-      return;
-    }
-
-    this.isReadingFile = true;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.historyTimer) {
-        clearTimeout(this.historyTimer);
-        this.historyTimer = null;
-      }
-      this.applyInputState(text);
-      this.pushToUndoStack(text);
-      this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-    };
-
-    reader.onerror = () => {
-      this.isReadingFile = false;
-      this.toastService.error('Could not read the file. Please try another text file.');
-    };
-
-    reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) {
-      return true;
-    }
-    const allowedTypes = new Set([
-      'application/json', 'application/xml', 'application/javascript',
-      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
-    ]);
-    if (allowedTypes.has(file.type)) {
-      return true;
-    }
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    const textExtensions = new Set([
-      'txt', 'text', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
-      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf', 'js', 'ts', 'css', 'scss',
-    ]);
-    return textExtensions.has(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
-    }
+    this.applyInputState(text);
+    this.pushToUndoStack(text);
   }
 
   copyInput(): void {
@@ -464,12 +350,7 @@ export class TextToASCIIComponent implements OnInit, OnDestroy {
   downloadText(): void {
     if (!this.outputValue) return;
     const ext = this.rightType === 'text' ? 'txt' : this.rightType;
-    const blob = new Blob([this.outputValue], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `output.${ext}`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    this.downloadContent(this.outputValue, `output.${ext}`);
   }
 
   private copyText(text: string, label: string): void {

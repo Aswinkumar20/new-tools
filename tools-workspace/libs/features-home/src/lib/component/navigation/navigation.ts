@@ -7,6 +7,7 @@ import {
   OnInit,
   OnDestroy,
   ViewChild,
+  inject,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, NavigationEnd } from '@angular/router';
@@ -15,6 +16,8 @@ import { TranslationService } from '../../services/translation.service';
 import { AssetService } from '../../services/asset.service';
 import { TOOL_CATEGORIES } from '../../config/tools-catalog.generated';
 import { toNavigationCategories } from '../../config/tools-catalog.helpers';
+import { ROUTE_PREFETCH } from '../../tokens/route-prefetch.token';
+import { getToolSearchEngine, SEARCH_LIMITS, type ToolSearchEngine } from '../../search';
 import { Subscription, filter } from 'rxjs';
 
 @Component({
@@ -57,6 +60,8 @@ export class NavigationComponent implements OnInit, OnDestroy {
   isSearchDropdownOpen = false;
   isHomePage = false;
   private routerSubscription?: Subscription;
+  private readonly prefetchRoute = inject(ROUTE_PREFETCH, { optional: true });
+  private readonly searchEngine: ToolSearchEngine = getToolSearchEngine(TOOL_CATEGORIES);
 
   constructor(
     private readonly router: Router,
@@ -205,6 +210,10 @@ export class NavigationComponent implements OnInit, OnDestroy {
     this.router.navigateByUrl(normalized);
   }
 
+  prefetchTool(path: string): void {
+    this.prefetchRoute?.(path);
+  }
+
   onDropdownEnter(_event?: Event): void {
     if (!this.isDesktop) {
       return;
@@ -351,16 +360,19 @@ export class NavigationComponent implements OnInit, OnDestroy {
 
   checkCurrentRoute(): void {
     const currentUrl = this.router.url;
-    // Normalize the URL by removing query params and fragments
     const normalizedUrl = currentUrl.split('?')[0].split('#')[0];
-    
-    // Check if we're on home page
-    // Routes: /tools/home, /, empty, or /tools (which redirects to home)
+
     this.isHomePage =
       normalizedUrl === '/tools/home' ||
       normalizedUrl === '/' ||
       normalizedUrl === '' ||
       normalizedUrl === '/tools';
+
+    if (normalizedUrl === '/about') {
+      this.activeLink = 'about';
+    } else if (this.isHomePage) {
+      this.activeLink = 'home';
+    }
   }
 
   setupRouteListener(): void {
@@ -389,41 +401,21 @@ export class NavigationComponent implements OnInit, OnDestroy {
   }
 
   filterSearchResults(): void {
-    const query = this.searchQuery.toLowerCase().trim();
-    this.searchResults = [];
+    const query = this.searchQuery.trim();
+    if (!query) {
+      this.searchResults = [];
+      return;
+    }
 
-    this.categoriesList.forEach((category: any) => {
-      // Search in category name
-      if (category.name.toLowerCase().includes(query)) {
-        this.searchResults.push({
-          name: category.name,
-          description: category.description,
-          path: category.path,
-          type: 'category'
-        });
-      }
-
-      // Search in tools
-      if (category.subCategories && category.subCategories.length > 0) {
-        category.subCategories.forEach((tool: any) => {
-          if (
-            tool.name.toLowerCase().includes(query) ||
-            tool.description?.toLowerCase().includes(query)
-          ) {
-            this.searchResults.push({
-              name: tool.name,
-              description: tool.description,
-              path: tool.path,
-              category: category.name,
-              type: 'tool'
-            });
-          }
-        });
-      }
-    });
-
-    // Limit results to 10 for better performance
-    this.searchResults = this.searchResults.slice(0, 10);
+    const response = this.searchEngine.search(query, { limit: SEARCH_LIMITS.dropdownResults });
+    this.searchResults = response.results.map((result) => ({
+      name: result.name,
+      description: result.description,
+      path: result.path,
+      category: result.category,
+      type: 'tool',
+      matchExplanation: result.matchExplanation,
+    }));
   }
 
   onSearchResultClick(result: any): void {

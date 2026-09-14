@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   REGEX_TESTER_DEFAULT_FLAGS,
@@ -20,7 +21,7 @@ import {
   standalone: true,
   templateUrl: './regex-tester.html',
   styleUrls: ['./regex-tester.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class RegexTesterComponent extends TextToolBase {
   pattern = '';

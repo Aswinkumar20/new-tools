@@ -10,15 +10,15 @@
 
       <div class="tcc__stats" aria-label="Live text counters">
         <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ wordCount }}</span>
+          <span class="tcc__stat-value" [title]="formatStatTitle(wordCount)">{{ formatStatCount(wordCount) }}</span>
           <span class="tcc__stat-label">Words</span>
         </div>
         <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ charCount }}</span>
+          <span class="tcc__stat-value" [title]="formatStatTitle(charCount)">{{ formatStatCount(charCount) }}</span>
           <span class="tcc__stat-label">Chars</span>
         </div>
         <div class="tcc__stat">
-          <span class="tcc__stat-value">{{ convertedText.length }}</span>
+          <span class="tcc__stat-value" [title]="formatStatTitle(convertedText.length)">{{ formatStatCount(convertedText.length) }}</span>
           <span class="tcc__stat-label">Output</span>
         </div>
         <div class="tcc__stat tcc__stat--preset">
@@ -128,6 +128,12 @@
     }
 
     <div class="tcc__workspace">
+
+      <lib-text-tool-processing-overlay
+        [visible]="isProcessing"
+        [label]="processingLabel"
+        [progress]="processingProgress" />
+
       <div class="tcc__editors" aria-label="Source and converted text">
         <section
           class="tcc__editor"
@@ -143,7 +149,7 @@
               }
             </div>
             <div class="tcc__toolbar">
-              <button type="button" class="tcc__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" aria-label="Upload text file" [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'" tooltipPosition="bottom">
+              <button type="button" class="tcc__tool-btn" (click)="uploadTextFile()" aria-label="Upload text file" [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
                 <span class="tcc__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
               </button>

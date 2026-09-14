@@ -13,6 +13,10 @@ import {
   WCC_MAX_STORED_ENTRY_LENGTH,
   WCC_MAX_UPLOAD_BYTES,
   WCC_PDF_FREQUENCY_LIMIT,
+  WCC_HIGHLIGHT_MAX_LENGTH,
+  WCC_HUGE_TEXT_THRESHOLD,
+  WCC_LARGE_TEXT_THRESHOLD,
+  WCC_NGRAM_MAX_WORDS,
   WCC_PHRASE_DISPLAY_LIMIT,
   WCC_RELATED_TOOLS,
   WCC_TAG_CLOUD_LIMIT,
@@ -42,6 +46,8 @@ import {
   countWordMatches,
   escapeHtml,
   escapeRegex,
+  formatCompactCount,
+  formatCountTitle,
   formatReadingDuration,
   hashString,
   hashWords,
@@ -176,6 +182,15 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   // Adaptive debounce
   private updateTimer: any = null;
   private pendingText = '';
+  private progressTimer: ReturnType<typeof setInterval> | null = null;
+  private progressCompleteTimer: ReturnType<typeof setTimeout> | null = null;
+  private uploadApplyTimer: ReturnType<typeof setTimeout> | null = null;
+  private ngramTimer: ReturnType<typeof setTimeout> | null = null;
+  private activeFileReader: FileReader | null = null;
+  private uploadSessionId = 0;
+  private analysisGeneration = 0;
+  private ngramGeneration = 0;
+  private downloadSessionId = 0;
   // Sentence stats
   averageSentenceLength = 0;
   sentenceLengths: number[] = [];
@@ -183,6 +198,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   // no constructor needed
   isGeneratingPdf = false;
   isReadingFile = false;
+  isAnalyzing = false;
+  isExporting: 'csv' | 'txt' | null = null;
+  processingProgress: number | null = null;
   isDragOver = false;
   excludeStopWords = false;
   activePhraseSize: 2 | 3 = 2;
@@ -195,6 +213,173 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   readonly tagCloudLimit = WCC_TAG_CLOUD_LIMIT;
   readonly pdfFrequencyLimit = WCC_PDF_FREQUENCY_LIMIT;
   readonly phraseDisplayLimit = WCC_PHRASE_DISPLAY_LIMIT;
+  readonly highlightMaxLength = WCC_HIGHLIGHT_MAX_LENGTH;
+
+  get isProcessing(): boolean {
+    return this.isReadingFile || this.isAnalyzing || this.isGeneratingPdf || !!this.isExporting;
+  }
+
+  get processingLabel(): string {
+    if (this.isReadingFile) return 'Reading file';
+    if (this.isAnalyzing) return 'Analyzing text';
+    if (this.isGeneratingPdf) return 'Generating PDF';
+    if (this.isExporting === 'csv') return 'Exporting CSV';
+    if (this.isExporting === 'txt') return 'Downloading TXT';
+    return 'Processing';
+  }
+
+  get isProgressIndeterminate(): boolean {
+    return this.isProcessing && this.processingProgress === null;
+  }
+
+  get processingProgressRounded(): number {
+    return this.processingProgress === null ? 0 : Math.round(this.processingProgress);
+  }
+
+  private clearProgressTimers(): void {
+    if (this.progressTimer) {
+      clearInterval(this.progressTimer);
+      this.progressTimer = null;
+    }
+    if (this.progressCompleteTimer) {
+      clearTimeout(this.progressCompleteTimer);
+      this.progressCompleteTimer = null;
+    }
+  }
+
+  private startIndeterminateProgress(): void {
+    this.clearProgressTimers();
+    this.processingProgress = null;
+  }
+
+  private startDeterminateProgress(initial = 0): void {
+    this.clearProgressTimers();
+    this.processingProgress = Math.max(0, Math.min(100, initial));
+  }
+
+  private startSimulatedProgress(cap = 90): void {
+    this.clearProgressTimers();
+    if (this.processingProgress === null || this.processingProgress >= cap) {
+      this.processingProgress = 0;
+    }
+    this.progressTimer = setInterval(() => {
+      if (this.processingProgress === null) {
+        return;
+      }
+      const remaining = cap - this.processingProgress;
+      const step = Math.max(0.5, remaining * 0.07);
+      this.processingProgress = Math.min(cap, this.processingProgress + step);
+    }, 100);
+  }
+
+  private finishProgressAnimation(): void {
+    this.clearProgressTimers();
+    this.processingProgress = 100;
+    this.progressCompleteTimer = setTimeout(() => {
+      if (!this.isProcessing) {
+        this.processingProgress = null;
+      }
+      this.progressCompleteTimer = null;
+    }, 450);
+  }
+
+  private isUploadSessionActive(sessionId: number): boolean {
+    return sessionId === this.uploadSessionId;
+  }
+
+  private isDownloadSessionActive(sessionId: number): boolean {
+    return sessionId === this.downloadSessionId;
+  }
+
+  private cancelPendingUploadApply(): void {
+    if (this.uploadApplyTimer) {
+      clearTimeout(this.uploadApplyTimer);
+      this.uploadApplyTimer = null;
+    }
+  }
+
+  private cancelPendingNgramAnalysis(): void {
+    this.ngramGeneration++;
+    if (this.ngramTimer) {
+      clearTimeout(this.ngramTimer);
+      this.ngramTimer = null;
+    }
+  }
+
+  private abortActiveFileReader(): void {
+    if (!this.activeFileReader) {
+      return;
+    }
+    const reader = this.activeFileReader;
+    this.activeFileReader = null;
+    reader.onload = null;
+    reader.onerror = null;
+    reader.onprogress = null;
+    reader.onabort = null;
+    try {
+      reader.abort();
+    } catch {
+      // Reader may already be finished.
+    }
+  }
+
+  private resetAnalysisWorker(): void {
+    this.analysisGeneration++;
+    if (this.analysisWorker) {
+      this.analysisWorker.terminate();
+      this.analysisWorker = undefined;
+    }
+  }
+
+  private cancelInFlightOperations(options: { forUpload?: boolean } = {}): void {
+    const hadWork =
+      this.isReadingFile ||
+      this.isAnalyzing ||
+      this.isGeneratingPdf ||
+      !!this.isExporting ||
+      !!this.activeFileReader ||
+      !!this.uploadApplyTimer;
+
+    this.uploadSessionId++;
+    this.downloadSessionId++;
+    this.abortActiveFileReader();
+    this.cancelPendingUploadApply();
+    this.cancelPendingNgramAnalysis();
+    this.resetAnalysisWorker();
+
+    if (this.updateTimer) {
+      clearTimeout(this.updateTimer);
+      this.updateTimer = null;
+    }
+
+    this.isReadingFile = false;
+    this.isAnalyzing = false;
+    this.isGeneratingPdf = false;
+    this.isExporting = null;
+    this.clearProgressTimers();
+    this.processingProgress = null;
+    this.isDragOver = false;
+
+    if (options.forUpload && hadWork) {
+      this.toastService.info('Previous operation cancelled — starting new upload.');
+    }
+  }
+
+  private resetUploadFailureState(): void {
+    this.isReadingFile = false;
+    this.isAnalyzing = false;
+    this.activeFileReader = null;
+    this.clearProgressTimers();
+    this.processingProgress = null;
+  }
+
+  formatStatCount(value: number): string {
+    return formatCompactCount(value);
+  }
+
+  formatStatTitle(value: number): string {
+    return formatCountTitle(value);
+  }
 
   get readingTimeLabel(): string {
     return formatReadingDuration(this.wordCount / READING_WPM, this.wordCount);
@@ -255,8 +440,8 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
 
   get highlightedBackdropHtml(): string {
     const text = this.paragraphControl.value || '';
-    if (!this.highlightedWord || !text) {
-      return escapeHtml(text) + '\n';
+    if (!this.highlightedWord || !text || text.length > this.highlightMaxLength) {
+      return text.length <= this.highlightMaxLength ? escapeHtml(text) + '\n' : '';
     }
     const pattern = new RegExp(`\\b(${escapeRegex(this.highlightedWord)})\\b`, 'gi');
     return escapeHtml(text).replace(pattern, '<mark>$1</mark>') + '\n';
@@ -325,6 +510,10 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
       clearTimeout(this.updateTimer);
       this.updateTimer = null;
     }
+    this.clearProgressTimers();
+    this.cancelPendingUploadApply();
+    this.cancelPendingNgramAnalysis();
+    this.abortActiveFileReader();
     if (this.analysisWorker) {
       this.analysisWorker.terminate();
       this.analysisWorker = undefined;
@@ -351,7 +540,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     // adapt debounce based on text size
     const len = text.length || 0;
     let wait = 300;
-    if (len > 10000) wait = 800;
+    if (len > WCC_HUGE_TEXT_THRESHOLD) wait = 3000;
+    else if (len > WCC_LARGE_TEXT_THRESHOLD) wait = 1200;
+    else if (len > 10000) wait = 800;
     else if (len > 5000) wait = 600;
     else if (len > 2000) wait = 450;
 
@@ -394,10 +585,19 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     const trimmed = text.trim();
 
     if (!trimmed) {
+      this.isAnalyzing = false;
       this.resetMetrics();
       this.lastTextHash = null;
       this.lastWordFrequencyHash = null;
       return;
+    }
+
+    const isLargeText = text.length >= WCC_LARGE_TEXT_THRESHOLD;
+    if (isLargeText) {
+      this.isAnalyzing = true;
+      if (this.processingProgress === null) {
+        this.startSimulatedProgress(88);
+      }
     }
 
     // Char limit
@@ -421,8 +621,10 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     const paragraphs = trimmed.split(/\n{2,}/).filter((p) => p.trim().length > 0);
     this.paragraphCount = paragraphs.length;
 
-    if (this.highlightedWord) {
+    if (this.highlightedWord && text.length <= this.highlightMaxLength) {
       this.highlightMatchCount = countWordMatches(text, this.highlightedWord);
+    } else if (this.highlightedWord) {
+      this.clearHighlight();
     }
 
     // Word Frequency
@@ -430,19 +632,45 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     const textHash = hashString(text);
     const wordsHash = hashWords(words);
     if (this.lastTextHash === textHash && this.lastWordFrequencyHash === wordsHash) {
-      // nothing changed
+      this.isAnalyzing = false;
     } else {
       this.lastTextHash = textHash;
       this.lastWordFrequencyHash = wordsHash;
       if (text.length > this.useWorkerThreshold && typeof Worker !== 'undefined') {
-        this.phraseFrequency2 = calculateNGrams(words, 2);
-        this.phraseFrequency3 = calculateNGrams(words, 3);
+        this.scheduleNGramAnalysis(words);
         this.runWorkerAnalysis(words, text);
       } else {
         this.applyFullAnalysis(words, trimmed);
+        this.isAnalyzing = false;
+        if (isLargeText) {
+          this.finishProgressAnimation();
+        }
       }
     }
 
+  }
+
+  private scheduleNGramAnalysis(words: string[]): void {
+    if (words.length > WCC_NGRAM_MAX_WORDS) {
+      this.phraseFrequency2 = [];
+      this.phraseFrequency3 = [];
+      return;
+    }
+
+    const generation = ++this.ngramGeneration;
+    const compute = () => {
+      if (generation !== this.ngramGeneration) {
+        return;
+      }
+      this.phraseFrequency2 = calculateNGrams(words, 2);
+      this.phraseFrequency3 = calculateNGrams(words, 3);
+    };
+
+    if (words.length > 10000) {
+      this.ngramTimer = setTimeout(compute, 0);
+    } else {
+      compute();
+    }
   }
 
   private resetMetrics(): void {
@@ -471,8 +699,7 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   private applyFullAnalysis(words: string[], trimmed: string): void {
     this.wordFrequency = computeWordFrequency(words);
     this.uniqueWordCount = this.wordFrequency.length;
-    this.phraseFrequency2 = calculateNGrams(words, 2);
-    this.phraseFrequency3 = calculateNGrams(words, 3);
+    this.scheduleNGramAnalysis(words);
     const syllableCount = computeSyllableCount(words);
     this.readabilityScore = computeFleschReadingEase(this.wordCount, this.sentenceCount, syllableCount);
     this.fleschKincaidGrade = computeFleschKincaidGrade(this.wordCount, this.sentenceCount, syllableCount);
@@ -537,21 +764,29 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
           const colemanLiau = Math.round((0.0588 * (L) - 0.296 * (S) - 15.8) * 10) / 10;
           const gunningFog = Math.round(0.4 * ((wordsCount/sentencesCount) + 100*(words.filter(w=>w.length>6).length/wordsCount)) * 10) / 10;
           const smog = Math.round((1.0430 * Math.sqrt(words.filter(w=>w.match(/\\w{3,}/)).length * (30/sentencesCount)) + 3.1291) * 10) / 10;
-          postMessage({ words, syllables, wordFrequency, sentenceLengths, advanced: { gunningFog, smog, colemanLiau } });
+          postMessage({ generation: e.data.generation, words, syllables, wordFrequency, sentenceLengths, advanced: { gunningFog, smog, colemanLiau } });
         }`;
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         this.analysisWorker = new Worker(URL.createObjectURL(blob));
         this.analysisWorker.onmessage = (ev: MessageEvent) => {
           const data: WccWorkerMessage = ev.data as WccWorkerMessage;
+          if (data.generation !== undefined && data.generation !== this.analysisGeneration) {
+            return;
+          }
           const syllableCount = data.syllables || 0;
           this.applyWorkerResults(data, syllableCount);
+          this.isAnalyzing = false;
+          this.finishProgressAnimation();
         };
       } catch {
+        this.isAnalyzing = false;
+        this.finishProgressAnimation();
         // Worker unavailable — fall back to main-thread analysis on next update
       }
     }
     if (this.analysisWorker) {
-      this.analysisWorker.postMessage({ text });
+      const generation = ++this.analysisGeneration;
+      this.analysisWorker.postMessage({ text, generation });
     }
   }
 
@@ -577,8 +812,12 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
 
   // Download analysis as PDF (default) or TXT (fallback)
   async downloadAnalysis(as: 'pdf' | 'txt' = 'pdf') {
+    if (!this.hasContent || this.isProcessing) {
+      return;
+    }
+
     const text = this.paragraphControl.value || '';
-    
+    const downloadSessionId = ++this.downloadSessionId;
     // Track download action start
     this.trackEvent('click', {
       event_category: 'ui_interaction',
@@ -598,6 +837,11 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     if (as === 'pdf') {
       try {
         this.isGeneratingPdf = true;
+        this.startSimulatedProgress(94);
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        if (!this.isDownloadSessionActive(downloadSessionId)) {
+          return;
+        }
         const doc = new jsPDF({ unit: 'pt', format: 'a4' });
         const margin = 40;
         let y = margin;
@@ -704,7 +948,11 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
         });
 
         doc.save('text-analysis.pdf');
+        if (!this.isDownloadSessionActive(downloadSessionId)) {
+          return;
+        }
         this.isGeneratingPdf = false;
+        this.finishProgressAnimation();
         
         // Track successful PDF download
         const downloadDuration = Date.now() - downloadStartTime;
@@ -726,21 +974,44 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
         return;
       } catch (err) {
         console.warn('PDF generation failed, falling back to TXT', err);
-        // fallthrough to TXT
+        if (this.isDownloadSessionActive(downloadSessionId)) {
+          this.isGeneratingPdf = false;
+        }
       }
     }
 
+    if (!this.isDownloadSessionActive(downloadSessionId)) {
+      return;
+    }
+
     // TXT fallback
-    const txt = `Text:\n${text}\n\nStats:\nWords: ${this.wordCount}\nCharacters: ${this.charCount}\nSentences: ${this.sentenceCount}\nReadability: ${this.readabilityScore}`;
-    const blob = new Blob([txt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'analysis.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-    this.isGeneratingPdf = false;
-    
+    this.isExporting = 'txt';
+    this.startSimulatedProgress(85);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    if (!this.isDownloadSessionActive(downloadSessionId)) {
+      return;
+    }
+    try {
+      const txt = `Text:\n${text}\n\nStats:\nWords: ${this.wordCount}\nCharacters: ${this.charCount}\nSentences: ${this.sentenceCount}\nReadability: ${this.readabilityScore}`;
+      const blob = new Blob([txt], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'analysis.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      if (this.isDownloadSessionActive(downloadSessionId)) {
+        this.isExporting = null;
+        this.isGeneratingPdf = false;
+        this.finishProgressAnimation();
+      }
+    }
+
+    if (!this.isDownloadSessionActive(downloadSessionId)) {
+      return;
+    }
+
     // Track successful TXT download
     const downloadDuration = Date.now() - downloadStartTime;
     this.trackEvent('file_download', {
@@ -913,6 +1184,9 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   onDragOver(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
     this.isDragOver = true;
   }
 
@@ -926,37 +1200,61 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
+
+    const files = event.dataTransfer?.files;
+    if (!files?.length) {
+      return;
     }
+
+    if (files.length > 1) {
+      this.toastService.info('Multiple files dropped — using the first file only.');
+    }
+
+    this.handleUploadedFile(files[0]);
   }
 
   exportFrequencyCsv(): void {
-    if (!this.hasContent) return;
+    if (!this.hasContent || this.isProcessing) {
+      return;
+    }
     this.trackEvent('click', {
       event_category: 'ui_interaction',
       event_label: 'export-frequency-csv',
       element_type: 'button',
       location: this.TOOL_NAME,
     });
-    const rows = [['Word', 'Count', 'Density %']];
-    const exportList = this.excludeStopWords ? this.filteredWordFrequency : this.wordFrequency;
-    const limit = Math.min(exportList.length, 500);
-    for (let i = 0; i < limit; i++) {
-      const item = exportList[i];
-      const density = this.wordCount ? ((item.count / this.wordCount) * 100).toFixed(2) : '0.00';
-      rows.push([item.word, String(item.count), density]);
-    }
-    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'word-frequency.csv';
-    anchor.click();
-    URL.revokeObjectURL(url);
-    this.toastService.info('Word frequency exported as CSV');
+    this.isExporting = 'csv';
+    this.startSimulatedProgress(85);
+    const exportSessionId = ++this.downloadSessionId;
+    setTimeout(() => {
+      if (!this.isDownloadSessionActive(exportSessionId)) {
+        return;
+      }
+      try {
+        const rows = [['Word', 'Count', 'Density %']];
+        const exportList = this.excludeStopWords ? this.filteredWordFrequency : this.wordFrequency;
+        const limit = Math.min(exportList.length, 500);
+        for (let i = 0; i < limit; i++) {
+          const item = exportList[i];
+          const density = this.wordCount ? ((item.count / this.wordCount) * 100).toFixed(2) : '0.00';
+          rows.push([item.word, String(item.count), density]);
+        }
+        const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'word-frequency.csv';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        this.toastService.info('Word frequency exported as CSV');
+      } finally {
+        if (this.isDownloadSessionActive(exportSessionId)) {
+          this.isExporting = null;
+          this.finishProgressAnimation();
+        }
+      }
+    }, 0);
   }
 
   phraseDensity(count: number): number {
@@ -993,6 +1291,11 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
   }
 
   private handleUploadedFile(file: File): void {
+    if (file.size === 0) {
+      this.toastService.error('The file is empty. Choose a file with text content.');
+      return;
+    }
+
     if (file.size > this.maxUploadBytes) {
       this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
       return;
@@ -1003,34 +1306,101 @@ export class WordsAndCharacterCounterComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.cancelInFlightOperations({ forUpload: true });
+    this.clearHighlight();
+    this.lastTextHash = null;
+    this.lastWordFrequencyHash = null;
+
+    const sessionId = this.uploadSessionId;
     this.isReadingFile = true;
+    this.isAnalyzing = false;
+    this.startDeterminateProgress(0);
+
     const reader = new FileReader();
+    this.activeFileReader = reader;
+
+    reader.onprogress = (event: ProgressEvent<FileReader>) => {
+      if (!this.isUploadSessionActive(sessionId)) {
+        return;
+      }
+      if (event.lengthComputable && event.total > 0) {
+        this.processingProgress = Math.min(99, (event.loaded / event.total) * 100);
+      } else if (this.processingProgress === null) {
+        this.startSimulatedProgress(75);
+      }
+    };
+
+    reader.onabort = () => {
+      if (!this.isUploadSessionActive(sessionId)) {
+        return;
+      }
+      this.resetUploadFailureState();
+    };
 
     reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.updateTimer) {
-        clearTimeout(this.updateTimer);
-        this.updateTimer = null;
+      if (!this.isUploadSessionActive(sessionId)) {
+        return;
       }
-      this.applyHistoryState(text);
-      this.pushHistory(text);
+
+      this.activeFileReader = null;
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      if (!text.trim()) {
+        this.resetUploadFailureState();
+        this.toastService.error(`"${file.name}" has no readable text content.`);
+        return;
+      }
+
+      this.processingProgress = 100;
       this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-      this.trackEvent('tool_action', {
-        event_category: this.TOOL_CATEGORY,
-        event_label: this.TOOL_NAME,
-        action_type: 'upload_text_file',
-        file_size: file.size,
-        text_length: text.length,
-      });
+      const needsAnalysis = text.length >= WCC_LARGE_TEXT_THRESHOLD;
+      this.isAnalyzing = needsAnalysis;
+      if (needsAnalysis) {
+        this.startSimulatedProgress(92);
+      }
+
+      this.uploadApplyTimer = setTimeout(() => {
+        if (!this.isUploadSessionActive(sessionId)) {
+          return;
+        }
+        this.uploadApplyTimer = null;
+        this.isRestoringHistory = true;
+        this.paragraphControl.setValue(text, { emitEvent: false });
+        this.isRestoringHistory = false;
+        this.pendingText = text;
+        this.updateCounts(text);
+        this.pushHistory(text);
+        if (!needsAnalysis) {
+          this.isAnalyzing = false;
+          this.finishProgressAnimation();
+        }
+        this.toastService.info(`Loaded "${file.name}"`);
+        this.trackEvent('tool_action', {
+          event_category: this.TOOL_CATEGORY,
+          event_label: this.TOOL_NAME,
+          action_type: 'upload_text_file',
+          file_size: file.size,
+          text_length: text.length,
+        });
+      }, 0);
     };
 
     reader.onerror = () => {
-      this.isReadingFile = false;
+      if (!this.isUploadSessionActive(sessionId)) {
+        return;
+      }
+      this.resetUploadFailureState();
       this.toastService.error('Could not read the file. Please try another text file.');
     };
 
-    reader.readAsText(file);
+    try {
+      reader.readAsText(file, 'UTF-8');
+    } catch {
+      if (!this.isUploadSessionActive(sessionId)) {
+        return;
+      }
+      this.resetUploadFailureState();
+      this.toastService.error('Could not read the file. Please try another text file.');
+    }
   }
 
   private isLikelyTextFile(file: File): boolean {

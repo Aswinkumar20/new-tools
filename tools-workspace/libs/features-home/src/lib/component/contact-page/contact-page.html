@@ -1,0 +1,142 @@
+<main id="main-content" class="contact" [class.contact--ready]="pageReady">
+  <section class="contact-viewport contact-enter contact-enter--1" aria-labelledby="contact-title">
+    <div class="contact-wrap contact-stage">
+      <aside class="contact-info">
+        <p class="contact-kicker contact-kicker--on-dark">
+          <span class="contact-kicker__dot" aria-hidden="true"></span>
+          {{ hero.badge }}
+        </p>
+        <h1 id="contact-title" class="contact-info__title">{{ hero.title }}</h1>
+        <p class="contact-info__lead">{{ hero.lead }}</p>
+
+        <a class="contact-email-btn" [href]="'mailto:' + contactEmail">
+          <lib-marketing-icon icon="mail" [size]="18" />
+          <span>{{ contactEmail }}</span>
+        </a>
+
+        <ul class="contact-meta" aria-label="Contact details">
+          @for (item of highlights; track item.label) {
+            <li>
+              <lib-marketing-icon [icon]="item.icon" [size]="14" />
+              <span><strong>{{ item.label }}</strong> {{ item.value }}</span>
+            </li>
+          }
+        </ul>
+
+        <div class="contact-info__links">
+          <a routerLink="/about">About</a>
+          <a routerLink="/tools/home">Browse tools</a>
+        </div>
+      </aside>
+
+      <form id="contact-form" class="contact-form contact-card" (submit)="submitContact($event)" novalidate>
+        <div class="contact-form__top">
+          <h2 class="contact-title">Send a message</h2>
+          <p class="contact-form__helper">{{ formCopy.helper }}</p>
+        </div>
+
+        <div class="contact-form__body">
+          <fieldset class="contact-field contact-field--topics">
+            <legend>{{ formCopy.topicLabel }}</legend>
+            <div class="contact-topic-grid">
+              @for (topic of topics; track topic.id) {
+                <button
+                  type="button"
+                  class="contact-topic-pill"
+                  [class.contact-topic-pill--active]="isTopicSelected(topic.id)"
+                  [attr.aria-pressed]="isTopicSelected(topic.id)"
+                  (click)="selectTopic(topic)">
+                  <lib-marketing-icon [icon]="topic.icon" [size]="16" />
+                  <span>{{ topic.label }}</span>
+                </button>
+              }
+            </div>
+            @if (selectedTopic(); as activeTopic) {
+              <p class="contact-topic-note">{{ activeTopic.description }}</p>
+            }
+          </fieldset>
+
+          <div class="contact-form__grid">
+            <label class="contact-field">
+              <span>{{ formCopy.nameLabel }}</span>
+              <input
+                type="text"
+                name="name"
+                autocomplete="name"
+                [(ngModel)]="name"
+                [placeholder]="formCopy.namePlaceholder" />
+            </label>
+
+            <label class="contact-field">
+              <span>{{ formCopy.emailLabel }}</span>
+              <input
+                id="contact-email-input"
+                type="email"
+                name="email"
+                autocomplete="email"
+                required
+                [(ngModel)]="email"
+                [placeholder]="formCopy.emailPlaceholder" />
+            </label>
+          </div>
+
+          <label class="contact-field contact-field--message">
+            <span>{{ formCopy.messageLabel }}</span>
+            <textarea
+              name="message"
+              required
+              [(ngModel)]="message"
+              [placeholder]="formCopy.messagePlaceholder"></textarea>
+          </label>
+        </div>
+
+        @if (formError()) {
+          <p class="contact-form__error" role="alert">{{ formError() }}</p>
+        }
+
+        <div class="contact-form__actions">
+          <button type="submit" class="contact-btn contact-btn--primary">
+            {{ formCopy.submitLabel }}
+          </button>
+          <a class="contact-btn contact-btn--ghost" [href]="'mailto:' + contactEmail">Email directly</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="contact-below contact-enter contact-enter--2" aria-labelledby="contact-more-title">
+    <div class="contact-wrap">
+      <h2 id="contact-more-title" class="contact-below__title">More help</h2>
+
+      <aside class="contact-tips-box" aria-label="Tips for your message">
+        <p class="contact-tips-box__title">Include if you can</p>
+        <ul>
+          @for (tip of tips; track tip) {
+            <li>{{ tip }}</li>
+          }
+        </ul>
+      </aside>
+
+      <div class="contact-faq__grid" aria-labelledby="contact-faq-title">
+        <h3 id="contact-faq-title" class="contact-below__subtitle">Common questions</h3>
+        @for (faq of faqs; track faq.question) {
+          <details class="contact-faq__item">
+            <summary>{{ faq.question }}</summary>
+            <p>{{ faq.answer }}</p>
+          </details>
+        }
+      </div>
+
+      <footer class="contact-bar" aria-labelledby="contact-cta-title">
+        <div>
+          <h3 id="contact-cta-title" class="contact-bar__title">{{ cta.title }}</h3>
+          <p class="contact-bar__text">{{ cta.text }}</p>
+        </div>
+        <div class="contact-bar__actions">
+          <a routerLink="/tools/home" class="contact-btn contact-btn--primary">{{ cta.primaryLabel }}</a>
+          <a routerLink="/about" class="contact-btn contact-btn--ghost">{{ cta.secondaryLabel }}</a>
+        </div>
+      </footer>
+    </div>
+  </section>
+</main>

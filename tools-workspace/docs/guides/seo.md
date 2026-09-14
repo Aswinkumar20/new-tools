@@ -30,6 +30,31 @@ Path: `apps/tools-site/src/app/services/seo.service.ts`
 
 Canonical OG image: `https://easytoolhub.com/assets/og-image.svg`.
 
+## Automatic keyword strength
+
+`tool-seo-enrichment.js` builds keywords for **every** routed tool:
+
+- Intent variants (`… online`, `free …`, `best free …`, `in browser`, `without install`, …)
+- Brand/globals reserved early (`easytoolhub`, `no signup`, `privacy focused`, …) so they are never truncated
+- Slug phrases, token synonyms, and long-tail (`… software alternative`, `… browser tool`)
+- Category hints (all 22 categories) + hand-tuned `KEYWORD_EXTRAS` / `TOOL_ENRICHMENT`
+- Up to **40** unique phrases per tool; category pages up to **36**
+
+## Unit testing (tools)
+
+- Advanced PDF wrappers: TestBed smoke specs via `generate-advanced-pdf-tools.mjs`
+- Registry integrity: `pdf-advanced-tools.registry.spec.ts`
+- Behavioral: workbench + redact (can-run gates, clear)
+- Fill gaps: `node scripts/generate-missing-component-specs.cjs`
+
+```bash
+npx nx run tools-site:generate-tool-seo-catalog
+npx nx run tools-site:generate-sitemap
+npx nx test pdf-tools
+```
+
+Note: Google largely ignores the keywords meta tag for ranking; strong **titles**, **descriptions**, **sitemap**, and **structured data** matter more for indexing.
+
 ## Catalogs
 
 | Artifact | Role |

@@ -1,5 +1,6 @@
 import type { TuToolSuggestion } from '../shared/tu-tool-suggestion.model';
 import {
+  WCC_COMPACT_COUNT_THRESHOLD,
   WCC_DIFFICULT_READABILITY_THRESHOLD,
   WCC_LONG_FORM_WORD_THRESHOLD,
 } from '../constants/words-and-character-counter.constants';
@@ -173,6 +174,38 @@ export function formatReadingDuration(minutes: number, wordCount: number): strin
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+/** Compact display for large counts — uses K below 1L, then L (lakh) and Cr (crore). */
+export function formatCompactCount(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return '0';
+  }
+  const n = Math.round(value);
+  if (n < WCC_COMPACT_COUNT_THRESHOLD) {
+    return n.toLocaleString('en-IN');
+  }
+  if (n >= 10_000_000) {
+    const cr = n / 10_000_000;
+    return cr >= 100 ? `${Math.round(cr)} Cr` : `${trimTrailingZero(cr.toFixed(1))} Cr`;
+  }
+  if (n >= 100_000) {
+    const lakh = n / 100_000;
+    return lakh >= 100 ? `${Math.round(lakh)} L` : `${trimTrailingZero(lakh.toFixed(1))} L`;
+  }
+  const thousands = n / 1000;
+  return `${trimTrailingZero(thousands.toFixed(1))}K`;
+}
+
+export function formatCountTitle(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  return Math.round(value).toLocaleString('en-IN');
+}
+
+function trimTrailingZero(formatted: string): string {
+  return formatted.replace(/\.0$/, '');
 }
 
 export function escapeHtml(text: string): string {

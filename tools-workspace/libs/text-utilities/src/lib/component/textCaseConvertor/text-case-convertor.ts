@@ -2,7 +2,9 @@ import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementR
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   AP_SMALL_WORDS,
@@ -36,9 +38,9 @@ import {
   standalone: true,
   templateUrl: './text-case-convertor.html',
   styleUrls: ['./text-case-convertor.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
-export class TextCaseConvertorComponent implements OnInit, OnDestroy {
+export class TextCaseConvertorComponent extends TextToolProcessingHost implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
 
   readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_CASE_RELATED_TOOLS;
@@ -58,10 +60,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
   private historyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingHistoryValue = '';
 
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = TEXT_CASE_MAX_UPLOAD_BYTES;
-  private fileInput?: HTMLInputElement;
+  override maxUploadBytes = TEXT_CASE_MAX_UPLOAD_BYTES;
 
   activePresetTab: 'standard' | 'programming' | 'fun' | 'favorites' = 'standard';
   presetSearch = '';
@@ -90,7 +89,6 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
   readonly allPresets = ALL_PRESETS;
 
   readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
 
   get canUndo(): boolean {
     return this.undoStack.length > 1;
@@ -287,13 +285,12 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     this.updateCounts(this.inputText);
   }
 
-  ngOnDestroy(): void {
+  override ngOnDestroy(): void {
     if (this.historyTimer) {
       clearTimeout(this.historyTimer);
       this.historyTimer = null;
     }
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    super.ngOnDestroy();
   }
 
   private seedHistory(value: string): void {
@@ -309,8 +306,8 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     this.dismissedSuggestionId = null;
     this.inputText = value;
     this.selectionPreview = null;
-    this.refreshOutput();
     this.updateCounts(value);
+    this.scheduleDebouncedWork(() => this.refreshOutput(), value.length);
     this.scheduleHistoryPush(value);
   }
 
@@ -516,107 +513,19 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
     this.toastService.info('Text cleared');
   }
 
-  uploadTextFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) {
-          this.handleUploadedFile(file);
-        }
-        if (this.fileInput) {
-          this.fileInput.value = '';
-        }
-      });
-      document.body.appendChild(this.fileInput);
+  protected override onUploadedTextApplied(text: string): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
     }
-
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
-    this.fileInput.click();
+    this.dismissedSuggestionId = null;
+    this.applyInputState(text);
+    this.pushToUndoStack(text);
+    this.updateShareUrl();
   }
 
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
-      return;
-    }
-
-    if (!this.isLikelyTextFile(file)) {
-      this.toastService.error('Please upload a text-based file (.txt, .md, .csv, .json, etc.).');
-      return;
-    }
-
-    this.isReadingFile = true;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.historyTimer) {
-        clearTimeout(this.historyTimer);
-        this.historyTimer = null;
-      }
-      this.dismissedSuggestionId = null;
-      this.applyInputState(text);
-      this.pushToUndoStack(text);
-      this.updateShareUrl();
-      this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-    };
-
-    reader.onerror = () => {
-      this.isReadingFile = false;
-      this.toastService.error('Could not read the file. Please try another text file.');
-    };
-
-    reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) {
-      return true;
-    }
-    const allowedTypes = new Set([
-      'application/json', 'application/xml', 'application/javascript',
-      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
-    ]);
-    if (allowedTypes.has(file.type)) {
-      return true;
-    }
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    const textExtensions = new Set([
-      'txt', 'text', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
-      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf', 'js', 'ts', 'css', 'scss',
-    ]);
-    return textExtensions.has(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
-    }
+  protected override onUploadStarting(): void {
+    this.dismissedSuggestionId = null;
   }
 
   copyInput(): void {
@@ -665,12 +574,7 @@ export class TextCaseConvertorComponent implements OnInit, OnDestroy {
 
   downloadWithName(filename?: string): void {
     if (!this.convertedText) return;
-    const blob = new Blob([this.convertedText], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename ?? `output-${this.selectedCase}.txt`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    this.downloadContent(this.convertedText, filename ?? `output-${this.selectedCase}.txt`);
   }
 
   copyShareLink(): void {

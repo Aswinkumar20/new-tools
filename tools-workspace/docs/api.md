@@ -1,6 +1,15 @@
 # API documentation
 
-There is **no first-party product REST API** and **no runtime Node/Express server**. Production serves static files from `dist/apps/tools-site/browser/` (SSG). Tools that call the network use third-party or browser APIs only.
+## Tool-api (Java)
+
+| | |
+| --- | --- |
+| Base | `services/tool-api` on `:8080` (proxied as `/api` in dev) |
+| PDF | `/api/v1/pdf/*` — see [pdf/README.md](./pdf/README.md) |
+| Model3D | `/api/v1/model3d/inspect`, `/normalize`, `/health` — see [model3d/README.md](./model3d/README.md) |
+| Privacy | Uploads are ephemeral; wiped after each job |
+
+There is **no first-party product REST API** for the static site itself beyond the optional **tool-api** sidecar above. Production UI is static files from `dist/apps/tools-site/browser/` (SSG). Browser-only tools use third-party or local APIs.
 
 ## Authentication
 

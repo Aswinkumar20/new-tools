@@ -57,8 +57,10 @@
 | Layer | Status |
 | ----- | ------ |
 | Unit (Jest) | ~520 specs — strong on utils; pdf-tools thinner; features-home light |
-| E2E (Playwright) | **2** specs only |
+| E2E (Playwright) | **Smoke suite** (`smoke.spec.ts`) + 1 deep spec; run via `npm run e2e:smoke` |
 | `passWithNoTests` | Enabled in Nx Jest defaults |
+
+**Lockfile:** `package-lock.json` is gitignored. Nx `e2e` targets override `externalDependencies` cache inputs in `nx.json` so Playwright runs without a committed lockfile.
 
 **Add next**
 
@@ -73,8 +75,15 @@
 
 ## Future enhancements
 
-- Finish remaining media + file-viewers coming-soon tools  
-- Unit-converter history UI  
+See [tools-inventory.md](./tools-inventory.md) for the full per-tool status and roadmap.
+
+**Remaining tool work (27 items):**
+
+- 23 coming-soon routes (20 file-viewers + 3 media-tools)  
+- 4 partial tools: 3D model viewer, media audio player, unit-converter history, BPMN text-to-diagram  
+
+**Platform:**
+
 - PWA / offline CDN cache  
 - Favorites / recent on home  
 - Split shared-ui + shared-utils; compose routes from lib fragments  

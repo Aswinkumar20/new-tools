@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import { INVISIBLE_CHARACTER_DETECTOR_RELATED_TOOLS } from '../../constants/invisible-character-detector.constants';
 import type { InvisibleCharHit } from '../../types/invisible-character-detector.types';
@@ -19,7 +20,7 @@ import {
   standalone: true,
   templateUrl: './invisible-character-detector.html',
   styleUrls: ['./invisible-character-detector.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class InvisibleCharacterDetectorComponent extends TextToolBase {
   invisibleHits: InvisibleCharHit[] = [];

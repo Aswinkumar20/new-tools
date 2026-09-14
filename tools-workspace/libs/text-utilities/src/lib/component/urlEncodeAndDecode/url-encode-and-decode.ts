@@ -3,6 +3,7 @@ import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import { urlEncode, urlDecode } from '../../shared/text-transform.utils';
 
 @Component({
@@ -10,7 +11,7 @@ import { urlEncode, urlDecode } from '../../shared/text-transform.utils';
   standalone: true,
   templateUrl: './url-encode-and-decode.html',
   styleUrls: ['./url-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
 export class UrlEncodeAndDecodeComponent extends TextToolBase {
   mode: 'encode' | 'decode' = 'encode';

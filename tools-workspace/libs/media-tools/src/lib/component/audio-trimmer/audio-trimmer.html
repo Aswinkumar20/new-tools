@@ -10,19 +10,19 @@
 
       <div class="ctl__stats" aria-label="Tool status">
         <div class="ctl__stat">
-          <span class="ctl__stat-value">0</span>
+          <span class="ctl__stat-value">{{ hasSource() ? 1 : 0 }}</span>
           <span class="ctl__stat-label">Files</span>
         </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">—</span>
+          <span class="ctl__stat-value">{{ lastExportLabel() }}</span>
           <span class="ctl__stat-label">Output</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">Planned</span>
+          <span class="ctl__stat-value">{{ statusLabel() }}</span>
           <span class="ctl__stat-label">Status</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ acceptHint }}</span>
+          <span class="ctl__stat-value">{{ formatsLabel }}</span>
           <span class="ctl__stat-label">Formats</span>
         </div>
       </div>
@@ -30,24 +30,75 @@
 
     <div class="mt-workflow" aria-label="Audio trimmer controls">
       <div class="mt-workflow__group mt-workflow__group--files">
-        <span
-          class="ctl__tool-btn ctl__tool-btn--disabled"
-          aria-label="Upload audio (coming soon)"
-          appTooltip="Upload coming soon"
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="openFileDialog()"
+          aria-label="Upload audio"
+          appTooltip="Upload audio"
           tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-        </span>
+        </button>
+        <input #fileInput type="file" hidden [accept]="acceptAttr" (change)="onFileSelected($event)" />
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="togglePreview()"
+          [disabled]="!hasSource() || isLoading()"
+          aria-label="Preview trim"
+          appTooltip="Preview selection"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            @if (isPreviewPlaying()) {
+              <rect x="6" y="5" width="4" height="14" />
+              <rect x="14" y="5" width="4" height="14" />
+            } @else {
+              <polygon points="8,5 19,12 8,19" />
+            }
+          </svg>
+          <span class="ctl__tool-btn-label">{{ isPreviewPlaying() ? 'Stop' : 'Preview' }}</span>
+        </button>
+        <button
+          type="button"
+          class="ctl__tool-btn"
+          (click)="exportTrimmed()"
+          [disabled]="!hasSource() || isExporting() || isLoading()"
+          aria-label="Export trimmed audio"
+          appTooltip="Export trimmed audio"
+          tooltipPosition="bottom">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          <span class="ctl__tool-btn-label">Export</span>
+        </button>
+        @if (hasSource()) {
+          <button
+            type="button"
+            class="ctl__tool-btn"
+            (click)="clearSource()"
+            aria-label="Clear file"
+            appTooltip="Clear file"
+            tooltipPosition="bottom">
+            <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+            <span class="ctl__tool-btn-label">Clear</span>
+          </button>
+        }
       </div>
     </div>
 
     <div class="ctl__workspace ctl__workspace--viewer">
-      <section class="ctl__editor mt-viewer-panel" aria-label="Audio trim workspace">
+      <section class="ctl__editor mt-viewer-panel at-panel" aria-label="Audio trim workspace">
         <header class="ctl__editor-head">
           <span>{{ uploadLabel }}</span>
+          @if (sourceFile(); as file) {
+            <span class="at-panel__file-meta">{{ file.name }} · {{ formatFileSize(file.size) }}</span>
+          }
         </header>
 
-        @if (primarySuggestion; as suggestion) {
+        @if (primarySuggestion(); as suggestion) {
           <aside class="at__suggest" aria-label="Suggested next step">
             <div class="at__suggest-body">
               <p class="at__suggest-title">{{ suggestion.title }}</p>
@@ -55,23 +106,67 @@
             </div>
             <div class="at__suggest-actions">
               <a class="at__suggest-action" [routerLink]="suggestion.path">{{ suggestion.actionLabel }}</a>
-              <button
-                type="button"
-                class="at__suggest-dismiss"
-                (click)="dismissSuggestion(suggestion.id)"
-                aria-label="Dismiss suggestion">
+              <button type="button" class="at__suggest-dismiss" (click)="dismissSuggestion(suggestion.id)" aria-label="Dismiss suggestion">
                 Dismiss
               </button>
             </div>
           </aside>
         }
 
-        <div class="ctl__empty ctl-planned__upload" aria-disabled="true" aria-live="polite">
-          <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
-          <p><strong>{{ uploadHint }}</strong></p>
-          <p>Accepted: {{ acceptHint }}</p>
-          <span class="ctl-planned__badge">In development</span>
-        </div>
+        @if (errors().length) {
+          <div class="at-panel__errors" role="alert">
+            @for (error of errors(); track error) {
+              <p>{{ error }}</p>
+            }
+          </div>
+        }
+
+        @if (hasSource()) {
+          <div class="at-panel__editor">
+            <div class="at-panel__waveform-wrap">
+              <canvas
+                #waveformCanvas
+                class="at-panel__waveform"
+                aria-label="Trim waveform. Drag the blue handles to set start and end points."
+                tabindex="0"
+                (pointerdown)="onWaveformPointerDown($event)"
+                (pointermove)="onWaveformPointerMove($event)"
+                (pointerup)="onWaveformPointerUp($event)"
+                (pointercancel)="onWaveformPointerUp($event)"></canvas>
+              <p class="at-panel__hint">Drag the blue handles to set start and end points.</p>
+            </div>
+
+            <div class="at-panel__times">
+              <label class="at-panel__field">
+                <span>Start</span>
+                <input type="text" [ngModel]="startInput()" (ngModelChange)="startInput.set($event)" (change)="onStartInputCommit()" />
+              </label>
+              <label class="at-panel__field">
+                <span>End</span>
+                <input type="text" [ngModel]="endInput()" (ngModelChange)="endInput.set($event)" (change)="onEndInputCommit()" />
+              </label>
+              <div class="at-panel__duration">
+                <span>Selection</span>
+                <strong>{{ formatTime(trimDurationSeconds()) }}</strong>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced at-panel__dropzone"
+            [class.fv-dropzone--active]="showDropZone()"
+            (click)="openFileDialog()"
+            aria-live="polite">
+            <img class="fv-dropzone__icon" [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="40" height="40" />
+            <p class="fv-dropzone__title">Drop audio here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">{{ uploadHint }} · {{ formatsLabel }} · 100&nbsp;MB max</p>
+          </button>
+        }
+
+        @if (isLoading()) {
+          <p class="at-panel__loading" aria-live="polite">Decoding audio…</p>
+        }
       </section>
 
       <details class="mt-options-flyout">
@@ -94,20 +189,32 @@
           class="mt-options-flyout__backdrop"
           aria-label="Close options panel"
           (click)="$any($event.target).closest('details')?.removeAttribute('open')"></button>
-        <aside
-          class="ctl__sidebar mt-options-flyout__panel"
-          (wheel)="$event.stopPropagation()"
-          aria-label="Planned functionality">
+        <aside class="ctl__sidebar mt-options-flyout__panel" (wheel)="$event.stopPropagation()" aria-label="Trim options">
           <div class="ctl__panel">
-            <header class="ctl__panel-head">
-              Planned features
-              <span class="ctl__panel-badge">Preview</span>
-            </header>
-            <ul class="ctl-planned__features">
-              @for (feature of features; track feature.id) {
-                <li>{{ feature.label }}</li>
-              }
-            </ul>
+            <header class="ctl__panel-head">Export</header>
+            <div class="ctl__panel-body at-panel__options">
+              <label class="at-panel__field">
+                <span>Format</span>
+                <select [ngModel]="selectedExportId()" (ngModelChange)="selectedExportId.set($event)">
+                  @for (format of exportFormats; track format.id) {
+                    <option [value]="format.id">{{ format.label }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="ctl__panel">
+            <header class="ctl__panel-head">Fades</header>
+            <div class="ctl__panel-body at-panel__options">
+              <label class="at-panel__field">
+                <span>Fade in (s)</span>
+                <input type="number" min="0" step="0.1" [ngModel]="fadeInSeconds()" (ngModelChange)="fadeInSeconds.set(+$event || 0)" />
+              </label>
+              <label class="at-panel__field">
+                <span>Fade out (s)</span>
+                <input type="number" min="0" step="0.1" [ngModel]="fadeOutSeconds()" (ngModelChange)="fadeOutSeconds.set(+$event || 0)" />
+              </label>
+            </div>
           </div>
           <div class="ctl__panel">
             <header class="ctl__panel-head">Related tools</header>

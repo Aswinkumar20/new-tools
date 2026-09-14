@@ -2,30 +2,24 @@
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
-    <div class="ctl__top">
+    <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
       <header class="ctl__header">
-        <h1>PDF Viewer</h1>
-        <p>Upload, view, and navigate PDF documents with zoom, fullscreen, print, and download.</p>
+        <div class="pt-workbench__title-row">
+          <h1>PDF Viewer</h1>
+          <div class="pt-file-meta" aria-label="Viewer statistics">
+            <span class="pt-file-meta__chip">{{ pdfFiles.length }} PDFs</span>
+            @if (totalPages > 0) {
+              <span class="pt-file-meta__chip" aria-label="Page {{ currentPage }} of {{ totalPages }}">Page {{ currentPage }} of {{ totalPages }}</span>
+            }
+            <span class="pt-file-meta__chip">{{ zoomLevel }}%</span>
+            @if (serverPreviewActive) {
+              <span class="pt-file-meta__chip pt-file-meta__chip--ready" title="Pages rendered on the secure server">Server preview</span>
+            }
+            <span class="pt-file-meta__chip" [class.pt-file-meta__chip--ready]="!!currentPdf">{{ currentPdf ? 'Loaded' : 'Empty' }}</span>
+          </div>
+        </div>
+        <p class="pt-workbench__desc">Upload, view, and navigate PDF documents with zoom, fullscreen, print, and download. Large or encrypted files can use secure server preview.</p>
       </header>
-
-      <div class="ctl__stats" aria-label="Viewer statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFiles.length }}</span>
-          <span class="ctl__stat-label">PDFs</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ totalPages > 0 ? currentPage + '/' + totalPages : '—' }}</span>
-          <span class="ctl__stat-label">Page</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ zoomLevel }}%</span>
-          <span class="ctl__stat-label">Zoom</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ currentPdf ? 'Loaded' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
     </div>
 
     <div class="pt-workflow" aria-label="Viewer actions">
@@ -57,7 +51,7 @@
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <span class="ctl__editor-badge pt-workflow__index" aria-live="polite">{{ currentPage }}/{{ totalPages }}</span>
+          <span class="ctl__editor-badge pt-workflow__index" aria-live="polite">Page {{ currentPage }} of {{ totalPages }}</span>
           <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <polyline points="9 18 15 12 9 6" />
@@ -136,6 +130,12 @@
             aria-label="Upload PDF files">
             <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
             <p><strong>Drop PDF files here</strong> or click to browse</p>
+            <ol class="pt-empty-drop__steps">
+              <li>Open one or more PDFs</li>
+              <li>Use ← → or the toolbar to navigate</li>
+              <li>Zoom, fullscreen, print, or download</li>
+            </ol>
+            <p>Multiple files open as tabs</p>
             <p>Max 100 MB per file</p>
           </button>
           }

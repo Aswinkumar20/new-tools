@@ -2,45 +2,84 @@
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
-    <div class="ctl__top">
+    <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
       <header class="ctl__header">
-        <h1>{{ title }}</h1>
-        <p>{{ description }}</p>
-        @if (capabilityNote) {
-          <p class="pt-studio__note">{{ capabilityNote }}</p>
-        }
+        <div class="pt-workbench__title-row">
+          <h1>{{ title }}</h1>
+          @if (showServerPrivacyBanner) {
+            <p class="pt-privacy-chip" role="note" appTooltip="Processed on the server. Uploads are not stored and are wiped after the job." tooltipPosition="bottom">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Not stored
+            </p>
+          } @else if (capabilityNote) {
+            <p class="pt-privacy-chip pt-privacy-chip--muted" role="note" [appTooltip]="capabilityNote" tooltipPosition="bottom" [tooltipMultiline]="true">
+              Tip
+            </p>
+          }
+          @if (hasDocument) {
+            <div class="pt-file-meta" aria-label="File details">
+              <span class="pt-file-meta__chip pt-file-meta__chip--name" [attr.title]="fileName">{{ fileName }}</span>
+              <span class="pt-file-meta__chip" aria-label="Page {{ currentPage }} of {{ totalPages }}">Page {{ currentPage }} of {{ totalPages }}</span>
+              <span class="pt-file-meta__chip">{{ formatFileSize(fileSize) }}</span>
+              @if (mode === 'password-protect-pdf') {
+                <span
+                  class="pt-file-meta__chip"
+                  [class.pt-file-meta__chip--ready]="hasEncryptedOutput"
+                  [class.pt-file-meta__chip--warn]="!hasEncryptedOutput && needsConfigAttention">
+                  @if (hasEncryptedOutput) {
+                    Encrypted
+                  } @else if (needsConfigAttention) {
+                    Needs password
+                  } @else {
+                    Ready
+                  }
+                </span>
+              } @else if ((mode === 'delete-pages' || mode === 'extract-pages') && selectedPageCount > 0) {
+                <span class="pt-file-meta__chip pt-file-meta__chip--ready">{{ selectedPageCount }} selected</span>
+              } @else {
+                <span class="pt-file-meta__chip" [class.pt-file-meta__chip--ready]="!!outputBytes || !!base64Output || lastActionCompleted">
+                  {{ outputBytes || base64Output || lastActionCompleted ? 'Ready' : 'Loaded' }}
+                </span>
+              }
+            </div>
+          }
+        </div>
+        <p class="pt-workbench__desc">{{ description }}</p>
       </header>
-
-      <div class="ctl__stats" aria-label="PDF status">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDocument ? '1' : '0' }}</span>
-          <span class="ctl__stat-label">Files</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDocument ? totalPages : '—' }}</span>
-          <span class="ctl__stat-label">Pages</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ hasDocument ? formatFileSize(fileSize) : '—' }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ outputBytes || base64Output ? 'Ready' : hasDocument ? 'Loaded' : '—' }}</span>
-          <span class="ctl__stat-label">Output</span>
-        </div>
-      </div>
     </div>
 
-    <div class="pt-workflow" aria-label="PDF actions">
+    <div class="pt-workflow pt-workflow--bar" aria-label="PDF actions">
       @if (needsPdfUpload) {
         <div class="pt-workflow__group pt-workflow__group--files">
-          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openFileDialog()" aria-label="Upload PDF" appTooltip="Upload PDF" tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
-            <span class="ctl__tool-btn-label">Upload</span>
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="openFileDialog()"
+            aria-label="{{ supportsMultiPdf ? 'Add PDF files' : 'Upload PDF' }}"
+            appTooltip="{{ supportsMultiPdf ? 'Add one or more PDFs' : 'Choose a PDF from your device' }}"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span class="ctl__tool-btn-label">{{ supportsMultiPdf && hasDocument ? 'Add PDFs' : 'Upload' }}</span>
           </button>
           @if (mode === 'screenshot-to-pdf' || mode === 'image-to-pdf') {
-            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="openImageDialog()" aria-label="Upload images" appTooltip="Upload images" tooltipPosition="bottom">
-              <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
+            <button
+              type="button"
+              class="ctl__tool-btn ctl__tool-btn--icon"
+              (click)="openImageDialog()"
+              aria-label="Upload images"
+              appTooltip="Choose images to convert to PDF"
+              tooltipPosition="bottom">
+              <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+              </svg>
               <span class="ctl__tool-btn-label">Images</span>
             </button>
           }
@@ -49,7 +88,25 @@
       }
 
       <div class="pt-workflow__group pt-workflow__group--primary">
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon ctl__tool-btn--primary" (click)="runPrimaryAction()" [disabled]="!canRunPrimaryAction" appTooltip="{{ primaryActionLabel() }}" tooltipPosition="bottom">
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon ctl__tool-btn--primary"
+          (click)="runPrimaryAction()"
+          [disabled]="!canRunPrimaryAction"
+          [attr.aria-label]="primaryActionLabel()"
+          [attr.title]="primaryActionHint()"
+          appTooltip="{{ primaryActionHint() }}"
+          tooltipPosition="bottom">
+          @if (mode === 'password-protect-pdf') {
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          } @else {
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          }
           <span class="ctl__tool-btn-label">{{ loading ? 'Working…' : primaryActionLabel() }}</span>
         </button>
       </div>
@@ -58,59 +115,197 @@
         <span class="pt-workflow__divider" aria-hidden="true"></span>
         <div class="pt-workflow__group pt-workflow__group--edit" role="group" aria-label="Edit tools">
           @if (mode === 'annotate-pdf' || mode === 'highlight-text') {
-            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="togglePlacementMode()" [class.is-active]="placementMode" appTooltip="Click preview to place" tooltipPosition="bottom">
+            <button
+              type="button"
+              class="ctl__tool-btn ctl__tool-btn--icon"
+              (click)="togglePlacementMode()"
+              [class.is-active]="placementMode"
+              [attr.aria-pressed]="placementMode"
+              aria-label="{{ placementMode ? 'Placement mode on' : 'Place on preview' }}"
+              appTooltip="{{ placementMode ? 'Click the preview to place. Click again to turn off.' : 'Turn on, then click the preview to place' }}"
+              tooltipPosition="bottom">
+              <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+              </svg>
               <span class="ctl__tool-btn-label">{{ placementMode ? 'Placing…' : 'Place' }}</span>
             </button>
           }
           @if (supportsPageThumbnails && mode === 'rotate-pages') {
-            <button type="button" class="pt-icon-btn" (click)="rotateCurrentPage(true)" [disabled]="!hasDocument" aria-label="Rotate clockwise" appTooltip="Rotate 90° clockwise" tooltipPosition="bottom">↻</button>
-            <button type="button" class="pt-icon-btn" (click)="rotateCurrentPage(false)" [disabled]="!hasDocument" aria-label="Rotate counter-clockwise" appTooltip="Rotate 90° counter-clockwise" tooltipPosition="bottom">↺</button>
+            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="rotateCurrentPage(true)" [disabled]="!hasDocument" aria-label="Rotate page clockwise" appTooltip="Rotate current page 90° clockwise" tooltipPosition="bottom">
+              <span class="pt-tool-icon pt-tool-icon--glyph" aria-hidden="true">↻</span>
+              <span class="ctl__tool-btn-label">Rotate</span>
+            </button>
+            <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="rotateCurrentPage(false)" [disabled]="!hasDocument" aria-label="Rotate page counter-clockwise" appTooltip="Rotate current page 90° counter-clockwise" tooltipPosition="bottom">
+              <span class="pt-tool-icon pt-tool-icon--glyph" aria-hidden="true">↺</span>
+              <span class="ctl__tool-btn-label">Counter</span>
+            </button>
           }
-          <button type="button" class="pt-icon-btn" (click)="undo()" [disabled]="!canUndo" aria-label="Undo" appTooltip="Undo" tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath('icons/undo.svg')" alt="" width="16" height="16" />
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="undo()" [disabled]="!canUndo" aria-label="Undo last change" appTooltip="Undo the last page change (Ctrl/⌘ Z)" tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 7v6h6" />
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13" />
+            </svg>
+            <span class="ctl__tool-btn-label">Undo</span>
+          </button>
+          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="redo()" [disabled]="!canRedo" aria-label="Redo last change" appTooltip="Redo the last undone change (Ctrl/⌘ Y)" tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 7v6h-6" />
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13" />
+            </svg>
+            <span class="ctl__tool-btn-label">Redo</span>
           </button>
         </div>
       }
 
-      <span class="pt-workflow__divider" aria-hidden="true"></span>
+      <span class="pt-workflow__spacer" aria-hidden="true"></span>
 
       <div class="pt-workflow__group pt-workflow__group--output" role="group" aria-label="Output actions">
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="extractText()" [disabled]="!canExtractText" appTooltip="Extract text" tooltipPosition="bottom">
-          <span class="ctl__tool-btn-label">Extract</span>
-        </button>
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="downloadResult()" [disabled]="!canDownload" appTooltip="Download" tooltipPosition="bottom">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        @if (canExtractText) {
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="extractText()"
+            [disabled]="!canExtractText"
+            aria-label="Extract text from PDF"
+            appTooltip="Copy readable text from this PDF into the settings panel"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="8" y1="13" x2="16" y2="13" />
+              <line x1="8" y1="17" x2="14" y2="17" />
+            </svg>
+            <span class="ctl__tool-btn-label">Extract text</span>
+          </button>
+        }
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="downloadResult()"
+          [disabled]="!canDownload"
+          [attr.aria-label]="hasEncryptedOutput ? 'Download encrypted PDF' : 'Download PDF'"
+          appTooltip="{{ downloadActionHint() }}"
+          tooltipPosition="bottom">
+          <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          <span class="ctl__tool-btn-label">Download</span>
+          <span class="ctl__tool-btn-label">{{ hasEncryptedOutput ? 'Download encrypted' : 'Download' }}</span>
         </button>
         @if (mode === 'pdf-to-base64') {
-          <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="copyBase64()" [disabled]="!base64Output" aria-label="Copy Base64" appTooltip="Copy Base64" tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="copyBase64()"
+            [disabled]="!base64Output"
+            aria-label="Copy Base64 to clipboard"
+            appTooltip="Copy the Base64 string to your clipboard"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span class="ctl__tool-btn-label">Copy</span>
           </button>
         }
-        <button type="button" class="ctl__tool-btn ctl__tool-btn--icon" (click)="clearAll()" [disabled]="!canClearAll" aria-label="Clear" appTooltip="Clear" tooltipPosition="bottom">
-          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="!canClearAll"
+          aria-label="Clear file and reset"
+          appTooltip="{{ mode === 'password-protect-pdf' ? 'Remove the PDF and clear passwords' : 'Clear the current file and reset this tool' }}"
+          tooltipPosition="bottom">
+          <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M15 9l-6 6M9 9l6 6" />
+          </svg>
+          <span class="ctl__tool-btn-label">Clear</span>
         </button>
       </div>
     </div>
 
-    <input #fileInput type="file" accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
-    <input #imageInput type="file" accept="image/*" multiple (change)="onImagesSelected($event)" hidden />
-
-    @if (hasOptionsPanel && configSetupHint) {
-      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsConfigAttention" role="status">
-        <span class="pt-setup-banner__step">Step 2</span>
-        <p class="pt-setup-banner__text">{{ configSetupHint }}</p>
-        @if (needsConfigAttention) {
-          <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+    @if (supportsMultiPdf && pdfQueue.length > 0) {
+      <div class="pt-file-queue" aria-label="Uploaded PDFs">
+        <div class="pt-file-queue__list" role="list">
+          @for (item of pdfQueue; track item.id) {
+            <div
+              class="pt-file-queue__item"
+              role="listitem"
+              [class.is-active]="item.id === activeQueueId"
+              [class.is-encrypted]="!!item.outputBytes">
+              <button
+                type="button"
+                class="pt-file-queue__select"
+                (click)="selectQueueItem(item.id)"
+                [attr.aria-current]="item.id === activeQueueId ? 'true' : null"
+                [attr.title]="item.name">
+                <span class="pt-file-queue__name">{{ item.name }}</span>
+                <span class="pt-file-queue__meta">{{ formatFileSize(item.size) }}</span>
+                @if (item.outputBytes) {
+                  <span class="pt-file-queue__badge">Encrypted</span>
+                }
+              </button>
+              <button
+                type="button"
+                class="pt-file-queue__remove"
+                aria-label="Remove {{ item.name }}"
+                appTooltip="Remove this PDF"
+                tooltipPosition="bottom"
+                (click)="removeQueueItem(item.id, $event)">
+                ×
+              </button>
+            </div>
+          }
+        </div>
+        @if (pdfQueue.length > 1) {
+          <button
+            type="button"
+            class="pt-file-queue__action"
+            (click)="encryptAllQueued()"
+            [disabled]="!canEncryptAll || loading"
+            appTooltip="Encrypt every uploaded PDF with the same password"
+            tooltipPosition="bottom">
+            Encrypt all ({{ pdfQueue.length }})
+          </button>
+          @if (canDownloadAllEncrypted) {
+            <button
+              type="button"
+              class="pt-file-queue__action pt-file-queue__action--secondary"
+              (click)="downloadAllEncrypted()"
+              [disabled]="loading"
+              appTooltip="Download every already-encrypted PDF again"
+              tooltipPosition="bottom">
+              Download all
+            </button>
+          }
         }
       </div>
     }
 
-    <div class="ctl__workspace pt-studio" [class.pt-studio--create]="isCreationMode">
+    <input
+      #fileInput
+      type="file"
+      accept=".pdf,application/pdf"
+      [multiple]="supportsMultiPdf"
+      (change)="onFileSelected($event)"
+      hidden />
+    <input #imageInput type="file" accept="image/*" multiple (change)="onImagesSelected($event)" hidden />
+
+    @if (showSetupBanner) {
+      <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsConfigAttention" role="status">
+        <p class="pt-setup-banner__text">{{ configSetupHint }}</p>
+        <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open settings</button>
+      </div>
+    }
+
+    <div
+      class="ctl__workspace pt-studio"
+      [class.pt-studio--create]="isCreationMode"
+      [class.pt-studio--config-first]="configFirstLayout">
       @if (isCreationMode) {
         <div class="ctl__editors ctl__editors--split pt-studio__create">
           <section class="ctl__editor pt-editor-panel pt-studio__input">
@@ -125,6 +320,13 @@
                   </label>
                 }
                 @case ('create-pdf-from-html') {
+                  <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('htmlInput')">
+                    <span>HTML source</span>
+                    <textarea class="ctl__textarea" rows="14" [(ngModel)]="htmlInput" (ngModelChange)="clearFieldError('htmlInput')"></textarea>
+                    @if (fieldError('htmlInput')) { <span class="pt-studio__field-error">{{ fieldError('htmlInput') }}</span> }
+                  </label>
+                }
+                @case ('html-to-pdf') {
                   <label class="pt-studio__field" [class.pt-studio__field--error]="fieldError('htmlInput')">
                     <span>HTML source</span>
                     <textarea class="ctl__textarea" rows="14" [(ngModel)]="htmlInput" (ngModelChange)="clearFieldError('htmlInput')"></textarea>
@@ -170,11 +372,19 @@
               <span>Preview</span>
               @if (hasDocument) {
                 <div class="ctl-pdf__page-nav">
-                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-                  <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
-                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+                  <span class="ctl-pdf__page-label" aria-live="polite">Page {{ currentPage }} of {{ totalPages }}</span>
+                  <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
                   <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
                       <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                     </svg>
                   </button>
@@ -228,11 +438,28 @@
             <span class="pt-studio__doc-title">{{ fileName || 'Document' }}</span>
             @if (hasDocument) {
               <div class="ctl-pdf__page-nav">
-                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-                <input type="number" class="ctl-pdf__page-input" [ngModel]="currentPage" (ngModelChange)="selectPage($event)" [min]="1" [max]="totalPages" />
-                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <input
+                  type="number"
+                  class="ctl-pdf__page-input"
+                  [ngModel]="currentPage"
+                  (ngModelChange)="selectPage($event)"
+                  [min]="1"
+                  [max]="totalPages"
+                  [attr.aria-label]="'Page ' + currentPage + ' of ' + totalPages"
+                  [attr.title]="'Page ' + currentPage + ' of ' + totalPages" />
+                <span class="ctl-pdf__page-total" aria-hidden="true">of {{ totalPages }}</span>
+                <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
                 <button type="button" class="pt-icon-btn" (click)="togglePreviewFullscreen()" aria-label="Fullscreen preview" appTooltip="Fullscreen preview" tooltipPosition="bottom">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">
                     <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                   </svg>
                 </button>
@@ -243,16 +470,21 @@
           @if (!hasDocument) {
             <button
               type="button"
-              class="ctl-pdf__drop"
+              class="ctl-pdf__drop pt-empty-drop"
               [class.ctl-pdf__drop--active]="showDropZone"
               (dragenter)="onDragEnter($event)"
               (dragover)="onDragOver($event)"
               (dragleave)="onDragLeave($event)"
               (drop)="onDrop($event)"
               (click)="openFileDialog()">
-              <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
-              <p><strong>Drop PDF here</strong> or click to browse</p>
-              <p>Max 100 MB · processed locally in your browser</p>
+              <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="44" height="44" />
+              <p class="pt-empty-drop__title"><strong>Drop PDF{{ supportsMultiPdf ? 's' : '' }} here</strong> or click to browse</p>
+              <ol class="pt-empty-drop__steps">
+                <li>{{ emptyDropSteps[0] }}</li>
+                <li>{{ emptyDropSteps[1] }}</li>
+                <li>{{ emptyDropSteps[2] }}</li>
+              </ol>
+              <p class="pt-empty-drop__limit">Max 100 MB{{ supportsMultiPdf ? ' per file' : '' }} · ← → to flip pages after load</p>
             </button>
           } @else {
             <div #previewCanvasWrap class="ctl-pdf__canvas-wrap" (click)="onCanvasClick($event)">
@@ -280,7 +512,7 @@
             [attr.aria-expanded]="optionsPanelOpen"
             aria-controls="pdf-tool-config-panel"
             (click)="toggleOptionsPanel()"
-            appTooltip="Tool settings and options"
+            appTooltip="{{ configPanelTitle }}"
             tooltipPosition="left">
             <svg class="pt-options-flyout__chevron" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M9 6l6 6-6 6" />
@@ -292,7 +524,7 @@
               <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" />
               <line x1="17" y1="16" x2="23" y2="16" />
             </svg>
-            <span>Configuration</span>
+            <span>{{ configPanelTitle }}</span>
             @if (needsConfigAttention) {
               <span class="pt-options-flyout__badge" aria-hidden="true">!</span>
             }
@@ -311,7 +543,7 @@
                       <line x1="17" y1="16" x2="23" y2="16" />
                     </svg>
                   </span>
-                  <h2 class="pt-config-panel__bar-title">Configuration</h2>
+                  <h2 class="pt-config-panel__bar-title">{{ configPanelTitle }}</h2>
                 </div>
                 <button type="button" class="pt-config-panel__close" (click)="optionsPanelOpen = false" aria-label="Close configuration">×</button>
               </div>
@@ -332,17 +564,61 @@
                   }
                   @case ('password-protect-pdf') {
                     <section class="pt-config-panel__section">
-                      <h3 class="pt-config-panel__section-title">Security</h3>
+                      <h3 class="pt-config-panel__section-title">Passwords</h3>
                       <label class="pt-config-field" [class.pt-config-field--error]="fieldError('userPassword')">
-                        <span class="pt-config-field__label">User password</span>
-                        <input class="pt-config-input" type="password" [(ngModel)]="userPassword" (ngModelChange)="clearFieldError('userPassword')" />
+                        <span class="pt-config-field__label">User password <em>*</em></span>
+                        <input
+                          class="pt-config-input"
+                          type="password"
+                          [(ngModel)]="userPassword"
+                          (ngModelChange)="clearFieldError('userPassword'); onProtectSecretsChanged()"
+                          autocomplete="new-password"
+                          placeholder="Min. 4 characters"
+                          aria-required="true"
+                          aria-describedby="pt-user-pass-help" />
+                        <span id="pt-user-pass-help" class="pt-config-field__help">Required to open the PDF.</span>
                         @if (fieldError('userPassword')) { <span class="pt-config-field__error">{{ fieldError('userPassword') }}</span> }
                       </label>
                       <label class="pt-config-field">
-                        <span class="pt-config-field__label">Owner password (optional)</span>
-                        <input class="pt-config-input" type="password" [(ngModel)]="ownerPassword" />
+                        <span class="pt-config-field__label">Owner password</span>
+                        <input
+                          class="pt-config-input"
+                          type="password"
+                          [(ngModel)]="ownerPassword"
+                          (ngModelChange)="onProtectSecretsChanged()"
+                          autocomplete="new-password"
+                          placeholder="Optional"
+                          aria-describedby="pt-owner-pass-help" />
+                        <span id="pt-owner-pass-help" class="pt-config-field__help">Optional. Used with permissions below.</span>
                       </label>
                     </section>
+
+                    <details class="pt-config-advanced">
+                      <summary class="pt-config-advanced__summary">
+                        <span class="pt-config-advanced__title">Permissions</span>
+                        <span class="pt-config-advanced__hint">Advanced · optional</span>
+                      </summary>
+                      <div class="pt-config-advanced__body">
+                        <p class="pt-config-field__help">
+                          These limits apply when someone opens the file with the <strong>user</strong> password.
+                          Set an <strong>owner</strong> password above so permissions can be enforced.
+                        </p>
+                        <label class="pt-config-check">
+                          <input type="checkbox" [(ngModel)]="allowPrint" (ngModelChange)="onProtectSecretsChanged()" />
+                          <span>
+                            <span class="pt-config-check__label">Allow printing</span>
+                            <span class="pt-config-check__desc">People can print pages after unlocking</span>
+                          </span>
+                        </label>
+                        <label class="pt-config-check">
+                          <input type="checkbox" [(ngModel)]="allowModify" (ngModelChange)="onProtectSecretsChanged()" />
+                          <span>
+                            <span class="pt-config-check__label">Allow editing</span>
+                            <span class="pt-config-check__desc">People can change content after unlocking</span>
+                          </span>
+                        </label>
+                      </div>
+                    </details>
                   }
                   @case ('add-page-numbers') {
                     <section class="pt-config-panel__section">
@@ -435,7 +711,12 @@
                       <label class="pt-config-field" [class.pt-config-field--error]="fieldError('pageRangeInput')">
                         <span class="pt-config-field__label">Page ranges</span>
                         <div class="pt-config-input-row">
-                          <input class="pt-config-input" [(ngModel)]="pageRangeInput" (ngModelChange)="clearFieldError('pageRangeInput')" placeholder="1-3, 5" />
+                          <input
+                            class="pt-config-input"
+                            [(ngModel)]="pageRangeInput"
+                            (ngModelChange)="clearFieldError('pageRangeInput')"
+                            (keydown.enter)="applyRangeSelection()"
+                            placeholder="1-3, 5" />
                           <button type="button" class="pt-config-btn" (click)="applyRangeSelection()">Apply</button>
                         </div>
                         <span class="pt-config-field__help">Use ranges or select thumbnails on the left</span>
@@ -443,6 +724,7 @@
                       </label>
                       <div class="pt-config-btn-row">
                         <button type="button" class="pt-config-chip" (click)="selectAllPages()">Select all</button>
+                        <button type="button" class="pt-config-chip" (click)="invertPageSelection()">Invert</button>
                         <button type="button" class="pt-config-chip" (click)="clearPageSelection()">Clear</button>
                       </div>
                     </section>
@@ -454,12 +736,22 @@
                       <label class="pt-config-field" [class.pt-config-field--error]="fieldError('pageRangeInput')">
                         <span class="pt-config-field__label">Page ranges</span>
                         <div class="pt-config-input-row">
-                          <input class="pt-config-input" [(ngModel)]="pageRangeInput" (ngModelChange)="clearFieldError('pageRangeInput')" placeholder="1-3, 5" />
+                          <input
+                            class="pt-config-input"
+                            [(ngModel)]="pageRangeInput"
+                            (ngModelChange)="clearFieldError('pageRangeInput')"
+                            (keydown.enter)="applyRangeSelection()"
+                            placeholder="1-3, 5" />
                           <button type="button" class="pt-config-btn" (click)="applyRangeSelection()">Apply</button>
                         </div>
                         <span class="pt-config-field__help">Use ranges or select thumbnails on the left</span>
                         @if (fieldError('pageRangeInput')) { <span class="pt-config-field__error">{{ fieldError('pageRangeInput') }}</span> }
                       </label>
+                      <div class="pt-config-btn-row">
+                        <button type="button" class="pt-config-chip" (click)="selectAllPages()">Select all</button>
+                        <button type="button" class="pt-config-chip" (click)="invertPageSelection()">Invert</button>
+                        <button type="button" class="pt-config-chip" (click)="clearPageSelection()">Clear</button>
+                      </div>
                     </section>
                   }
                   @case ('reorder-pages') {
@@ -503,14 +795,14 @@
                       @if (compressSavingsLabel) {
                         <p class="pt-config-hint pt-config-hint--success">{{ compressSavingsLabel }}</p>
                       } @else {
-                        <p class="pt-config-hint">Press <strong>Compress</strong> in the toolbar, then download your file.</p>
+                        <p class="pt-config-hint">Press <strong>Compress</strong> below or in the toolbar, then download.</p>
                       }
                     </section>
                   }
                   @default {
                     <section class="pt-config-panel__section">
                       <h3 class="pt-config-panel__section-title">Options</h3>
-                      <p class="pt-config-note">Set an output filename below, then run the primary action from the toolbar.</p>
+                      <p class="pt-config-note">Set an output filename below, then run the action at the bottom of this panel.</p>
                     </section>
                   }
                 }
@@ -545,11 +837,26 @@
               </div>
             </div>
 
-            <div class="pt-config-panel__trust" role="note">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span>Processed locally in your browser</span>
+            <div class="pt-config-panel__actions">
+              <button
+                type="button"
+                class="pt-config-btn pt-config-btn--block"
+                (click)="runPrimaryAction()"
+                [disabled]="!canRunPrimaryAction || loading">
+                {{ loading ? 'Working…' : primaryActionLabel() }}
+              </button>
+              @if (mode === 'password-protect-pdf' && hasEncryptedOutput) {
+                <button type="button" class="pt-config-btn pt-config-btn--ghost pt-config-btn--block" (click)="downloadResult()">
+                  Download encrypted PDF
+                </button>
+              } @else if (canDownload && mode !== 'password-protect-pdf') {
+                <button type="button" class="pt-config-btn pt-config-btn--ghost pt-config-btn--block" (click)="downloadResult()">
+                  Download result
+                </button>
+              }
+              <p class="pt-config-panel__privacy" role="note">
+                {{ showServerPrivacyBanner ? 'Not stored · wiped after each job' : 'Processed in your browser' }}
+              </p>
             </div>
           </aside>
         </div>
@@ -560,14 +867,20 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        @if (isCreationMode) {
+        @if (mode === 'password-protect-pdf') {
+          <li><strong>Upload</strong> one or more PDFs (use Add PDFs to grow the queue).</li>
+          <li>In <strong>Encryption settings</strong>, set a <strong>user password</strong> (required to open each file).</li>
+          <li>Optionally set an <strong>owner password</strong> and open <strong>Permissions</strong> to allow or block printing and editing.</li>
+          <li>Click <strong>Encrypt</strong> for the active file, or <strong>Encrypt all</strong> to protect every queued PDF with the same password.</li>
+          <li>Download the protected file(s). Keep your password safe — it cannot be recovered here.</li>
+        } @else if (isCreationMode) {
           <li>Enter your content in the input panel.</li>
           <li>Click <strong>{{ primaryActionLabel() }}</strong> to generate and preview the PDF.</li>
           <li>Download when satisfied with the result.</li>
         } @else {
           <li>Upload a PDF via drag-and-drop or the toolbar.</li>
-          <li>Configure tool settings in the <strong>Configuration</strong> panel beside the preview.</li>
-          <li>Run the primary action, preview changes, then download.</li>
+          <li>Configure tool settings in the panel beside the preview.</li>
+          <li>Run <strong>{{ primaryActionLabel() }}</strong>, then download the result.</li>
         }
       </ul>
     </details>
@@ -581,17 +894,30 @@
   (ready)="scheduleRenderPreview()">
   @if (hasDocument) {
     <div pdfFsToolbar class="ctl-pdf__page-nav">
-      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-      <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
-      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
+      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage - 1)" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+      <span class="ctl-pdf__page-label">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button type="button" class="pt-icon-btn" (click)="selectPage(currentPage + 1)" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
     </div>
   }
 </lib-pdf-fullscreen-overlay>
 
 @if (loading) {
-  <div class="ctl-pdf__overlay" aria-live="polite">
-    <div class="ctl-pdf__spinner"></div>
-    <p>{{ loadingMessage }}</p>
+  <div class="ctl-pdf__overlay" role="status" aria-live="polite" aria-busy="true">
+    <div class="ctl-pdf__loader">
+      <div class="ctl-pdf__spinner" aria-hidden="true"></div>
+      <p class="ctl-pdf__loader-title">{{ loadingMessage }}</p>
+      @if (loadingDetail) {
+        <p class="ctl-pdf__loader-sub">{{ loadingDetail }}</p>
+      }
+    </div>
   </div>
 }
 

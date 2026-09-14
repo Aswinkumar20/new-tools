@@ -1604,6 +1604,451 @@ export const TOOL_CATEGORIES: ToolCategoryCatalog[] = [
         description: 'Generate a QR code inside a PDF document.',
         path: '/pdf-tools/qr-code-to-pdf',
       },
+      {
+        name: 'Pdf To Txt',
+        description: 'Free online pdf to txt — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-txt',
+      },
+      {
+        name: 'Pdf To Html',
+        description: 'Free online pdf to html — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-html',
+      },
+      {
+        name: 'Pdf To Markdown',
+        description: 'Free online pdf to markdown — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-markdown',
+      },
+      {
+        name: 'Pdf To Csv',
+        description: 'Free online pdf to csv — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-csv',
+      },
+      {
+        name: 'Pdf To Json',
+        description: 'Free online pdf to json — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-json',
+      },
+      {
+        name: 'Pdf To Epub',
+        description: 'Free online pdf to epub — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-epub',
+      },
+      {
+        name: 'Pdf To Pdfa',
+        description: 'Free online pdf to pdfa — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-pdfa',
+      },
+      {
+        name: 'Pdf To Images',
+        description: 'Free online pdf to images — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-images',
+      },
+      {
+        name: 'Ocr Pdf',
+        description: 'Free online ocr pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/ocr-pdf',
+      },
+      {
+        name: 'Pdf Deskew',
+        description: 'Free online pdf deskew — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-deskew',
+      },
+      {
+        name: 'Images To Searchable Pdf',
+        description: 'Free online images to searchable pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/images-to-searchable-pdf',
+      },
+      {
+        name: 'Pdf To Docx',
+        description: 'Free online pdf to docx — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-to-docx',
+      },
+      {
+        name: 'Url To Pdf',
+        description: 'Free online url to pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/url-to-pdf',
+      },
+      {
+        name: 'Markdown To Pdf',
+        description: 'Free online markdown to pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/markdown-to-pdf',
+      },
+      {
+        name: 'Word To Pdf',
+        description: 'Free online word to pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/word-to-pdf',
+      },
+      {
+        name: 'Excel To Pdf',
+        description: 'Free online excel to pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/excel-to-pdf',
+      },
+      {
+        name: 'Powerpoint To Pdf',
+        description: 'Free online powerpoint to pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/powerpoint-to-pdf',
+      },
+      {
+        name: 'Pdf Page Duplicator',
+        description: 'Free online pdf page duplicator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-page-duplicator',
+      },
+      {
+        name: 'Pdf Page Replacer',
+        description: 'Free online pdf page replacer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-page-replacer',
+      },
+      {
+        name: 'Pdf Page Cropper',
+        description: 'Free online pdf page cropper — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-page-cropper',
+      },
+      {
+        name: 'Pdf Page Resizer',
+        description: 'Free online pdf page resizer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-page-resizer',
+      },
+      {
+        name: 'Pdf Header Footer',
+        description: 'Free online pdf header footer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-header-footer',
+      },
+      {
+        name: 'Pdf Bookmark Creator',
+        description: 'Free online pdf bookmark creator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-bookmark-creator',
+      },
+      {
+        name: 'Pdf Table Of Contents',
+        description: 'Free online pdf table of contents — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-table-of-contents',
+      },
+      {
+        name: 'Pdf Form Creator',
+        description: 'Free online pdf form creator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-form-creator',
+      },
+      {
+        name: 'Pdf Form Export',
+        description: 'Free online pdf form export — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-form-export',
+      },
+      {
+        name: 'Pdf Form Import',
+        description: 'Free online pdf form import — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-form-import',
+      },
+      {
+        name: 'Pdf Form Validate',
+        description: 'Free online pdf form validate — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-form-validate',
+      },
+      {
+        name: 'Unlock Pdf',
+        description: 'Free online unlock pdf — fast, private, and browser-based.',
+        path: '/pdf-tools/unlock-pdf',
+      },
+      {
+        name: 'Pdf Password Generator',
+        description: 'Free online pdf password generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-password-generator',
+      },
+      {
+        name: 'Pdf Permission Manager',
+        description: 'Free online pdf permission manager — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-permission-manager',
+      },
+      {
+        name: 'Pdf Annotation Remover',
+        description: 'Free online pdf annotation remover — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-annotation-remover',
+      },
+      {
+        name: 'Pdf Metadata Remover',
+        description: 'Free online pdf metadata remover — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-metadata-remover',
+      },
+      {
+        name: 'Pdf Hidden Data Remover',
+        description: 'Free online pdf hidden data remover — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-hidden-data-remover',
+      },
+      {
+        name: 'Pdf Signature Verification',
+        description: 'Free online pdf signature verification — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-signature-verification',
+      },
+      {
+        name: 'Pdf Digital Signature',
+        description: 'Free online pdf digital signature — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-digital-signature',
+      },
+      {
+        name: 'Pdf Signature Stamp',
+        description: 'Free online pdf signature stamp — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-signature-stamp',
+      },
+      {
+        name: 'Pdf Font Inspector',
+        description: 'Free online pdf font inspector — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-font-inspector',
+      },
+      {
+        name: 'Pdf Image Extractor',
+        description: 'Free online pdf image extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-image-extractor',
+      },
+      {
+        name: 'Pdf Link Extractor',
+        description: 'Free online pdf link extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-link-extractor',
+      },
+      {
+        name: 'Pdf Attachment Extractor',
+        description: 'Free online pdf attachment extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-attachment-extractor',
+      },
+      {
+        name: 'Pdf Grayscale Converter',
+        description: 'Free online pdf grayscale converter — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-grayscale-converter',
+      },
+      {
+        name: 'Pdf Color Converter',
+        description: 'Free online pdf color converter — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-color-converter',
+      },
+      {
+        name: 'Pdf Dpi Converter',
+        description: 'Free online pdf dpi converter — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-dpi-converter',
+      },
+      {
+        name: 'Pdf Print Optimizer',
+        description: 'Free online pdf print optimizer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-print-optimizer',
+      },
+      {
+        name: 'Pdf Web Optimizer',
+        description: 'Free online pdf web optimizer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-web-optimizer',
+      },
+      {
+        name: 'Pdf Accessibility Checker',
+        description: 'Free online pdf accessibility checker — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-accessibility-checker',
+      },
+      {
+        name: 'Pdf Validator',
+        description: 'Free online pdf validator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-validator',
+      },
+      {
+        name: 'Pdf Repair',
+        description: 'Free online pdf repair — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-repair',
+      },
+      {
+        name: 'Pdf Duplicate Finder',
+        description: 'Free online pdf duplicate finder — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-duplicate-finder',
+      },
+      {
+        name: 'Pdf Search',
+        description: 'Free online pdf search — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-search',
+      },
+      {
+        name: 'Pdf Batch Processing',
+        description: 'Free online pdf batch processing — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-batch-processing',
+      },
+      {
+        name: 'Pdf File Renamer',
+        description: 'Free online pdf file renamer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-file-renamer',
+      },
+      {
+        name: 'Pdf Organizer',
+        description: 'Free online pdf organizer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-organizer',
+      },
+      {
+        name: 'Pdf Version Comparison',
+        description: 'Free online pdf version comparison — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-version-comparison',
+      },
+      {
+        name: 'Pdf Visual Comparison',
+        description: 'Free online pdf visual comparison — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-visual-comparison',
+      },
+      {
+        name: 'Pdf Diff',
+        description: 'Free online pdf diff — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-diff',
+      },
+      {
+        name: 'Pdf Keyword Finder',
+        description: 'Free online pdf keyword finder — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-keyword-finder',
+      },
+      {
+        name: 'Pdf Citation Generator',
+        description: 'Free online pdf citation generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-citation-generator',
+      },
+      {
+        name: 'Pdf Reference Extractor',
+        description: 'Free online pdf reference extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-reference-extractor',
+      },
+      {
+        name: 'Pdf Invoice Extractor',
+        description: 'Free online pdf invoice extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-invoice-extractor',
+      },
+      {
+        name: 'Pdf Receipt Extractor',
+        description: 'Free online pdf receipt extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-receipt-extractor',
+      },
+      {
+        name: 'Pdf Resume Parser',
+        description: 'Free online pdf resume parser — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-resume-parser',
+      },
+      {
+        name: 'Pdf Contract Analyzer',
+        description: 'Free online pdf contract analyzer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-contract-analyzer',
+      },
+      {
+        name: 'Pdf Document Classifier',
+        description: 'Free online pdf document classifier — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-document-classifier',
+      },
+      {
+        name: 'Pdf Data Extractor',
+        description: 'Free online pdf data extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-data-extractor',
+      },
+      {
+        name: 'Pdf Entity Extractor',
+        description: 'Free online pdf entity extractor — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-entity-extractor',
+      },
+      {
+        name: 'Pdf Summarizer',
+        description: 'Free online pdf summarizer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-summarizer',
+      },
+      {
+        name: 'Pdf Question Generator',
+        description: 'Free online pdf question generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-question-generator',
+      },
+      {
+        name: 'Pdf Quiz Generator',
+        description: 'Free online pdf quiz generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-quiz-generator',
+      },
+      {
+        name: 'Pdf Flashcard Generator',
+        description: 'Free online pdf flashcard generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-flashcard-generator',
+      },
+      {
+        name: 'Pdf Notes Generator',
+        description: 'Free online pdf notes generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-notes-generator',
+      },
+      {
+        name: 'Pdf Mind Map Generator',
+        description: 'Free online pdf mind map generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-mind-map-generator',
+      },
+      {
+        name: 'Pdf Presentation Generator',
+        description: 'Free online pdf presentation generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-presentation-generator',
+      },
+      {
+        name: 'Pdf Report Generator',
+        description: 'Free online pdf report generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-report-generator',
+      },
+      {
+        name: 'Pdf Accessibility Tagger',
+        description: 'Free online pdf accessibility tagger — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-accessibility-tagger',
+      },
+      {
+        name: 'Pdf Reading Order Fixer',
+        description: 'Free online pdf reading order fixer — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-reading-order-fixer',
+      },
+      {
+        name: 'Pdf Alt Text Generator',
+        description: 'Free online pdf alt text generator — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-alt-text-generator',
+      },
+      {
+        name: 'Pdf Redact',
+        description: 'Free online pdf redact — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-redact',
+      },
+      {
+        name: 'Pdf Redaction Finder',
+        description: 'Free online pdf redaction finder — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-redaction-finder',
+      },
+      {
+        name: 'Pdf Sensitive Data Scanner',
+        description: 'Free online pdf sensitive data scanner — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-sensitive-data-scanner',
+      },
+      {
+        name: 'Pdf Pii Detector',
+        description: 'Free online pdf pii detector — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-pii-detector',
+      },
+      {
+        name: 'Pdf Ai Assistant',
+        description: 'Free online pdf ai assistant — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-ai-assistant',
+      },
+      {
+        name: 'Multi Pdf Search',
+        description: 'Free online multi pdf search — fast, private, and browser-based.',
+        path: '/pdf-tools/multi-pdf-search',
+      },
+      {
+        name: 'Multi Pdf Chat',
+        description: 'Free online multi pdf chat — fast, private, and browser-based.',
+        path: '/pdf-tools/multi-pdf-chat',
+      },
+      {
+        name: 'Pdf Knowledge Base',
+        description: 'Free online pdf knowledge base — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-knowledge-base',
+      },
+      {
+        name: 'Pdf Rag',
+        description: 'Free online pdf rag — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-rag',
+      },
+      {
+        name: 'Pdf Workflow Automation',
+        description: 'Free online pdf workflow automation — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-workflow-automation',
+      },
+      {
+        name: 'Pdf Translation Layout',
+        description: 'Free online pdf translation layout — fast, private, and browser-based.',
+        path: '/pdf-tools/pdf-translation-layout',
+      },
     ],
   },
   {

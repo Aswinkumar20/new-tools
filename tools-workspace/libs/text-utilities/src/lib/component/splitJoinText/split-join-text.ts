@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   SPLIT_JOIN_DEFAULT_DELIMITER,
@@ -24,7 +25,7 @@ import {
   standalone: true,
   templateUrl: './split-join-text.html',
   styleUrls: ['./split-join-text.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
 export class SplitJoinTextComponent extends TextToolBase {
   mode: SplitJoinMode = SPLIT_JOIN_DEFAULT_MODE;

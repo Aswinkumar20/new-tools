@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   BASE64_MAX_UPLOAD_BYTES,
@@ -23,7 +24,7 @@ import {
   standalone: true,
   templateUrl: './base64-encode-and-decode.html',
   styleUrls: ['./base64-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class Base64EncodeAndDecodeComponent extends TextToolBase {
   override readonly maxUploadBytes = BASE64_MAX_UPLOAD_BYTES;

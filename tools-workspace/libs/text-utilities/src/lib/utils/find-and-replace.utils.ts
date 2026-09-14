@@ -82,7 +82,9 @@ export function resolveFindAndReplaceSuggestion(
     errorMessage,
     matchCount,
     useRegex,
-    outputUnchanged
+    outputUnchanged,
+    replaceApplied,
+    appliedMatchCount
   } = context;
 
   if (!hasInput) {
@@ -130,6 +132,17 @@ export function resolveFindAndReplaceSuggestion(
     };
   }
 
+  if (hasOutput && replaceApplied && appliedMatchCount > 0) {
+    return {
+      id: 'far-applied',
+      title: `${appliedMatchCount} replacement${appliedMatchCount === 1 ? '' : 's'} applied to input`,
+      reason:
+        'Input text was updated. Copy or download the result, or run another find/replace pass.',
+      actionLabel: 'Open Text Difference',
+      path: '/text-utilities/text-difference'
+    };
+  }
+
   if (hasOutput && outputUnchanged && matchCount > 0) {
     return {
       id: 'far-same',
@@ -143,9 +156,9 @@ export function resolveFindAndReplaceSuggestion(
 
   return {
     id: 'far-done',
-    title: `${matchCount} replacement${matchCount === 1 ? '' : 's'} applied`,
+    title: `${matchCount} match${matchCount === 1 ? '' : 'es'} ready to replace`,
     reason:
-      'Copy or download the result, use → In to continue editing, or Diff to review what changed.',
+      'Review the output preview, then click Apply Replace to confirm and update input.',
     actionLabel: 'Open Text Difference',
     path: '/text-utilities/text-difference'
   };

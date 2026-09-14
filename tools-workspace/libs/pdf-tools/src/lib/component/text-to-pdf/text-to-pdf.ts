@@ -1,18 +1,22 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfJspdfWorkbenchComponent } from '../pdf-jspdf-workbench/pdf-jspdf-workbench';
-import type { PdfJspdfToolMode } from '../../shared/pdf.types';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-text-to-pdf',
   standalone: true,
   template: `
-    <lib-pdf-jspdf-workbench [mode]="mode" [title]="title" [description]="description" />
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
   `,
-  imports: [PdfJspdfWorkbenchComponent],
+  imports: [PdfWorkbenchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TextToPdfComponent {
-  readonly mode: PdfJspdfToolMode = 'text-to-pdf';
+  readonly mode: PdfToolMode = 'text-to-pdf';
   readonly title = 'Text to PDF';
-  readonly description = 'Convert plain text into a formatted PDF with font size and margin controls.';
+  readonly description =
+    'Convert plain text into a formatted PDF — processed on the secure server when available, with a local fallback.';
 }

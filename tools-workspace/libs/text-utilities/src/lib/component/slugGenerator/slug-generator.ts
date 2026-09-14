@@ -2,7 +2,9 @@ import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementR
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   SLUG_DEFAULT_REMOVE_NUMBERS,
@@ -25,13 +27,12 @@ import {
   standalone: true,
   templateUrl: './slug-generator.html',
   styleUrls: ['./slug-generator.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
-export class SlugGeneratorComponent implements OnInit, OnDestroy {
+export class SlugGeneratorComponent extends TextToolProcessingHost implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
 
   readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
 
   readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = SLUG_RELATED_TOOLS;
   readonly separatorOptions: ReadonlyArray<SlugSeparatorOption> = SLUG_SEPARATOR_OPTIONS;
@@ -50,10 +51,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
   private historyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingHistoryValue = '';
 
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = SLUG_MAX_UPLOAD_BYTES;
-  private fileInput?: HTMLInputElement;
+  override maxUploadBytes = SLUG_MAX_UPLOAD_BYTES;
 
   get hasInput(): boolean {
     return !!this.inputText.trim();
@@ -129,12 +127,11 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
     this.seedHistory('');
   }
 
-  ngOnDestroy(): void {
+  override ngOnDestroy(): void {
     if (this.historyTimer) {
       clearTimeout(this.historyTimer);
     }
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    super.ngOnDestroy();
   }
 
   private seedHistory(value: string): void {
@@ -153,7 +150,7 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
       return;
     }
     this.dismissedSuggestionId = null;
-    this.runSlugGeneration();
+    this.scheduleDebouncedWork(() => this.runSlugGeneration(), this.inputText.length);
     this.scheduleHistoryPush(this.inputText);
   }
 
@@ -249,106 +246,18 @@ export class SlugGeneratorComponent implements OnInit, OnDestroy {
     this.toastService.info('Input and slug swapped');
   }
 
-  uploadTextFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) {
-          this.handleUploadedFile(file);
-        }
-        if (this.fileInput) {
-          this.fileInput.value = '';
-        }
-      });
-      document.body.appendChild(this.fileInput);
+  protected override onUploadedTextApplied(text: string): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
     }
-
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
-    this.fileInput.click();
+    this.dismissedSuggestionId = null;
+    this.applyInputState(text);
+    this.pushToUndoStack(text);
   }
 
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
-      return;
-    }
-
-    if (!this.isLikelyTextFile(file)) {
-      this.toastService.error('Please upload a text-based file (.txt, .md, .csv, .json, etc.).');
-      return;
-    }
-
-    this.isReadingFile = true;
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.historyTimer) {
-        clearTimeout(this.historyTimer);
-        this.historyTimer = null;
-      }
-      this.dismissedSuggestionId = null;
-      this.applyInputState(text);
-      this.pushToUndoStack(text);
-      this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-    };
-
-    reader.onerror = () => {
-      this.isReadingFile = false;
-      this.toastService.error('Could not read the file. Please try another text file.');
-    };
-
-    reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blockedTypes = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip', 'application/x-zip-compressed'];
-    if (file.type && blockedTypes.some((prefix) => file.type.startsWith(prefix) || file.type === prefix)) {
-      return false;
-    }
-    if (!file.type || file.type.startsWith('text/')) {
-      return true;
-    }
-    const allowedTypes = new Set([
-      'application/json', 'application/xml', 'application/javascript',
-      'application/x-yaml', 'application/yaml', 'application/csv', 'application/rtf', 'application/octet-stream',
-    ]);
-    if (allowedTypes.has(file.type)) {
-      return true;
-    }
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    const textExtensions = new Set([
-      'txt', 'text', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'htm', 'log',
-      'yaml', 'yml', 'rtf', 'tsv', 'ini', 'cfg', 'conf',
-    ]);
-    return textExtensions.has(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.handleUploadedFile(file);
-    }
+  protected override onUploadStarting(): void {
+    this.dismissedSuggestionId = null;
   }
 
   private scheduleHistoryPush(value: string): void {

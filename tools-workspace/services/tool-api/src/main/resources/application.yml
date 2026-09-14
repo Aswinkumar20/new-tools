@@ -1,0 +1,68 @@
+server:
+  port: 8080
+  tomcat:
+    max-http-form-post-size: 55MB
+
+spring:
+  application:
+    name: tool-api
+  servlet:
+    multipart:
+      # Spill only into the ephemeral APP_TEMP_DIR tree (never a permanent upload store).
+      location: ${APP_TEMP_DIR:/tmp/tool-jobs}/multipart
+      # Keep small parts in memory; larger parts land under location/ and are wiped by TempWorkspace.
+      file-size-threshold: 256KB
+      max-file-size: ${APP_MAX_UPLOAD_MB:50}MB
+      max-request-size: ${APP_MAX_UPLOAD_MB:50}MB
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# Shared across all tool domains
+app:
+  # Ephemeral only — job dirs + multipart spill; wiped after each request and by TTL sweeper.
+  temp-dir: ${APP_TEMP_DIR:/tmp/tool-jobs}
+  job-ttl-minutes: ${APP_JOB_TTL_MINUTES:5}
+  cors-origins: ${APP_CORS_ORIGINS:http://localhost:4200,https://easytoolhub.com,https://www.easytoolhub.com}
+  max-stored-jobs: ${APP_MAX_STORED_JOBS:200}
+  rate-limit-per-minute: ${APP_RATE_LIMIT_PER_MINUTE:120}
+  # memory (default) | redis — Redis needs shared APP_TEMP_DIR across replicas
+  job-store: ${APP_JOB_STORE:memory}
+
+# PDF module only
+pdf:
+  max-pages: ${PDF_MAX_PAGES:500}
+  qpdf-bin: ${QPDF_BIN:qpdf}
+  gs-bin: ${GS_BIN:gs}
+  tessdata-path: ${PDF_TESSDATA_PATH:}
+  ocr-max-pages: ${PDF_OCR_MAX_PAGES:25}
+  # Slice 10 — async batch ZIP
+  batch-max-files: ${PDF_BATCH_MAX_FILES:40}
+  batch-max-zip-entries: ${PDF_BATCH_MAX_ZIP_ENTRIES:200}
+  batch-max-uncompressed-bytes: ${PDF_BATCH_MAX_UNCOMPRESSED_BYTES:104857600}
+  batch-max-compression-ratio: ${PDF_BATCH_MAX_COMPRESSION_RATIO:100}
+  batch-max-concurrent-jobs: ${PDF_BATCH_MAX_CONCURRENT_JOBS:2}
+  # Slice 7 — large merge/split
+  large-file-threshold-bytes: ${PDF_LARGE_FILE_THRESHOLD_BYTES:8388608}
+  large-merge-min-files: ${PDF_LARGE_MERGE_MIN_FILES:5}
+  chromium-bin: ${CHROMIUM_BIN:}
+  preview-max-dpi: ${PDF_PREVIEW_MAX_DPI:150}
+
+logging:
+  level:
+    root: INFO
+    com.easytoolhub: INFO
+    # Never log multipart body / passwords
+    org.springframework.web.multipart: WARN

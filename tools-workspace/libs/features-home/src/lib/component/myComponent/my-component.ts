@@ -15,7 +15,17 @@ import { Navigation } from '../navigation/navigation';
 import { AssetService } from '../../services/asset.service';
 import { TooltipDirective } from '../../directive/tooltip.directive';
 import { TOOL_CATEGORIES } from '../../config/tools-catalog.generated';
-import { compareCatalogNames, toHomeToolCategories } from '../../config/tools-catalog.helpers';
+import { pickGlobalPopularTools, splitHomeCategories, toHomeToolCategories } from '../../config/tools-catalog.helpers';
+import { isSpecialistHomeCategory } from '../../config/tools-popularity.config';
+import { ROUTE_PREFETCH } from '../../tokens/route-prefetch.token';
+import {
+  getToolSearchEngine,
+  SEARCH_LIMITS,
+  type SearchClarification,
+  type SearchConfidence,
+  type ToolSearchEngine,
+  type ToolSearchResult,
+} from '../../search';
 
 @Component({
   selector: 'lib-my-component',
@@ -36,9 +46,25 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
 
   searchQuery = '';
   filteredCategories: any[] = this.toolCategories;
-  searchResults: Array<{ name: string; path: string; category: string; description?: string }> = [];
+  searchResults: ToolSearchResult[] = [];
+  relatedSearchResults: ToolSearchResult[] = [];
+  searchConfidence: SearchConfidence = 'low';
+  searchClarification: SearchClarification | null = null;
+  searchRecoveryHint: string | null = null;
+  activeResultIndex = -1;
+  /** True after ArrowUp/ArrowDown — Enter may open even on medium/low confidence. */
+  searchSelectionTouched = false;
   catalogListTools: Array<{ name: string; path: string; category: string; description?: string }> = [];
   visibleToolCount = 0;
+  readonly searchReformulationHints = [
+    'make photo smaller',
+    'compress pdf',
+    'combine PDF files',
+    'format JSON',
+    'make a QR code',
+    'count words',
+  ];
+  readonly maxSecondarySearchResults = 7;
   popularTools: Array<{ name: string; path: string; category: string; iconUrl: string }> = [];
   highlights: Array<{ title: string; description: string }> = [
     {
@@ -64,6 +90,30 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   searchIconUrl = '';
   /** Categories whose tool list is scrolled past the top (button shows "Show less"). */
   scrolledCategoryNames = new Set<string>();
+  primaryCategories: Array<{
+    name: string;
+    description?: string;
+    iconUrl?: string;
+    path: string;
+    subCategories?: Array<{ path: string; name: string; description?: string }>;
+  }> = [];
+  specialistCategories: Array<{
+    name: string;
+    description?: string;
+    iconUrl?: string;
+    path: string;
+    subCategories?: Array<{ path: string; name: string; description?: string }>;
+  }> = [];
+  /** Hero chips + default catalog — everyday tools only. */
+  heroCategories: Array<{
+    name: string;
+    description?: string;
+    iconUrl?: string;
+    path: string;
+    subCategories?: Array<{ path: string }>;
+  }> = [];
+  browsePrimaryCategories: typeof this.primaryCategories = [];
+  browseSpecialistCategories: typeof this.specialistCategories = [];
   featuredCategories: Array<{
     name: string;
     description?: string;
@@ -80,33 +130,36 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly skeletonCardSlots = [0, 1, 2, 3, 4, 5, 6, 7];
   readonly skeletonToolLineSlots = [0, 1, 2, 3, 4];
   readonly maxToolsPreview = 8;
-  readonly featuredToolPaths = [
-    'text-utilities/character-counter',
-    'text-utilities/base64-encode-and-decode',
-    'text-utilities/slug-generator',
-    'data-converters/json-formatter-beautifier-validator',
-    'pdf-tools/merge-pdfs',
-    'security-tools/hash-generator',
-    'fun-tools/qr-code-generator',
-  ];
   @ViewChild('homepageSearch') homepageSearch?: ElementRef<HTMLInputElement>;
   readonly searchSuggestions = [
-    'URL Encode',
-    'Pako Compress',
-    'Regex Tester',
-    'Find & Replace',
-    'Merge PDFs',
-    'JSON Formatter',
-    'Password Generator',
-    'Text Case Converter',
+    'make photo smaller',
+    'combine PDF files',
+    'format JSON',
+    'make a QR code',
+    'count words',
+    'compress PDF',
+    'resize image',
+    'change text case',
   ];
   suggestionIndex = 0;
-  private suggestionTimer: ReturnType<typeof setInterval> | null = null;
+  animatedSuggestionText = '';
+  private suggestionAnimTimer: ReturnType<typeof setTimeout> | null = null;
+  private suggestionInterval: ReturnType<typeof setInterval> | null = null;
+  private suggestionCharIndex = 0;
+  private suggestionMode: 'type' | 'hold' | 'delete' = 'type';
+  private prefersReducedMotion = false;
+  private readonly suggestionTypeMs = 58;
+  private readonly suggestionDeleteMs = 32;
+  private readonly suggestionHoldMs = 2400;
+  private readonly suggestionGapMs = 320;
   private readonly themeStorageKey = 'theme';
   private readonly assetService = inject(AssetService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly prefetchRoute = inject(ROUTE_PREFETCH, { optional: true });
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  private readonly searchEngine: ToolSearchEngine = getToolSearchEngine(TOOL_CATEGORIES);
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Maps category names to SVG filenames in assets/icons/categories/ */
   private readonly categoryIconFiles: Record<string, string> = {
@@ -137,7 +190,11 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.searchIconUrl = this.assetService.getAssetPath('icons/search.svg');
     this.attachIconPaths();
-    this.featuredCategories = this.toolCategories;
+    const { primary, specialist } = splitHomeCategories(this.toolCategories);
+    this.primaryCategories = primary;
+    this.specialistCategories = specialist;
+    this.heroCategories = primary;
+    this.featuredCategories = [...primary, ...specialist];
     this.totalTools = this.computeTotalToolCount();
     this.popularTools = this.computePopularTools(8);
     this.weeklyHighlights = this.estimateWeeklyHighlights();
@@ -150,7 +207,9 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.isBrowser) {
       this.hydrateThemePreference();
-      this.startSuggestionRotation();
+      this.prefersReducedMotion =
+        globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+      this.startSuggestionAnimation();
     }
   }
 
@@ -159,27 +218,66 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
       this.pageReady = true;
       return;
     }
-    this.focusSearchOnDesktop();
     // Defer so entrance animations run after first paint (browser only)
     if (typeof requestAnimationFrame === 'function') {
       requestAnimationFrame(() => {
         this.pageReady = true;
+        globalThis.setTimeout(() => this.focusHomeSearch(), 680);
       });
     } else {
       this.pageReady = true;
+      this.focusHomeSearch();
     }
   }
 
   ngOnDestroy(): void {
-    this.stopSuggestionRotation();
+    this.stopSuggestionAnimation();
+    if (this.searchDebounceTimer != null) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
   }
 
   get currentSuggestion(): string {
     return this.searchSuggestions[this.suggestionIndex] ?? this.searchSuggestions[0];
   }
 
-  get searchPlaceholder(): string {
-    return `Search tools — try “${this.currentSuggestion}”…`;
+  get showAnimatedSearchPlaceholder(): boolean {
+    return !this.searchQuery.trim();
+  }
+
+  /** Option B: homepage is in dedicated search mode (hero compact, results own the page). */
+  get isSearchMode(): boolean {
+    return !!this.searchQuery.trim();
+  }
+
+  get primarySearchResult(): ToolSearchResult | null {
+    return this.searchResults[0] ?? null;
+  }
+
+  get secondarySearchResults(): ToolSearchResult[] {
+    return this.searchResults.slice(1, 1 + this.maxSecondarySearchResults);
+  }
+
+  /** Results shown in search mode (best + capped others) for keyboard nav. */
+  get displayedSearchResults(): ToolSearchResult[] {
+    if (!this.searchResults.length) {
+      return [];
+    }
+    return [this.searchResults[0], ...this.secondarySearchResults];
+  }
+
+  get searchResultsHeading(): string {
+    if (this.searchClarification) {
+      return 'Refine your search';
+    }
+    if (this.searchConfidence === 'high') {
+      return 'Best match';
+    }
+    if (this.searchConfidence === 'medium') {
+      return 'Likely matches';
+    }
+    return 'Closest matches';
   }
 
   get catalogMode(): 'browse' | 'category' | 'search' {
@@ -196,9 +294,17 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     return !!this.searchQuery.trim() || !!this.activeCategoryName;
   }
 
+  get browseCategories(): typeof this.primaryCategories {
+    return [...this.browsePrimaryCategories, ...this.browseSpecialistCategories];
+  }
+
   navigateTo(path: string) {
     const normalized = path.startsWith('/') ? path : `/${path}`;
     this.router.navigateByUrl(normalized);
+  }
+
+  prefetchTool(path: string): void {
+    this.prefetchRoute?.(path);
   }
 
   navigateToCategory(category: { path: string; subCategories?: Array<{ path: string }> }) {
@@ -210,7 +316,7 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.router.navigateByUrl(`/${category.path}`);
   }
 
-  exploreCategory(category: { name: string }) {
+  exploreCategory(category: { name: string; path?: string }) {
     if (this.activeCategoryName === category.name) {
       this.clearCategoryFilter();
       return;
@@ -221,9 +327,21 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.scrollToCatalog();
   }
 
+  clearAllCatalogFilters(): void {
+    this.clearSearch();
+  }
+
+  get specialistToolCount(): number {
+    return this.specialistCategories.reduce(
+      (total, category) => total + (category.subCategories?.length ?? 0),
+      0
+    );
+  }
+
   applySuggestion(term?: string) {
     this.activeCategoryName = null;
     this.searchQuery = term?.trim() || this.currentSuggestion;
+    this.searchSelectionTouched = false;
     this.filterCategories();
     this.homepageSearch?.nativeElement?.focus({ preventScroll: true });
   }
@@ -231,8 +349,93 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   onSearchInput() {
     if (this.searchQuery.trim()) {
       this.activeCategoryName = null;
+      this.stopSuggestionAnimation();
+    } else if (this.isBrowser) {
+      this.startSuggestionAnimation();
     }
+    this.searchSelectionTouched = false;
+    if (this.searchDebounceTimer != null) {
+      clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
+    // SSR / unit tests: update immediately. Browser: light debounce for typing.
+    if (!this.isBrowser) {
+      this.filterCategories();
+      return;
+    }
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchDebounceTimer = null;
+      this.filterCategories();
+    }, 80);
+  }
+
+  onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.clearSearch();
+      return;
+    }
+
+    const results = this.displayedSearchResults;
+    const resultCount = results.length;
+    if (!resultCount) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.searchSelectionTouched = true;
+      this.activeResultIndex = (this.activeResultIndex + 1) % resultCount;
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.searchSelectionTouched = true;
+      this.activeResultIndex = this.activeResultIndex <= 0 ? resultCount - 1 : this.activeResultIndex - 1;
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.activateHighlightedSearchResult();
+    }
+  }
+
+  setActiveResultIndex(index: number): void {
+    this.activeResultIndex = index;
+  }
+
+  applyClarification(optionQuery: string): void {
+    this.searchQuery = optionQuery;
+    this.activeResultIndex = -1;
+    this.searchSelectionTouched = false;
     this.filterCategories();
+    this.homepageSearch?.nativeElement?.focus({ preventScroll: true });
+  }
+
+  openSearchResult(result: ToolSearchResult | null | undefined): void {
+    if (result?.path) {
+      this.navigateTo(result.path);
+    }
+  }
+
+  /** Enter / submit: open only on high confidence, or after arrow-key selection. */
+  activateHighlightedSearchResult(): void {
+    this.filterCategories();
+    const results = this.displayedSearchResults;
+    if (!results.length) {
+      return;
+    }
+    const selected =
+      this.activeResultIndex >= 0 && this.activeResultIndex < results.length
+        ? results[this.activeResultIndex]
+        : results[0];
+    const mayOpen = this.searchConfidence === 'high' || this.searchSelectionTouched;
+
+    if (mayOpen && selected?.path) {
+      this.navigateTo(selected.path);
+      return;
+    }
+    this.scrollToSearchResults();
   }
 
   scrollToCatalog() {
@@ -243,10 +446,28 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     catalog?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  scrollToSearchResults(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const results = document.getElementById('homepage-search-results');
+    results?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   clearSearch() {
     this.searchQuery = '';
     this.activeCategoryName = null;
+    this.activeResultIndex = -1;
+    this.searchSelectionTouched = false;
+    this.relatedSearchResults = [];
+    this.searchClarification = null;
+    this.searchRecoveryHint = null;
+    this.searchConfidence = 'low';
     this.filterCategories();
+    if (this.isBrowser) {
+      this.startSuggestionAnimation();
+      globalThis.setTimeout(() => this.focusHomeSearch(), 0);
+    }
   }
 
   clearCategoryFilter() {
@@ -254,7 +475,11 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     this.filterCategories();
   }
 
-  private focusSearchOnDesktop() {
+  isSpecialistCategory(category: { path?: string }): boolean {
+    return !!category.path && isSpecialistHomeCategory(category.path);
+  }
+
+  private focusHomeSearch(): void {
     try {
       if (typeof globalThis === 'undefined' || typeof globalThis.matchMedia !== 'function') {
         return;
@@ -264,39 +489,115 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
       const el = this.homepageSearch?.nativeElement;
-      if (!el || typeof el.focus !== 'function') {
+      if (!el || typeof el.focus !== 'function' || this.searchQuery.trim()) {
         return;
-      }1
-      queueMicrotask(() => {
-        try {
-          el.focus({ preventScroll: true });
-        } catch {
-          /* Domino / prerender may not implement focus */
-        }
-      });
+      }
+      el.focus({ preventScroll: true });
     } catch {
       /* ignore during prerender */
     }
   }
 
-  private startSuggestionRotation() {
-    this.stopSuggestionRotation();
-    if (typeof globalThis === 'undefined' || typeof globalThis.setInterval !== 'function') {
+  private startSuggestionAnimation(): void {
+    this.stopSuggestionAnimation();
+
+    if (typeof globalThis === 'undefined') {
       return;
     }
-    this.suggestionTimer = globalThis.setInterval(() => {
-      if (this.searchQuery.trim()) {
+
+    if (this.searchQuery.trim()) {
+      return;
+    }
+
+    if (this.prefersReducedMotion) {
+      this.animatedSuggestionText = this.currentSuggestion;
+      if (typeof globalThis.setInterval !== 'function') {
         return;
       }
-      this.suggestionIndex = (this.suggestionIndex + 1) % this.searchSuggestions.length;
-    }, 2800);
+      this.suggestionInterval = globalThis.setInterval(() => {
+        if (this.searchQuery.trim()) {
+          return;
+        }
+        this.suggestionIndex = (this.suggestionIndex + 1) % this.searchSuggestions.length;
+        this.animatedSuggestionText = this.currentSuggestion;
+      }, 3500);
+      return;
+    }
+
+    this.suggestionMode = 'type';
+    this.suggestionCharIndex = 0;
+    this.animatedSuggestionText = '';
+    this.scheduleSuggestionStep();
   }
 
-  private stopSuggestionRotation() {
-    if (this.suggestionTimer != null) {
-      globalThis.clearInterval(this.suggestionTimer);
-      this.suggestionTimer = null;
+  private scheduleSuggestionStep(): void {
+    this.clearSuggestionTimers();
+
+    if (this.searchQuery.trim()) {
+      return;
     }
+
+    const term = this.currentSuggestion;
+
+    if (this.suggestionMode === 'type') {
+      if (this.suggestionCharIndex < term.length) {
+        this.suggestionCharIndex += 1;
+        this.animatedSuggestionText = term.slice(0, this.suggestionCharIndex);
+        this.suggestionAnimTimer = globalThis.setTimeout(
+          () => this.scheduleSuggestionStep(),
+          this.suggestionTypeMs
+        );
+        return;
+      }
+
+      this.suggestionMode = 'hold';
+      this.suggestionAnimTimer = globalThis.setTimeout(
+        () => this.scheduleSuggestionStep(),
+        this.suggestionHoldMs
+      );
+      return;
+    }
+
+    if (this.suggestionMode === 'hold') {
+      this.suggestionMode = 'delete';
+      this.scheduleSuggestionStep();
+      return;
+    }
+
+    if (this.suggestionCharIndex > 0) {
+      this.suggestionCharIndex -= 1;
+      this.animatedSuggestionText = term.slice(0, this.suggestionCharIndex);
+      this.suggestionAnimTimer = globalThis.setTimeout(
+        () => this.scheduleSuggestionStep(),
+        this.suggestionDeleteMs
+      );
+      return;
+    }
+
+    this.suggestionIndex = (this.suggestionIndex + 1) % this.searchSuggestions.length;
+    this.suggestionMode = 'type';
+    this.suggestionAnimTimer = globalThis.setTimeout(
+      () => this.scheduleSuggestionStep(),
+      this.suggestionGapMs
+    );
+  }
+
+  private clearSuggestionTimers(): void {
+    if (this.suggestionAnimTimer != null) {
+      globalThis.clearTimeout(this.suggestionAnimTimer);
+      this.suggestionAnimTimer = null;
+    }
+  }
+
+  private stopSuggestionAnimation(): void {
+    this.clearSuggestionTimers();
+    if (this.suggestionInterval != null) {
+      globalThis.clearInterval(this.suggestionInterval);
+      this.suggestionInterval = null;
+    }
+    this.animatedSuggestionText = '';
+    this.suggestionCharIndex = 0;
+    this.suggestionMode = 'type';
   }
 
   getDisplayTools(category: { name: string; subCategories?: Array<{ name: string; path: string; description?: string }> }) {
@@ -374,10 +675,6 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.catalogListTools;
   }
 
-  clearAllCatalogFilters(): void {
-    this.clearSearch();
-  }
-
   toolInitial(name: string): string {
     return this.shortToolName(name).charAt(0).toUpperCase();
   }
@@ -422,49 +719,79 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
       this.filteredCategories = this.toolCategories.filter(
         category => category.name === this.activeCategoryName
       );
+      this.searchResults = [];
+      this.relatedSearchResults = [];
+      this.searchClarification = null;
+      this.searchRecoveryHint = null;
+      this.searchConfidence = 'low';
+      this.activeResultIndex = -1;
     } else if (!query) {
       this.filteredCategories = this.toolCategories;
+      const { primary, specialist } = splitHomeCategories(this.filteredCategories);
+      this.browsePrimaryCategories = primary;
+      this.browseSpecialistCategories = specialist;
+      this.searchResults = [];
+      this.relatedSearchResults = [];
+      this.searchClarification = null;
+      this.searchRecoveryHint = null;
+      this.searchConfidence = 'low';
+      this.activeResultIndex = -1;
     } else {
+      const response = this.searchEngine.search(this.searchQuery, {
+        limit: SEARCH_LIMITS.maxResults,
+      });
+      this.searchResults = response.results;
+      this.relatedSearchResults = response.related;
+      this.searchConfidence = response.confidence;
+      this.searchClarification = response.clarification;
+      this.searchRecoveryHint = response.recoveryHint;
+      if (!this.searchSelectionTouched) {
+        this.activeResultIndex = response.results.length ? 0 : -1;
+      } else if (this.activeResultIndex >= response.results.length) {
+        this.activeResultIndex = response.results.length ? 0 : -1;
+      }
+
+      const matchedPaths = new Set(response.results.map((result) => result.path));
       this.filteredCategories = this.toolCategories
-        .map(category => {
-          const tools = category.subCategories ?? [];
-          const matchingTools = tools
-            .filter((tool: { name?: string; description?: string }) =>
-              this.matchesSearchText(tool.name, query) ||
-              this.matchesSearchText(tool.description, query)
-            )
-            .sort((left: { name: string }, right: { name: string }) =>
-              compareCatalogNames(left.name, right.name)
-            );
-          const categoryMatches =
-            this.matchesSearchText(category.name, query) ||
-            this.matchesSearchText(category.description, query);
-          if (!categoryMatches && matchingTools.length === 0) {
+        .map((category) => {
+          const matchingTools = (category.subCategories ?? []).filter((tool: { path: string }) =>
+            matchedPaths.has(tool.path)
+          );
+          if (matchingTools.length === 0) {
             return null;
           }
+          const order = new Map(response.results.map((result, index) => [result.path, index]));
+          matchingTools.sort(
+            (left: { path: string }, right: { path: string }) =>
+              (order.get(left.path) ?? 999) - (order.get(right.path) ?? 999)
+          );
           return {
             ...category,
-            subCategories: matchingTools.length > 0 ? matchingTools : tools,
+            subCategories: matchingTools,
           };
         })
         .filter((cat: any) => cat !== null);
+      this.browsePrimaryCategories = [];
+      this.browseSpecialistCategories = [];
     }
 
-    this.visibleToolCount = this.filteredCategories.reduce(
-      (total, category) => total + (category.subCategories?.length ?? 0),
-      0
-    );
-    this.searchResults = this.buildSearchResults();
+    if (query || this.activeCategoryName) {
+      this.browsePrimaryCategories = [];
+      this.browseSpecialistCategories = [];
+    }
+
+    this.visibleToolCount = query
+      ? this.searchResults.length
+      : this.filteredCategories.reduce(
+          (total, category) => total + (category.subCategories?.length ?? 0),
+          0
+        );
     this.catalogListTools = this.buildCatalogListTools();
   }
 
   onSearch(event: Event) {
     event.preventDefault();
-    this.filterCategories();
-    const first = this.searchResults[0];
-    if (first?.path) {
-      this.navigateTo(first.path);
-    }
+    this.activateHighlightedSearchResult();
   }
 
   toggleTheme() {
@@ -477,38 +804,14 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   trackByTool = (_: number, tool: any) => tool?.path ?? tool?.name;
   trackByHighlight = (_: number, highlight: any) => highlight?.title;
   
-  private matchesSearchText(text: string | undefined, query: string): boolean {
-    if (!text) {
-      return false;
-    }
-    const normalize = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/&/g, ' and ')
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim();
-    const haystack = normalize(text);
-    const tokens = normalize(query).split(/\s+/).filter(Boolean);
-    return tokens.length > 0 && tokens.every((token) => haystack.includes(token));
-  }
-
-  private buildSearchResults(): Array<{ name: string; path: string; category: string; description?: string }> {
-    if (!this.searchQuery.trim()) {
-      return [];
-    }
-    return this.filteredCategories.flatMap(category =>
-      (category.subCategories ?? []).map((tool: { name: string; path: string; description?: string }) => ({
-        name: tool.name,
-        path: tool.path,
-        category: category.name,
-        description: tool.description,
-      }))
-    );
-  }
-
   private buildCatalogListTools(): Array<{ name: string; path: string; category: string; description?: string }> {
     if (this.catalogMode === 'search') {
-      return this.searchResults;
+      return this.searchResults.map((result) => ({
+        name: result.name,
+        path: result.path,
+        category: result.category,
+        description: result.description,
+      }));
     }
     if (this.catalogMode === 'category') {
       const category = this.filteredCategories[0];
@@ -533,21 +836,15 @@ export class MyComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private computePopularTools(limit = 8): Array<{ name: string; path: string; category: string; iconUrl: string }> {
-    const all = this.toolCategories.flatMap(category =>
+    const all = this.toolCategories.flatMap((category) =>
       (category.subCategories ?? []).map((tool: { name: string; path: string; iconUrl?: string }) => ({
         name: tool.name,
         path: tool.path,
         category: category.name,
         iconUrl: tool.iconUrl ?? this.buildIconPath(tool.name),
-      })),
+      }))
     );
-    const normalize = (path: string) => (path.startsWith('/') ? path.slice(1) : path);
-    const featured = this.featuredToolPaths
-      .map((fp) => all.find((tool) => normalize(tool.path) === fp))
-      .filter((tool): tool is (typeof all)[number] => !!tool);
-    const featuredPaths = new Set(featured.map((tool) => normalize(tool.path)));
-    const rest = all.filter((tool) => !featuredPaths.has(normalize(tool.path)));
-    return [...featured, ...rest].slice(0, limit);
+    return pickGlobalPopularTools(all, limit);
   }
 
   private attachIconPaths(): void {

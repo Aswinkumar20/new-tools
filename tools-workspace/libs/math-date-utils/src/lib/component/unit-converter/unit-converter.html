@@ -168,19 +168,33 @@
             </div>
           }
           <div class="ctl__panel" #historySection>
-            <header class="ctl__panel-head">History</header>
+            <header class="ctl__panel-head">
+              History
+              @if (historyEntries().length) {
+                <span class="ctl__panel-actions">
+                  <button type="button" class="ctl__panel-action" (click)="exportHistory()" aria-label="Copy history">
+                    Copy
+                  </button>
+                  <button type="button" class="ctl__panel-action" (click)="clearHistory()" aria-label="Clear history">
+                    Clear
+                  </button>
+                </span>
+              }
+            </header>
             <div class="ctl__panel-body">
               @if (historyEntries().length) {
                 <ul class="uc__history">
                   @for (entry of historyEntries(); track trackHistory($index, entry)) {
                     <li>
-                      <span class="uc__history-item">
-                        {{ formatNumber(entry.inputValue, entry.precision ?? 6) }}
-                        {{ entry.inputUnit.symbol ?? entry.inputUnit.label }} →
-                        {{ formatNumber(entry.outputValue, entry.precision ?? 6) }}
-                        {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}
-                      </span>
-                      <small>{{ formatHistoryMeta(entry) }}</small>
+                      <button type="button" class="uc__history-btn" (click)="applyHistoryEntry(entry)">
+                        <span class="uc__history-item">
+                          {{ formatNumber(entry.inputValue, entry.precision ?? 6) }}
+                          {{ entry.inputUnit.symbol ?? entry.inputUnit.label }} →
+                          {{ formatNumber(entry.outputValue, entry.precision ?? 6) }}
+                          {{ entry.outputUnit.symbol ?? entry.outputUnit.label }}
+                        </span>
+                        <small>{{ formatHistoryMeta(entry) }}</small>
+                      </button>
                     </li>
                   }
                 </ul>

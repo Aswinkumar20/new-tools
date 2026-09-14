@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   ROT13_DEFAULT_CAESAR_SHIFT,
@@ -24,7 +25,7 @@ import {
   standalone: true,
   templateUrl: './rot13-cipher.html',
   styleUrls: ['./rot13-cipher.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
 export class Rot13CipherComponent extends TextToolBase {
   cipherMode: Rot13CipherMode = ROT13_DEFAULT_MODE;

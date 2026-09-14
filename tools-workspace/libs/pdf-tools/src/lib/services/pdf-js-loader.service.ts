@@ -14,6 +14,7 @@ export class PdfJsLoaderService {
   }
 
   private async importPdfJs(): Promise<PdfJsLib> {
+    // Package root is typed; browser field stubs Node `canvas` (do not mark canvas external).
     const pdfjs = (await import('pdfjs-dist')) as unknown as PdfJsLib;
     if (!pdfjs?.getDocument) {
       throw new Error('PDF.js failed to initialize');

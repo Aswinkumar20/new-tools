@@ -1,0 +1,404 @@
+<div class="ctl pt pt-workbench pt-advanced">
+  <lib-navigation></lib-navigation>
+
+  <main class="ctl__main">
+    @if (!tool) {
+      <div class="ctl__top pt-workbench__hero">
+        <header class="ctl__header">
+          <h1>PDF tool not found</h1>
+          <p class="pt-workbench__desc">Unknown tool id: {{ toolId }}</p>
+        </header>
+      </div>
+    } @else {
+      <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
+        <header class="ctl__header">
+          <div class="pt-workbench__title-row">
+            <h1>{{ title }}</h1>
+            @if (showServerPrivacyBanner) {
+              <p class="pt-privacy-chip" role="note" appTooltip="Processed on the server. Uploads are not stored and are wiped after the job." tooltipPosition="bottom">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Not stored
+              </p>
+            } @else if (tool.clientOnly) {
+              <p class="pt-privacy-chip pt-privacy-chip--muted" role="note">In browser</p>
+            } @else {
+              <p class="pt-privacy-chip pt-privacy-chip--muted" role="note" appTooltip="Secure processing is required for this tool. If it is unavailable, try again shortly." tooltipPosition="bottom">Needs setup</p>
+            }
+            @if (hasFiles) {
+              <div class="pt-file-meta" aria-label="File details">
+                <span class="pt-file-meta__chip pt-file-meta__chip--name" [title]="primaryFileName">{{ primaryFileName }}</span>
+                @if (supportsMulti && files.length > 1) {
+                  <span class="pt-file-meta__chip">{{ files.length }} files</span>
+                }
+                <span class="pt-file-meta__chip">{{ formatFileSize(primaryFileSize) }}</span>
+                <span
+                  class="pt-file-meta__chip"
+                  [class.pt-file-meta__chip--ready]="lastActionCompleted"
+                  [class.pt-file-meta__chip--warn]="needsConfigAttention">
+                  {{ lastActionCompleted ? 'Ready' : needsConfigAttention ? 'Needs setup' : 'Loaded' }}
+                </span>
+              </div>
+            }
+          </div>
+          <p class="pt-workbench__desc">{{ description }}</p>
+          @if (showHonestyBanner) {
+            <p class="pt-honesty-note" role="note">{{ honestyBannerText }}</p>
+          }
+        </header>
+      </div>
+
+      <div class="pt-workflow pt-workflow--bar" aria-label="PDF actions">
+        @if (needsUpload) {
+          <div class="pt-workflow__group pt-workflow__group--files">
+            <button
+              type="button"
+              class="ctl__tool-btn ctl__tool-btn--icon"
+              (click)="openFileDialog()"
+              [attr.aria-label]="supportsMulti ? 'Add files' : 'Upload file'"
+              [appTooltip]="supportsMulti ? 'Add one or more files' : 'Choose a file from your device'"
+              tooltipPosition="bottom">
+              <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span class="ctl__tool-btn-label">{{ supportsMulti && hasFiles ? 'Add files' : 'Upload' }}</span>
+            </button>
+          </div>
+          <span class="pt-workflow__divider" aria-hidden="true"></span>
+        }
+
+        <div class="pt-workflow__group pt-workflow__group--primary">
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon ctl__tool-btn--primary"
+            (click)="runPrimaryAction()"
+            [disabled]="!canRunPrimaryAction"
+            [attr.aria-label]="primaryActionLabel()"
+            [attr.title]="primaryActionHint()"
+            [appTooltip]="primaryActionHint()"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            <span class="ctl__tool-btn-label">{{ loading ? 'Working…' : primaryActionLabel() }}</span>
+          </button>
+        </div>
+
+        <span class="pt-workflow__spacer" aria-hidden="true"></span>
+
+        <div class="pt-workflow__group pt-workflow__group--output" role="group" aria-label="Output actions">
+          @if (isTextualOutput) {
+            <button
+              type="button"
+              class="ctl__tool-btn ctl__tool-btn--icon"
+              (click)="copyResult()"
+              [disabled]="!canCopy"
+              aria-label="Copy result to clipboard"
+              appTooltip="Copy the result to your clipboard"
+              tooltipPosition="bottom">
+              <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span class="ctl__tool-btn-label">Copy</span>
+            </button>
+          }
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="downloadResult()"
+            [disabled]="!canDownload"
+            aria-label="Download result"
+            appTooltip="Download the result file"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            <span class="ctl__tool-btn-label">Download</span>
+          </button>
+          <button
+            type="button"
+            class="ctl__tool-btn ctl__tool-btn--icon"
+            (click)="clearAll()"
+            [disabled]="!canClear"
+            aria-label="Clear file and reset"
+            appTooltip="Clear files and reset this tool"
+            tooltipPosition="bottom">
+            <svg class="pt-tool-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M15 9l-6 6M9 9l6 6" />
+            </svg>
+            <span class="ctl__tool-btn-label">Clear</span>
+          </button>
+        </div>
+      </div>
+
+      <input
+        #fileInput
+        type="file"
+        [accept]="acceptAttr"
+        [multiple]="supportsMulti"
+        (change)="onFileSelected($event)"
+        hidden />
+
+      <div class="ctl__workspace pt-studio pt-studio--create pt-advanced__workspace">
+        <div class="ctl__editors ctl__editors--split pt-studio__create">
+          <section class="ctl__editor pt-editor-panel pt-studio__input">
+            <header class="ctl__editor-head"><span>Input &amp; options</span></header>
+            <div class="pt-studio__body pt-studio__options">
+              @if (needsUpload) {
+                @if (!hasFiles) {
+                  <button
+                    type="button"
+                    class="ctl-pdf__drop pt-empty-drop"
+                    [class.ctl-pdf__drop--active]="showDropZone"
+                    (dragenter)="onDragEnter($event)"
+                    (dragover)="onDragOver($event)"
+                    (dragleave)="onDragLeave($event)"
+                    (drop)="onDrop($event)"
+                    (click)="openFileDialog()">
+                    <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="44" height="44" />
+                    <p class="pt-empty-drop__title">
+                      <strong>Drop {{ isOfficeInput ? 'document' : supportsMulti ? 'PDFs' : 'PDF' }} here</strong> or click to browse
+                    </p>
+                    <ol class="pt-empty-drop__steps">
+                      <li>{{ emptyDropSteps[0] }}</li>
+                      <li>{{ emptyDropSteps[1] }}</li>
+                      <li>{{ emptyDropSteps[2] }}</li>
+                    </ol>
+                    <p class="pt-empty-drop__limit">Max {{ pdfBackendMaxMb }} MB{{ supportsMulti ? ' per file' : '' }}</p>
+                  </button>
+                } @else {
+                  <div class="pt-advanced__files" aria-label="Uploaded files">
+                    @for (file of files; track file.name + $index; let i = $index) {
+                      <div class="pt-advanced__file">
+                        <span class="pt-advanced__file-name" [title]="file.name">{{ file.name }}</span>
+                        <span class="pt-advanced__file-size">{{ formatFileSize(file.size) }}</span>
+                        <button
+                          type="button"
+                          class="pt-advanced__file-remove"
+                          [attr.aria-label]="'Remove ' + file.name"
+                          appTooltip="Remove this file"
+                          tooltipPosition="bottom"
+                          (click)="removeFile(i)">
+                          ×
+                        </button>
+                      </div>
+                    }
+                    @if (supportsMulti) {
+                      <button type="button" class="pt-config-chip" (click)="openFileDialog()">Add more</button>
+                    }
+                  </div>
+                }
+              }
+
+              @if (needsReplacementFile) {
+                <label class="pt-studio__field">
+                  <span>Replacement PDF</span>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    (change)="onReplacementSelected($event)"
+                    aria-label="Replacement PDF file" />
+                  @if (replacementFile) {
+                    <span class="pt-studio__hint">{{ replacementFile.name }}</span>
+                  }
+                </label>
+              }
+
+              @if (needsCertificateFile) {
+                <label class="pt-studio__field">
+                  <span>PKCS#12 certificate (.p12 / .pfx)</span>
+                  <input
+                    type="file"
+                    accept=".p12,.pfx,application/x-pkcs12"
+                    (change)="onCertificateSelected($event)"
+                    aria-required="true"
+                    aria-label="PKCS#12 certificate file" />
+                  @if (certificateFile) {
+                    <span class="pt-studio__hint">{{ certificateFile.name }}</span>
+                  }
+                </label>
+              }
+
+              @if (tool.needsPassword) {
+                <label class="pt-studio__field">
+                  <span>PDF password</span>
+                  <input
+                    class="ctl__input"
+                    type="password"
+                    [(ngModel)]="password"
+                    (ngModelChange)="onConfigChanged()"
+                    autocomplete="off"
+                    aria-required="true"
+                    placeholder="Required to unlock" />
+                </label>
+              }
+
+              @for (field of configFields(); track field.key) {
+                @switch (field.type) {
+                  @case ('textarea') {
+                    <label class="pt-studio__field">
+                      <span>{{ field.label }}</span>
+                      <textarea
+                        class="ctl__textarea"
+                        rows="4"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        [placeholder]="field.placeholder || ''"
+                        [attr.aria-label]="field.label"></textarea>
+                    </label>
+                  }
+                  @case ('select') {
+                    <label class="pt-studio__field">
+                      <span>{{ field.label }}</span>
+                      <select
+                        class="ctl__input"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        [attr.aria-label]="field.label">
+                        @for (opt of field.options || []; track opt) {
+                          <option [ngValue]="opt">{{ opt }}</option>
+                        }
+                      </select>
+                    </label>
+                  }
+                  @case ('checkbox') {
+                    <label class="pt-studio__check">
+                      <input
+                        type="checkbox"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        [attr.aria-label]="field.label" />
+                      <span>{{ field.label }}</span>
+                    </label>
+                  }
+                  @case ('password') {
+                    <label class="pt-studio__field">
+                      <span>{{ field.label }}</span>
+                      <input
+                        class="ctl__input"
+                        type="password"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        autocomplete="new-password"
+                        [placeholder]="field.placeholder || ''"
+                        [attr.aria-label]="field.label" />
+                    </label>
+                  }
+                  @case ('number') {
+                    <label class="pt-studio__field">
+                      <span>{{ field.label }}</span>
+                      <input
+                        class="ctl__input"
+                        type="number"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        [placeholder]="field.placeholder || ''"
+                        [attr.aria-label]="field.label" />
+                    </label>
+                  }
+                  @default {
+                    <label class="pt-studio__field">
+                      <span>{{ field.label }}</span>
+                      <input
+                        class="ctl__input"
+                        type="text"
+                        [(ngModel)]="configValues[field.key]"
+                        (ngModelChange)="onConfigChanged()"
+                        [placeholder]="field.placeholder || ''"
+                        [attr.aria-label]="field.label" />
+                    </label>
+                  }
+                }
+              }
+
+              <label class="pt-studio__field">
+                <span>Output filename</span>
+                <input
+                  class="ctl__input"
+                  [(ngModel)]="outputFilename"
+                  [placeholder]="defaultFilenamePlaceholder"
+                  aria-label="Output filename" />
+              </label>
+
+              <button
+                type="button"
+                class="pt-config-btn pt-config-btn--block"
+                (click)="runPrimaryAction()"
+                [disabled]="!canRunPrimaryAction || loading">
+                {{ loading ? 'Working…' : primaryActionLabel() }}
+              </button>
+              <p class="pt-config-panel__privacy" role="note">
+                {{ showServerPrivacyBanner ? 'Not stored on server · wiped after each job' : tool.clientOnly ? 'Processed in your browser · nothing uploaded' : 'Requires tool-api' }}
+              </p>
+            </div>
+          </section>
+
+          <section class="ctl__editor pt-editor-panel pt-studio__preview">
+            <header class="ctl__editor-head"><span>Result</span></header>
+            @if (!previewText && !resultBlob) {
+              <div class="ctl__empty">
+                <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
+                <p>Click <strong>{{ primaryActionLabel() }}</strong> to see results here</p>
+              </div>
+            } @else if (previewText) {
+              <div class="pt-advanced__result">
+                <label class="pt-studio__field">
+                  <span class="visually-hidden">Result preview</span>
+                  <textarea class="ctl__textarea pt-advanced__result-text" rows="16" readonly [value]="previewText" aria-label="Result preview"></textarea>
+                </label>
+              </div>
+            } @else {
+              <div class="ctl__empty">
+                <p>
+                  <strong>Binary result ready</strong>
+                  @if (resultBlob) {
+                    <span> · {{ formatFileSize(resultBlob.size) }}</span>
+                  }
+                </p>
+                <button type="button" class="pt-config-btn" (click)="downloadResult()" [disabled]="!canDownload">
+                  Download {{ outputFilename || 'result' }}
+                </button>
+              </div>
+            }
+          </section>
+        </div>
+      </div>
+
+      <details class="ctl__help">
+        <summary>How to use</summary>
+        <ul>
+          @if (tool.clientOnly) {
+            <li>Adjust options on the left, then click <strong>{{ primaryActionLabel() }}</strong>.</li>
+            <li>Copy or download the generated result.</li>
+          } @else if (needsUpload) {
+            <li>Upload {{ supportsMulti ? 'one or more PDFs' : isOfficeInput ? 'an Office document' : 'a PDF' }} via drag-and-drop or the toolbar.</li>
+            <li>Configure options, then run <strong>{{ primaryActionLabel() }}</strong>.</li>
+            <li>Download or copy the result when ready. Uploads are processed in memory or ephemeral temp dirs and wiped immediately — nothing is stored.</li>
+          } @else {
+            <li>Configure options, then run <strong>{{ primaryActionLabel() }}</strong>.</li>
+            <li>Download or copy the result when ready.</li>
+          }
+        </ul>
+      </details>
+    }
+  </main>
+</div>
+
+@if (loading) {
+  <div class="ctl-pdf__overlay" role="status" aria-live="polite" aria-busy="true">
+    <div class="ctl-pdf__loader">
+      <div class="ctl-pdf__spinner" aria-hidden="true"></div>
+      <p class="ctl-pdf__loader-title">{{ loadingMessage }}</p>
+      @if (loadingDetail) {
+        <p class="ctl-pdf__loader-sub">{{ loadingDetail }}</p>
+      }
+    </div>
+  </div>
+}

@@ -19,8 +19,8 @@ export class FooterComponent {
   protected readonly year = new Date().getFullYear();
   protected readonly iconUrl: string;
   protected readonly metaLinks: ReadonlyArray<FooterLink> = [
-    { label: 'About', path: '/tools/home#about' },
-    { label: 'Contact', path: '/tools/home#contact' },
+    { label: 'About', path: '/about' },
+    { label: 'Contact', path: '/about' },
     { label: 'Privacy', path: '/tools/home#privacy' },
     { label: 'Terms', path: '/tools/home#terms' },
   ];

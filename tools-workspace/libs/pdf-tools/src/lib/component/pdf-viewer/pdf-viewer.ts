@@ -1,10 +1,11 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, HostListener, ViewChild, ElementRef, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule, NgForOf, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { Navigation, TooltipDirective, AssetService, ToastService, toUserFacingError } from '@tools-workspace/features-home';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import { downloadBytes } from '../../shared/pdf.utils';
 import { PdfJsLoaderService, type PdfJsLib } from '../../services/pdf-js-loader.service';
+import { PdfBackendApiService } from '../../api/pdf-backend-api.service';
 
 interface PDFDocumentProxy {
   numPages: number;
@@ -27,6 +28,9 @@ interface PdfFile {
   password?: string;
   needsPassword: boolean;
   passwordError: boolean;
+  /** Slice 13 — server-rendered preview for large / hard-to-open PDFs */
+  previewSource: 'client' | 'server';
+  serverSessionId?: string | null;
 }
 
 @Component({
@@ -40,6 +44,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly pdfJsLoader = inject(PdfJsLoaderService);
+  private readonly pdfBackend = inject(PdfBackendApiService);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('pdfContainer') pdfContainer!: ElementRef<HTMLDivElement>;
   @ViewChild('canvasContainer') canvasContainer!: ElementRef<HTMLDivElement>;
@@ -58,6 +63,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   passwordInput: string = '';
   passwordForPdf: PdfFile | null = null;
   passwordError: string = '';
+  serverPreviewActive = false;
   
   // Drag and drop handlers
   private readonly preventDefaultsFn = (e: Event) => this.preventDefaults(e);
@@ -67,6 +73,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   private renderTask: any = null;
   private isRendering: boolean = false;
   private currentViewport: { width: number; height: number } | null = null;
+  private serverPageCache = new Map<string, string>(); // sessionId:page -> object URL
   
   constructor(private readonly cdr: ChangeDetectorRef) {}
 
@@ -91,6 +98,16 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.currentPdfIndex >= 0 && this.currentPdfIndex < this.pdfFiles.length
       ? this.pdfFiles[this.currentPdfIndex]
       : null;
+  }
+
+  get serverPreviewEnabled(): boolean {
+    return !!this.pdfBackend.settings.enabled;
+  }
+
+  private preferServerPreview(file: File): boolean {
+    if (!this.serverPreviewEnabled) return false;
+    const thresholdMb = this.pdfBackend.settings.largeFileThresholdMb || 8;
+    return file.size >= thresholdMb * 1024 * 1024;
   }
 
   setupDragAndDrop(): void {
@@ -151,9 +168,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       pdfjs = await this.pdfJsLoader.getPdfJs();
     } catch (error: unknown) {
       this.loading = false;
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      pdfNotifyError(this.toast, `Failed to load PDF viewer library: ${message}. Please refresh the page.`);
-      console.error('PDF.js load error:', error);
+      pdfNotifyFailure(this.toast, error, 'Could not load the PDF viewer. Please refresh the page.');
       return;
     }
     
@@ -190,23 +205,48 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
           pdfDoc: null,
           totalPages: 0,
           needsPassword: false,
-          passwordError: false
+          passwordError: false,
+          previewSource: 'client',
+          serverSessionId: null,
         };
-        
-        // Try to load the PDF with password callback
-        await this.loadPdfWithPassword(pdfFile);
+
+        if (this.preferServerPreview(file)) {
+          try {
+            await this.openServerPreview(pdfFile);
+            pdfNotifyWarning(this.toast, `${file.name}: using secure server preview (large file)`);
+          } catch (serverErr) {
+            // Fall back to client if server unavailable
+            await this.loadPdfWithPassword(pdfFile);
+          }
+        } else {
+          try {
+            await this.loadPdfWithPassword(pdfFile);
+          } catch (clientErr) {
+            if (this.serverPreviewEnabled && !pdfFile.needsPassword) {
+              try {
+                await this.openServerPreview(pdfFile);
+                pdfNotifyWarning(this.toast, `${file.name}: opened with server preview`);
+              } catch {
+                throw clientErr;
+              }
+            } else {
+              throw clientErr;
+            }
+          }
+        }
         
         this.pdfFiles.push(pdfFile);
         
-        if (this.currentPdfIndex === -1 && pdfFile.pdfDoc) {
+        if (this.currentPdfIndex === -1 && (pdfFile.pdfDoc || pdfFile.serverSessionId)) {
           this.currentPdfIndex = this.pdfFiles.length - 1;
           this.totalPages = pdfFile.totalPages;
           this.currentPage = 1;
+          this.serverPreviewActive = pdfFile.previewSource === 'server';
         }
         
         this.cdr.detectChanges();
       } catch (error) {
-        errors.push(`${file.name}: Failed to load PDF - ${error instanceof Error ? error.message : 'Unknown error'}`);
+        errors.push(`${file.name}: ${toUserFacingError(error, 'Could not load this PDF')}`);
       }
     }
 
@@ -217,12 +257,34 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.cdr.detectChanges();
 
-    if (this.currentPdf?.pdfDoc) {
+    if (this.currentPdf?.pdfDoc || this.currentPdf?.serverSessionId) {
       await this.scheduleRenderPage();
     }
     
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
+    }
+  }
+
+  async openServerPreview(pdfFile: PdfFile, password?: string): Promise<void> {
+    if (!this.serverPreviewEnabled) {
+      throw new Error('Server preview is unavailable');
+    }
+    const session = await this.pdfBackend.openPreviewSession(pdfFile.file, {
+      password: password || pdfFile.password,
+      fileName: pdfFile.name,
+    });
+    if (!session.sessionId || !session.pageCount) {
+      throw new Error('Server did not return a preview session');
+    }
+    pdfFile.previewSource = 'server';
+    pdfFile.serverSessionId = session.sessionId;
+    pdfFile.totalPages = session.pageCount;
+    pdfFile.pdfDoc = null;
+    pdfFile.needsPassword = false;
+    pdfFile.passwordError = false;
+    if (password) {
+      pdfFile.password = password;
     }
   }
 
@@ -287,13 +349,20 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.detectChanges();
         throw error;
       } else {
-        pdfNotifyError(this.toast, `Failed to load PDF: ${errorMessage}`);
+        pdfNotifyFailure(this.toast, error, 'Could not load the PDF');
         throw error;
       }
     }
   }
 
   async loadPdf(pdfFile: PdfFile): Promise<void> {
+    if (pdfFile.previewSource === 'server' && pdfFile.serverSessionId) {
+      this.totalPages = pdfFile.totalPages;
+      this.currentPage = 1;
+      this.serverPreviewActive = true;
+      await this.scheduleRenderPage();
+      return;
+    }
     if (!pdfFile.pdfDoc) {
       try {
         await this.loadPdfWithPassword(pdfFile);
@@ -305,6 +374,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
     
     this.totalPages = pdfFile.totalPages;
     this.currentPage = 1;
+    this.serverPreviewActive = false;
     await this.scheduleRenderPage();
   }
 
@@ -327,23 +397,35 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       (pdfFile as any).passwordResolver(password);
     }
     
-    // Try to load PDF with the new password
-    this.loadPdfWithPassword(pdfFile, password).then(() => {
+    const finishOk = () => {
       this.loading = false;
       this.passwordForPdf = null;
       this.passwordInput = '';
       this.passwordError = '';
-      
-      // If this is the current PDF, render it
       if (this.currentPdfIndex === this.pdfFiles.indexOf(pdfFile)) {
-        this.loadPdf(pdfFile);
+        void this.loadPdf(pdfFile);
       }
-      
       this.cdr.detectChanges();
-    }).catch((error: unknown) => {
-      this.loading = false;
-      // Error handling will show the password dialog again if password is wrong
-      this.cdr.detectChanges();
+    };
+
+    // Prefer client unlock; fall back to server preview for encrypted/large files.
+    this.loadPdfWithPassword(pdfFile, password).then(finishOk).catch(() => {
+      if (!this.serverPreviewEnabled) {
+        this.loading = false;
+        this.cdr.detectChanges();
+        return;
+      }
+      this.openServerPreview(pdfFile, password)
+        .then(() => {
+          pdfNotifySuccess(this.toast, 'Opened with secure server preview');
+          finishOk();
+        })
+        .catch((error: unknown) => {
+          this.loading = false;
+          this.passwordError = toUserFacingError(error, 'Incorrect password or server preview failed');
+          this.showPasswordDialog = true;
+          this.cdr.detectChanges();
+        });
     });
   }
 
@@ -366,6 +448,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   async selectPdf(index: number): Promise<void> {
     if (index >= 0 && index < this.pdfFiles.length) {
       this.currentPdfIndex = index;
+      this.serverPreviewActive = this.pdfFiles[index].previewSource === 'server';
       await this.loadPdf(this.pdfFiles[index]);
       this.cdr.detectChanges();
     }
@@ -400,7 +483,14 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async renderPage(): Promise<void> {
-    if (!this.currentPdf || !this.currentPdf.pdfDoc || this.isRendering) {
+    if (!this.currentPdf || this.isRendering) {
+      return;
+    }
+    if (this.currentPdf.previewSource === 'server' && this.currentPdf.serverSessionId) {
+      await this.renderServerPage();
+      return;
+    }
+    if (!this.currentPdf.pdfDoc) {
       return;
     }
 
@@ -470,11 +560,60 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cdr.detectChanges();
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
-        pdfNotifyError(this.toast, `Failed to render page: ${error.message}`);
+        pdfNotifyFailure(this.toast, error, 'Could not render this page');
       }
     } finally {
       this.isRendering = false;
       this.renderTask = null;
+    }
+  }
+
+  private async renderServerPage(): Promise<void> {
+    const pdf = this.currentPdf;
+    if (!pdf?.serverSessionId) return;
+    this.isRendering = true;
+    this.serverPreviewActive = true;
+    try {
+      const cacheKey = `${pdf.serverSessionId}:${this.currentPage}:${this.zoomLevel}`;
+      let objectUrl = this.serverPageCache.get(cacheKey);
+      if (!objectUrl) {
+        const dpi = Math.min(200, Math.max(96, Math.round(120 * (this.zoomLevel / 100))));
+        const blob = await this.pdfBackend.fetchPreviewPage(pdf.serverSessionId, this.currentPage, dpi);
+        objectUrl = URL.createObjectURL(blob);
+        this.serverPageCache.set(cacheKey, objectUrl);
+      }
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Could not load preview image'));
+        img.src = objectUrl!;
+      });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('Could not get canvas context');
+      const zoomScale = this.zoomLevel / 100;
+      const displayW = Math.floor(img.naturalWidth * (zoomScale > 1 ? 1 : zoomScale));
+      const displayH = Math.floor(img.naturalHeight * (zoomScale > 1 ? 1 : zoomScale));
+      // When zoom > 100%, server already rendered higher DPI; show natural size scaled by CSS
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.style.width = (this.zoomLevel >= 100 ? Math.floor(img.naturalWidth * (this.zoomLevel / 100)) : displayW) + 'px';
+      canvas.style.height = (this.zoomLevel >= 100 ? Math.floor(img.naturalHeight * (this.zoomLevel / 100)) : displayH) + 'px';
+      context.drawImage(img, 0, 0);
+      this.currentViewport = { width: img.naturalWidth, height: img.naturalHeight };
+
+      if (this.isFullscreen && this.fullscreenCanvasContainer?.nativeElement) {
+        this.fullscreenCanvasContainer.nativeElement.innerHTML = '';
+        this.fullscreenCanvasContainer.nativeElement.appendChild(canvas);
+      } else if (this.canvasContainer?.nativeElement) {
+        this.canvasContainer.nativeElement.innerHTML = '';
+        this.canvasContainer.nativeElement.appendChild(canvas);
+      }
+      this.cdr.detectChanges();
+    } catch (error) {
+      pdfNotifyFailure(this.toast, error, 'Could not render server preview page');
+    } finally {
+      this.isRendering = false;
     }
   }
 
@@ -620,7 +759,7 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
       downloadBytes(new Uint8Array(buffer), this.currentPdf.name);
       pdfNotifySuccess(this.toast, 'Download started');
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Download failed');
+      pdfNotifyFailure(this.toast, error, 'Could not download the PDF');
     }
   }
 
@@ -678,6 +817,11 @@ export class PdfViewerComponent implements OnInit, AfterViewInit, OnDestroy {
         pdfFile.pdfDoc.destroy?.();
       }
     }
+    for (const url of this.serverPageCache.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.serverPageCache.clear();
+    this.serverPreviewActive = false;
     
     this.pdfFiles = [];
     this.currentPdfIndex = -1;

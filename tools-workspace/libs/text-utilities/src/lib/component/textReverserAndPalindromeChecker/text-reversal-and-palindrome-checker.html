@@ -10,7 +10,7 @@
 
       <div class="trp__stats" aria-label="Text statistics">
         <div class="trp__stat">
-          <span class="trp__stat-value">{{ inputText.length }}</span>
+          <span class="trp__stat-value" [title]="formatStatTitle(inputText.length)">{{ formatStatCount(inputText.length) }}</span>
           <span class="trp__stat-label">Input</span>
         </div>
         <div class="trp__stat">
@@ -48,6 +48,12 @@
     </div>
 
     <div class="trp__workspace">
+
+      <lib-text-tool-processing-overlay
+        [visible]="isProcessing"
+        [label]="processingLabel"
+        [progress]="processingProgress" />
+
       <div class="trp__editors" aria-label="Input and results">
         <section
           class="trp__editor"
@@ -62,9 +68,8 @@
                 type="button"
                 class="trp__tool-btn"
                 (click)="uploadTextFile()"
-                [disabled]="isReadingFile"
                 aria-label="Upload text file"
-                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+                [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')"
                 tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
                 <span class="trp__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>

@@ -11,7 +11,9 @@ import {
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import { MonacoEditorModule } from 'ngx-monaco-editor-v2';
 import { Subject } from 'rxjs';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
@@ -35,7 +37,6 @@ import type {
 import {
   clampDiffFontSize,
   computeDiffStats,
-  isLikelyDiffTextFile,
   normalizeDiffLanguage,
   resolveTextDifferenceSuggestion,
 } from '../../utils/text-difference.utils';
@@ -53,11 +54,11 @@ import {
     ReactiveFormsModule,
     MonacoEditorModule,
     TooltipDirective,
+    TextToolProcessingOverlayComponent,
   ],
 })
-export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy {
+export class TextDifferenceComponent extends TextToolProcessingHost implements OnInit, AfterViewInit, OnDestroy {
   readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = TEXT_DIFF_RELATED_TOOLS;
@@ -178,9 +179,8 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   private resizeDebounceTimer?: ReturnType<typeof setTimeout>;
   private originalChangeDisposable?: { dispose(): void };
   private modifiedChangeDisposable?: { dispose(): void };
-  private fileInput?: HTMLInputElement;
   private uploadTarget: 'original' | 'modified' = 'original';
-  readonly maxUploadBytes = TEXT_DIFF_MAX_UPLOAD_BYTES;
+  override maxUploadBytes = TEXT_DIFF_MAX_UPLOAD_BYTES;
 
   @ViewChild('editorContainer', { static: false }) editorContainer?: ElementRef<HTMLElement>;
 
@@ -241,7 +241,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     }
   }
 
-  ngOnDestroy(): void {
+  override ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
     this.resizeObserver?.disconnect();
@@ -252,8 +252,7 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
     this.originalChangeDisposable?.dispose();
     this.modifiedChangeDisposable?.dispose();
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    super.ngOnDestroy();
   }
 
   onEditorInit(editor: typeof this.editor): void {
@@ -338,12 +337,12 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
 
   uploadOriginal(): void {
     this.uploadTarget = 'original';
-    this.openFilePicker();
+    this.uploadTextFile();
   }
 
   uploadModified(): void {
     this.uploadTarget = 'modified';
-    this.openFilePicker();
+    this.uploadTextFile();
   }
 
   swapSides(): void {
@@ -356,11 +355,11 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   downloadOriginal(): void {
-    this.downloadText(this.getOriginalContent(), 'original.txt');
+    this.downloadContent(this.getOriginalContent(), 'original.txt');
   }
 
   downloadModified(): void {
-    this.downloadText(this.getModifiedContent(), 'modified.txt');
+    this.downloadContent(this.getModifiedContent(), 'modified.txt');
   }
 
   clearOriginal(): void {
@@ -448,63 +447,13 @@ export class TextDifferenceComponent implements OnInit, AfterViewInit, OnDestroy
     this.diffStats = computeDiffStats(original, modified, changes);
   }
 
-  private openFilePicker(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) this.handleUploadedFile(file);
-        if (this.fileInput) this.fileInput.value = '';
-      });
-      document.body.appendChild(this.fileInput);
+  protected override onUploadedTextApplied(text: string): void {
+    this.dismissedSuggestionId = null;
+    if (this.uploadTarget === 'original') {
+      this.setOriginalContent(text);
+    } else {
+      this.setModifiedContent(text);
     }
-
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.ts,.js,.css,.py,.java,text/*,application/json,application/xml';
-    this.fileInput.click();
-  }
-
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(
-        `File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`
-      );
-      return;
-    }
-
-    if (!isLikelyDiffTextFile(file)) {
-      this.toastService.error('Please upload a text-based file.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      this.dismissedSuggestionId = null;
-      if (this.uploadTarget === 'original') {
-        this.setOriginalContent(text);
-      } else {
-        this.setModifiedContent(text);
-      }
-      this.toastService.info(`Loaded "${file.name}" into ${this.uploadTarget}`);
-    };
-    reader.onerror = () => {
-      this.toastService.error('Could not read the file.');
-    };
-    reader.readAsText(file);
-  }
-
-  private downloadText(text: string, filename: string): void {
-    if (!text) return;
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    this.toastService.info(`Downloaded ${filename}`);
   }
 
   private copyText(text: string, label: string): void {

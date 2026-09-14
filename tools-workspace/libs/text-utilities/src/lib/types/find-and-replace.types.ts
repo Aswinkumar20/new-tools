@@ -18,4 +18,6 @@ export interface FindAndReplaceSuggestionContext {
   matchCount: number;
   useRegex: boolean;
   outputUnchanged: boolean;
+  replaceApplied: boolean;
+  appliedMatchCount: number;
 }

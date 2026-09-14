@@ -10,15 +10,15 @@
 
       <div class="rdl__stats" aria-label="Live text metrics">
         <div class="rdl__stat">
-          <span class="rdl__stat-value">{{ wordCount }}</span>
+          <span class="rdl__stat-value" [title]="formatStatTitle(wordCount)">{{ formatStatCount(wordCount) }}</span>
           <span class="rdl__stat-label">Words</span>
         </div>
         <div class="rdl__stat">
-          <span class="rdl__stat-value">{{ removedCount }}</span>
+          <span class="rdl__stat-value" [title]="formatStatTitle(removedCount)">{{ formatStatCount(removedCount) }}</span>
           <span class="rdl__stat-label">Removed</span>
         </div>
         <div class="rdl__stat">
-          <span class="rdl__stat-value">{{ duplicateCount }}</span>
+          <span class="rdl__stat-value" [title]="formatStatTitle(duplicateCount)">{{ formatStatCount(duplicateCount) }}</span>
           <span class="rdl__stat-label">Dup keys</span>
         </div>
         <div class="rdl__stat">
@@ -148,6 +148,12 @@
     }
 
     <div class="rdl__workspace">
+
+      <lib-text-tool-processing-overlay
+        [visible]="isProcessing"
+        [label]="processingLabel"
+        [progress]="processingProgress" />
+
       <div class="rdl__editors" aria-label="Source and cleaned text">
         <section
           class="rdl__editor"
@@ -158,7 +164,7 @@
           <header class="rdl__editor-head" aria-label="Source editor actions">
             <span class="rdl__editor-title">Source</span>
             <div class="rdl__toolbar">
-              <button type="button" class="rdl__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" [appTooltip]="isReadingFile ? 'Reading…' : 'Upload'" tooltipPosition="bottom">
+              <button type="button" class="rdl__tool-btn" (click)="uploadTextFile()" [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
                 <span class="rdl__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
               </button>

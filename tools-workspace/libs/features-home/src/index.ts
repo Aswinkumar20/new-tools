@@ -14,6 +14,10 @@ export * from './lib/directive/stat-value-tooltip-host.directive';
 export * from './lib/component/select-box/select-box';
 export * from './lib/component/coming-soon-tool/coming-soon-tool';
 export * from './lib/component/coming-soon-page/coming-soon-page';
+export * from './lib/component/about-page/about-page';
+export { AboutPageComponent } from './lib/component/about-page/about-page';
+export * from './lib/component/contact-page/contact-page';
+export { ContactPageComponent } from './lib/component/contact-page/contact-page';
 export * from './lib/types/coming-soon-tool.types';
 export * from './lib/constants/coming-soon-tools';
 export {
@@ -21,3 +25,5 @@ export {
   type ToolCatalogEntry,
   type ToolCategoryCatalog,
 } from './lib/config/tools-catalog.generated';
+export * from './lib/utils/user-facing-error.util';
+export * from './lib/tokens/route-prefetch.token';

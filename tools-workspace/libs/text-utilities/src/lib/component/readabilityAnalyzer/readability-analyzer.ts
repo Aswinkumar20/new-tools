@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import { READABILITY_RELATED_TOOLS } from '../../constants/readability-analyzer.constants';
 import type { ReadabilityResult } from '../../types/readability-analyzer.types';
@@ -17,7 +18,7 @@ import {
   standalone: true,
   templateUrl: './readability-analyzer.html',
   styleUrls: ['./readability-analyzer.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class ReadabilityAnalyzerComponent extends TextToolBase {
   readability: ReadabilityResult | null = null;

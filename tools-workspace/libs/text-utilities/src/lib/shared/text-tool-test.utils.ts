@@ -3,8 +3,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { AssetService, ToastService } from '@tools-workspace/features-home';
 
+import { enableTextToolSyncProcessForTests } from './text-tool-sync-process';
+
+export { enableTextToolSyncProcessForTests };
+
 /** Shared TestBed providers for standalone text-tool components. */
 export function textToolTestProviders(): Provider[] {
+  enableTextToolSyncProcessForTests();
   return [
     provideHttpClient(),
     provideHttpClientTesting(),

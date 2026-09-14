@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   KEYWORD_DENSITY_DEFAULT_EXCLUDE_STOP_WORDS,
@@ -22,7 +23,7 @@ import {
   standalone: true,
   templateUrl: './keyword-density.html',
   styleUrls: ['./keyword-density.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class KeywordDensityComponent extends TextToolBase {
   topN = KEYWORD_DENSITY_DEFAULT_TOP_N;

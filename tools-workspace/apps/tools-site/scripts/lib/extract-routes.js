@@ -154,10 +154,6 @@ function readRoutesFile() {
 
 /** Tools that use a real component but mark themselves as coming-soon placeholders. */
 const EXTRA_COMING_SOON_PATHS = [
-  '/file-viewers/video-player',
-  '/media-tools/audio-trimmer',
-  '/media-tools/video-to-gif',
-  '/media-tools/webcam-snapshot',
 ];
 
 function extractRoutedTools() {
@@ -171,11 +167,13 @@ function extractRoutedTools() {
     if (slug === 'tools') continue;
     const src = fs.readFileSync(path.join(ROUTES_DIR, name), 'utf8');
     const tools = [];
+    const seen = new Set();
     const re = /path:\s*'([^']*)',(?:(?!\bpath:\s*')[\s\S])*?loadComponent:/g;
     let match;
     while ((match = re.exec(src))) {
       const toolPath = match[1];
-      if (!toolPath || toolPath === '404') continue;
+      if (!toolPath || toolPath === '404' || seen.has(toolPath)) continue;
+      seen.add(toolPath);
       tools.push(toolPath);
     }
     toolsByCategory.set(slug, tools);

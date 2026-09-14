@@ -10,27 +10,27 @@
 
       <div class="wcc__stats" aria-label="Live text counters">
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ wordCount }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(wordCount)">{{ formatStatCount(wordCount) }}</span>
           <span class="wcc__stat-label">Words</span>
         </div>
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ charCount }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(charCount)">{{ formatStatCount(charCount) }}</span>
           <span class="wcc__stat-label">Chars</span>
         </div>
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ sentenceCount }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(sentenceCount)">{{ formatStatCount(sentenceCount) }}</span>
           <span class="wcc__stat-label">Sentences</span>
         </div>
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ paragraphCount }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(paragraphCount)">{{ formatStatCount(paragraphCount) }}</span>
           <span class="wcc__stat-label">Paragraphs</span>
         </div>
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ lineCount }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(lineCount)">{{ formatStatCount(lineCount) }}</span>
           <span class="wcc__stat-label">Lines</span>
         </div>
         <div class="wcc__stat">
-          <span class="wcc__stat-value">{{ hasContent ? uniqueWordCount : 0 }}</span>
+          <span class="wcc__stat-value" [title]="formatStatTitle(hasContent ? uniqueWordCount : 0)">{{ formatStatCount(hasContent ? uniqueWordCount : 0) }}</span>
           <span class="wcc__stat-label">Unique</span>
         </div>
         <div class="wcc__stat">
@@ -45,6 +45,34 @@
     </div>
 
     <div class="wcc__workspace">
+    @if (isProcessing) {
+      <div class="wcc__processing" role="status" aria-live="polite" aria-busy="true">
+        <div class="wcc__processing-card">
+          <div class="wcc__processing-spinner" aria-hidden="true"></div>
+          <p class="wcc__processing-label">
+            {{ processingLabel }}<span class="wcc__processing-dots" aria-hidden="true"></span>
+          </p>
+          <div
+            class="wcc__progress"
+            [class.wcc__progress--indeterminate]="isProgressIndeterminate"
+            role="progressbar"
+            [attr.aria-valuemin]="0"
+            [attr.aria-valuemax]="100"
+            [attr.aria-valuenow]="isProgressIndeterminate ? null : processingProgressRounded">
+            <div
+              class="wcc__progress-bar"
+              [style.width.%]="isProgressIndeterminate ? null : processingProgressRounded"></div>
+          </div>
+          <span class="wcc__progress-meta">
+            @if (isProgressIndeterminate) {
+              Starting…
+            } @else {
+              {{ processingProgressRounded }}% complete
+            }
+          </span>
+        </div>
+      </div>
+    }
     <section
       class="wcc__editor"
       [class.wcc__editor--dragover]="isDragOver"
@@ -58,9 +86,8 @@
             type="button"
             class="wcc__tool-btn"
             (click)="uploadTextFile()"
-            [disabled]="isReadingFile"
             aria-label="Upload text file"
-            [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+            [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')"
             tooltipPosition="bottom">
             <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
             <span class="wcc__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
@@ -91,34 +118,34 @@
             type="button"
             class="wcc__tool-btn"
             (click)="exportFrequencyCsv()"
-            [disabled]="!hasContent"
+            [disabled]="!hasContent || isProcessing"
             aria-label="Export frequency CSV"
-            appTooltip="Export frequency CSV"
+            [appTooltip]="isExporting === 'csv' ? 'Exporting CSV…' : 'Export frequency CSV'"
             tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-            <span class="wcc__tool-btn-label">CSV</span>
+            <img [src]="assetService.getAssetPath(isExporting === 'csv' ? 'icons/spinner.svg' : 'icons/txt.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">{{ isExporting === 'csv' ? '…' : 'CSV' }}</span>
           </button>
           <button
             type="button"
             class="wcc__tool-btn"
             (click)="downloadAnalysis('pdf')"
-            [disabled]="!hasContent || isGeneratingPdf"
+            [disabled]="!hasContent || isProcessing"
             aria-label="Download PDF"
             [appTooltip]="isGeneratingPdf ? 'Generating PDF…' : 'Download PDF'"
             tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath(isGeneratingPdf ? 'icons/spinner.svg' : 'icons/pdf.svg')" alt="" width="18" height="18" />
+            <img [src]="assetService.getAssetPath(isGeneratingPdf ? 'icons/spinner.svg' : 'icons/pdf-outline.svg')" alt="" width="18" height="18" />
             <span class="wcc__tool-btn-label">{{ isGeneratingPdf ? '…' : 'PDF' }}</span>
           </button>
           <button
             type="button"
             class="wcc__tool-btn"
             (click)="downloadAnalysis('txt')"
-            [disabled]="!hasContent"
+            [disabled]="!hasContent || isProcessing"
             aria-label="Download TXT"
-            appTooltip="Download TXT"
+            [appTooltip]="isExporting === 'txt' ? 'Downloading TXT…' : 'Download TXT'"
             tooltipPosition="bottom">
-            <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
-            <span class="wcc__tool-btn-label">TXT</span>
+            <img [src]="assetService.getAssetPath(isExporting === 'txt' ? 'icons/spinner.svg' : 'icons/txt.svg')" alt="" width="18" height="18" />
+            <span class="wcc__tool-btn-label">{{ isExporting === 'txt' ? '…' : 'TXT' }}</span>
           </button>
           <button
             type="button"
@@ -191,7 +218,7 @@
       </div>
 
       <footer class="wcc__editor-foot">
-        <span>No spaces: <strong>{{ charCountNoSpaces }}</strong></span>
+        <span>No spaces: <strong [title]="formatStatTitle(charCountNoSpaces)">{{ formatStatCount(charCountNoSpaces) }}</strong></span>
         <span>Avg sentence: <strong>{{ hasContent ? averageSentenceLength : '—' }}</strong></span>
         <button type="button" class="wcc__clear" (click)="clearText()" [disabled]="!hasContent">Clear</button>
       </footer>
@@ -283,7 +310,7 @@
                       [class.wcc__table-row--active]="highlightedWord === item.word"
                       (click)="highlightWord(item.word)">
                       <td>{{ item.word }}</td>
-                      <td class="wcc__table-count">{{ item.count }}</td>
+                      <td class="wcc__table-count" [title]="formatStatTitle(item.count)">{{ formatStatCount(item.count) }}</td>
                       <td class="wcc__table-density">{{ item.density }}%</td>
                     </tr>
                   }
@@ -322,7 +349,7 @@
                     @for (item of activePhraseList; track item.phrase) {
                       <tr>
                         <td>{{ item.phrase }}</td>
-                        <td class="wcc__table-count">{{ item.count }}</td>
+                        <td class="wcc__table-count" [title]="formatStatTitle(item.count)">{{ formatStatCount(item.count) }}</td>
                         <td class="wcc__table-density">{{ phraseDensity(item.count) }}%</td>
                       </tr>
                     }
@@ -349,7 +376,7 @@
                 <div>
                   <dt>{{ item.label }}</dt>
                   <dd>
-                    <span class="wcc__breakdown-value">{{ item.value }}</span>
+                    <span class="wcc__breakdown-value" [title]="formatStatTitle(item.value)">{{ formatStatCount(item.value) }}</span>
                     <span class="wcc__breakdown-pct">{{ item.pct }}%</span>
                   </dd>
                 </div>

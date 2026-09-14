@@ -26,6 +26,21 @@ export const WCC_PHRASE_DISPLAY_LIMIT = 50;
 export const WCC_MAX_HISTORY_ENTRIES = 30;
 export const WCC_MAX_STORED_ENTRY_LENGTH = 100000;
 
+/** Character counts at or above this use extended debounce and analysis indicators. */
+export const WCC_LARGE_TEXT_THRESHOLD = 100_000;
+
+/** Character counts at or above this use maximum debounce. */
+export const WCC_HUGE_TEXT_THRESHOLD = 1_000_000;
+
+/** Word counts above this skip expensive n-gram analysis. */
+export const WCC_NGRAM_MAX_WORDS = 100_000;
+
+/** Highlight overlay is disabled above this length for performance. */
+export const WCC_HIGHLIGHT_MAX_LENGTH = 50_000;
+
+/** Display compact notation (K / L / Cr) at or above this count. */
+export const WCC_COMPACT_COUNT_THRESHOLD = 10_000;
+
 /** Flesch scores at or below this are treated as difficult for suggestions. */
 export const WCC_DIFFICULT_READABILITY_THRESHOLD = 50;
 

@@ -31,9 +31,9 @@ const TOOL_ENRICHMENT = {
   '/tools/home': {
     title: 'EasyToolHub - Free Online Tools for Everyone',
     description:
-      'Discover 160+ free online tools for text editing, PDF editing, file conversion, image tools, calculators, developer utilities, and security. No signup — fast, private, and browser-based.',
+      'Discover 400+ free online tools for text editing, PDF editing, file conversion, image tools, calculators, developer utilities, CAD/GIS viewers, and security. No signup — fast, private, and browser-based.',
     keywords:
-      'free online tools, online utilities, text tools, PDF tools, file converter, image tools, JSON formatter, developer tools, password generator, QR code generator, unit converter, hash generator, word counter, merge PDF, compress PDF, easytoolhub',
+      'free online tools, online utilities, text tools, PDF tools, merge PDF, compress PDF, file converter, image tools, JSON formatter, developer tools, password generator, QR code generator, unit converter, hash generator, word counter, CAD viewer, GIS viewer, easytoolhub, no signup tools, browser based tools',
   },
   '/file-viewers/word-viewer': {
     name: 'Word Viewer',
@@ -1477,12 +1477,51 @@ const KEYWORD_EXTRAS = {
     'json formatter, json beautifier, json validator, pretty print json, json prettifier',
   '/data-converters/csv-to-json-json-to-csv': 'csv to json, json to csv, convert csv json',
   '/data-converters/yaml-to-json-json-to-yaml': 'yaml to json, json to yaml, yaml converter',
-  '/pdf-tools/merge-pdfs': 'merge pdf, combine pdf, pdf merger, join pdf files',
-  '/pdf-tools/split-pdfs': 'split pdf, pdf splitter, separate pdf pages',
-  '/pdf-tools/compress-pdf': 'compress pdf, reduce pdf size, pdf compressor online',
-  '/pdf-tools/pdf-viewer': 'pdf viewer online, view pdf in browser, free pdf reader',
-  '/pdf-tools/password-protect-pdf': 'password protect pdf, encrypt pdf, lock pdf',
-  '/pdf-tools/image-to-pdf': 'image to pdf, jpg to pdf, png to pdf, convert image pdf',
+  '/pdf-tools/merge-pdfs': 'merge pdf, combine pdf, pdf merger, join pdf files, merge multiple pdfs, combine pdf pages',
+  '/pdf-tools/split-pdfs': 'split pdf, pdf splitter, separate pdf pages, extract pdf pages, split pdf by range',
+  '/pdf-tools/compress-pdf': 'compress pdf, reduce pdf size, pdf compressor online, shrink pdf, optimize pdf size',
+  '/pdf-tools/pdf-viewer': 'pdf viewer online, view pdf in browser, free pdf reader, open pdf online, pdf preview',
+  '/pdf-tools/password-protect-pdf': 'password protect pdf, encrypt pdf, lock pdf, secure pdf password',
+  '/pdf-tools/unlock-pdf': 'unlock pdf, remove pdf password, decrypt pdf, open password pdf',
+  '/pdf-tools/image-to-pdf': 'image to pdf, jpg to pdf, png to pdf, convert image pdf, photos to pdf',
+  '/pdf-tools/pdf-to-images': 'pdf to images, pdf to jpg, pdf to png, convert pdf pages images',
+  '/pdf-tools/pdf-to-txt': 'pdf to text, extract text from pdf, pdf to txt converter',
+  '/pdf-tools/ocr-pdf': 'ocr pdf, searchable pdf, scan to pdf ocr, tesseract pdf',
+  '/pdf-tools/pdf-redact': 'pdf redact, redaction tool, black out pdf text, remove sensitive pdf data',
+  '/pdf-tools/pdf-form-validate': 'pdf form validate, required fields check, acroform validation',
+  '/pdf-tools/word-to-pdf': 'word to pdf, docx to pdf, convert word document pdf',
+  '/pdf-tools/excel-to-pdf': 'excel to pdf, xlsx to pdf, spreadsheet to pdf',
+  '/pdf-tools/powerpoint-to-pdf': 'powerpoint to pdf, pptx to pdf, presentation to pdf',
+  '/pdf-tools/url-to-pdf': 'url to pdf, webpage to pdf, convert website pdf',
+  '/pdf-tools/markdown-to-pdf': 'markdown to pdf, md to pdf converter',
+  '/pdf-tools/pdf-digital-signature': 'digital signature pdf, sign pdf pkcs12, certificate sign pdf',
+  '/pdf-tools/pdf-batch-processing': 'batch pdf processing, bulk pdf tools, process multiple pdfs',
+  '/pdf-tools/pdf-to-pdfa': 'pdf to pdfa, pdfa converter, archival pdf',
+  '/pdf-tools/pdf-web-optimizer': 'web optimize pdf, linearize pdf, fast web view pdf',
+  '/pdf-tools/annotate-pdf': 'annotate pdf, pdf markup, comment on pdf',
+  '/pdf-tools/add-watermark': 'pdf watermark, stamp pdf, add watermark online',
+  '/pdf-tools/add-signature': 'add signature pdf, sign pdf online, draw signature pdf',
+  '/pdf-tools/fill-pdf-forms': 'fill pdf form, complete acroform, fillable pdf online',
+  '/pdf-tools/rotate-pages': 'rotate pdf pages, turn pdf landscape portrait',
+  '/pdf-tools/delete-pages': 'delete pdf pages, remove pages from pdf',
+  '/pdf-tools/extract-pages': 'extract pdf pages, save pdf pages, pdf page extractor',
+  '/pdf-tools/reorder-pages': 'reorder pdf pages, rearrange pdf, sort pdf pages',
+  '/pdf-tools/pdf-to-docx': 'pdf to word, pdf to docx, convert pdf word',
+  '/pdf-tools/images-to-searchable-pdf': 'images to searchable pdf, ocr images pdf, scan photos to pdf',
+  '/pdf-tools/pdf-deskew': 'deskew pdf, straighten scanned pdf, fix skewed pdf',
+  '/pdf-tools/pdf-form-export': 'export pdf form, xfdf export, pdf form json',
+  '/pdf-tools/pdf-form-import': 'import pdf form, fill from xfdf, pdf form import json',
+  '/pdf-tools/pdf-form-creator': 'create pdf form, add form fields, acroform builder',
+  '/pdf-tools/pdf-signature-verification': 'verify pdf signature, check digital signature pdf',
+  '/pdf-tools/pdf-signature-stamp': 'signature stamp pdf, visible signature image',
+  '/pdf-tools/html-to-pdf': 'html to pdf, convert html page pdf, webpage html pdf',
+  '/pdf-tools/create-pdf-from-html': 'create pdf from html, html template pdf',
+  '/pdf-tools/text-to-pdf': 'text to pdf, txt to pdf converter, plain text pdf',
+  '/pdf-tools/pdf-metadata-editor': 'pdf metadata editor, edit pdf title author',
+  '/pdf-tools/pdf-repair': 'repair pdf, fix corrupt pdf, recover broken pdf',
+  '/pdf-tools/pdf-search': 'search pdf online, find text in pdf',
+  '/pdf-tools/pdf-diff': 'pdf diff, compare pdf files, pdf difference checker',
+  '/pdf-tools/pdf-summarizer': 'pdf summarizer, summarize pdf online, pdf summary tool',
   '/security-tools/hash-generator': 'md5 hash, sha256 generator, sha512 hash, checksum calculator',
   '/security-tools/random-password-generator':
     'password generator, strong password, random password maker',
@@ -1508,20 +1547,125 @@ const KEYWORD_EXTRAS = {
 };
 
 const CATEGORY_KEYWORD_HINTS = {
-  'text-utilities': 'text tool, text editor online, string utility',
-  'file-viewers': 'file viewer online, document viewer, open file in browser',
-  'data-converters': 'data converter, format converter, json tools',
-  'math-date-utils': 'calculator online, converter tool, math utility',
-  'pdf-tools': 'pdf tool online, edit pdf free, pdf utility',
-  'image-color-tools': 'image tool online, photo editor utility, color tool',
-  'code-file-tools': 'code tool online, developer utility, minify tool',
-  'dev-design-tools': 'web developer tool, css tool, api testing tool',
-  'testing-tools': 'validator online, testing utility, format checker',
-  'security-tools': 'security tool, crypto utility, encryption tool',
-  'media-tools': 'audio tool online, video utility, media converter',
-  'browser-utils': 'browser tool, system utility, web utility',
-  'fun-tools': 'productivity tool, generator online, fun utility',
+  'text-utilities':
+    'text tool, text editor online, string utility, free text tools, online text editor, character tools',
+  'file-viewers':
+    'file viewer online, document viewer, open file in browser, free file viewer, online document preview',
+  'data-converters':
+    'data converter, format converter, json tools, free data converter, online format converter',
+  'math-date-utils':
+    'calculator online, converter tool, math utility, free calculator, online math tools, date calculator',
+  'pdf-tools':
+    'pdf tool online, edit pdf free, pdf utility, free pdf tools, online pdf editor, pdf converter, adobe pdf alternative',
+  'image-color-tools':
+    'image tool online, photo editor utility, color tool, free image tools, online photo editor',
+  'code-file-tools':
+    'code tool online, developer utility, minify tool, free developer tools, online code tools',
+  'dev-design-tools':
+    'web developer tool, css tool, api testing tool, free web tools, frontend utility',
+  'testing-tools':
+    'validator online, testing utility, format checker, free validator, online testing tools',
+  'security-tools':
+    'security tool, crypto utility, encryption tool, free security tools, online crypto tools',
+  'media-tools':
+    'audio tool online, video utility, media converter, free media tools, online audio tools',
+  'browser-utils':
+    'browser tool, system utility, web utility, free browser tools, online system tools',
+  'fun-tools':
+    'productivity tool, generator online, fun utility, free generators, online productivity tools',
+  'cad-viewers':
+    'cad viewer online, engineering file viewer, free cad viewer, open cad files online',
+  'gis-viewers':
+    'gis viewer online, map file viewer, free gis tools, geojson viewer online',
+  'medical-viewers':
+    'medical file viewer, dicom viewer online, free healthcare viewers',
+  'science-viewers':
+    'scientific data viewer, research file viewer, free science tools online',
+  'network-viewers':
+    'network file viewer, pcap viewer online, har viewer, free network tools',
+  'process-viewers':
+    'process diagram viewer, bpmn viewer online, workflow viewer, free process tools',
+  'diagram-viewers':
+    'diagram viewer online, uml viewer, mermaid viewer, free diagram tools',
+  'data-explorers':
+    'data explorer online, parquet viewer, sqlite browser, free data tools',
+  'ml-viewers':
+    'ml model viewer, onnx viewer online, free machine learning tools',
 };
+
+/** Common slug-token → high-intent search phrases (applied to every matching tool). */
+const TOKEN_SYNONYMS = {
+  pdf: ['pdf file', 'pdf document', 'adobe pdf'],
+  merge: ['combine pdf', 'join files', 'merge files'],
+  split: ['separate pages', 'extract ranges'],
+  compress: ['reduce size', 'shrink file', 'optimize size'],
+  convert: ['converter', 'file conversion', 'convert online'],
+  converter: ['convert online', 'file conversion'],
+  viewer: ['online viewer', 'open online', 'preview online', 'reader online'],
+  editor: ['edit online', 'online editor'],
+  generator: ['create online', 'maker online', 'generator free'],
+  extractor: ['extract online', 'pull data', 'parse online'],
+  validator: ['validate online', 'checker online', 'verify online'],
+  formatter: ['beautify online', 'pretty print', 'format online'],
+  encoder: ['encode online', 'encoding tool'],
+  decoder: ['decode online', 'decoding tool'],
+  encrypt: ['encryption online', 'secure file'],
+  decrypt: ['decryption online', 'unlock file'],
+  password: ['password protect', 'secure with password'],
+  ocr: ['optical character recognition', 'make searchable', 'scan to text'],
+  image: ['photo', 'picture', 'jpg png'],
+  json: ['json file', 'javascript object notation', 'export json', 'json data'],
+  csv: ['comma separated', 'spreadsheet csv', 'export csv', 'csv data'],
+  xml: ['xml file', 'markup xml'],
+  hash: ['checksum', 'digest', 'hash online'],
+  qr: ['qr code', 'qrcode'],
+  barcode: ['bar code', 'upc ean'],
+  markdown: ['md file', 'markdown document'],
+  html: ['html file', 'web page'],
+  word: ['docx', 'microsoft word'],
+  excel: ['xlsx', 'spreadsheet'],
+  powerpoint: ['pptx', 'presentation'],
+  signature: ['sign document', 'e-sign', 'digital sign'],
+  redact: ['black out text', 'remove sensitive data', 'pdf redaction'],
+  watermark: ['add watermark', 'stamp pdf'],
+  rotate: ['rotate pages', 'turn pages'],
+  unlock: ['remove password', 'decrypt pdf'],
+  repair: ['fix corrupt file', 'recover pdf'],
+  search: ['find text', 'full text search'],
+  batch: ['bulk process', 'multiple files'],
+  form: ['acroform', 'fillable form', 'pdf form fields'],
+  deskew: ['straighten scan', 'fix skew'],
+  bookmark: ['pdf outline', 'table bookmarks'],
+  crop: ['crop pages', 'trim pdf'],
+  grayscale: ['black and white pdf', 'greyscale convert'],
+  compare: ['diff files', 'side by side compare'],
+  diff: ['compare documents', 'difference checker'],
+  summarizer: ['ai summary', 'document summary'],
+  chat: ['ask pdf', 'pdf qa'],
+  rag: ['retrieval augmented', 'pdf knowledge'],
+  pii: ['personally identifiable information', 'detect pii'],
+  sensitive: ['confidential data', 'secret scanner'],
+  accessibility: ['a11y pdf', 'tagged pdf'],
+  epub: ['ebook epub', 'epub convert'],
+  docx: ['word document', 'office word'],
+  url: ['webpage url', 'website link'],
+};
+
+const GLOBAL_KEYWORDS = [
+  'free online tool',
+  'online utility',
+  'web based tool',
+  'browser based tool',
+  'no signup',
+  'no install',
+  'no registration',
+  'privacy focused',
+  'private online tool',
+  'works in browser',
+  'instant online tool',
+  'easytoolhub',
+  'easy tool hub',
+];
 
 function uniqueKeywords(parts) {
   const seen = new Set();
@@ -1531,7 +1675,7 @@ function uniqueKeywords(parts) {
       .trim()
       .replace(/\s+/g, ' ')
       .toLowerCase();
-    if (!cleaned || seen.has(cleaned)) continue;
+    if (!cleaned || cleaned.length < 2 || seen.has(cleaned)) continue;
     seen.add(cleaned);
     out.push(cleaned);
   }
@@ -1544,36 +1688,115 @@ function meaningfulSlugPhrases(slug) {
   if (words.length) {
     phrases.push(words.join(' '));
   }
-  // Keep useful 2-word combos from the slug (e.g. "merge pdf", "hash generator")
   for (let i = 0; i < words.length - 1; i++) {
     phrases.push(`${words[i]} ${words[i + 1]}`);
   }
+  if (words.length >= 3) {
+    phrases.push(`${words[0]} ${words[words.length - 1]}`);
+  }
   return phrases;
+}
+
+function synonymPhrasesFromSlug(slug) {
+  const words = slug.split('-').filter(Boolean);
+  const phrases = [];
+  for (const word of words) {
+    const syns = TOKEN_SYNONYMS[word];
+    if (!syns) continue;
+    phrases.push(...syns);
+  }
+  return phrases;
+}
+
+function intentPhrases(shortName) {
+  if (!shortName) return [];
+  return [
+    shortName,
+    `${shortName} online`,
+    `free ${shortName}`,
+    `online ${shortName}`,
+    `${shortName} free`,
+    `${shortName} tool`,
+    `${shortName} online tool`,
+    `free online ${shortName}`,
+    `best free ${shortName}`,
+    `best ${shortName} online`,
+    `${shortName} no signup`,
+    `${shortName} in browser`,
+    `${shortName} without download`,
+    `${shortName} without install`,
+    `use ${shortName} online`,
+    `how to use ${shortName}`,
+    `${shortName} free alternative`,
+    `instant ${shortName}`,
+    `${shortName} web app`,
+  ];
+}
+
+function longTailFromSlug(slug) {
+  const phrase = slug
+    .split('-')
+    .filter((w) => w && !STOP_WORDS.has(w))
+    .join(' ');
+  if (!phrase) return [];
+  return [
+    `${phrase} online free`,
+    `free ${phrase} tool`,
+    `${phrase} no signup`,
+    `${phrase} browser tool`,
+    `${phrase} web tool`,
+    `online ${phrase} free`,
+    `${phrase} software alternative`,
+  ];
 }
 
 function buildEnhancedKeywords(name, categorySlug, routePath, enrichmentKeywords) {
   const short = name
     .replace(/\([^)]*\)/g, '')
+    .replace(/&/g, 'and')
+    .replace(/,/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
   const slug = routePath.split('/').pop() || '';
   const categoryHint = CATEGORY_KEYWORD_HINTS[categorySlug] || '';
   const extras = KEYWORD_EXTRAS[routePath] || '';
 
+  // Intent first, then always-on globals, then long-tail / synonyms so brand terms are never truncated away.
   const parts = [
-    short,
-    `${short} online`,
-    `free ${short}`,
+    ...intentPhrases(short).slice(0, 10),
+    ...GLOBAL_KEYWORDS,
     ...meaningfulSlugPhrases(slug),
+    ...synonymPhrasesFromSlug(slug),
+    ...longTailFromSlug(slug),
     ...categoryHint.split(',').map((s) => s.trim()),
     ...extras.split(',').map((s) => s.trim()),
     ...(enrichmentKeywords || '').split(',').map((s) => s.trim()),
-    'free online tool',
-    'no signup',
-    'easytoolhub',
+    ...intentPhrases(short).slice(10),
   ];
 
-  return uniqueKeywords(parts).slice(0, 16).join(', ');
+  return uniqueKeywords(parts).slice(0, 40).join(', ');
+}
+
+function buildCategoryKeywords(categoryName, categorySlug) {
+  const label = String(categoryName || '').toLowerCase();
+  const slugWords = String(categorySlug || '').replace(/-/g, ' ');
+  const hint = CATEGORY_KEYWORD_HINTS[categorySlug] || '';
+  return uniqueKeywords([
+    label,
+    `free ${label}`,
+    `online ${label}`,
+    `${label} online`,
+    `best free ${label}`,
+    `${label} no signup`,
+    `${label} in browser`,
+    slugWords,
+    `free ${slugWords}`,
+    ...hint.split(',').map((s) => s.trim()),
+    ...GLOBAL_KEYWORDS,
+  ])
+    .slice(0, 36)
+    .join(', ');
 }
 
 function getEnrichment(routePath) {
@@ -1583,6 +1806,8 @@ function getEnrichment(routePath) {
 module.exports = {
   TOOL_ENRICHMENT,
   KEYWORD_EXTRAS,
+  CATEGORY_KEYWORD_HINTS,
   getEnrichment,
   buildEnhancedKeywords,
+  buildCategoryKeywords,
 };

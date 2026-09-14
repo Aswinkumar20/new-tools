@@ -1,0 +1,29 @@
+services:
+  tool-api:
+    build: ../../services/tool-api
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../env/tool-api.env.example
+    environment:
+      APP_MAX_UPLOAD_MB: "50"
+      APP_JOB_TTL_MINUTES: "10"
+      APP_TEMP_DIR: /tmp/tool-jobs
+      APP_JOB_STORE: ${APP_JOB_STORE:-memory}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      QPDF_BIN: qpdf
+      GS_BIN: gs
+      CHROMIUM_BIN: chromium-browser
+      LIBREOFFICE_BIN: soffice
+    volumes:
+      - tool-jobs:/tmp/tool-jobs
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    ports:
+      - "6379:6379"
+
+volumes:
+  tool-jobs:

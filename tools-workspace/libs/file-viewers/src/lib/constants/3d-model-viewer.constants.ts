@@ -1,39 +1,38 @@
 import type { FvRelatedToolLink } from '../shared/fv-tool-suggestion.model';
 import type { Model3dPlannedFormat, Model3dRoadmapItem } from '../types/3d-model-viewer.types';
 
-export const MODEL_3D_STATUS_LABEL = 'Soon';
-export const MODEL_3D_PROCESSING_LABEL = 'Local';
-export const MODEL_3D_MODELS_PLACEHOLDER = '—';
+export const MODEL_3D_ACCEPT_ATTR =
+  '.glb,.gltf,.stl,.obj,.fbx,model/gltf-binary,model/gltf+json,model/stl,text/plain,application/octet-stream';
 
-export const MODEL_3D_PLANNED_FORMATS: ReadonlyArray<Model3dPlannedFormat> = [
-  { extension: 'gltf', label: 'GLTF' },
+export const MODEL_3D_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+export const MODEL_3D_SUPPORTED_FORMATS: ReadonlyArray<Model3dPlannedFormat> = [
   { extension: 'glb', label: 'GLB' },
-  { extension: 'obj', label: 'OBJ' },
+  { extension: 'gltf', label: 'GLTF' },
   { extension: 'stl', label: 'STL' },
-  { extension: 'fbx', label: 'FBX' }
+  { extension: 'obj', label: 'OBJ' },
+  { extension: 'fbx', label: 'FBX*' }
 ];
 
+export const MODEL_3D_MODEL_VIEWER_SRC =
+  'https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js';
+
 export const MODEL_3D_ROADMAP_HINT =
-  'Drag-and-drop uploads, validation, and metadata extraction are on the roadmap.';
+  'Server-side normalize converts STL/OBJ/embedded GLTF to GLB. FBX needs a prior export to GLB/STL/OBJ.';
 
 export const MODEL_3D_ROADMAP_ITEMS: ReadonlyArray<Model3dRoadmapItem> = [
   {
     id: 'formats',
-    text: 'Initial support for GLTF/GLB, OBJ, STL, and FBX models.'
+    text: 'Live: GLB, embedded GLTF, STL, and OBJ via tool-api normalize → interactive orbit viewer.'
   },
   {
     id: 'lighting',
-    text: 'Environment maps and HDR lighting presets.'
+    text: 'Environment lighting and auto-rotate are available in the viewer toolbar.'
   },
   {
     id: 'inspect',
-    text: 'Section cutting, measurements, and annotations.'
+    text: 'Next: section cuts, measurements, and FBX conversion.'
   }
-];
-
-export const MODEL_3D_CAPABILITY_TAGS: ReadonlyArray<string> = [
-  'orbit controls',
-  'local processing'
 ];
 
 export const MODEL_3D_RELATED_TOOLS: ReadonlyArray<FvRelatedToolLink> = [
@@ -45,11 +44,11 @@ export const MODEL_3D_RELATED_TOOLS: ReadonlyArray<FvRelatedToolLink> = [
   {
     label: 'Archive Viewer',
     path: '/file-viewers/archive-viewer',
-    description: 'Browse ZIP/7z model kits before extracting assets locally'
+    description: 'Browse ZIP model kits before uploading meshes'
   },
   {
-    label: 'File Metadata Viewer',
-    path: '/code-file-tools/file-metadata-viewer',
-    description: 'Read size, MIME, and timestamps for model files on disk'
+    label: 'STEP Viewer',
+    path: '/cad-viewers/step-viewer',
+    description: 'Inspect CAD STEP dumps (wireframe) for engineering files'
   }
 ];

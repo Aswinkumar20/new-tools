@@ -1,18 +1,22 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { PdfJspdfWorkbenchComponent } from '../pdf-jspdf-workbench/pdf-jspdf-workbench';
-import type { PdfJspdfToolMode } from '../../shared/pdf.types';
+import { PdfWorkbenchComponent } from '../pdf-workbench/pdf-workbench';
+import type { PdfToolMode } from '../../shared/pdf.types';
 
 @Component({
   selector: 'lib-html-to-pdf',
   standalone: true,
   template: `
-    <lib-pdf-jspdf-workbench [mode]="mode" [title]="title" [description]="description" />
+    <lib-pdf-workbench
+      [mode]="mode"
+      [title]="title"
+      [description]="description" />
   `,
-  imports: [PdfJspdfWorkbenchComponent],
+  imports: [PdfWorkbenchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HtmlToPdfComponent {
-  readonly mode: PdfJspdfToolMode = 'html-to-pdf';
+  readonly mode: PdfToolMode = 'html-to-pdf';
   readonly title = 'HTML to PDF';
-  readonly description = 'Render HTML with styles and export a print-ready PDF using jsPDF and html2canvas.';
+  readonly description =
+    'Convert HTML into a print-ready PDF — uses the secure server renderer when available, with a local fallback.';
 }

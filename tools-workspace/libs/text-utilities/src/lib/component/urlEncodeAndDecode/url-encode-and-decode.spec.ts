@@ -1,8 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { UrlEncodeAndDecodeComponent } from './url-encode-and-decode';
-import { AssetService, ToastService } from '@tools-workspace/features-home';
+import { textToolTestProviders } from '../../shared/text-tool-test.utils';
 
 describe('UrlEncodeAndDecodeComponent', () => {
   let component: UrlEncodeAndDecodeComponent;
@@ -11,12 +9,7 @@ describe('UrlEncodeAndDecodeComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [UrlEncodeAndDecodeComponent],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
-        { provide: ToastService, useValue: { info: jest.fn(), error: jest.fn() } },
-      ],
+      providers: [...textToolTestProviders()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(UrlEncodeAndDecodeComponent);

@@ -16,6 +16,7 @@ export type PdfToolMode =
   | 'password-protect-pdf'
   | 'text-to-pdf'
   | 'create-pdf-from-html'
+  | 'html-to-pdf'
   | 'screenshot-to-pdf'
   | 'image-to-pdf'
   | 'tables-charts-to-pdf'
@@ -23,14 +24,12 @@ export type PdfToolMode =
   | 'add-page-numbers';
 
 export type PdfJspdfToolMode =
-  | 'html-to-pdf'
   | 'tables-to-pdf'
   | 'charts-to-pdf'
   | 'resume-generator'
   | 'invoice-generator'
   | 'barcode-to-pdf'
-  | 'qr-code-to-pdf'
-  | 'text-to-pdf';
+  | 'qr-code-to-pdf';
 
 export type PageRotation = 0 | 90 | 180 | 270;
 

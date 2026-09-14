@@ -2,7 +2,9 @@ import { Component, OnInit, OnDestroy, HostListener, inject, ViewChild, ElementR
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService } from '@tools-workspace/features-home';
+import { TextToolProcessingHost } from '../../shared/text-tool-processing-host';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   DEFAULT_DEDUP_OPTIONS,
@@ -32,14 +34,13 @@ import {
   standalone: true,
   templateUrl: './remove-duplicate-lines.html',
   styleUrls: ['./remove-duplicate-lines.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective],
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent],
 })
-export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
+export class RemoveDuplicateLinesComponent extends TextToolProcessingHost implements OnInit, OnDestroy {
   @ViewChild('inputTextarea') inputTextareaRef?: ElementRef<HTMLTextAreaElement>;
   @ViewChild('highlightBackdrop') highlightBackdropRef?: ElementRef<HTMLDivElement>;
 
   readonly assetService = inject(AssetService);
-  private readonly toastService = inject(ToastService);
 
   readonly relatedTools: ReadonlyArray<TuRelatedToolLink> = REMOVE_DUPLICATE_LINES_RELATED_TOOLS;
   private dismissedSuggestionId: string | null = null;
@@ -73,10 +74,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
   private historyTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingHistoryValue = '';
 
-  isReadingFile = false;
-  isDragOver = false;
-  readonly maxUploadBytes = REMOVE_DUPLICATE_MAX_UPLOAD_BYTES;
-  private fileInput?: HTMLInputElement;
+  override maxUploadBytes = REMOVE_DUPLICATE_MAX_UPLOAD_BYTES;
 
   get hasInput(): boolean {
     return !!this.inputText.trim();
@@ -234,10 +232,9 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     this.seedHistory('');
   }
 
-  ngOnDestroy(): void {
+  override ngOnDestroy(): void {
     if (this.historyTimer) clearTimeout(this.historyTimer);
-    this.fileInput?.remove();
-    this.fileInput = undefined;
+    super.ngOnDestroy();
   }
 
   private seedHistory(value: string): void {
@@ -291,7 +288,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     this.dismissedSuggestionId = null;
     this.inputText = value;
     this.selectionPreview = null;
-    this.processInput();
+    this.scheduleDebouncedWork(() => this.processInput(), value.length);
     this.scheduleHistoryPush(value);
   }
 
@@ -426,12 +423,7 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
 
   downloadText(): void {
     if (!this.outputText) return;
-    const blob = new Blob([this.outputText], { type: 'text/plain;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `deduplicated-${this.dedupMode}.txt`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    this.downloadContent(this.outputText, `deduplicated-${this.dedupMode}.txt`);
   }
 
   useOutputAsInput(): void {
@@ -460,78 +452,17 @@ export class RemoveDuplicateLinesComponent implements OnInit, OnDestroy {
     this.toastService.info('Text cleared');
   }
 
-  uploadTextFile(): void {
-    if (!this.fileInput) {
-      this.fileInput = document.createElement('input');
-      this.fileInput.type = 'file';
-      this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', () => {
-        const file = this.fileInput?.files?.[0];
-        if (file) this.handleUploadedFile(file);
-        if (this.fileInput) this.fileInput.value = '';
-      });
-      document.body.appendChild(this.fileInput);
+  protected override onUploadedTextApplied(text: string): void {
+    if (this.historyTimer) {
+      clearTimeout(this.historyTimer);
+      this.historyTimer = null;
     }
-    this.fileInput.accept =
-      '.txt,.text,.md,.markdown,.csv,.json,.xml,.html,.htm,.log,.yaml,.yml,.rtf,.tsv,text/*,application/json,application/xml';
-    this.fileInput.click();
+    this.dismissedSuggestionId = null;
+    this.applyInputState(text);
+    this.pushToUndoStack(text);
   }
 
-  private handleUploadedFile(file: File): void {
-    if (file.size > this.maxUploadBytes) {
-      this.toastService.error(`File is too large. Maximum size is ${Math.round(this.maxUploadBytes / (1024 * 1024))} MB.`);
-      return;
-    }
-    if (!this.isLikelyTextFile(file)) {
-      this.toastService.error('Please upload a text-based file.');
-      return;
-    }
-    this.isReadingFile = true;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      if (this.historyTimer) {
-        clearTimeout(this.historyTimer);
-        this.historyTimer = null;
-      }
-      this.dismissedSuggestionId = null;
-      this.applyInputState(text);
-      this.pushToUndoStack(text);
-      this.isReadingFile = false;
-      this.toastService.info(`Loaded "${file.name}"`);
-    };
-    reader.onerror = () => {
-      this.isReadingFile = false;
-      this.toastService.error('Could not read the file.');
-    };
-    reader.readAsText(file);
-  }
-
-  private isLikelyTextFile(file: File): boolean {
-    const blocked = ['image/', 'video/', 'audio/', 'application/pdf', 'application/zip'];
-    if (file.type && blocked.some((p) => file.type.startsWith(p))) return false;
-    if (!file.type || file.type.startsWith('text/')) return true;
-    const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-    return ['txt', 'md', 'csv', 'json', 'xml', 'html', 'log', 'yaml', 'yml'].includes(ext);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragOver = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) this.handleUploadedFile(file);
+  protected override onUploadStarting(): void {
+    this.dismissedSuggestionId = null;
   }
 }

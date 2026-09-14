@@ -27,6 +27,7 @@ export interface WccDensityItem {
 }
 
 export interface WccWorkerMessage {
+  generation?: number;
   words: string[];
   syllables: number;
   wordFrequency: { word: string; count: number }[];

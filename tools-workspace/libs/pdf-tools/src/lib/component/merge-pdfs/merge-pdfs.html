@@ -2,30 +2,23 @@
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
-    <div class="ctl__top">
+    <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
       <header class="ctl__header">
-        <h1>Merge PDFs</h1>
-        <p>Combine multiple PDF files into one document — reorder, preview, and download locally.</p>
+        <div class="pt-workbench__title-row">
+          <h1>Merge PDFs</h1>
+          <div class="pt-file-meta" aria-label="Merge statistics">
+            <span class="pt-file-meta__chip">{{ pdfFiles.length }} files</span>
+            @if (mergedPdfPreview) {
+              <span class="pt-file-meta__chip" aria-label="Page {{ previewPage }} of {{ totalPages }}">Page {{ previewPage }} of {{ totalPages }}</span>
+            } @else {
+              <span class="pt-file-meta__chip">{{ totalPages || 0 }} pages</span>
+            }
+            <span class="pt-file-meta__chip">{{ pdfFiles.length ? formatTotalSize() : '—' }}</span>
+            <span class="pt-file-meta__chip" [class.pt-file-meta__chip--ready]="!!mergedPdfPreview">{{ mergedPdfPreview ? 'Ready' : 'Queue' }}</span>
+          </div>
+        </div>
+        <p class="pt-workbench__desc">Combine multiple PDF files into one document — reorder, preview, and download locally.</p>
       </header>
-
-      <div class="ctl__stats" aria-label="Merge statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFiles.length }}</span>
-          <span class="ctl__stat-label">Files</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ totalPages }}</span>
-          <span class="ctl__stat-label">Pages</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFiles.length ? formatTotalSize() : '—' }}</span>
-          <span class="ctl__stat-label">Size</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ mergedPdfPreview ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Preview</span>
-        </div>
-      </div>
     </div>
 
     <div class="pt-workflow" aria-label="Merge actions">
@@ -56,11 +49,13 @@
     </div>
     <input #fileInput type="file" multiple accept=".pdf,application/pdf" (change)="onFileSelected($event)" hidden />
 
-    @if (pdfFiles.length) {
+    @if (pdfFiles.length && !hasMergedPreview) {
       <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsMoreFiles" role="status">
         <span class="pt-setup-banner__step">{{ needsMoreFiles ? 'Step 1' : 'Tip' }}</span>
         <p class="pt-setup-banner__text">{{ mergeSetupHint }}</p>
-        @if (pdfFiles.length >= 1) {
+        @if (needsMoreFiles) {
+          <button type="button" class="pt-setup-banner__action" (click)="openFileDialog()">Add PDF</button>
+        } @else if (pdfFiles.length >= 1) {
           <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
         }
       </div>
@@ -90,6 +85,11 @@
               (click)="openFileDialog()">
               <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
               <p><strong>Drop PDF files here</strong> or click to browse</p>
+              <ol class="pt-empty-drop__steps">
+                <li>Add at least two PDFs</li>
+                <li>Drag or use ↑↓ to set order</li>
+                <li>Merge to preview, then download</li>
+              </ol>
               <p>Max 100 MB per file · multiple files supported</p>
             </button>
           } @else {
@@ -132,7 +132,8 @@
                 <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
-                <input type="number" class="ctl-pdf__page-input" [ngModel]="previewPage" (ngModelChange)="goToPreviewPage($event)" [min]="1" [max]="totalPages" />
+                <input type="number" class="ctl-pdf__page-input" [ngModel]="previewPage" (ngModelChange)="goToPreviewPage($event)" [min]="1" [max]="totalPages" [attr.aria-label]="'Page ' + previewPage + ' of ' + totalPages" />
+                <span class="ctl-pdf__page-total" aria-hidden="true">of {{ totalPages }}</span>
                 <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
                 </button>
@@ -255,7 +256,7 @@
     @if (mergedPdfPreview) {
       <div pdfFsToolbar class="ctl-pdf__page-nav">
         <button type="button" class="pt-icon-btn" (click)="previousPreviewPage()" [disabled]="previewPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-        <span class="ctl__editor-badge">{{ previewPage }} / {{ totalPages }}</span>
+        <span class="ctl__editor-badge">Page {{ previewPage }} of {{ totalPages }}</span>
         <button type="button" class="pt-icon-btn" (click)="nextPreviewPage()" [disabled]="previewPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
       </div>
     }

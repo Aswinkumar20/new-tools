@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  HostListener,
   Input,
   OnDestroy,
   ViewChild,
@@ -10,7 +11,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, TooltipDirective, AssetService, ToastService, toUserFacingError } from '@tools-workspace/features-home';
 import type { PDFDocument } from 'pdf-lib';
 import { PasswordRequiredError, PdfLibService } from '../../services/pdf-lib.service';
 import { PdfJspdfService } from '../../services/pdf-jspdf.service';
@@ -38,9 +39,15 @@ import {
   validateRequiredText,
   validateTableData,
 } from '../../shared/pdf.validation';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import {
+  PdfBackendApiService,
+  blobToUint8Array,
+  isPdfBackendEnabled,
+  type PdfBackendToolId,
+} from '../../api';
 
-const SESSION_KEY = 'easytoolhub.pdf.session';
+const LEGACY_SESSION_KEY = 'easytoolhub.pdf.session';
 
 @Component({
   selector: 'lib-pdf-workbench',
@@ -57,6 +64,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
   private readonly preview = inject(PdfPreviewService);
   private readonly toast = inject(ToastService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly pdfBackend = inject(PdfBackendApiService);
 
   @Input({ required: true }) mode!: PdfToolMode;
   @Input({ required: true }) title = 'PDF Tool';
@@ -82,6 +90,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
 
   loading = false;
   loadingMessage = 'Processing…';
+  loadingDetail = '';
   previewRendering = false;
   previewError = '';
   fieldErrors: Record<string, string> = {};
@@ -92,7 +101,20 @@ export class PdfWorkbenchComponent implements OnDestroy {
   passwordInput = '';
   passwordError = '';
   pendingFile: File | null = null;
+  /** When unlocking a protected PDF, keep existing queue entries. */
+  pendingAppendToQueue = false;
   docPassword = '';
+
+  /** Multi-file queue (password-protect). */
+  pdfQueue: Array<{
+    id: string;
+    name: string;
+    size: number;
+    bytes: Uint8Array;
+    password: string;
+    outputBytes: Uint8Array | null;
+  }> = [];
+  activeQueueId: string | null = null;
 
   // Mode-specific state
   pageRangeInput = '';
@@ -110,6 +132,9 @@ export class PdfWorkbenchComponent implements OnDestroy {
   extractedText = '';
   userPassword = '';
   ownerPassword = '';
+  /** Permission flags sent with encrypt (owner password context). */
+  allowPrint = true;
+  allowModify = false;
   plainTextInput = '';
   htmlInput = '';
   watermarkText = 'CONFIDENTIAL';
@@ -131,8 +156,16 @@ export class PdfWorkbenchComponent implements OnDestroy {
   pageNumberFormat: 'number' | 'page-of-total' = 'page-of-total';
 
   get canUndo(): boolean {
-    return this.undoStack.length > 0;
+    return this.undoStack.length > 0 && !this.loading;
   }
+
+  get canRedo(): boolean {
+    return this.redoStack.length > 0 && !this.loading;
+  }
+
+  /** Set after a successful primary action so result/download feedback can show. */
+  lastActionCompleted = false;
+  lastActionMessage = '';
 
   private undoStack: Uint8Array[] = [];
   private redoStack: Uint8Array[] = [];
@@ -145,6 +178,8 @@ export class PdfWorkbenchComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.preview.clearCache();
     this.previewFullscreen = false;
+    this.purgeLegacyBrowserStorage();
+    this.wipeSensitiveInMemoryState();
   }
 
   togglePreviewFullscreen(): void {
@@ -189,7 +224,15 @@ export class PdfWorkbenchComponent implements OnDestroy {
   }
 
   get previewBytes(): Uint8Array | null {
+    // Encrypted output cannot be rendered without the password — keep source preview.
+    if (this.mode === 'password-protect-pdf' && this.outputBytes?.length) {
+      return this.pdfBytes;
+    }
     return this.outputBytes ?? this.pdfBytes;
+  }
+
+  get hasEncryptedOutput(): boolean {
+    return this.mode === 'password-protect-pdf' && !!this.outputBytes?.length;
   }
 
   get canDownload(): boolean {
@@ -200,6 +243,10 @@ export class PdfWorkbenchComponent implements OnDestroy {
     if (this.mode === 'pdf-to-base64') {
       return !!this.pdfBytes?.length;
     }
+    if (this.mode === 'password-protect-pdf') {
+      // Prefer encrypted result; still allow downloading the source before encrypt.
+      return this.hasDocument || !!this.outputBytes?.length;
+    }
     return this.hasDocument;
   }
 
@@ -207,6 +254,9 @@ export class PdfWorkbenchComponent implements OnDestroy {
     if (this.loading) return false;
     if (this.isCreationMode || this.mode === 'screenshot-to-pdf' || this.mode === 'image-to-pdf') {
       return true;
+    }
+    if (this.mode === 'password-protect-pdf') {
+      return this.hasDocument && this.userPassword.trim().length >= 4;
     }
     return this.hasDocument;
   }
@@ -234,6 +284,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
     return [
       'text-to-pdf',
       'create-pdf-from-html',
+      'html-to-pdf',
       'tables-charts-to-pdf',
       'resume-invoice-generator',
     ].includes(this.mode);
@@ -243,8 +294,154 @@ export class PdfWorkbenchComponent implements OnDestroy {
     return !this.isCreationMode;
   }
 
+  get supportsMultiPdf(): boolean {
+    return this.mode === 'password-protect-pdf';
+  }
+
+  get canEncryptAll(): boolean {
+    return (
+      this.supportsMultiPdf &&
+      this.pdfQueue.length > 1 &&
+      this.userPassword.trim().length >= 4 &&
+      !this.loading
+    );
+  }
+
+  get showSetupBanner(): boolean {
+    return this.hasOptionsPanel && this.needsConfigAttention && !this.optionsPanelOpen;
+  }
+
+  /** Config-heavy tools put settings before preview on small screens. */
+  get configFirstLayout(): boolean {
+    return [
+      'password-protect-pdf',
+      'pdf-metadata-editor',
+      'add-watermark',
+      'add-page-numbers',
+      'fill-pdf-forms',
+      'flatten-pdf-forms',
+      'compress-pdf',
+      'annotate-pdf',
+      'highlight-text',
+      'delete-pages',
+      'extract-pages',
+    ].includes(this.mode);
+  }
+
+  /** Guided workflow for upload-based edit tools. */
+  get showWorkflowStepper(): boolean {
+    return this.needsPdfUpload && !this.isCreationMode;
+  }
+
+  /** Guided steps — reflects real primary workflow. */
+  get protectWorkflowStep(): 1 | 2 | 3 | 4 {
+    return this.workflowStep;
+  }
+
+  get workflowStep(): 1 | 2 | 3 | 4 {
+    if (!this.hasDocument) return 1;
+    if (this.lastActionCompleted || this.hasEncryptedOutput || !!this.base64Output) return 4;
+    if (this.needsConfigAttention) return 2;
+    return 3;
+  }
+
+  get workflowStepLabels(): [string, string, string, string] {
+    if (this.mode === 'password-protect-pdf') {
+      return ['Upload', 'Password', 'Encrypt', 'Download'];
+    }
+    if (this.mode === 'pdf-to-base64') {
+      return ['Upload', 'Review', 'Encode', 'Copy'];
+    }
+    return ['Upload', 'Configure', 'Apply', 'Download'];
+  }
+
+  get showResultBanner(): boolean {
+    if (this.loading) return false;
+    if (this.hasEncryptedOutput) return true;
+    return this.lastActionCompleted && (!!this.outputBytes?.length || !!this.base64Output);
+  }
+
+  get resultBannerText(): string {
+    if (this.hasEncryptedOutput) {
+      return 'Download uses your password-protected file.';
+    }
+    if (this.mode === 'pdf-to-base64' && this.base64Output) {
+      return 'Copy it or download as a text file.';
+    }
+    return this.lastActionMessage || 'Download when you are satisfied.';
+  }
+
+  get resultBannerActionLabel(): string {
+    if (this.hasEncryptedOutput) return 'Download encrypted PDF';
+    if (this.mode === 'pdf-to-base64') return 'Copy Base64';
+    return 'Download result';
+  }
+
+  get selectedPageCount(): number {
+    return this.getSelectedPageCount();
+  }
+
+  get emptyDropSteps(): [string, string, string] {
+    const action = this.primaryActionLabel();
+    if (this.mode === 'password-protect-pdf') {
+      return ['Upload one or more PDFs', 'Set a user password in Encryption settings', 'Encrypt and download'];
+    }
+    if (this.mode === 'delete-pages' || this.mode === 'extract-pages') {
+      return ['Upload your PDF', 'Select pages via thumbnails or ranges', `Run ${action} and download`];
+    }
+    if (this.mode === 'reorder-pages') {
+      return ['Upload your PDF', 'Drag thumbnails to reorder', 'Apply order and download'];
+    }
+    if (this.mode === 'rotate-pages') {
+      return ['Upload your PDF', 'Rotate pages with toolbar controls', 'Apply rotation and download'];
+    }
+    if (this.mode === 'screenshot-to-pdf' || this.mode === 'image-to-pdf') {
+      return ['Upload images (or a PDF)', 'Reorder if needed', 'Create PDF and download'];
+    }
+    return [`Upload your PDF`, 'Adjust options in Configuration', `Run ${action} and download`];
+  }
+
+  get canDownloadAllEncrypted(): boolean {
+    return (
+      this.supportsMultiPdf &&
+      this.pdfQueue.length > 1 &&
+      this.pdfQueue.every((q) => !!q.outputBytes?.length) &&
+      !this.loading
+    );
+  }
+
   get hasOptionsPanel(): boolean {
     return this.hasDocument && !this.isCreationMode;
+  }
+
+  get configPanelTitle(): string {
+    if (this.mode === 'password-protect-pdf') return 'Encryption settings';
+    if (this.mode === 'pdf-metadata-editor') return 'Document metadata';
+    if (this.mode === 'add-watermark') return 'Watermark settings';
+    if (this.mode === 'compress-pdf') return 'Compression settings';
+    return 'Configuration';
+  }
+
+  /** Tooltip / title explaining the primary toolbar action. */
+  primaryActionHint(): string {
+    if (this.mode === 'password-protect-pdf') {
+      if (!this.hasDocument) return 'Upload a PDF first';
+      if (this.userPassword.trim().length < 4) {
+        return 'Enter a user password (at least 4 characters) in Encryption settings';
+      }
+      return 'Encrypt this PDF with your password on the secure server, then download';
+    }
+    return this.primaryActionLabel();
+  }
+
+  downloadActionHint(): string {
+    if (this.hasEncryptedOutput) {
+      return 'Download the password-protected PDF';
+    }
+    if (this.mode === 'password-protect-pdf' && this.hasDocument) {
+      return 'Download the original PDF (encrypt first for a protected file)';
+    }
+    return 'Download the current PDF';
   }
 
   get configSetupHint(): string {
@@ -256,7 +453,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       'add-watermark': 'Enter watermark text and opacity in Configuration before applying.',
       'annotate-pdf': 'Enter annotation text, enable Place, then click on the preview.',
       'highlight-text': 'Enable Place in the toolbar, then click on the preview to add highlights.',
-      'password-protect-pdf': 'Set a user password in Configuration before applying.',
+      'password-protect-pdf': 'Set a user password (min. 4 characters), then encrypt.',
       'fill-pdf-forms': 'Fill detected form fields in Configuration, then save.',
       'flatten-pdf-forms': 'This PDF must contain fillable form fields to flatten.',
       'pdf-metadata-editor': 'Edit title, author, and other metadata in Configuration.',
@@ -264,7 +461,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       'pdf-to-base64': 'Run encode to generate Base64 output.',
       'add-page-numbers': 'Choose position, font size, and format in Configuration before applying.',
     };
-    return hints[this.mode] ?? 'Review settings in Configuration before running the primary action.';
+    return hints[this.mode] ?? 'Review settings before running the primary action.';
   }
 
   /** Short description shown inside the configuration sidebar (no duplicate “Configuration” title). */
@@ -277,14 +474,14 @@ export class PdfWorkbenchComponent implements OnDestroy {
       'add-watermark': 'Set watermark text and opacity, then apply.',
       'annotate-pdf': 'Add text annotations on the preview.',
       'highlight-text': 'Click the preview to place highlight boxes.',
-      'password-protect-pdf': 'Set passwords for the exported PDF.',
+      'password-protect-pdf': 'Anyone opening the PDF will need the user password.',
       'fill-pdf-forms': 'Complete the detected form fields below.',
       'flatten-pdf-forms': 'Bake form fields into static page content.',
       'pdf-metadata-editor': 'Update document properties and metadata.',
       'compress-pdf': 'Optimize file size with object-stream compression.',
       'pdf-to-base64': 'Encode the uploaded PDF as Base64 text.',
     };
-    return desc[this.mode] ?? 'Adjust options below, then use the toolbar action.';
+    return desc[this.mode] ?? 'Adjust options below, then apply.';
   }
 
   get compressOutputSizeLabel(): string | null {
@@ -308,6 +505,8 @@ export class PdfWorkbenchComponent implements OnDestroy {
         return this.getSelectedPageCount() === 0;
       case 'password-protect-pdf':
         return !this.userPassword.trim();
+      case 'add-watermark':
+        return !this.watermarkText.trim();
       case 'annotate-pdf':
       case 'highlight-text':
         return this.annotations.length === 0;
@@ -317,6 +516,67 @@ export class PdfWorkbenchComponent implements OnDestroy {
       default:
         return false;
     }
+  }
+
+  /** Changing passwords/permissions invalidates a prior encrypted download and refreshes CTA state. */
+  onProtectSecretsChanged(): void {
+    if (this.mode === 'password-protect-pdf' && this.outputBytes) {
+      this.outputBytes = null;
+      this.lastActionCompleted = false;
+    }
+    this.cdr.markForCheck();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    const tag = target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+      return;
+    }
+    if (this.loading || this.showPasswordDialog) return;
+
+    if (this.hasDocument) {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        void this.selectPage(this.currentPage - 1);
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        void this.selectPage(this.currentPage + 1);
+        return;
+      }
+    }
+
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey && this.canUndo) {
+      event.preventDefault();
+      void this.undo();
+      return;
+    }
+    if (mod && (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey)) && this.canRedo) {
+      event.preventDefault();
+      void this.redo();
+    }
+  }
+
+  downloadAllEncrypted(): void {
+    if (!this.canDownloadAllEncrypted) return;
+    for (const item of this.pdfQueue) {
+      if (item.outputBytes?.length) {
+        downloadBytes(item.outputBytes, defaultOutputName(item.name, 'passwordprotectpdf'));
+      }
+    }
+    pdfNotifySuccess(this.toast, `Downloaded ${this.pdfQueue.length} encrypted PDFs`);
+  }
+
+  onResultBannerAction(): void {
+    if (this.mode === 'pdf-to-base64') {
+      void this.copyBase64();
+      return;
+    }
+    this.downloadResult();
   }
 
   openOptionsPanel(): void {
@@ -332,14 +592,44 @@ export class PdfWorkbenchComponent implements OnDestroy {
 
   get capabilityNote(): string {
     const notes: Partial<Record<PdfToolMode, string>> = {
-      'compress-pdf':
-        'pdf-lib re-saves with object streams. True image compression is limited in-browser.',
-      'create-pdf-from-html': 'HTML is converted to plain text layout (no CSS rendering).',
-      'password-protect-pdf': 'pdf-lib cannot encrypt PDFs — not supported without a backend.',
-      'flatten-pdf-forms': 'Flattens AcroForm fields into static content.',
+      'compress-pdf': this.usesBackend('compress-pdf')
+        ? 'Processed on secure server (Ghostscript). File deleted after job.'
+        : 'pdf-lib re-saves with object streams. True image compression is limited in-browser.',
+      'create-pdf-from-html': this.usesBackend('create-pdf-from-html')
+        ? 'HTML rendered on server (OpenHTMLToPDF). File deleted after job.'
+        : 'HTML is converted to plain text layout (no CSS rendering).',
+      'html-to-pdf': this.usesBackend('html-to-pdf')
+        ? 'HTML rendered on server (OpenHTMLToPDF). File deleted after job.'
+        : 'HTML is converted to plain text layout (no CSS rendering).',
+      'text-to-pdf': this.usesBackend('text-to-pdf')
+        ? 'Text rendered on secure server. File deleted after job.'
+        : 'Creates a simple text PDF in the browser.',
+      'password-protect-pdf': this.usesBackend('password-protect-pdf')
+        ? 'Encrypted on secure server (qpdf/PDFBox). File deleted after job.'
+        : 'Password protection needs the secure processing service. Please try again shortly.',
+      'fill-pdf-forms': this.usesBackend('fill-pdf-forms')
+        ? 'Form fill runs on secure server (PDFBox). File deleted after job.'
+        : 'Fills AcroForm fields in the browser (pdf-lib).',
+      'flatten-pdf-forms': this.usesBackend('flatten-pdf-forms')
+        ? 'Form flatten runs on secure server (PDFBox). File deleted after job.'
+        : 'Flattens AcroForm fields into static content.',
+      'annotate-pdf': this.usesBackend('annotate-pdf')
+        ? 'Annotations stamped on secure server. File deleted after job.'
+        : 'Annotations drawn with pdf-lib in the browser.',
+      'highlight-text': this.usesBackend('highlight-text')
+        ? 'Highlights stamped on secure server. File deleted after job.'
+        : 'Highlights drawn with pdf-lib in the browser.',
       'pdf-to-base64': 'Fully supported — no upload required for output copy.',
     };
     return notes[this.mode] ?? '';
+  }
+
+  usesBackend(toolId: PdfBackendToolId = this.mode as PdfBackendToolId): boolean {
+    return isPdfBackendEnabled(this.pdfBackend.settings, toolId);
+  }
+
+  get showServerPrivacyBanner(): boolean {
+    return this.usesBackend(this.mode as PdfBackendToolId);
   }
 
   openFileDialog(): void {
@@ -350,11 +640,144 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.imageInput?.nativeElement?.click();
   }
 
+  private persistActiveQueueItem(): void {
+    if (!this.supportsMultiPdf || !this.activeQueueId || !this.pdfBytes?.length) return;
+    this.pdfQueue = this.pdfQueue.map((item) =>
+      item.id === this.activeQueueId
+        ? {
+            ...item,
+            name: this.fileName || item.name,
+            size: this.fileSize || item.size,
+            bytes: cloneBytes(this.pdfBytes!),
+            password: this.docPassword,
+            outputBytes: this.outputBytes?.length ? cloneBytes(this.outputBytes) : null,
+          }
+        : item
+    );
+  }
+
+  async selectQueueItem(id: string): Promise<void> {
+    if (!this.supportsMultiPdf || id === this.activeQueueId) return;
+    const item = this.pdfQueue.find((q) => q.id === id);
+    if (!item) return;
+
+    this.persistActiveQueueItem();
+    this.loading = true;
+    this.loadingMessage = `Opening ${item.name}`;
+    this.loadingDetail = 'Switching to selected PDF…';
+    this.cdr.markForCheck();
+    try {
+      const doc = await this.pdfLib.loadDocument(item.bytes, item.password || undefined);
+      this.preview.clearCache();
+      this.activeQueueId = id;
+      this.fileName = item.name;
+      this.fileSize = item.size;
+      this.pdfBytes = cloneBytes(item.bytes);
+      this.pdfDoc = doc;
+      this.docPassword = item.password;
+      this.outputBytes = item.outputBytes?.length ? cloneBytes(item.outputBytes) : null;
+      this.outputFilename = defaultOutputName(item.name, this.mode.replace(/-/g, ''));
+      this.pages = doc.getPageIndices().map((sourceIndex) => ({
+        sourceIndex,
+        rotation: 0,
+        selected: false,
+      }));
+      this.currentPage = 1;
+      this.undoStack = [];
+      this.redoStack = [];
+      this.modifiedDoc = null;
+      void this.refreshThumbnails();
+    } catch (error) {
+      pdfNotifyFailure(this.toast, error, 'Could not open the PDF');
+    } finally {
+      this.loading = false;
+      this.loadingDetail = '';
+      this.loadingMessage = 'Processing…';
+      this.cdr.detectChanges();
+      if (this.hasDocument) this.scheduleRenderPreview();
+      else this.cdr.markForCheck();
+    }
+  }
+
+  removeQueueItem(id: string, event?: Event): void {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (!this.supportsMultiPdf) return;
+    const remaining = this.pdfQueue.filter((q) => q.id !== id);
+    this.pdfQueue = remaining;
+    if (!remaining.length) {
+      this.activeQueueId = null;
+      this.clearAll();
+      return;
+    }
+    if (this.activeQueueId === id) {
+      void this.selectQueueItem(remaining[0].id);
+    }
+    this.cdr.markForCheck();
+  }
+
+  async encryptAllQueued(): Promise<void> {
+    if (!this.canEncryptAll) {
+      if (this.userPassword.trim().length < 4) {
+        pdfNotifyWarning(this.toast, 'Enter a user password (min. 4 characters) first');
+        this.openOptionsPanel();
+      }
+      return;
+    }
+    this.persistActiveQueueItem();
+    const activeId = this.activeQueueId;
+    this.loading = true;
+    let ok = 0;
+    try {
+      for (let i = 0; i < this.pdfQueue.length; i++) {
+        const item = this.pdfQueue[i];
+        this.loadingMessage = `Encrypting ${item.name}`;
+        this.loadingDetail = `File ${i + 1} of ${this.pdfQueue.length} · secure server`;
+        this.cdr.markForCheck();
+        const blob = await this.pdfBackend.encrypt(
+          new Blob([item.bytes as BlobPart], { type: 'application/pdf' }),
+          {
+            userPassword: this.userPassword,
+            ownerPassword: this.ownerPassword || undefined,
+            allowPrint: this.allowPrint,
+            allowModify: this.allowModify,
+            fileName: item.name,
+          }
+        );
+        const bytes = await blobToUint8Array(blob);
+        this.pdfQueue[i] = { ...item, outputBytes: bytes };
+        downloadBytes(bytes, defaultOutputName(item.name, 'passwordprotectpdf'));
+        ok += 1;
+      }
+      pdfNotifySuccess(this.toast, `Encrypted and downloaded ${ok} PDF${ok === 1 ? '' : 's'}`);
+      this.lastActionCompleted = true;
+      this.lastActionMessage = `Encrypted ${ok} PDF${ok === 1 ? '' : 's'}`;
+    } catch (error) {
+      pdfNotifyFailure(this.toast, error, 'Could not encrypt the PDFs');
+    } finally {
+      this.loading = false;
+      this.loadingDetail = '';
+      this.loadingMessage = 'Processing…';
+      if (activeId) {
+        const current = this.pdfQueue.find((q) => q.id === activeId);
+        if (current?.outputBytes) {
+          this.outputBytes = cloneBytes(current.outputBytes);
+        }
+      }
+      this.cdr.markForCheck();
+    }
+  }
+
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) void this.loadFile(file);
+    const files = input.files ? Array.from(input.files) : [];
     input.value = '';
+    if (!files.length) return;
+    if (this.supportsMultiPdf) {
+      void this.loadFiles(files);
+      return;
+    }
+    void this.loadFile(files[0]);
   }
 
   onImagesSelected(event: Event): void {
@@ -381,49 +804,96 @@ export class PdfWorkbenchComponent implements OnDestroy {
   onDrop(event: DragEvent): void {
     event.preventDefault();
     this.showDropZone = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (!file) return;
+    const list = event.dataTransfer?.files;
+    if (!list?.length) return;
     if (this.mode === 'screenshot-to-pdf' || this.mode === 'image-to-pdf') {
-      const images = Array.from(event.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
+      const images = Array.from(list).filter((f) => f.type.startsWith('image/'));
       if (images.length) void this.createFromImages(images);
       return;
     }
-    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-      void this.loadFile(file);
-    } else {
+    const pdfs = Array.from(list).filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    );
+    if (!pdfs.length) {
       pdfNotifyError(this.toast, 'Please drop a valid PDF file');
-      this.cdr.markForCheck();
-    }
-  }
-
-  async loadFile(file: File, password?: string): Promise<void> {
-    if (file.size > PDF_MAX_BYTES) {
-      pdfNotifyError(this.toast, 'File exceeds 100 MB limit');
       this.cdr.markForCheck();
       return;
     }
+    if (this.supportsMultiPdf) {
+      void this.loadFiles(pdfs);
+      return;
+    }
+    void this.loadFile(pdfs[0]);
+  }
+
+  async loadFiles(files: File[]): Promise<void> {
+    const pdfs = files.filter(
+      (f) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
+    );
+    if (!pdfs.length) {
+      pdfNotifyError(this.toast, 'Please choose valid PDF files');
+      return;
+    }
+    for (let i = 0; i < pdfs.length; i++) {
+      await this.loadFile(pdfs[i], undefined, {
+        appendToQueue: true,
+        queueIndex: i + 1,
+        queueTotal: pdfs.length,
+      });
+    }
+    if (pdfs.length > 1) {
+      pdfNotifySuccess(this.toast, `Loaded ${pdfs.length} PDFs into the queue`);
+    }
+  }
+
+  async loadFile(
+    file: File,
+    password?: string,
+    options?: { appendToQueue?: boolean; queueIndex?: number; queueTotal?: number }
+  ): Promise<void> {
+    if (file.size > PDF_MAX_BYTES) {
+      pdfNotifyError(this.toast, `${file.name} exceeds 100 MB limit`);
+      this.cdr.markForCheck();
+      return;
+    }
+    // Password-protect: uploads always add to the queue (never replace existing files).
+    const appendToQueue = this.supportsMultiPdf ? options?.appendToQueue !== false : false;
     this.loading = true;
-    this.loadingMessage = 'Loading PDF…';
+    const batchLabel =
+      options?.queueTotal && options.queueTotal > 1
+        ? ` (${options.queueIndex}/${options.queueTotal})`
+        : '';
+    this.loadingMessage = `Opening ${file.name}${batchLabel}`;
+    this.loadingDetail = 'Reading file from your device…';
     this.cdr.markForCheck();
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
+      this.loadingDetail = 'Parsing PDF structure…';
+      this.cdr.markForCheck();
       const doc = await this.pdfLib.loadDocument(bytes, password);
-      this.applyLoadedDocument(file, bytes, doc, password);
-      pdfNotifySuccess(this.toast, 'PDF loaded');
+      this.loadingDetail = 'Preparing preview…';
+      this.cdr.markForCheck();
+      this.applyLoadedDocument(file, bytes, doc, password, appendToQueue);
+      if (!(appendToQueue && (options?.queueTotal ?? 1) > 1)) {
+        pdfNotifySuccess(this.toast, appendToQueue && this.pdfQueue.length > 1 ? `Added ${file.name}` : 'PDF loaded');
+      }
       if (this.needsConfigAttention) {
         this.openOptionsPanel();
       }
     } catch (error) {
       if (error instanceof PasswordRequiredError) {
         this.pendingFile = file;
+        this.pendingAppendToQueue = appendToQueue;
         this.showPasswordDialog = true;
         this.passwordInput = '';
-        this.passwordError = 'This PDF is password-protected.';
+        this.passwordError = `"${file.name}" is password-protected. Enter its password to unlock.`;
       } else {
-        pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed to load PDF');
+        pdfNotifyFailure(this.toast, error, 'Could not load the PDF');
       }
     } finally {
       this.loading = false;
+      this.loadingDetail = '';
+      this.loadingMessage = 'Processing…';
       this.cdr.detectChanges();
       if (this.hasDocument) {
         this.scheduleRenderPreview();
@@ -433,7 +903,19 @@ export class PdfWorkbenchComponent implements OnDestroy {
     }
   }
 
-  private applyLoadedDocument(file: File, bytes: Uint8Array, doc: PDFDocument, password?: string): void {
+  private applyLoadedDocument(
+    file: File,
+    bytes: Uint8Array,
+    doc: PDFDocument,
+    password?: string,
+    appendToQueue = false
+  ): void {
+    // Must snapshot the current file BEFORE we overwrite pdfBytes/name/size.
+    // Otherwise appending file B corrupts the previous queue entry into a copy of B.
+    if (this.supportsMultiPdf && appendToQueue) {
+      this.persistActiveQueueItem();
+    }
+
     this.preview.clearCache();
     this.fileName = file.name;
     this.fileSize = file.size;
@@ -442,6 +924,8 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.docPassword = password ?? '';
     this.outputBytes = null;
     this.outputFilename = defaultOutputName(file.name, this.mode.replace(/-/g, ''));
+    this.lastActionCompleted = false;
+    this.lastActionMessage = '';
     this.pages = doc.getPageIndices().map((sourceIndex) => ({
       sourceIndex,
       rotation: 0,
@@ -457,10 +941,60 @@ export class PdfWorkbenchComponent implements OnDestroy {
     if (this.mode === 'fill-pdf-forms' || this.mode === 'flatten-pdf-forms') {
       this.formFields = this.pdfLib.listFormFields(doc);
     }
+
+    if (this.supportsMultiPdf) {
+      this.syncQueueAfterLoad(file, bytes, password, appendToQueue);
+    }
+
     void this.refreshThumbnails();
     this.optionsPanelOpen = true;
-    this.saveSession();
+    this.purgeLegacyBrowserStorage();
     this.cdr.markForCheck();
+  }
+
+  /** Add to queue on upload; update active entry for same-doc reloads — never wipe on Add PDFs. */
+  private syncQueueAfterLoad(
+    file: File,
+    bytes: Uint8Array,
+    password: string | undefined,
+    appendToQueue: boolean
+  ): void {
+    const payload = {
+      name: file.name,
+      size: file.size,
+      bytes: new Uint8Array(bytes),
+      password: password ?? '',
+      outputBytes: null as Uint8Array | null,
+    };
+
+    if (appendToQueue) {
+      // Previous file was already persisted in applyLoadedDocument (before overwrite).
+      const id = `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      this.pdfQueue = [...this.pdfQueue, { id, ...payload }];
+      this.activeQueueId = id;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // Same-document reload (undo/apply): refresh active item, keep the rest of the queue.
+    if (this.activeQueueId && this.pdfQueue.some((q) => q.id === this.activeQueueId)) {
+      this.pdfQueue = this.pdfQueue.map((item) =>
+        item.id === this.activeQueueId
+          ? {
+              ...item,
+              ...payload,
+              // Keep encrypted output if bytes unchanged length-wise identity — always clear on reload
+              outputBytes: null,
+            }
+          : item
+      );
+      return;
+    }
+
+    // First file in an empty queue
+    const id = `pdf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    this.pdfQueue = [{ id, ...payload }];
+    this.activeQueueId = id;
   }
 
   async submitPassword(): Promise<void> {
@@ -470,14 +1004,17 @@ export class PdfWorkbenchComponent implements OnDestroy {
       return;
     }
     const file = this.pendingFile;
+    const append = this.pendingAppendToQueue;
     this.showPasswordDialog = false;
     this.pendingFile = null;
-    await this.loadFile(file, this.passwordInput.trim());
+    this.pendingAppendToQueue = false;
+    await this.loadFile(file, this.passwordInput.trim(), { appendToQueue: append });
   }
 
   cancelPassword(): void {
     this.showPasswordDialog = false;
     this.pendingFile = null;
+    this.pendingAppendToQueue = false;
     this.passwordInput = '';
     this.cdr.markForCheck();
   }
@@ -491,10 +1028,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       }
       this.thumbnails = thumbs;
     } catch (error) {
-      pdfNotifyWarning(
-        this.toast,
-        error instanceof Error ? error.message : 'Page thumbnails could not be generated',
-      );
+      pdfNotifyWarning(this.toast, toUserFacingError(error, 'Page thumbnails could not be generated'));
     } finally {
       this.cdr.markForCheck();
     }
@@ -556,8 +1090,9 @@ export class PdfWorkbenchComponent implements OnDestroy {
       if (generation !== this.previewRenderGeneration) return;
     } catch (error) {
       if (generation !== this.previewRenderGeneration) return;
-      const message = error instanceof Error ? error.message : 'Could not render PDF preview';
-      if (message.toLowerCase().includes('cancel') || message.toLowerCase().includes('same canvas')) return;
+      const message = toUserFacingError(error, 'Could not render the PDF preview');
+      const raw = error instanceof Error ? error.message : '';
+      if (raw.toLowerCase().includes('cancel') || raw.toLowerCase().includes('same canvas')) return;
       this.previewError = message;
       pdfNotifyError(this.toast, this.previewError);
     } finally {
@@ -626,7 +1161,8 @@ export class PdfWorkbenchComponent implements OnDestroy {
         if (err) errors['plainTextInput'] = err;
         break;
       }
-      case 'create-pdf-from-html': {
+      case 'create-pdf-from-html':
+      case 'html-to-pdf': {
         const err = validateRequiredText(this.htmlInput, 'HTML source');
         if (err) errors['htmlInput'] = err;
         break;
@@ -735,6 +1271,12 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
+  invertPageSelection(): void {
+    for (const p of this.pages) p.selected = !p.selected;
+    this.clearFieldError('pageSelection');
+    this.cdr.markForCheck();
+  }
+
   async rotateCurrentPage(clockwise: boolean): Promise<void> {
     await this.pdfLib.rotatePagesInPlace(this.pages, this.currentPage - 1, clockwise ? 90 : -90);
     await this.applyPageChanges();
@@ -793,7 +1335,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       this.outputBytes = new Uint8Array(bytes);
       pdfNotifySuccess(this.toast, 'Pages updated');
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Operation failed');
+      pdfNotifyFailure(this.toast, error, 'Could not update the pages');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -812,7 +1354,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
     }
     if (!this.pdfDoc || !this.pdfBytes) {
       if (this.mode === 'text-to-pdf') return this.createFromText();
-      if (this.mode === 'create-pdf-from-html') return this.createFromHtml();
+      if (this.mode === 'create-pdf-from-html' || this.mode === 'html-to-pdf') return this.createFromHtml();
       if (this.mode === 'tables-charts-to-pdf') return this.createTablePdf();
       if (this.mode === 'resume-invoice-generator') return this.createResumePdf();
       this.setValidationError('Upload a PDF first');
@@ -822,6 +1364,10 @@ export class PdfWorkbenchComponent implements OnDestroy {
     const validationError = this.validateForMode();
     if (validationError) {
       this.setValidationError(validationError, this.fieldErrors);
+      return;
+    }
+
+    if (await this.tryRunViaBackend()) {
       return;
     }
 
@@ -868,7 +1414,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
           break;
         case 'password-protect-pdf':
           throw new Error(
-            'pdf-lib does not support PDF encryption in the browser. Password protection requires a backend or commercial SDK.'
+            'pdf-lib does not support PDF encryption in the browser. Start tool-api (port 8080) or enable the backend flag.'
           );
         case 'add-watermark':
           await this.pdfLib.addWatermark(this.pdfDoc, {
@@ -929,8 +1475,10 @@ export class PdfWorkbenchComponent implements OnDestroy {
         this.applyLoadedDocument(pseudo, this.outputBytes, await this.pdfLib.loadDocument(this.outputBytes), this.docPassword);
       }
       pdfNotifySuccess(this.toast, successText);
+      this.lastActionCompleted = true;
+      this.lastActionMessage = successText;
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Processing failed');
+      pdfNotifyFailure(this.toast, error, 'Could not process the PDF');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -938,6 +1486,177 @@ export class PdfWorkbenchComponent implements OnDestroy {
         this.scheduleRenderPreview();
       }
     }
+  }
+
+  /** Returns true when the Java tool-api handled the action. */
+  private async tryRunViaBackend(): Promise<boolean> {
+    const toolId = this.mode as PdfBackendToolId;
+    if (!this.usesBackend(toolId) || !this.pdfBytes) {
+      return false;
+    }
+
+    const backendModes: PdfBackendToolId[] = [
+      'password-protect-pdf',
+      'compress-pdf',
+      'delete-pages',
+      'extract-pages',
+      'rotate-pages',
+      'reorder-pages',
+      'add-watermark',
+      'add-page-numbers',
+      'pdf-metadata-editor',
+      'fill-pdf-forms',
+      'flatten-pdf-forms',
+      'annotate-pdf',
+      'highlight-text',
+    ];
+    if (!backendModes.includes(toolId)) {
+      return false;
+    }
+
+    this.loading = true;
+    this.loadingMessage =
+      toolId === 'password-protect-pdf'
+        ? `Encrypting ${this.fileName || 'PDF'}…`
+        : 'Processing on secure server…';
+    this.loadingDetail =
+      toolId === 'password-protect-pdf'
+        ? 'Secure server · file deleted after job'
+        : 'This may take a moment for larger files';
+    this.clearValidation();
+    this.cdr.markForCheck();
+
+    try {
+      const fileBlob = new Blob([this.pdfBytes as BlobPart], { type: 'application/pdf' });
+      const fileName = this.fileName || 'document.pdf';
+      let result: Blob;
+
+      switch (toolId) {
+        case 'password-protect-pdf':
+          result = await this.pdfBackend.encrypt(fileBlob, {
+            userPassword: this.userPassword,
+            ownerPassword: this.ownerPassword || undefined,
+            allowPrint: this.allowPrint,
+            allowModify: this.allowModify,
+            fileName,
+          });
+          break;
+        case 'compress-pdf':
+          result = await this.pdfBackend.compress(fileBlob, 'medium', fileName);
+          break;
+        case 'delete-pages':
+          result = await this.pdfBackend.deletePages(fileBlob, this.selectedPagesCsv(), fileName);
+          break;
+        case 'extract-pages':
+          result = await this.pdfBackend.extract(fileBlob, this.selectedPagesCsv(), fileName);
+          break;
+        case 'rotate-pages': {
+          const degrees = this.pages.find((p) => p.rotation)?.rotation || 90;
+          const pages = this.pages.some((p) => p.selected)
+            ? this.selectedPagesCsv()
+            : undefined;
+          result = await this.pdfBackend.rotate(fileBlob, degrees, pages, fileName);
+          break;
+        }
+        case 'reorder-pages':
+          result = await this.pdfBackend.reorder(
+            fileBlob,
+            this.pages.map((p) => p.sourceIndex + 1).join(','),
+            fileName
+          );
+          break;
+        case 'add-watermark':
+          result = await this.pdfBackend.watermark(
+            fileBlob,
+            this.watermarkText,
+            this.watermarkOpacity,
+            fileName
+          );
+          break;
+        case 'add-page-numbers':
+          result = await this.pdfBackend.pageNumbers(fileBlob, this.pageNumberStart, fileName);
+          break;
+        case 'pdf-metadata-editor':
+          result = await this.pdfBackend.metadata(
+            fileBlob,
+            {
+              title: this.metadata.title,
+              author: this.metadata.author,
+              subject: this.metadata.subject,
+              keywords: this.metadata.keywords,
+            },
+            fileName
+          );
+          break;
+        case 'fill-pdf-forms': {
+          const fields: Record<string, string> = {};
+          for (const field of this.formFields) {
+            fields[field.name] = field.value ?? '';
+          }
+          result = await this.pdfBackend.fillForm(fileBlob, fields, fileName);
+          break;
+        }
+        case 'flatten-pdf-forms':
+          result = await this.pdfBackend.flattenForm(fileBlob, fileName);
+          break;
+        case 'annotate-pdf':
+        case 'highlight-text':
+          result = await this.pdfBackend.annotate(fileBlob, this.annotations, fileName);
+          this.annotations = [];
+          break;
+        default:
+          return false;
+      }
+
+      const bytes = await blobToUint8Array(result);
+      this.outputBytes = bytes;
+      if (toolId === 'password-protect-pdf' && this.activeQueueId) {
+        this.pdfQueue = this.pdfQueue.map((item) =>
+          item.id === this.activeQueueId ? { ...item, outputBytes: cloneBytes(bytes) } : item
+        );
+      }
+      downloadBytes(bytes, defaultOutputName(this.outputFilename || this.fileName || 'output.pdf', toolId));
+      if (toolId !== 'password-protect-pdf') {
+        const rebuilt = await this.pdfLib.loadDocument(bytes);
+        const pseudo = new File([bytes as BlobPart], this.outputFilename || fileName, {
+          type: 'application/pdf',
+        });
+        this.applyLoadedDocument(pseudo, bytes, rebuilt, '');
+      }
+      pdfNotifySuccess(
+        this.toast,
+        toolId === 'password-protect-pdf'
+          ? 'Encrypted on secure server · download your protected PDF'
+          : 'Processed on secure server · file deleted after job'
+      );
+      this.lastActionCompleted = true;
+      this.lastActionMessage =
+        toolId === 'password-protect-pdf'
+          ? 'Encrypted on secure server · download your protected PDF'
+          : 'Processed on secure server · file deleted after job';
+      return true;
+    } catch (error) {
+      // Password encrypt has no reliable client fallback — surface the error.
+      if (toolId === 'password-protect-pdf') {
+        pdfNotifyFailure(this.toast, error, 'Could not process the PDF');
+        return true;
+      }
+      // Hybrid tools: fall through to browser pdf-lib path.
+      return false;
+    } finally {
+      this.loading = false;
+      this.loadingMessage = 'Processing…';
+      this.loadingDetail = '';
+      this.cdr.markForCheck();
+    }
+  }
+
+  private selectedPagesCsv(): string {
+    const selected = this.pages.filter((p) => p.selected).map((p) => p.sourceIndex + 1);
+    if (!selected.length) {
+      throw new Error('Select at least one page');
+    }
+    return selected.join(',');
   }
 
   async extractText(): Promise<void> {
@@ -949,10 +1668,21 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.loading = true;
     this.cdr.markForCheck();
     try {
+      const fileBlob = new Blob([this.pdfBytes as BlobPart], { type: 'application/pdf' });
+      if (this.usesBackend('pdf-to-text')) {
+        try {
+          const blob = await this.pdfBackend.pdfToText(fileBlob, this.fileName || 'document.pdf');
+          this.extractedText = await blob.text();
+          pdfNotifySuccess(this.toast, 'Text extracted on secure server');
+          return;
+        } catch {
+          /* hybrid: fall through to PDF.js */
+        }
+      }
       this.extractedText = await this.preview.extractAllText(this.pdfBytes);
       pdfNotifySuccess(this.toast, 'Text extracted (via PDF.js — layout may vary)');
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Extraction failed');
+      pdfNotifyFailure(this.toast, error, 'Could not extract text from the PDF');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -974,6 +1704,20 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.clearValidation();
     this.cdr.markForCheck();
     try {
+      if (this.usesBackend('text-to-pdf')) {
+        try {
+          const blob = await this.pdfBackend.textToPdf(this.plainTextInput);
+          const bytes = await blobToUint8Array(blob);
+          this.outputBytes = bytes;
+          downloadBytes(bytes, defaultOutputName(this.outputFilename || 'text-export.pdf', 'text'));
+          pdfNotifySuccess(this.toast, 'PDF created on secure server');
+          this.lastActionCompleted = true;
+          this.lastActionMessage = 'PDF created on secure server';
+          return;
+        } catch {
+          /* hybrid: fall through to browser create */
+        }
+      }
       const doc = await this.pdfLib.createFromText(this.plainTextInput);
       this.outputBytes = new Uint8Array(await this.pdfLib.saveDocument(doc));
       this.fileName = 'text-export.pdf';
@@ -982,9 +1726,11 @@ export class PdfWorkbenchComponent implements OnDestroy {
       this.pdfBytes = this.outputBytes;
       this.pages = doc.getPageIndices().map((i) => ({ sourceIndex: i, rotation: 0, selected: false }));
       pdfNotifySuccess(this.toast, 'PDF created from text');
+      this.lastActionCompleted = true;
+      this.lastActionMessage = 'PDF created from text';
       this.scheduleRenderPreview();
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the PDF from text');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -1006,6 +1752,20 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.clearValidation();
     this.cdr.markForCheck();
     try {
+      if (this.usesBackend(this.mode === 'html-to-pdf' ? 'html-to-pdf' : 'create-pdf-from-html')) {
+        try {
+          const blob = await this.pdfBackend.htmlToPdf(this.htmlInput);
+          const bytes = await blobToUint8Array(blob);
+          this.outputBytes = bytes;
+          downloadBytes(bytes, defaultOutputName(this.outputFilename || 'html-export.pdf', 'html'));
+          pdfNotifySuccess(this.toast, 'PDF created on secure server');
+          this.lastActionCompleted = true;
+          this.lastActionMessage = 'PDF created on secure server';
+          return;
+        } catch {
+          /* hybrid: fall through to browser create */
+        }
+      }
       const doc = await this.pdfLib.createFromPlainHtml(this.htmlInput);
       this.outputBytes = new Uint8Array(await this.pdfLib.saveDocument(doc));
       this.pdfDoc = doc;
@@ -1013,9 +1773,11 @@ export class PdfWorkbenchComponent implements OnDestroy {
       this.fileName = 'html-export.pdf';
       this.outputFilename = 'html-export.pdf';
       pdfNotifySuccess(this.toast, 'PDF created (plain-text layout from HTML)');
+      this.lastActionCompleted = true;
+      this.lastActionMessage = 'PDF created (plain-text layout from HTML)';
       this.scheduleRenderPreview();
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the PDF from HTML');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -1037,6 +1799,20 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.clearValidation();
     this.cdr.markForCheck();
     try {
+      if (this.usesBackend('image-to-pdf')) {
+        try {
+          const blob = await this.pdfBackend.imagesToPdf(files);
+          const bytes = await blobToUint8Array(blob);
+          this.outputBytes = bytes;
+          downloadBytes(bytes, defaultOutputName(this.outputFilename || 'images.pdf', 'images'));
+          pdfNotifySuccess(this.toast, 'PDF created on secure server');
+          this.lastActionCompleted = true;
+          this.lastActionMessage = 'PDF created on secure server';
+          return;
+        } catch {
+          /* hybrid: fall through */
+        }
+      }
       const bytesArr: Uint8Array[] = [];
       const mimes: string[] = [];
       for (const f of files) {
@@ -1050,9 +1826,11 @@ export class PdfWorkbenchComponent implements OnDestroy {
       this.fileName = 'images.pdf';
       this.outputFilename = 'images.pdf';
       pdfNotifySuccess(this.toast, 'PDF created from images');
+      this.lastActionCompleted = true;
+      this.lastActionMessage = 'PDF created from images';
       this.scheduleRenderPreview();
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the PDF from images');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -1088,7 +1866,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       pdfNotifySuccess(this.toast, 'Table PDF created');
       this.scheduleRenderPreview();
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the table PDF');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -1120,7 +1898,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       pdfNotifySuccess(this.toast, 'Resume PDF created');
       this.scheduleRenderPreview();
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the resume PDF');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -1150,10 +1928,16 @@ export class PdfWorkbenchComponent implements OnDestroy {
     const canvas = this.activePreviewCanvas();
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = ((event.clientX - rect.left) * scaleX) / (globalThis.devicePixelRatio ?? 1);
-    const y = canvas.height / (globalThis.devicePixelRatio ?? 1) - (event.clientY - rect.top) * scaleY / (globalThis.devicePixelRatio ?? 1);
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    // Map CSS click → PDF page points (origin bottom-left), independent of preview scale/DPR.
+    const page = this.pdfDoc.getPage(this.currentPage - 1);
+    const pageWidth = page.getWidth();
+    const pageHeight = page.getHeight();
+    const cssX = event.clientX - rect.left;
+    const cssY = event.clientY - rect.top;
+    const x = (cssX / rect.width) * pageWidth;
+    const y = pageHeight - (cssY / rect.height) * pageHeight;
 
     if (this.mode === 'annotate-pdf') {
       if (!this.annotationText.trim()) {
@@ -1180,14 +1964,17 @@ export class PdfWorkbenchComponent implements OnDestroy {
       pdfNotifySuccess(this.toast, 'Annotation queued — click Apply to commit');
       this.clearFieldError('annotations');
     } else if (this.mode === 'highlight-text') {
+      const highlightWidth = Math.min(180, pageWidth * 0.35);
+      const highlightHeight = 18;
       this.annotations.push({
         type: 'highlight',
         pageIndex: this.currentPage - 1,
-        x,
-        y: y - 14,
-        width: 180,
-        height: 18,
+        x: Math.max(0, x - highlightWidth / 2),
+        y: Math.max(0, y - highlightHeight / 2),
+        width: highlightWidth,
+        height: highlightHeight,
         opacity: 0.35,
+        color: { r: 1, g: 1, b: 0 },
       });
       pdfNotifySuccess(this.toast, 'Highlight queued — click Apply to commit');
       this.clearFieldError('annotations');
@@ -1206,6 +1993,13 @@ export class PdfWorkbenchComponent implements OnDestroy {
     }
 
     if (this.mode === 'pdf-to-base64') {
+      return this.pdfBytes?.length ? cloneBytes(this.pdfBytes) : null;
+    }
+
+    // Backend encrypt keeps ciphertext in outputBytes and does not reload into pdfDoc.
+    if (this.mode === 'password-protect-pdf') {
+      if (this.outputBytes?.length) return cloneBytes(this.outputBytes);
+      if (this.pdfDoc) return new Uint8Array(await this.pdfLib.saveDocument(this.pdfDoc));
       return this.pdfBytes?.length ? cloneBytes(this.pdfBytes) : null;
     }
 
@@ -1290,7 +2084,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       downloadBytes(bytes, downloadName);
       pdfNotifySuccess(this.toast, 'Download started');
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'Download failed');
+      pdfNotifyFailure(this.toast, error, 'Could not download the file');
     }
   }
 
@@ -1312,26 +2106,44 @@ export class PdfWorkbenchComponent implements OnDestroy {
     this.pages = [];
     this.thumbnails = [];
     this.fileName = '';
+    this.fileSize = 0;
+    this.currentPage = 1;
+    this.outputFilename = '';
+    this.userPassword = '';
+    this.ownerPassword = '';
+    this.allowPrint = true;
+    this.allowModify = false;
     this.fieldErrors = {};
     this.base64Output = '';
     this.extractedText = '';
     this.annotations = [];
-    sessionStorage.removeItem(SESSION_KEY);
+    this.docPassword = '';
+    this.pdfQueue = [];
+    this.activeQueueId = null;
+    this.pendingAppendToQueue = false;
+    this.loadingDetail = '';
+    this.lastActionCompleted = false;
+    this.lastActionMessage = '';
+    this.purgeLegacyBrowserStorage();
     this.cdr.markForCheck();
   }
 
-  saveSession(): void {
-    if (!this.pdfBytes || !this.fileName) return;
+  /** PDFs must never be written to sessionStorage/localStorage. */
+  private purgeLegacyBrowserStorage(): void {
     try {
-      const payload = {
-        name: this.fileName,
-        b64: this.pdfLib.toBase64(this.pdfBytes),
-        mode: this.mode,
-      };
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+      sessionStorage.removeItem(LEGACY_SESSION_KEY);
+      localStorage.removeItem(LEGACY_SESSION_KEY);
     } catch {
-      /* quota */
+      /* private mode */
     }
+  }
+
+  private wipeSensitiveInMemoryState(): void {
+    this.userPassword = '';
+    this.ownerPassword = '';
+    this.docPassword = '';
+    this.passwordInput = '';
+    this.pdfQueue = this.pdfQueue.map((item) => ({ ...item, password: '' }));
   }
 
   formatFileSize = formatFileSize;
@@ -1354,6 +2166,7 @@ export class PdfWorkbenchComponent implements OnDestroy {
       'pdf-to-base64': 'Encode',
       'text-to-pdf': 'Create PDF',
       'create-pdf-from-html': 'Create PDF',
+      'html-to-pdf': 'Create PDF',
       'tables-charts-to-pdf': 'Create PDF',
       'resume-invoice-generator': 'Generate PDF',
     };

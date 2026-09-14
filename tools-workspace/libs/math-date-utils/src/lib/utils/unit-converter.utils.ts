@@ -109,6 +109,10 @@ export function formatConversionSummary(result: ConversionResult): string {
   return `${formatUnitNumber(result.inputValue, precision)} ${inputUnitLabel} = ${formatUnitNumber(result.outputValue, precision)} ${outputUnitLabel}`;
 }
 
+export function formatHistoryExport(entries: ReadonlyArray<ConversionResult>): string {
+  return entries.map((entry) => formatConversionSummary(entry)).join('\n');
+}
+
 export function formatHistoryMeta(result: ConversionResult, now = Date.now()): string {
   const elapsedMs = now - result.timestamp;
   const minutes = Math.floor(elapsedMs / 60000);

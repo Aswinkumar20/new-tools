@@ -55,6 +55,7 @@ import {
   createDefaultConversionEngine,
   filterCategoriesByTerm,
   formatConversionSummary,
+  formatHistoryExport,
   formatHistoryMeta,
   formatUnitLabel,
   formatUnitNumber,
@@ -244,8 +245,35 @@ export class UnitConverterComponent {
     this.toast.info('Showing your recent conversions.');
   }
 
-  manageHistory(): void {
-    this.toast.info('History management tools are coming soon.');
+  clearHistory(): void {
+    if (this.historyCount() === 0) {
+      this.toast.info('History is already empty.');
+      return;
+    }
+    this.historyStore.clear();
+    this.toast.info('Conversion history cleared.');
+  }
+
+  async exportHistory(): Promise<void> {
+    const entries = this.historyEntries();
+    if (!entries.length) {
+      this.toast.info('No history to export.');
+      return;
+    }
+    await mdCopyText(this.toast, formatHistoryExport(entries), 'History');
+  }
+
+  applyHistoryEntry(entry: ConversionResult): void {
+    this.setCategory(entry.inputUnit.type, { notify: false });
+    this.conversionForm.patchValue(
+      {
+        inputValue: entry.inputValue,
+        inputUnit: entry.inputUnit.id,
+        outputUnit: entry.outputUnit.id
+      },
+      { emitEvent: true }
+    );
+    this.toast.info('History entry applied.');
   }
 
   customizeQuickActions(): void {

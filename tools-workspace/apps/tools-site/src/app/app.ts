@@ -1,7 +1,8 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, Inject, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, Inject, OnInit, OnDestroy, inject } from '@angular/core';
 import {
   NavigationEnd,
+  NavigationStart,
   Router,
   RouterOutlet,
 } from '@angular/router';
@@ -26,9 +27,15 @@ import {
   getSeoMetadataForRoute,
   getToolSeoEntry,
   isComingSoonRoute,
+  isStaticMarketingRoute,
 } from './config/route-seo.config';
 import { GaScrollDirective } from './directives/ga-scroll.directive';
 import { getPageLoaderCopy, type LoaderMotif } from './utils/page-loader-copy';
+import {
+  loaderIconAssetPath,
+  LOADER_ICON_FALLBACK_SLUG,
+  preloadLoaderIcons,
+} from './utils/loader-icon-preload.utils';
 
 @Component({
   selector: 'app-root',
@@ -73,17 +80,24 @@ import { getPageLoaderCopy, type LoaderMotif } from './utils/page-loader-copy';
                   @if (loaderCenterIcon) {
                     <img
                       class="app-shell__forge-glyph-img"
+                      [class.app-shell__forge-glyph-img--ready]="loaderIconsReady"
                       [src]="loaderCenterIcon"
                       alt=""
                       width="28"
                       height="28"
-                    />
+                      (error)="onLoaderIconError('center')" />
                   }
                 </span>
                 <span class="app-shell__forge-orbit app-shell__forge-orbit--a">
-                  @for (icon of loaderOrbitIcons; track icon; let i = $index) {
+                  @for (icon of loaderOrbitIcons; track $index; let i = $index) {
                     <i [class]="'app-shell__forge-tile t' + (i + 1)">
-                      <img [src]="icon" alt="" width="18" height="18" />
+                      <img
+                        [src]="icon"
+                        alt=""
+                        width="18"
+                        height="18"
+                        [class.app-shell__forge-tile-img--ready]="loaderIconsReady"
+                        (error)="onLoaderIconError('orbit', i)" />
                     </i>
                   }
                 </span>
@@ -119,6 +133,7 @@ import { getPageLoaderCopy, type LoaderMotif } from './utils/page-loader-copy';
           class="app-shell__page"
           [class.app-shell__page--loading]="isPageLoading"
           [class.app-shell__page--visible]="pageVisible && !isPageLoading"
+          [class.app-shell__page--marketing]="isMarketingRoute"
         >
           <router-outlet (activate)="onOutletActivate()"></router-outlet>
         </div>
@@ -132,6 +147,7 @@ import { getPageLoaderCopy, type LoaderMotif } from './utils/page-loader-copy';
   styleUrls: ['./app.scss'],
 })
 export class App implements OnInit, OnDestroy {
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
   private pageStartTime = Date.now();
   private currentPath = '';
@@ -147,6 +163,8 @@ export class App implements OnInit, OnDestroy {
 
   /** Home uses full-bleed hero under fixed nav (no spacer). */
   isHomeRoute = false;
+  /** Softer, longer fade for static marketing pages (about, etc.). */
+  isMarketingRoute = false;
   /** Footer only after page content mounts — avoids footer-first flash. */
   contentReady = false;
   /**
@@ -161,6 +179,8 @@ export class App implements OnInit, OnDestroy {
   loadingMotif: LoaderMotif = 'home';
   loaderCenterIcon = '';
   loaderOrbitIcons: string[] = [];
+  loaderIconsReady = false;
+  private loaderIconsPromise: Promise<void> | null = null;
 
   constructor(
     private readonly router: Router,
@@ -182,6 +202,17 @@ export class App implements OnInit, OnDestroy {
       });
 
     if (isPlatformBrowser(this.platformId)) {
+      this.router.events
+        .pipe(
+          filter((event): event is NavigationStart => event instanceof NavigationStart),
+          takeUntilDestroyed()
+        )
+        .subscribe(() => {
+          if (this.hasActivatedOnce && !this.isPageLoading) {
+            this.pageVisible = false;
+          }
+        });
+
       // Track route changes and scroll to top (no forge loader on SPA navigations)
       this.router.events
         .pipe(
@@ -196,7 +227,11 @@ export class App implements OnInit, OnDestroy {
 
           this.currentPath = event.urlAfterRedirects;
           this.pageStartTime = Date.now();
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          const cleanUrl = event.urlAfterRedirects.split('?')[0].split('#')[0] || '';
+          window.scrollTo({
+            top: 0,
+            behavior: isStaticMarketingRoute(cleanUrl) ? 'smooth' : 'auto',
+          });
         });
 
       interval(30000)
@@ -257,7 +292,7 @@ export class App implements OnInit, OnDestroy {
     }
 
     if (!this.isPageLoading) {
-      this.softRevealPage();
+      this.revealSpaPage();
       return;
     }
 
@@ -269,7 +304,11 @@ export class App implements OnInit, OnDestroy {
     const waitMs = Math.max(0, this.minLoaderMs - elapsed);
 
     this.clearLoaderRevealTimer();
-    this.loaderRevealTimer = setTimeout(() => this.revealLoadedPage(), waitMs);
+    const iconsReady = this.loaderIconsPromise ?? Promise.resolve();
+    const minWait = new Promise<void>((resolve) => {
+      this.loaderRevealTimer = setTimeout(() => resolve(), waitMs);
+    });
+    void Promise.all([iconsReady, minWait]).then(() => this.revealLoadedPage());
   }
 
   private applyInitialLoader(url: string): void {
@@ -279,20 +318,61 @@ export class App implements OnInit, OnDestroy {
     this.readyHint = copy.readyHint;
     this.loadingMotif = copy.motif;
     this.loadingHint = copy.hints[0] || 'Loading…';
-    this.loaderCenterIcon = this.assetService.getAssetPath(
-      `icons/categories/${copy.centerIconSlug}.svg`
+
+    const fallbackPath = this.assetService.getAssetPath(
+      loaderIconAssetPath(LOADER_ICON_FALLBACK_SLUG)
     );
-    this.loaderOrbitIcons = copy.orbitIconSlugs.map((slug) =>
-      this.assetService.getAssetPath(`icons/categories/${slug}.svg`)
+    const centerPath = this.assetService.getAssetPath(
+      loaderIconAssetPath(copy.centerIconSlug)
     );
+    const orbitPaths = copy.orbitIconSlugs.map((slug) =>
+      this.assetService.getAssetPath(loaderIconAssetPath(slug))
+    );
+
+    this.loaderCenterIcon = centerPath;
+    this.loaderOrbitIcons = orbitPaths;
+    this.loaderIconsReady = false;
+
+    this.loaderIconsPromise = preloadLoaderIcons([centerPath, ...orbitPaths, fallbackPath]).then(
+      () => {
+        this.loaderIconsReady = true;
+        this.cdr.markForCheck();
+      }
+    );
+
     this.isPageLoading = true;
     this.pageVisible = false;
     this.loaderShownAt = Date.now();
     this.startHintRotation();
   }
 
+  protected onLoaderIconError(kind: 'center' | 'orbit', index?: number): void {
+    const fallback = this.assetService.getAssetPath(
+      loaderIconAssetPath(LOADER_ICON_FALLBACK_SLUG)
+    );
+    if (kind === 'center') {
+      this.loaderCenterIcon = fallback;
+      return;
+    }
+    if (index != null && index >= 0 && index < this.loaderOrbitIcons.length) {
+      this.loaderOrbitIcons = this.loaderOrbitIcons.map((url, i) =>
+        i === index ? fallback : url
+      );
+      this.cdr.markForCheck();
+    }
+  }
+
   private softRevealPage(): void {
     this.pageVisible = false;
+    this.revealSpaPage();
+  }
+
+  private revealSpaPage(): void {
+    if (!isPlatformBrowser(this.platformId)) {
+      this.pageVisible = true;
+      return;
+    }
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this.pageVisible = true;
@@ -343,6 +423,7 @@ export class App implements OnInit, OnDestroy {
   private syncShellForUrl(url: string): void {
     const clearUrl = url.split('?')[0].split('#')[0] || '';
     this.isHomeRoute = clearUrl === '/tools/home' || clearUrl.endsWith('/tools/home');
+    this.isMarketingRoute = isStaticMarketingRoute(clearUrl);
   }
 
   private applyThemeOnInit(): void {
@@ -495,7 +576,7 @@ export class App implements OnInit, OnDestroy {
     const isKnownTool = !!entry && pathParts.length >= 2;
     const isCategoryIndex = !!entry && pathParts.length === 1;
 
-    if (!entry && cleanUrl !== '/tools/home') {
+    if (!entry && cleanUrl !== '/tools/home' && !isStaticMarketingRoute(cleanUrl)) {
       seoMetadata.title = 'Page not found';
       seoMetadata.description =
         'This page does not exist on EasyToolHub. Open the homepage or browse free online tools.';
@@ -506,6 +587,14 @@ export class App implements OnInit, OnDestroy {
 
     if (cleanUrl === '/tools/home') {
       seoMetadata.structuredData = this.seoService.generateWebsiteStructuredData();
+    } else if (cleanUrl === '/about') {
+      seoMetadata.structuredData = [
+        this.seoService.generateOrganizationStructuredData(),
+        this.seoService.generateBreadcrumbStructuredData([
+          { name: 'Home', url: '/tools/home' },
+          { name: 'About', url: '/about' },
+        ]),
+      ];
     } else if (isCategoryIndex && entry) {
       const category = TOOL_CATEGORIES.find((c) => c.path === entry.categorySlug);
       const breadcrumbs = [

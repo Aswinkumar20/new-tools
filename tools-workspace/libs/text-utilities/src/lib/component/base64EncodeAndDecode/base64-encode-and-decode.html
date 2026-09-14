@@ -14,11 +14,11 @@
           <span class="b64__stat-label">Mode</span>
         </div>
         <div class="b64__stat">
-          <span class="b64__stat-value">{{ inputText.length }}</span>
+          <span class="b64__stat-value" [title]="formatStatTitle(inputText.length)">{{ formatStatCount(inputText.length) }}</span>
           <span class="b64__stat-label">Input</span>
         </div>
         <div class="b64__stat">
-          <span class="b64__stat-value">{{ outputText.length }}</span>
+          <span class="b64__stat-value" [title]="formatStatTitle(outputText.length)">{{ formatStatCount(outputText.length) }}</span>
           <span class="b64__stat-label">Output</span>
         </div>
         <div class="b64__stat">
@@ -48,6 +48,15 @@
     </div>
 
     <div class="b64__workspace">
+
+          <lib-text-tool-processing-overlay
+
+            [visible]="isProcessing"
+
+            [label]="processingLabel"
+
+            [progress]="processingProgress" />
+
       <div class="b64__editors" aria-label="Source and converted text">
         <section
           class="b64__editor"
@@ -62,9 +71,8 @@
                 type="button"
                 class="b64__tool-btn"
                 (click)="uploadTextFile()"
-                [disabled]="isReadingFile"
                 aria-label="Upload text file"
-                [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'"
+                [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')"
                 tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
                 <span class="b64__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>

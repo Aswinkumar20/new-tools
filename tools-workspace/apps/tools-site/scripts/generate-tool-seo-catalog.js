@@ -13,7 +13,7 @@ const {
   extractComingSoonPaths,
   slugToTitle,
 } = require('./lib/extract-routes');
-const { getEnrichment, buildEnhancedKeywords } = require('./lib/tool-seo-enrichment');
+const { getEnrichment, buildEnhancedKeywords, buildCategoryKeywords } = require('./lib/tool-seo-enrichment');
 
 const ROOT = path.join(__dirname, '../../..');
 const FOOTER_FILE = path.join(ROOT, 'libs/features-home/src/lib/component/footer/footer.config.ts');
@@ -90,18 +90,31 @@ function shortToolName(name) {
 function buildSeoTitle(name, categorySlug) {
   const short = shortToolName(name);
   const category = CATEGORY_LABELS[categorySlug] || slugToTitle(categorySlug);
-  const title = `${short} - Free Online ${category} Tool`;
-  return title.length <= 60 ? title : `${short} - Free Online Tool`;
+  const candidates = [
+    `${short} - Free Online ${category} Tool`,
+    `Free Online ${short} | ${category}`,
+    `${short} Online Free Tool`,
+    short,
+  ];
+  for (const title of candidates) {
+    if (title.length <= 60) return title;
+  }
+  return `${short.slice(0, 45)}… Free Online Tool`;
 }
 
 function buildSeoDescription(description, name, categorySlug) {
   const category = (CATEGORY_LABELS[categorySlug] || slugToTitle(categorySlug)).toLowerCase();
-  const suffix = ' Free, fast, and private — runs in your browser on EasyToolHub.';
+  const short = shortToolName(name);
+  const suffix =
+    ' Free, fast, and private — runs in your browser on EasyToolHub. No signup required.';
   const base = description.endsWith('.') ? description : `${description}.`;
-  const withSuffix = `${base}${suffix}`;
+  const withIntent = base.toLowerCase().includes('free online')
+    ? base
+    : `Free online ${short}: ${base}`;
+  const withSuffix = `${withIntent}${suffix}`;
   if (withSuffix.length <= 160) return withSuffix;
 
-  const trimmed = `${shortToolName(name)} — free online ${category} tool.${suffix}`;
+  const trimmed = `Free online ${short} — ${category} tool on EasyToolHub. No signup. Private & browser-based.`;
   if (trimmed.length <= 160) return trimmed;
   return `${trimmed.slice(0, 157)}...`;
 }
@@ -150,7 +163,7 @@ function generate() {
       'Discover 160+ free online tools for text editing, file conversion, PDF manipulation, image editing, security, and more. No signup required. Fast, secure, and privacy-focused.',
     keywords:
       homeEnrichment?.keywords ||
-      'free online tools, text tools, file converter, PDF tools, image tools, developer tools, web tools, utility tools',
+      'free online tools, online utilities, pdf tools, text tools, file converter, image tools, developer tools, easytoolhub, no signup, browser based tools',
   };
 
   for (const [categorySlug, toolSlugs] of toolsByCategory) {
@@ -165,9 +178,9 @@ function generate() {
       name: meta.name,
       category: meta.name,
       categorySlug,
-      title: `${meta.name} - Free Online Tools`,
+      title: `${meta.name} - Free Online Tools | EasyToolHub`.slice(0, 60),
       description: buildSeoDescription(meta.description, meta.name, categorySlug),
-      keywords: `${meta.name.toLowerCase()}, free online tools, easytoolhub, ${categorySlug.replace(/-/g, ' ')}`,
+      keywords: buildCategoryKeywords(meta.name, categorySlug),
     };
 
     const subCategories = toolSlugs.map((toolSlug) => {

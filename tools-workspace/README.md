@@ -94,7 +94,7 @@ npx nx graph
 npx nx run tools-site:generate-sitemap
 ```
 
-Deploy output: `dist/apps/tools-site/browser/`. Details: [docs/guides/deployment.md](./docs/guides/deployment.md).
+Deploy output: `dist/apps/tools-site/browser/` (static SSG). Hybrid PDF needs `tool-api` behind `/api` — see [docs/guides/deployment.md](./docs/guides/deployment.md).
 
 ---
 
@@ -115,9 +115,12 @@ Patterns: [docs/components.md](./docs/components.md), [docs/features.md](./docs/
 
 | Metric | Value |
 | ------ | ----- |
+| Routed tools | **365** (344 live · 21 coming soon · 1 partial) |
+| Category libraries | 22 feature libs + 1 shared shell |
 | Prerender URLs | 387 (home + 22 category indexes + tools) |
-| Coming-soon UIs | media ×4 + file-viewers extras (see [docs/features.md](./docs/features.md)) |
 | Unit specs | ~520 |
+
+Full per-tool inventory: [docs/tools-inventory.md](./docs/tools-inventory.md).
 
 ---
 
@@ -128,12 +131,13 @@ Patterns: [docs/components.md](./docs/components.md), [docs/features.md](./docs/
 | [docs/README.md](./docs/README.md) | Full index |
 | [docs/architecture.md](./docs/architecture.md) | Architecture & state |
 | [docs/features.md](./docs/features.md) | Features & flows |
+| [docs/tools-inventory.md](./docs/tools-inventory.md) | All 365 tools — status, routes, roadmap |
 | [docs/components.md](./docs/components.md) | Component catalog |
 | [docs/api.md](./docs/api.md) | External HTTP / CDN |
 | [docs/quality.md](./docs/quality.md) | Quality, debt, testing |
 | [docs/guides/seo.md](./docs/guides/seo.md) | SEO |
 | [docs/guides/analytics.md](./docs/guides/analytics.md) | Google Analytics |
-| [docs/guides/deployment.md](./docs/guides/deployment.md) | Deploy |
-| [docs/guides/compilation.md](./docs/guides/compilation.md) | Build performance |
+| [docs/guides/deployment.md](./docs/guides/deployment.md) | Static site + tool-api |
+| [docs/guides/compilation.md](./docs/guides/compilation.md) | UI + API build |
 
 License: MIT.

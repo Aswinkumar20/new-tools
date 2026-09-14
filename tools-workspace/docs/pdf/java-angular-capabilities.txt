@@ -1,0 +1,1373 @@
+================================================================================
+EasyToolHub — PDF capabilities with Angular frontend + Java backend
+DETAILED IMPLEMENTATION GUIDE (libraries, APIs, architecture)
+================================================================================
+Purpose: Full inventory of user-facing PDF features, plus concrete Java libraries,
+Maven dependencies, system packages, Angular integration, and API shapes.
+
+DECISION (locked):
+  Stack = Angular frontend (existing EasyToolHub / Nx) + Java backend (Spring Boot).
+  Do NOT rewrite PDF UI in React. Frontend stays Angular; heavy PDF ops move to Java.
+  Hybrid model: light tools stay client-side; server-required tools call Java API.
+
+TEAM MODEL (locked):
+  Solo developer NOW → optimize for simplicity and ship speed.
+  Design BOUNDARIES so the same layout scales later (replicas, job queue,
+  optional service split, optional polyrepo) WITHOUT a rewrite.
+  Do NOT adopt micro-frontends / Kubernetes / many Java services on day one.
+
+Guideline:
+  - Keep light tools in the browser (privacy, speed).
+  - Use Java for encryption, real compress, HTML/Office convert, OCR, redact,
+    digital sign, repair, PDF/A, and heavy batch jobs.
+  - One monorepo, two deployables (Angular static + pdf-api container).
+  - Folder roles: apps/ + libs/ (UI) · services/ (Java) · contracts/ (OpenAPI)
+    · infra/ (compose) · docs/pdf/ (planning).
+  - OpenAPI in contracts/pdf is the contract between UI and backend.
+  - Feature-flag each tool’s backend path; migrate vertically (one tool at a time).
+
+
+================================================================================
+0. WORKSPACE & SCALABILITY (IMPLEMENT THIS LAYOUT)
+================================================================================
+
+--------------------------------------------------------------------------------
+0.1 Optimized monorepo layout (Stage 0 — solo, scalable)
+--------------------------------------------------------------------------------
+
+Design goals:
+  - One glance: UI vs API vs contract vs infra vs docs
+  - Keep existing Nx paths (apps/, libs/) — do NOT rename/move them
+  - Put ALL backends under services/ (ready for pdf-ocr-api later)
+  - Put OpenAPI in contracts/ (shared by Angular + Java; not buried in Java)
+  - Keep deploy/runtime under infra/
+  - Keep planning docs under docs/pdf/
+
+  tools-workspace/                              ← Nx root (unchanged)
+  │
+  ├── apps/                                     ← DEPLOYABLE UIs (Nx)
+  │   ├── tools-site/                           ← public Angular SPA + SSG
+  │   │   ├── proxy.conf.json                   ← /api/pdf → localhost:8080
+  │   │   └── src/app/
+  │   │       ├── routes/                       ← route tables only
+  │   │       ├── config/
+  │   │       │   └── pdf-backend.config.ts     ← feature flags + base URL
+  │   │       └── ...
+  │   └── tools-site-e2e/                       ← Playwright
+  │
+  ├── libs/                                     ← UI LIBRARIES ONLY (Nx)
+  │   ├── features-home/                        ← shell: nav, toast, assets, i18n
+  │   ├── pdf-tools/                            ← PDF domain UI (see 0.1b)
+  │   ├── text-utilities/
+  │   └── …                                     ← one lib per tool category
+  │
+  ├── services/
+  │   └── tool-api/                             ← ONE multi-domain Java backend
+  │       ├── pom.xml / Dockerfile / README.md
+  │       └── src/main/java/com/easytoolhub/
+  │           ├── ToolApiApplication.java
+  │           ├── common/                       ← shared: CORS, temp, errors, /api/v1/health
+  │           │   ├── api/
+  │           │   ├── config/
+  │           │   └── platform/
+  │           └── pdf/                          ← PDF domain (/api/v1/pdf/*)
+  │               ├── api/
+  │               ├── application/
+  │               ├── engine/
+  │               └── config/
+  │           # └── text/  media/ …             ← future domains (same app)
+  │
+  ├── contracts/                                ← OpenAPI per domain (no runtime code)
+  │   ├── pdf/openapi.yaml
+  │   # └── text/openapi.yaml
+  │
+  ├── infra/                                    ← RUN / DEPLOY glue
+  │   ├── compose/
+  │   │   └── docker-compose.yml                ← tool-api (+ redis later)
+  │   ├── env/
+  │   │   └── tool-api.env.example
+  │   └── gateway/                              ← optional Caddy/Nginx snippets
+  │
+  ├── docs/
+  │   ├── architecture.md                       ← existing site docs
+  │   ├── pdf/                                  ← PDF hybrid planning
+  │   │   └── java-angular-capabilities.txt     ← THIS file
+  │   └── ...
+  │
+  ├── scripts/                                  ← existing maintenance scripts
+  ├── marketing/                                ← unchanged
+  ├── package.json                              ← start:api / start:ui / start:all
+  ├── nx.json
+  └── tsconfig.base.json
+
+Why this is easier to maintain than backend/ + openapi-inside-Java:
+  apps/        = “what users open in a browser”
+  libs/        = “UI building blocks by domain”
+  services/    = “one tool-api with domain packages (pdf, text, …)”
+  contracts/   = “the agreement between apps and services”
+  infra/       = “how we run those services”
+  docs/        = “why / how we decided”
+
+
+--------------------------------------------------------------------------------
+0.1b libs/pdf-tools internal layout (Angular maintainability)
+--------------------------------------------------------------------------------
+
+  Keep public routes thin; separate client engine vs server API client.
+
+  libs/pdf-tools/src/
+  ├── index.ts                                  ← public barrel (stable exports only)
+  └── lib/
+      ├── api/                                  ← NEW: talk to Java pdf-api
+      │   ├── pdf-backend-api.service.ts
+      │   ├── pdf-backend.models.ts
+      │   └── pdf-backend-download.util.ts
+      ├── services/                             ← EXISTING: browser engines
+      │   ├── pdf-lib.service.ts
+      │   ├── pdf-js-loader.service.ts
+      │   ├── pdf-preview.service.ts
+      │   └── pdf-jspdf.service.ts
+      ├── workbench/                            ← EXISTING fat shells (optional move)
+      │   ├── pdf-workbench/
+      │   └── pdf-jspdf-workbench/
+      ├── features/                             ← thin route components (one folder each)
+      │   ├── password-protect-pdf/
+      │   ├── compress-pdf/
+      │   ├── merge-pdfs/
+      │   └── ...
+      ├── shared/                               ← types, validation, toast helpers
+      │   ├── pdf.types.ts
+      │   ├── pdf.utils.ts
+      │   ├── pdf.validation.ts
+      │   └── ...
+      └── styles/
+
+  Migration note:
+    Existing path libs/pdf-tools/src/lib/component/* can stay initially.
+    Prefer NEW tools under features/; gradually rename component/ → features/
+    when touching files (no big-bang move).
+
+
+--------------------------------------------------------------------------------
+0.1c Naming rules (so future-you never guesses)
+--------------------------------------------------------------------------------
+
+  Layer                         Name pattern                    Example
+  ----------------------------  ------------------------------  --------------------
+  Angular app                   tools-site                      apps/tools-site
+  Angular feature lib           <domain>                        libs/pdf-tools
+  Java service                  <domain>-api                    services/tool-api
+  OpenAPI contract              contracts/<domain>/openapi.yaml contracts/pdf/openapi.yaml
+  Compose stack                 infra/compose/                  docker-compose.yml
+  REST path                     /api/v1/<domain>/...            /api/v1/pdf/encrypt
+  Config flag key               same as route id                password-protect-pdf
+  Docker image                  easytoolhub-<service>           easytoolhub-tool-api
+
+  Where does new code go?
+    New PDF UI tool              → libs/pdf-tools/.../features/<tool>/
+    New PDF UI shared helper     → libs/pdf-tools/.../shared/
+    Call Java from Angular       → libs/pdf-tools/.../api/
+    New PDF HTTP endpoint        → services/tool-api/.../api/ + application/
+    New PDF engine (qpdf/gs)     → services/tool-api/.../engine/
+    Change request/response      → contracts/pdf/openapi.yaml FIRST
+    New microservice later       → services/<name>-api/ + contracts/<name>/
+    Run instructions / ports     → infra/ + service README
+
+
+--------------------------------------------------------------------------------
+0.1d Folder ownership map (mental model)
+--------------------------------------------------------------------------------
+
+  Change type                         Touch these folders only
+  ----------------------------------  ---------------------------------
+  Button / workbench UX               libs/pdf-tools, apps/tools-site routes
+  SEO / sitemap / GA                  apps/tools-site
+  Encrypt/compress behavior           services/tool-api, contracts/pdf
+  Local ports / containers            infra/
+  “Should this hit the server?”       apps/.../pdf-backend.config.ts
+  Docs / roadmap                      docs/pdf/
+
+
+--------------------------------------------------------------------------------
+0.2 Two deployables (always)
+--------------------------------------------------------------------------------
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  easytoolhub.com (CDN / static host)                    │
+  │  apps/tools-site (Angular SSG)                          │
+  │  libs/pdf-tools + other libs                            │
+  └──────────────────────────┬──────────────────────────────┘
+                             │ HTTPS  /api/v1/pdf/*
+                             │ contract: contracts/pdf/openapi.yaml
+  ┌──────────────────────────▼──────────────────────────────┐
+  │  api.easytoolhub.com  (or reverse proxy on same domain) │
+  │  services/tool-api (Spring Boot container)               │
+  └─────────────────────────────────────────────────────────┘
+
+  Deploy independently:
+    web@x.y.z        → dist/apps/tools-site/browser/
+    pdf-api@x.y.z    → Docker image easytoolhub-tool-api
+
+
+--------------------------------------------------------------------------------
+0.3 Local development (solo daily workflow)
+--------------------------------------------------------------------------------
+
+  Terminal A:  npx nx serve tools-site                       → :4200
+  Terminal B:  cd services/tool-api && ./mvnw spring-boot:run → :8080
+
+  OR:  docker compose -f infra/compose/docker-compose.yml up tool-api
+
+  Angular proxy (apps/tools-site/proxy.conf.json):
+    {
+      "/api/pdf": {
+        "target": "http://localhost:8080",
+        "secure": false,
+        "changeOrigin": true
+      }
+    }
+
+  Wire proxy in serve options (project.json):
+    "proxyConfig": "apps/tools-site/proxy.conf.json"
+
+  package.json scripts (add):
+    "start:ui": "nx serve tools-site"
+    "start:api": "cd services/tool-api && ./mvnw spring-boot:run"
+    "start:all": "concurrently -k \"npm run start:ui\" \"npm run start:api\""
+    "compose:api": "docker compose -f infra/compose/docker-compose.yml up --build pdf-api"
+
+  Environments:
+    apps/tools-site/src/app/config/pdf-backend.config.ts
+      export const PDF_BACKEND = {
+        enabled: true,
+        baseUrl: '/api/pdf',          // dev proxy; prod: https://api.easytoolhub.com/api/pdf
+        maxUploadMb: 50,
+        tools: {
+          'password-protect-pdf': true,
+          'compress-pdf': false,
+          'html-to-pdf': false,
+        },
+      };
+
+
+--------------------------------------------------------------------------------
+0.4 Angular integration pieces to add
+--------------------------------------------------------------------------------
+
+  1) libs/pdf-tools/src/lib/api/pdf-backend-api.service.ts
+       encrypt(file, options) => Observable<Blob>
+       decrypt(file, options) => Observable<Blob>
+       compress(file, options) => Observable<Blob>
+       ... multipart FormData + responseType: 'blob'
+
+  2) PdfBackendFeatureFlag helper (reads pdf-backend.config.ts)
+       isBackendEnabled(toolId: string): boolean
+
+  3) Workbench / feature change (vertical slice)
+       password-protect-pdf:
+         if flag → PdfBackendApiService.encrypt → download blob
+         else → keep current client path / show “requires server” message
+
+  4) Privacy banner on any backend-enabled tool
+       “Processed on secure server · file deleted after job”
+
+
+--------------------------------------------------------------------------------
+0.5 Scalability stages (grow without rewrite)
+--------------------------------------------------------------------------------
+
+  STAGE 0 — Solo now (IMPLEMENT THIS FIRST)
+    CDN (Angular SSG) → 1× services/tool-api container
+    Folders as in 0.1
+    Sync request/response for small jobs
+    Temp files deleted in finally + TTL cleaner
+    Rate limit by IP
+    Tools: encrypt/decrypt first, then compress, then HTML→PDF
+
+  STAGE 1 — Traffic / long jobs (still one Java service)
+    Add Redis in infra/compose
+    Async endpoints for OCR/compress large files
+    Scale services/tool-api to 2+ replicas
+    Trigger when: jobs >30s, OOM, or single instance CPU pegged
+
+  STAGE 2 — Domain split (only if needed)
+    services/tool-api           page ops, encrypt, compress, watermark
+    services/pdf-convert-api   Office/HTML/URL → PDF
+    services/pdf-ocr-api       OCR only
+    contracts/pdf/ stays the public facade contract Angular calls
+    Trigger when: fat image, OCR starves encrypt, or deps conflict
+
+  STAGE 3 — Org scale (multiple people / products)
+    Optional polyrepo:
+      easytoolhub-web          ← apps/ + libs/
+      easytoolhub-tool-api      ← services/tool-api
+      easytoolhub-contracts    ← contracts/
+    Optional MFE only if a second web app/team needs PDF UI
+
+
+--------------------------------------------------------------------------------
+0.6 Decision trees (use every time you add a feature)
+--------------------------------------------------------------------------------
+
+  New PDF feature?
+    ├─ Browser can do it well (small files)? → libs/pdf-tools (client services)
+    └─ Needs encrypt / OCR / Office / real compress / sign / PDF/A?
+          → contracts/pdf/openapi.yaml FIRST
+          → then services/tool-api (same service)
+                └─ Starving others or huge isolated deps?
+                      → new services/<name>-api (Stage 2)
+
+  Need micro-frontend?
+    └─ Only if second app/team needs PDF UI independently
+          → otherwise keep libs/pdf-tools lazy module
+
+
+--------------------------------------------------------------------------------
+0.7 CI / CD (path filters match folders)
+--------------------------------------------------------------------------------
+
+  Pipeline WEB (apps/**, libs/**, package-lock.json):
+    npm ci → nx lint/test affected → build-prod → publish static
+
+  Pipeline PDF-API (services/tool-api/**, contracts/pdf/**):
+    ./mvnw test → docker build → push easytoolhub-tool-api → deploy
+
+  Version independently:
+    web-1.x.y
+    pdf-api-0.x.y
+
+  Do NOT couple releases: UI can ship with backend flag off.
+
+
+--------------------------------------------------------------------------------
+0.8 Solo operating rules
+--------------------------------------------------------------------------------
+
+  1. Vertical slices: one tool end-to-end (flag → contract → API → Docker)
+  2. Contract-first: update contracts/pdf/openapi.yaml BEFORE controller code
+  3. Feature flags per tool in pdf-backend.config.ts
+  4. No permanent PDF storage by default (tmp + delete)
+  5. Honest UI for limits (max MB, max pages, etc.)
+  6. Prefer qpdf/gs CLIs for encrypt/compress reliability when unsure
+  7. Avoid iText/Aspose unless you buy a license
+  8. Postpone Redis/MFE/K8s until a Stage trigger is real
+  9. Never put OpenAPI only inside services/ — always mirror/source from contracts/
+  10. Don’t create backend/ or api/ at repo root — use services/
+
+
+================================================================================
+1. BACKEND ARCHITECTURE (services/tool-api internals)
+================================================================================
+
+Location: services/tool-api/   (Spring Boot 3.x, Java 17 or 21)
+
+Layered packages (dependency direction: api → application → engine/domain):
+
+  api/            HTTP only — map multipart ↔ DTO, call application services
+  application/    Use-cases — EncryptPdfService, CompressPdfService, …
+  engine/         Tech adapters — PDFBox, QpdfEngine, GsEngine (ProcessBuilder)
+  domain/         Pure models — EncryptOptions, CompressQuality, PdfJobStatus
+  config/         Spring @Configuration properties
+  platform/       TempWorkspace, RateLimiter, FileCleanupScheduler
+  job/            Stage 1+ async
+
+Contract:
+  Edit contracts/pdf/openapi.yaml (canonical)
+  Optional: copy or symlink into services/tool-api/src/main/resources/static/openapi.yaml
+  for Swagger UI — but canonical path remains contracts/
+
+Angular (existing):
+  libs/pdf-tools/                   PDF UI domain
+  apps/tools-site/                  Routes, SEO, pdf-backend.config.ts
+  libs/pdf-tools/.../api/           PdfBackendApiService
+
+Hybrid flow:
+  Angular → multipart POST file(s) + options
+         → services/tool-api processes in temp dir
+         → returns application/pdf (or zip)
+         → deletes temp files immediately
+
+
+================================================================================
+2. CORE MAVEN DEPENDENCIES (pom.xml baseline)
+================================================================================
+
+Spring / API
+  org.springframework.boot:spring-boot-starter-web
+  org.springframework.boot:spring-boot-starter-validation
+  org.springframework.boot:spring-boot-starter-actuator
+  (optional) org.springframework.boot:spring-boot-starter-security
+  (optional) org.springframework.boot:spring-boot-starter-data-redis  (job status)
+
+Core PDF (PRIMARY — Apache PDFBox 3.x)
+  org.apache.pdfbox:pdfbox:3.0.x
+  org.apache.pdfbox:pdfbox-tools:3.0.x
+  org.apache.pdfbox:pdfbox-io:3.0.x
+  org.apache.pdfbox:fontbox:3.0.x
+  org.apache.pdfbox:jbig2-imageio:3.0.x          (decode JBIG2 images)
+  org.apache.pdfbox:xmpbox:3.0.x                 (XMP metadata)
+
+Alternative / complementary PDF libs
+  com.github.librepdf:openpdf:1.3.x              (iText 2 fork; encrypt helpers)
+  (COMMERCIAL, license required) com.itextpdf:itext7-core / pdfCalligraph / pdfHTML
+  (COMMERCIAL) com.aspose:aspose-pdf             (high fidelity Office/PDF)
+
+HTML → PDF
+  com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.x
+  com.openhtmltopdf:openhtmltopdf-slf4j:1.0.x
+  (optional) io.github.openhtmltopdf:openhtmltopdf-jsoup-dom-converter
+  OR headless Chromium via Playwright Java:
+    com.microsoft.playwright:playwright:1.x
+
+Markdown
+  org.commonmark:commonmark:0.22.x
+  org.commonmark:commonmark-ext-gfm-tables
+
+Images / imaging
+  com.twelvemonkeys.imageio:imageio-jpeg
+  com.twelvemonkeys.imageio:imageio-tiff
+  com.twelvemonkeys.imageio:imageio-webp
+  net.coobird:thumbnailator:0.4.x                (resize/downsample)
+
+Barcode / QR
+  com.google.zxing:core
+  com.google.zxing:javase
+
+Office (Apache POI — structure; convert via LibreOffice)
+  org.apache.poi:poi-ooxml
+  org.apache.poi:poi-scratchpad                   (older OLE formats)
+
+OCR
+  net.sourceforge.tess4j:tess4j:5.x              (Tesseract JNI wrapper)
+
+Charts (server-side chart→image→PDF)
+  org.jfree:jfreechart:1.5.x
+  OR org.knowm.xchart:xchart
+
+JSON / utils
+  com.fasterxml.jackson.core:jackson-databind
+  commons-io:commons-io
+  org.apache.commons:commons-lang3
+  org.apache.commons:commons-compress             (zip batch)
+
+Crypto / signing support
+  org.bouncycastle:bcprov-jdk18on
+  org.bouncycastle:bcpkix-jdk18on
+  (PDFBox signing examples use BouncyCastle + PDFBox PDSignature)
+
+Async / jobs (optional)
+  org.springframework.boot:spring-boot-starter-quartz
+  OR Redis + Spring Data Redis for job status
+
+
+SYSTEM PACKAGES (Docker / host — not Maven)
+  qpdf                 encrypt/decrypt/linearize/repair (CLI)
+  ghostscript (gs)     compress, PDF→images, PDF/A assist
+  tesseract-ocr        OCR engine (+ language packs: eng, etc.)
+  libreoffice          DOCX/XLSX/PPTX/ODT → PDF (headless)
+  fontconfig, fonts-dejavu, fonts-liberation
+  (optional) poppler-utils  pdftotext / pdftoppm fallback
+
+
+--------------------------------------------------------------------------------
+Example Maven coordinates (pin versions in your pom)
+--------------------------------------------------------------------------------
+  <dependency>
+    <groupId>org.apache.pdfbox</groupId>
+    <artifactId>pdfbox</artifactId>
+    <version>3.0.3</version>
+  </dependency>
+  <dependency>
+    <groupId>com.openhtmltopdf</groupId>
+    <artifactId>openhtmltopdf-pdfbox</artifactId>
+    <version>1.0.10</version>
+  </dependency>
+  <dependency>
+    <groupId>net.sourceforge.tess4j</groupId>
+    <artifactId>tess4j</artifactId>
+    <version>5.11.0</version>
+  </dependency>
+  <dependency>
+    <groupId>com.google.zxing</groupId>
+    <artifactId>core</artifactId>
+    <version>3.5.3</version>
+  </dependency>
+  <dependency>
+    <groupId>org.bouncycastle</groupId>
+    <artifactId>bcpkix-jdk18on</artifactId>
+    <version>1.78.1</version>
+  </dependency>
+
+License warning:
+  iText 7 AGPL / commercial — do NOT use in proprietary SaaS without a license.
+  Prefer PDFBox + OpenPDF + OpenHTMLToPDF + LibreOffice + qpdf/gs for OSS stack.
+
+
+================================================================================
+3. REST API CONTRACT (Angular ↔ Java)
+================================================================================
+
+Common pattern:
+  Content-Type: multipart/form-data
+  Parts: file (binary), options (application/json)
+  Response: application/pdf OR application/zip
+  Headers: X-Job-Id (async), Content-Disposition: attachment; filename=...
+
+Suggested endpoints:
+  POST /api/v1/pdf/merge
+  POST /api/v1/pdf/split
+  POST /api/v1/pdf/pages/extract
+  POST /api/v1/pdf/pages/delete
+  POST /api/v1/pdf/pages/reorder
+  POST /api/v1/pdf/pages/rotate
+  POST /api/v1/pdf/pages/crop
+  POST /api/v1/pdf/encrypt
+  POST /api/v1/pdf/decrypt
+  POST /api/v1/pdf/permissions
+  POST /api/v1/pdf/compress
+  POST /api/v1/pdf/linearize
+  POST /api/v1/pdf/watermark
+  POST /api/v1/pdf/page-numbers
+  POST /api/v1/pdf/metadata
+  POST /api/v1/pdf/forms/fill
+  POST /api/v1/pdf/forms/flatten
+  POST /api/v1/pdf/annotate
+  POST /api/v1/pdf/redact
+  POST /api/v1/pdf/sign
+  POST /api/v1/pdf/sign/verify
+  POST /api/v1/pdf/ocr
+  POST /api/v1/pdf/convert/html-to-pdf
+  POST /api/v1/pdf/convert/images-to-pdf
+  POST /api/v1/pdf/convert/office-to-pdf
+  POST /api/v1/pdf/convert/pdf-to-images
+  POST /api/v1/pdf/convert/pdf-to-text
+  POST /api/v1/pdf/convert/pdf-to-pdfa
+  POST /api/v1/pdf/generate/resume
+  POST /api/v1/pdf/generate/invoice
+  POST /api/v1/pdf/batch                    (zip in → job id)
+  GET  /api/v1/pdf/jobs/{id}               (status)
+  GET  /api/v1/pdf/jobs/{id}/download
+
+Limits (config):
+  max file size: 25–50 MB (sync), 100 MB (async)
+  max pages: e.g. 500
+  max concurrent jobs per IP
+  temp file TTL: 5–15 minutes
+  never log file contents
+
+
+Angular service sketch:
+  PdfBackendApiService.encrypt(file: File, options: EncryptOptions): Observable<Blob>
+  Use HttpClient.post(url, formData, { responseType: 'blob' })
+  Then trigger browser download via object URL.
+
+
+================================================================================
+4. FEATURE → LIBRARY → IMPLEMENTATION DETAIL
+================================================================================
+
+
+--------------------------------------------------------------------------------
+A. CORE EDIT / PAGE OPS
+--------------------------------------------------------------------------------
+
+Features:
+  Merge, split, extract, delete, reorder, rotate, duplicate,
+  insert blank, crop, page-size normalize
+
+Primary library:
+  Apache PDFBox 3
+    classes: Loader, PDDocument, PDFMergerUtility, PDPage, PDPageTree,
+             PDRectangle, Matrix (rotation), LayerUtility (optional)
+
+Implementation notes:
+  Merge:
+    PDFMergerUtility.addSource(...) + mergeDocuments(MemoryUsageSetting)
+    Or open each PDDocument and import pages with PDFCloneUtility patterns
+  Split / extract / delete / reorder:
+    Build new PDDocument; add pages by index from source
+  Rotate:
+    page.setRotation((page.getRotation() + degrees) % 360)
+  Crop:
+    page.setCropBox(new PDRectangle(x, y, w, h))
+  Insert blank:
+    new PDPage(PDRectangle.A4) inserted into PDPageTree
+  Large files:
+    MemoryUsageSetting.setupTempFileOnly() to avoid OOM
+
+System assist (optional):
+  qpdf --empty --pages f1.pdf f2.pdf -- out.pdf   (fast merge alternative)
+
+Angular:
+  Existing merge/split/workbench UIs; add "Server process" toggle for large/encrypted
+
+
+--------------------------------------------------------------------------------
+B. SECURITY & ACCESS
+--------------------------------------------------------------------------------
+
+Features:
+  Encrypt, decrypt, permissions, cert encrypt, digital sign, verify, redact
+
+Libraries:
+  PRIMARY encrypt/decrypt/permissions:
+    qpdf CLI (most reliable OSS) wrapped by Java ProcessBuilder
+      qpdf --encrypt user-pass owner-pass 256 --print=none --modify=none -- in.pdf out.pdf
+      qpdf --password=PASS --decrypt in.pdf out.pdf
+  OR OpenPDF StandardEncryption / PDFBox StandardProtectionPolicy
+    org.apache.pdfbox.pdmodel.encryption.AccessPermission
+    org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy
+    org.apache.pdfbox.pdmodel.encryption.StandardDecryptionMaterial
+  Digital signatures:
+    PDFBox PDSignature + SignatureInterface
+    BouncyCastle (bcprov, bcpkix) for PKCS#12 keystore / CMS
+  Redaction (true remove):
+    Hard in pure PDFBox (text position + content stream rewrite)
+    Options:
+      a) Commercial: iText pdfSweep / Apryse Redaction
+      b) OSS approximate: render page → image → black boxes → image-only PDF
+         (loses text; honest UI label "image redaction")
+      c) PDFBox content-stream parsing + remove operators (complex)
+
+Maven:
+  pdfbox + bouncycastle (+ openpdf optional)
+System:
+  qpdf (strongly recommended for password tools)
+
+Angular map:
+  /pdf-tools/password-protect-pdf  → MUST call Java (current client throws)
+
+
+Implementation sketch (PDFBox encrypt):
+  AccessPermission ap = new AccessPermission();
+  ap.setCanPrint(false);
+  ap.setCanModify(false);
+  StandardProtectionPolicy spp =
+      new StandardProtectionPolicy(ownerPass, userPass, ap);
+  spp.setEncryptionKeyLength(256);
+  doc.protect(spp);
+  doc.save(out);
+
+Prefer qpdf in production for fewer edge-case failures.
+
+
+--------------------------------------------------------------------------------
+C. COMPRESS & OPTIMIZE
+--------------------------------------------------------------------------------
+
+Features:
+  Compress, quality presets, linearize, remove unused, downsample, grayscale
+
+Libraries / tools:
+  Ghostscript CLI (best OSS compress):
+    gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4
+       -dPDFSETTINGS=/ebook|/screen|/printer
+       -dNOPAUSE -dQUIET -dBATCH
+       -sOutputFile=out.pdf in.pdf
+  qpdf --linearize in.pdf out.pdf
+  PDFBox custom:
+    Iterate PDResources → PDImageXObject
+    Resample with Thumbnailator / ImageIO → replace JPEG
+    Rewrite content streams; remove metadata/orphans (partial)
+
+Maven:
+  pdfbox, thumbnailator, twelvemonkeys-imageio-*
+System:
+  ghostscript, qpdf
+
+Presets map for UI:
+  low    → /screen   (~72 dpi)
+  medium → /ebook    (~150 dpi)
+  high   → /printer  (~300 dpi)
+
+Angular map:
+  /pdf-tools/compress-pdf → switch from pdf-lib re-save to Java/gs
+
+
+--------------------------------------------------------------------------------
+D. CONVERT → PDF (CREATE)
+--------------------------------------------------------------------------------
+
+Feature                         | Libraries / tools
+--------------------------------|-----------------------------------------------
+Text → PDF                      | PDFBox PDPageContentStream + fonts
+HTML/CSS → PDF                  | OpenHTMLToPDF (pdfbox backend)
+                                | OR Playwright Java → page.pdf()
+Markdown → PDF                  | commonmark → HTML → OpenHTMLToPDF
+Images → PDF                    | PDFBox LosslessFactory / JPEGFactory
+Word/Excel/PPT/ODT/RTF → PDF    | LibreOffice headless:
+                                  soffice --headless --convert-to pdf --outdir ...
+                                | (POI alone does NOT reliably render to PDF)
+URL → PDF                       | Playwright/Chromium page.pdf({ format: A4 })
+Email EML → PDF                 | Simple Java Mail / Jakarta Mail parse → HTML → PDF
+
+Maven:
+  openhtmltopdf-pdfbox, commonmark, pdfbox, playwright (optional), poi-ooxml (optional)
+System:
+  libreoffice, chromium deps if Playwright, fonts packages
+
+Angular map:
+  create-pdf-from-html, html-to-pdf → Java OpenHTMLToPDF or Playwright
+  image-to-pdf, screenshot-to-pdf → Java for large TIFF/HEIC edge cases
+  office formats → new tools calling LibreOffice endpoint
+
+
+--------------------------------------------------------------------------------
+E. CONVERT PDF → OTHER
+--------------------------------------------------------------------------------
+
+Feature                         | Libraries / tools
+--------------------------------|-----------------------------------------------
+PDF → images                    | PDFBox PDFRenderer.renderImageWithDPI
+                                | OR pdftoppm (poppler) / gs
+PDF → text                      | PDFTextStripper (PDFBox)
+PDF → HTML                      | PDFTextStripper + custom HTML wrap (best-effort)
+                                | OR commercial converters
+PDF → DOCX                      | Limited OSS; options:
+                                  a) text extract + Apache POI XWPFDocument
+                                  b) LibreOffice pdf→docx (quality poor)
+                                  c) commercial (Aspose / Adobe)
+PDF → Excel                     | Tabula-java (table extract) + POI XSSF
+                                  technology.tabula:tabula
+PDF → PDF/A                     | PDFBox Preflight + conversion helpers
+                                | OR gs -dPDFA=2 -sColorConversionStrategy=RGB ...
+PDF → PDF/X                     | Ghostscript / commercial (advanced)
+
+Maven:
+  pdfbox, pdfbox-tools, poi-ooxml
+  technology.tabula:tabula (for tables)
+System:
+  ghostscript, poppler-utils (optional)
+
+Angular:
+  New routes or export buttons on viewer / workbench
+
+
+--------------------------------------------------------------------------------
+F. FORMS
+--------------------------------------------------------------------------------
+
+Features:
+  Fill, flatten, create fields, extract/import FDF/XFDF/JSON, validate required
+
+Library:
+  Apache PDFBox
+    PDAcroForm, PDField, PDTextField, PDCheckBox, PDRadioButton,
+    PDPushButton, PDSignatureField
+    acroForm.flatten()
+  XFDF:
+    PDFBox has limited XFDF; can parse XML with standard JDK or Jackson XML
+  FDF:
+    Often easier to accept JSON from Angular and set field values by name
+
+Implementation:
+  Fill: doc.getDocumentCatalog().getAcroForm().getField(name).setValue(value)
+  Flatten: acroForm.flatten()
+  Create: new PDTextField(acroForm); widget annotations on page
+  Export JSON: iterate acroForm.getFields()
+
+Angular map:
+  fill-pdf-forms, flatten-pdf-forms → keep UI; optional Java for XFA (PDFBox
+  has limited XFA — document limitation in UI)
+
+
+--------------------------------------------------------------------------------
+G. ANNOTATE / MARKUP / BRANDING
+--------------------------------------------------------------------------------
+
+Features:
+  Text notes, highlight, shapes, watermark, header/footer, page numbers,
+  stamp/logo, Bates, letterhead
+
+Library:
+  PDFBox
+    PDAnnotationText, PDAnnotationTextMarkup, PDAnnotationSquareCircle,
+    PDAnnotationLine, PDPageContentStream for stamps/watermarks
+  Image stamps: PDImageXObject.createFromFileByExtension
+
+Implementation:
+  Watermark: underlay/overlay content stream with extended graphics state opacity
+  Page numbers: loop pages, showText at bottom
+  Bates: formatted counter string per page
+  Header/footer: same as page numbers with custom text
+
+Angular map:
+  annotate-pdf, highlight-text, add-watermark, add-page-numbers
+
+
+--------------------------------------------------------------------------------
+H. METADATA & DOCUMENT INFO
+--------------------------------------------------------------------------------
+
+Features:
+  View/edit/remove metadata, XMP, properties report, compare PDFs
+
+Library:
+  PDFBox PDDocumentInformation (title, author, subject, keywords, creator...)
+  xmpbox / PDMetadata for XMP
+  Properties report: page count, PDF version, encrypted flag, font resources
+  Compare:
+    Text: PDFTextStripper both docs + diff (java-diff-utils)
+      io.github.java-diff-utils:java-diff-utils
+    Visual: render pages to images + pixel diff (advanced)
+
+Maven:
+  pdfbox, xmpbox, java-diff-utils
+
+Angular map:
+  pdf-metadata-editor → Java for XMP wipe + encrypted docs
+
+
+--------------------------------------------------------------------------------
+I. VIEW / PREVIEW
+--------------------------------------------------------------------------------
+
+Features:
+  Browser viewer, server page images, search, bookmarks, attachments
+
+Frontend (keep):
+  Existing Angular pdf-viewer + pdf.js (npm pdfjs-dist)
+
+Backend assist:
+  PDFBox PDFRenderer → PNG thumbnails for encrypted/huge files
+  PDFTextStripper per page → search index JSON
+  PDDocumentOutline → bookmarks JSON API
+  PDEmbeddedFile / name tree → attachment extract
+
+Endpoints:
+  GET /api/v1/pdf/preview/{jobId}/pages/{n}.png
+  POST /api/v1/pdf/outline
+  POST /api/v1/pdf/attachments/extract
+
+Libraries:
+  pdfbox (+ Angular pdf.js unchanged for normal files)
+
+
+--------------------------------------------------------------------------------
+J. OCR & SCAN WORKFLOWS
+--------------------------------------------------------------------------------
+
+Features:
+  OCR searchable PDF, OCR→text/DOCX, deskew, images→PDF+OCR
+
+Libraries / tools:
+  Tess4J → Tesseract
+    ITesseract tesseract = new Tesseract();
+    tesseract.setDatapath("/usr/share/tesseract-ocr/5/tessdata");
+    tesseract.setLanguage("eng");
+  Pipeline:
+    1) PDFBox PDFRenderer → BufferedImage per page (or input images)
+    2) (optional) deskew with OpenCV / simple rotation heuristic
+    3) Tesseract → text + bounding boxes
+    4) Write invisible text layer onto PDF with PDFBox (searchable PDF)
+  DOCX export: Apache POI XWPFDocument from OCR text
+  Imaging assist (optional):
+    org.openpnp:opencv  OR call ImageMagick convert
+
+Maven:
+  tess4j, pdfbox, poi-ooxml
+System:
+  tesseract-ocr, tesseract-ocr-eng (+ other langs), leptonica
+
+Angular:
+  New tool: /pdf-tools/ocr-pdf
+  Upload scan → progress → download searchable PDF
+
+
+--------------------------------------------------------------------------------
+K. SIGNATURES & APPROVALS
+--------------------------------------------------------------------------------
+
+Features:
+  Visible signature image (already in Angular), crypto sign, verify, audit
+
+Visible (client or server):
+  Keep signature_pad Angular; place image with PDFBox PDImageXObject
+  OR continue client pdf-lib for simple visible stamps
+
+Cryptographic sign:
+  PDFBox signing:
+    PDSignature signature = new PDSignature();
+    signature.setFilter(PDSignature.FILTER_ADOBE_PPKLITE);
+    signature.setSubFilter(PDSignature.SUBFILTER_ADBE_PKCS7_DETACHED);
+    Load PKCS#12 via KeyStore.getInstance("PKCS12")
+    Sign with BouncyCastle ContentSigner / CMS
+  Verify:
+    PDFBox SignatureManager / showSignature examples
+    Check certificate chain + revision integrity
+
+Audit log (product):
+  Spring Security + DB (Postgres) storing job id, user, hash, timestamp
+  NOT a PDF library concern
+
+Maven:
+  pdfbox, bouncycastle bcprov + bcpkix
+
+Angular map:
+  add-signature → client visible OK
+  New: /pdf-tools/digital-sign , /pdf-tools/verify-signature → Java
+
+
+--------------------------------------------------------------------------------
+L. BATCH & POWER-USER
+--------------------------------------------------------------------------------
+
+Features:
+  Zip batch, job queue, developer API keys, templates, naming rules
+
+Libraries / infra:
+  commons-compress OR java.util.zip
+  Spring @Async + ThreadPoolTaskExecutor
+  Redis (job status) OR DB table pdf_job
+  Spring MultipartFile size config
+  Bucket4j or Resilience4j for rate limit
+    com.bucket4j:bucket4j-core
+
+Template engine for generators:
+  OpenHTMLToPDF + Thymeleaf HTML templates
+    org.springframework.boot:spring-boot-starter-thymeleaf
+
+API keys:
+  Spring Security filter + hashed keys in DB
+
+Angular:
+  Batch UI: select operation + drop zip + poll job status
+
+
+--------------------------------------------------------------------------------
+M. REPAIR & ADVANCED PDF OPS
+--------------------------------------------------------------------------------
+
+Feature                         | Libraries / tools
+--------------------------------|-----------------------------------------------
+Repair                          | qpdf --repair  OR gs rewrite
+Flatten transparency            | Ghostscript pdfwrite
+Embed/subset fonts              | PDFBox font embedding (PDType0Font.load)
+Extract embedded files          | PDFBox PDEmbeddedFilesNameTreeNode
+Extract images                  | PDFBox PDFStreamEngine / ExtractImages tool
+Remove JS / actions             | PDFBox remove OpenAction, AA, Names/JavaScript
+Remove annotations              | page.getAnnotations().clear()
+Bookmarks editor                | PDDocumentOutline / PDOutlineItem
+Links editor                    | PDAnnotationLink + PDActionURI / PDActionGoTo
+
+System:
+  qpdf, ghostscript
+Maven:
+  pdfbox
+
+
+--------------------------------------------------------------------------------
+N. GENERATORS
+--------------------------------------------------------------------------------
+
+Feature                         | Libraries / tools
+--------------------------------|-----------------------------------------------
+Resume / invoice / report       | Thymeleaf HTML → OpenHTMLToPDF
+                                | OR PDFBox absolute layout (more code)
+Table → PDF                     | OpenHTMLToPDF table HTML OR PDFBox text grid
+Chart → PDF                     | JFreeChart/XChart → PNG → PDFBox image
+Barcode → PDF                   | ZXing BitMatrix → image → PDFBox
+QR → PDF                        | ZXing QRCodeWriter
+Certificate / ID card           | HTML template + background image → PDF
+
+Maven:
+  openhtmltopdf-pdfbox, thymeleaf, jfreechart or xchart, zxing, pdfbox
+
+Angular map:
+  resume-generator, invoice-generator, tables-to-pdf, charts-to-pdf,
+  barcode-to-pdf, qr-code-to-pdf
+  Keep Angular form UI; optionally move PDF bytes generation to Java for
+  consistent fonts/print quality.
+
+
+================================================================================
+5. DOCKER RUNTIME (all system deps together)
+================================================================================
+
+Base image example: eclipse-temurin:21-jre-jammy
+
+Install:
+  apt-get install -y
+    qpdf
+    ghostscript
+    tesseract-ocr tesseract-ocr-eng
+    libreoffice-writer libreoffice-calc libreoffice-impress
+    fonts-dejavu fonts-liberation fontconfig
+    poppler-utils
+
+Optional Playwright:
+  Use mcr.microsoft.com/playwright/java image OR install deps via playwright install
+
+Volumes:
+  /tmp/pdf-jobs   (tmpfs preferred)
+  /usr/share/tesseract-ocr
+
+Env:
+  PDF_MAX_UPLOAD_MB=50
+  PDF_JOB_TTL_MINUTES=10
+  TESSERACT_DATAPATH=...
+  LIBREOFFICE_BIN=soffice
+  QPDF_BIN=qpdf
+  GS_BIN=gs
+
+
+================================================================================
+6. SECURITY / PRIVACY IMPLEMENTATION CHECKLIST
+================================================================================
+  [ ] Multipart size limits + page count limits
+  [ ] Random temp filenames; delete in finally + scheduled cleaner
+  [ ] Do not write uploads to permanent disk/S3 by default
+  [ ] Strip metadata option after processing
+  [ ] Rate limit by IP / API key
+  [ ] Optional ClamAV scan (clamav-client) for uploads
+  [ ] HTTPS only; no file content in logs
+  [ ] CORS allow only easytoolhub.com / localhost
+  [ ] Clear UI: "Processed on secure server · deleted after job"
+  [ ] Virus / zip-bomb protections on batch zip
+
+
+================================================================================
+7. RECOMMENDED SPLIT: BROWSER vs JAVA
+================================================================================
+
+KEEP IN ANGULAR (default, no upload)
+  - Viewer (pdf.js)
+  - Light page ops on small unencrypted PDFs
+  - Signature draw / place (visible only)
+  - PDF → Base64
+  - Simple small text/image create
+
+SEND TO JAVA BACKEND
+  - Encrypt / decrypt / permissions          (qpdf or PDFBox)
+  - Real compress / linearize               (ghostscript + qpdf)
+  - HTML / Markdown / URL → PDF             (OpenHTMLToPDF / Playwright)
+  - Office → PDF                            (LibreOffice)
+  - OCR searchable PDF                      (Tess4J + Tesseract)
+  - Redact                                  (commercial or image-fallback)
+  - Digital sign / verify                   (PDFBox + BouncyCastle)
+  - Repair / PDF/A                          (qpdf / gs)
+  - Heavy batch / large files               (async jobs)
+  - Server page-image preview               (PDFRenderer)
+
+
+================================================================================
+8. MVP IMPLEMENTATION ORDER (with exact tech) — SOLO VERTICAL SLICES
+================================================================================
+
+  Slice 0 — Scaffold workspace (do first, no user feature yet)
+      [ ] Create services/tool-api Spring Boot skeleton (Java 21)
+      [ ] Create contracts/pdf/openapi.yaml (/encrypt /decrypt /health)
+      [ ] Dockerfile in services/tool-api (JRE + qpdf; gs later)
+      [ ] infra/compose/docker-compose.yml service pdf-api
+      [ ] infra/env/tool-api.env.example
+      [ ] apps/tools-site/proxy.conf.json → localhost:8080
+      [ ] pdf-backend.config.ts + libs/pdf-tools/.../api/PdfBackendApiService stub
+      [ ] Move this doc to docs/pdf/ (optional but recommended)
+      [ ] npm scripts start:ui / start:api / start:all / compose:api
+      [ ] CORS allow localhost:4200 and easytoolhub.com
+
+  Slice 1 — Encrypt / decrypt / permissions
+      Java: Spring Boot endpoint + qpdf ProcessBuilder
+      Angular: wire password-protect-pdf workbench to API (flag ON)
+      Accept: upload PDF + passwords → download encrypted PDF
+      Fail closed with clear toast if qpdf missing
+
+  Slice 2 — Real compress + linearize
+      Java: ghostscript presets + qpdf --linearize
+      Angular: compress-pdf mode calls API (flag ON)
+      UI presets: low/medium/high → /screen /ebook /printer
+
+  Slice 3 — HTML → PDF
+      Java: OpenHTMLToPDF
+      Angular: html-to-pdf / create-pdf-from-html server option
+
+  Slice 4 — Images → PDF
+      Java: PDFBox JPEGFactory/LosslessFactory
+      Angular: image-to-pdf fallback for large images
+
+  Slice 5 — PDF → images / text
+      Java: PDFRenderer + PDFTextStripper
+      Angular: new export actions on viewer
+
+  Slice 6 — Watermark + page numbers + metadata
+      Java: PDFBox content streams + PDDocumentInformation
+      Angular: existing tools optional server path
+
+  Slice 7 — Merge / split large files
+      Java: PDFMergerUtility + IOUtils.createTempFileOnlyStreamCache for large merges
+      Java: POST /merge-async + /split-async (job poll / download)
+      Angular: merge-pdfs / split-pdfs auto-switch to async above size/file thresholds
+
+  Slice 8 — OCR searchable PDF
+      Java: Tess4J + PDFBox text overlay
+      Angular: new ocr-pdf tool
+      (Consider Stage 1 async jobs before or with this slice)
+
+  Slice 9 — Digital sign (PKCS#12 upload)
+      Java: PDFBox + BouncyCastle
+      Angular: new digital-sign tool
+
+  Slice 10 — Batch zip processing
+      Java: async jobs + Redis/DB status (Stage 1)
+      Angular: batch page with progress poll
+
+  Slice 11 — Image redaction (OSS approximate)
+      Java: PDFRenderer → black boxes → image-only PDF (+ text query match)
+      Angular: /pdf-tools/pdf-redact (honest "image redaction" label)
+
+
+================================================================================
+9. EXISTING FRONTEND ROUTES TO MAP (/pdf-tools)
+================================================================================
+
+Full UI today:
+  /pdf-tools/pdf-viewer
+  /pdf-tools/merge-pdfs
+  /pdf-tools/split-pdfs
+  /pdf-tools/add-signature
+
+Workbench / create (31 live):
+  delete-pages, rotate-pages, reorder-pages, extract-pages
+  compress-pdf          ← Java/gs for real compression
+  annotate-pdf, highlight-text
+  fill-pdf-forms, flatten-pdf-forms, pdf-metadata-editor
+  add-watermark, add-page-numbers, pdf-to-base64
+  password-protect-pdf  ← Java/qpdf REQUIRED (client cannot encrypt)
+  screenshot-to-pdf, image-to-pdf
+  create-pdf-from-html, tables-charts-to-pdf, resume-invoice-generator
+  text-to-pdf, html-to-pdf, tables-to-pdf, charts-to-pdf
+  resume-generator, invoice-generator, barcode-to-pdf, qr-code-to-pdf
+
+Backend migration priority flags (pdf-backend.config.ts):
+  MUST backend soon:
+    password-protect-pdf = true   (broken client-side today)
+    compress-pdf         = true   (after Slice 2)
+    html-to-pdf          = true   (after Slice 3)
+  KEEP client by default:
+    merge/split/rotate/delete/extract (small files)
+    add-signature (visible stamp)
+    pdf-to-base64
+    pdf-viewer
+  OPTIONAL server later:
+    merge/split when file > threshold (e.g. 20MB or page count)
+    generators for print-quality fonts
+
+
+================================================================================
+10. QUICK LIBRARY CHEAT SHEET
+================================================================================
+
+  Need                              Use
+  --------------------------------  -------------------------------------------
+  Page ops / forms / annotate       Apache PDFBox 3
+  Password encrypt/decrypt          qpdf (CLI) or PDFBox StandardProtectionPolicy
+  Strong compress                   Ghostscript pdfwrite presets
+  Linearize / repair                qpdf
+  HTML/CSS → PDF                    OpenHTMLToPDF (or Playwright)
+  Office → PDF                      LibreOffice headless
+  OCR                               Tess4J + Tesseract
+  Digital signatures                PDFBox + BouncyCastle
+  Barcode / QR                      ZXing
+  Charts                            JFreeChart or XChart
+  Tables from PDF                   Tabula
+  Templates                         Thymeleaf + OpenHTMLToPDF
+  Batch zip                         commons-compress / java.util.zip
+  Job queue                         Spring Async + Redis/DB
+  Avoid without license             iText 7 AGPL, Aspose (paid)
+
+
+================================================================================
+11. IMPLEMENTATION CHECKLIST — STAGE 0 (COPY/PASTE TRACKER)
+================================================================================
+
+  Workspace
+  [ ] services/ folder created
+  [ ] services/tool-api Spring Boot app boots on :8080
+  [ ] GET /actuator/health (or /api/v1/pdf/health) returns UP
+  [ ] contracts/pdf/openapi.yaml committed (canonical)
+  [ ] Dockerfile builds and runs with qpdf available
+  [ ] infra/compose/docker-compose.yml can start pdf-api
+  [ ] proxy.conf.json wired into nx serve
+  [ ] pdf-backend.config.ts added
+  [ ] libs/pdf-tools/.../api/PdfBackendApiService added
+  [ ] start:ui / start:api / compose:api scripts work on a clean machine
+
+  Security / privacy defaults
+  [ ] Multipart max size configured (e.g. 50MB)
+  [ ] Temp dir + finally delete + scheduled cleanup
+  [ ] CORS restricted
+  [ ] No PDF bytes in logs
+  [ ] Rate limiting (simple in-memory OK for Stage 0)
+
+  First user-facing win
+  [ ] password-protect-pdf uses backend when flag true
+  [ ] Privacy banner visible
+  [ ] Toast on success/failure
+  [ ] E2E or manual test notes documented
+
+
+================================================================================
+12. SAMPLE OPENAPI SKETCH (contracts/pdf/openapi.yaml)
+================================================================================
+
+  openapi: 3.0.3
+  info:
+    title: EasyToolHub PDF API
+    version: 0.1.0
+  paths:
+    /api/v1/pdf/health:
+      get:
+        summary: Liveness
+        responses:
+          "200":
+            description: OK
+    /api/v1/pdf/encrypt:
+      post:
+        summary: Password-protect a PDF
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file, userPassword]
+                properties:
+                  file: { type: string, format: binary }
+                  userPassword: { type: string }
+                  ownerPassword: { type: string }
+                  allowPrint: { type: boolean, default: true }
+                  allowModify: { type: boolean, default: false }
+        responses:
+          "200":
+            description: Encrypted PDF
+            content:
+              application/pdf:
+                schema: { type: string, format: binary }
+    /api/v1/pdf/decrypt:
+      post:
+        summary: Remove password from PDF
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file, password]
+                properties:
+                  file: { type: string, format: binary }
+                  password: { type: string }
+        responses:
+          "200":
+            description: Decrypted PDF
+            content:
+              application/pdf:
+                schema: { type: string, format: binary }
+    /api/v1/pdf/compress:
+      post:
+        summary: Compress PDF (Ghostscript presets)
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                required: [file]
+                properties:
+                  file: { type: string, format: binary }
+                  quality: { type: string, enum: [low, medium, high] }
+
+
+================================================================================
+13. SAMPLE DOCKER COMPOSE (infra/compose/docker-compose.yml)
+================================================================================
+
+  services:
+    pdf-api:
+      build: ../../services/tool-api
+      ports:
+        - "8080:8080"
+      env_file:
+        - ../env/tool-api.env.example
+      environment:
+        PDF_MAX_UPLOAD_MB: "50"
+        PDF_JOB_TTL_MINUTES: "10"
+        QPDF_BIN: qpdf
+        GS_BIN: gs
+      tmpfs:
+        - /tmp/pdf-jobs:size=512m
+      # Stage 1+:
+      # redis:
+      #   image: redis:7-alpine
+
+
+================================================================================
+14. SAMPLE JAVA CLI WRAPPER NOTES (engine/QpdfEngine.java)
+================================================================================
+
+  Responsibilities:
+    - Resolve QPDF_BIN from env (default "qpdf")
+    - Write upload to /tmp/pdf-jobs/{uuid}/in.pdf
+    - Run: qpdf --encrypt USER OWNER 256 -- in.pdf out.pdf
+      (adjust permission flags from request)
+    - Read out.pdf bytes → return to controller
+    - Delete directory in finally
+
+  Similar:
+    GhostscriptEngine.compress(in, out, preset)
+    LibreOfficeEngine.convertToPdf(officeFile, outDir)
+
+
+================================================================================
+15. WHAT NOT TO BUILD YET (solo anti-patterns)
+================================================================================
+
+  [ ] Module Federation / multiple Angular remotes
+  [ ] Kubernetes manifests before you have 2+ services needing orchestration
+  [ ] Separate Java service per PDF tool
+  [ ] Rewriting UI in React
+  [ ] Permanent S3 storage for all uploads
+  [ ] Shared DB for PDF bytes
+  [ ] iText without a commercial license
+  [ ] Big-bang migration of all 31 tools to backend in one release
+  [ ] OpenAPI only inside services/tool-api (must live in contracts/)
+  [ ] Renaming/moving apps/ or libs/ just to “look micro”
+
+
+================================================================================
+16. FUTURE SCALE TRIGGERS → ACTIONS
+================================================================================
+
+  Trigger                              Action
+  -----------------------------------  ---------------------------------------
+  Encrypt works; compress too slow     Add GS presets; still services/tool-api
+  Jobs regularly > 30 seconds          Stage 1 async + Redis in infra/compose
+  Single instance CPU always hot       Scale services/tool-api replicas
+  OCR installs clash / starve API      Stage 2 → services/pdf-ocr-api
+  LibreOffice image huge               Stage 2 → services/pdf-convert-api
+  Second product needs PDF UI          Consider MFE or publish libs/pdf-tools
+  Second team owns API only            Extract services/tool-api + contracts/pdf
+  Need stricter multi-tenant auth      API keys + Spring Security (still 1 svc)
+
+
+================================================================================
+17. QUICK REFERENCE — OPTIMIZED TOP-LEVEL TREE
+================================================================================
+
+  apps/          UI apps (Nx)              → tools-site, e2e
+  libs/          UI libraries (Nx)         → pdf-tools, features-home, …
+  services/      Backend microservices     → pdf-api  (+ pdf-ocr-api later)
+  contracts/     Shared OpenAPI            → pdf/openapi.yaml
+  infra/         Compose, env, gateway     → compose/, env/, gateway/
+  docs/pdf/      PDF hybrid planning       → this capabilities guide
+  scripts/       One-off maintain scripts  → existing
+
+  Remember:
+    Nx builds apps/ + libs/
+    Maven builds services/tool-api
+    Both sides obey contracts/pdf/openapi.yaml
+
+
+================================================================================
+Generated for EasyToolHub Angular + Java hybrid PDF service planning
+Solo-first · optimized folders · contracts/ + services/ · Stage 0→3 path
+================================================================================

@@ -11,7 +11,7 @@ export function fileViewerTestProviders(): Provider[] {
     { provide: AssetService, useValue: { getAssetPath: (p: string) => p } },
     {
       provide: ToastService,
-      useValue: { info: jest.fn(), error: jest.fn(), success: jest.fn() },
+      useValue: { info: jest.fn(), error: jest.fn(), success: jest.fn(), warning: jest.fn() },
     },
   ];
 }

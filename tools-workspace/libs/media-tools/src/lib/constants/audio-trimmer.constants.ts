@@ -71,13 +71,13 @@ export const AUDIO_TRIMMER_INFO_ITEMS: ReadonlyArray<AudioTrimmerInfoItem> = [
 export const AUDIO_TRIMMER_RELATED_TOOLS: ReadonlyArray<MtRelatedToolLink> = [
   {
     label: 'Audio Player',
-    path: '/file-viewers/audio-player',
-    description: 'Preview full tracks while the trim editor is on the way'
+    path: '/media-tools/audio-player',
+    description: 'Preview full tracks before or after trimming'
   },
   {
     label: 'Voice Recorder',
     path: '/media-tools/voice-recorder',
-    description: 'Capture a clip locally, then trim it here once export ships'
+    description: 'Capture a clip locally, then trim it here'
   },
   {
     label: 'File Metadata Viewer',

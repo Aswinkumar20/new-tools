@@ -15,3 +15,12 @@ export interface VideoPlayerStatus {
   isComingSoon: true;
   plannedFormatCount: number;
 }
+
+export interface VideoTrackFile {
+  name: string;
+  file: File;
+  url: string;
+  size: number;
+  duration: number;
+  loaded: boolean;
+}

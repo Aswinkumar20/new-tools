@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   PAKO_DEFAULT_ENCODING,
@@ -30,7 +31,7 @@ import {
   standalone: true,
   templateUrl: './pako-encode-and-decode.html',
   styleUrls: ['./pako-encode-and-decode.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class PakoEncodeAndDecodeComponent extends TextToolBase {
   mode: PakoConversionMode = PAKO_DEFAULT_MODE;

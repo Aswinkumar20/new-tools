@@ -2,30 +2,21 @@
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
-    <div class="ctl__top">
+    <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
       <header class="ctl__header">
-        <h1>Add Signature to PDF</h1>
-        <p>Draw, type, or upload a signature and place it on any page — download the signed PDF locally.</p>
+        <div class="pt-workbench__title-row">
+          <h1>Add Signature to PDF</h1>
+          <div class="pt-file-meta" aria-label="Signature statistics">
+            <span class="pt-file-meta__chip">{{ pdfFile ? '1 PDF' : 'No PDF' }}</span>
+            @if (pdfFile && totalPages) {
+              <span class="pt-file-meta__chip" aria-label="Page {{ currentPage }} of {{ totalPages }}">Page {{ currentPage }} of {{ totalPages }}</span>
+            }
+            <span class="pt-file-meta__chip" [class.pt-file-meta__chip--ready]="!!signatureImage">{{ signatureImage ? 'Signed' : 'No signature' }}</span>
+            <span class="pt-file-meta__chip">{{ signatureMode | titlecase }}</span>
+          </div>
+        </div>
+        <p class="pt-workbench__desc">Draw, type, or upload a signature and place it on any page — download the signed PDF locally.</p>
       </header>
-
-      <div class="ctl__stats" aria-label="Signature statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ pdfFile ? '1' : '0' }}</span>
-          <span class="ctl__stat-label">PDF</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ totalPages || '—' }}</span>
-          <span class="ctl__stat-label">Pages</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ signatureImage ? 'Ready' : '—' }}</span>
-          <span class="ctl__stat-label">Signature</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ signatureMode | titlecase }}</span>
-          <span class="ctl__stat-label">Mode</span>
-        </div>
-      </div>
     </div>
 
     <div class="pt-workflow" aria-label="Signature actions">
@@ -53,10 +44,12 @@
 
     @if (pdfFile && signatureConfigHint) {
       <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsSignatureConfig" role="status">
-        <span class="pt-setup-banner__step">Step 2</span>
+        <span class="pt-setup-banner__step">{{ needsSignatureConfig ? 'Step 2' : 'Ready' }}</span>
         <p class="pt-setup-banner__text">{{ signatureConfigHint }}</p>
         @if (needsSignatureConfig) {
           <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+        } @else {
+          <button type="button" class="pt-setup-banner__action" (click)="saveSignedPdf()" [disabled]="loading">Save signed PDF</button>
         }
       </div>
     }
@@ -70,7 +63,7 @@
               <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
-              <span>{{ currentPage }} / {{ totalPages }}</span>
+              <span>Page {{ currentPage }} of {{ totalPages }}</span>
               <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
               </button>
@@ -164,7 +157,8 @@
                 @if (signatureMode === 'draw') {
                   <canvas #signatureCanvas class="ctl-pdf__signature-canvas"></canvas>
                   <div class="ctl-pdf-sign__actions">
-                    <button type="button" class="ctl-pdf__btn" (click)="undoSignature()" [disabled]="!canUndo()" appTooltip="Undo" tooltipPosition="bottom">Undo</button>
+                    <button type="button" class="ctl-pdf__btn" (click)="undoSignature()" [disabled]="!canUndo()" appTooltip="Undo last stroke" tooltipPosition="bottom">Undo</button>
+                    <button type="button" class="ctl-pdf__btn" (click)="redoSignature()" [disabled]="!canRedo()" appTooltip="Redo last undone stroke" tooltipPosition="bottom">Redo</button>
                     <button type="button" class="ctl-pdf__btn" (click)="clearSignature()" appTooltip="Clear" tooltipPosition="bottom">Clear</button>
                     <button type="button" class="ctl-pdf__btn ctl-pdf__btn--primary" (click)="saveSignature()" appTooltip="Apply signature" tooltipPosition="bottom">Apply</button>
                   </div>
@@ -234,7 +228,7 @@
     @if (showPreview && pdfFile) {
       <div pdfFsToolbar class="ctl-pdf__page-nav">
         <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-        <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
+        <span class="ctl__editor-badge">Page {{ currentPage }} of {{ totalPages }}</span>
         <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
       </div>
     }

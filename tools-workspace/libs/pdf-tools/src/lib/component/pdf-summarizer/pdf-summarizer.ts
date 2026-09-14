@@ -1,0 +1,13 @@
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { PdfAdvancedWorkbenchComponent } from '../pdf-advanced-workbench/pdf-advanced-workbench';
+
+@Component({
+  selector: 'lib-pdf-summarizer',
+  standalone: true,
+  template: `
+    <lib-pdf-advanced-workbench toolId="pdf-summarizer" />
+  `,
+  imports: [PdfAdvancedWorkbenchComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PdfSummarizerComponent {}

@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Navigation, TooltipDirective } from '@tools-workspace/features-home';
 import { TextToolBase } from '../../shared/text-tool-base';
+import { TextToolProcessingOverlayComponent } from '../../shared/text-tool-processing-overlay.component';
 import type { TuRelatedToolLink, TuToolSuggestion } from '../../shared/tu-tool-suggestion.model';
 import {
   EXTRACT_EMAILS_URLS_DEFAULT_TYPE,
@@ -24,7 +25,7 @@ import {
   standalone: true,
   templateUrl: './extract-emails-urls.html',
   styleUrls: ['./extract-emails-urls.scss'],
-  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective]
+  imports: [FormsModule, CommonModule, RouterLink, Navigation, ReactiveFormsModule, TooltipDirective, TextToolProcessingOverlayComponent]
 })
 export class ExtractEmailsUrlsComponent extends TextToolBase {
   extractType: ExtractEmailsUrlsType = EXTRACT_EMAILS_URLS_DEFAULT_TYPE;

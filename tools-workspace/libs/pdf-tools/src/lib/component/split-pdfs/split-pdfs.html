@@ -2,30 +2,23 @@
   <lib-navigation></lib-navigation>
 
   <main class="ctl__main">
-    <div class="ctl__top">
+    <div class="ctl__top pt-workbench__hero pt-workbench__hero--compact">
       <header class="ctl__header">
-        <h1>Split PDF</h1>
-        <p>Split a PDF by page ranges, every N pages, or extract specific pages — preview and download locally.</p>
+        <div class="pt-workbench__title-row">
+          <h1>Split PDF</h1>
+          <div class="pt-file-meta" aria-label="Split statistics">
+            @if (pdfFile) {
+              <span class="pt-file-meta__chip" aria-label="Page {{ currentPage }} of {{ totalPages }}">Page {{ currentPage }} of {{ totalPages }}</span>
+              <span class="pt-file-meta__chip">{{ getSplitModeLabel() }}</span>
+              <span class="pt-file-meta__chip">{{ splitResults.length }} outputs</span>
+              <span class="pt-file-meta__chip pt-file-meta__chip--ready">Loaded</span>
+            } @else {
+              <span class="pt-file-meta__chip">No file</span>
+            }
+          </div>
+        </div>
+        <p class="pt-workbench__desc">Split a PDF by page ranges, every N pages, or extract specific pages — preview and download locally.</p>
       </header>
-
-      <div class="ctl__stats" aria-label="Split statistics">
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ totalPages || '—' }}</span>
-          <span class="ctl__stat-label">Pages</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ pdfFile ? getSplitModeLabel() : '—' }}</span>
-          <span class="ctl__stat-label">Mode</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ splitResults.length }}</span>
-          <span class="ctl__stat-label">Outputs</span>
-        </div>
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">{{ pdfFile ? 'Loaded' : '—' }}</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
-      </div>
     </div>
 
     <div class="pt-workflow" aria-label="Split actions">
@@ -51,10 +44,12 @@
 
     @if (pdfFile && splitConfigHint) {
       <div class="pt-setup-banner" [class.pt-setup-banner--attention]="needsSplitConfig" role="status">
-        <span class="pt-setup-banner__step">Step 2</span>
+        <span class="pt-setup-banner__step">{{ needsSplitConfig ? 'Step 2' : 'Ready' }}</span>
         <p class="pt-setup-banner__text">{{ splitConfigHint }}</p>
         @if (needsSplitConfig) {
           <button type="button" class="pt-setup-banner__action" (click)="openOptionsPanel()">Open Configuration</button>
+        } @else if (canSplit) {
+          <button type="button" class="pt-setup-banner__action" (click)="splitPdf()" [disabled]="!canSplit">Split & download</button>
         }
       </div>
     }
@@ -69,7 +64,8 @@
                 <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
-                <input type="number" class="ctl-pdf__page-input" [ngModel]="currentPage" (ngModelChange)="goToPage($event)" [min]="1" [max]="totalPages" />
+                <input type="number" class="ctl-pdf__page-input" [ngModel]="currentPage" (ngModelChange)="goToPage($event)" [min]="1" [max]="totalPages" [attr.aria-label]="'Page ' + currentPage + ' of ' + totalPages" />
+                <span class="ctl-pdf__page-total" aria-hidden="true">of {{ totalPages }}</span>
                 <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
                 </button>
@@ -94,6 +90,11 @@
               (click)="openFileDialog()">
               <img [src]="assetService.getAssetPath('icons/pdf.svg')" alt="" width="40" height="40" />
               <p><strong>Drop a PDF here</strong> or click to browse</p>
+              <ol class="pt-empty-drop__steps">
+                <li>Upload your PDF</li>
+                <li>Pick Range, Every N, or Extract</li>
+                <li>Split to download files or a ZIP</li>
+              </ol>
               <p>Max 100 MB</p>
             </button>
           } @else if (pdfFile.pdfDoc) {
@@ -249,9 +250,12 @@
   </main>
 
   @if (loading) {
-    <div class="ctl-pdf__overlay" aria-live="polite">
-      <div class="ctl-pdf__spinner"></div>
-      <p>{{ loadingMessage }}</p>
+    <div class="ctl-pdf__overlay" role="status" aria-live="polite" aria-busy="true">
+      <div class="ctl-pdf__loader">
+        <div class="ctl-pdf__spinner" aria-hidden="true"></div>
+        <p class="ctl-pdf__loader-title">{{ loadingMessage }}</p>
+        <p class="ctl-pdf__loader-sub">Processed in your browser</p>
+      </div>
     </div>
   }
 
@@ -263,7 +267,7 @@
     @if (pdfFile?.pdfDoc) {
       <div pdfFsToolbar class="ctl-pdf__page-nav">
         <button type="button" class="pt-icon-btn" (click)="previousPage()" [disabled]="currentPage <= 1" aria-label="Previous page" appTooltip="Previous page" tooltipPosition="bottom">‹</button>
-        <span class="ctl__editor-badge">{{ currentPage }} / {{ totalPages }}</span>
+        <span class="ctl__editor-badge">Page {{ currentPage }} of {{ totalPages }}</span>
         <button type="button" class="pt-icon-btn" (click)="nextPage()" [disabled]="currentPage >= totalPages" aria-label="Next page" appTooltip="Next page" tooltipPosition="bottom">›</button>
       </div>
     }

@@ -5,21 +5,21 @@
     <div class="ctl__top">
       <header class="ctl__header">
         <h1>Video Player</h1>
-        <p>Stream, manage, and interact with video files — high-performance playback coming soon.</p>
+        <p>Stream and manage video files locally with playlist support, scrubbing, and playback controls.</p>
       </header>
 
       <div class="ctl__stats" aria-label="Player status">
-        <div class="ctl__stat ctl__stat--mode">
-          <span class="ctl__stat-value">Soon</span>
-          <span class="ctl__stat-label">Status</span>
-        </div>
         <div class="ctl__stat">
-          <span class="ctl__stat-value">{{ plannedFormatCount }}+</span>
-          <span class="ctl__stat-label">Formats</span>
-        </div>
-        <div class="ctl__stat">
-          <span class="ctl__stat-value">—</span>
+          <span class="ctl__stat-value">{{ videoFiles.length }}</span>
           <span class="ctl__stat-label">Videos</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ videoFiles.length > 0 ? (currentTrackIndex + 1) + '/' + videoFiles.length : '—' }}</span>
+          <span class="ctl__stat-label">Current</span>
+        </div>
+        <div class="ctl__stat">
+          <span class="ctl__stat-value">{{ playbackRate }}x</span>
+          <span class="ctl__stat-label">Speed</span>
         </div>
         <div class="ctl__stat ctl__stat--mode">
           <span class="ctl__stat-value">Local</span>
@@ -30,20 +30,36 @@
 
     <div class="fv-workflow" aria-label="Video player controls">
       <div class="fv-workflow__group fv-workflow__group--files">
-        <span
-          class="ctl__tool-btn ctl__tool-btn--disabled"
-          aria-label="Upload videos (coming soon)"
-          appTooltip="Upload coming soon"
-          tooltipPosition="bottom">
+        <label class="ctl__tool-btn" aria-label="Upload videos" appTooltip="Upload videos" tooltipPosition="bottom">
           <img [src]="assetService.getAssetPath('icons/upload.svg')" alt="" width="18" height="18" />
           <span class="ctl__tool-btn-label">Upload</span>
-        </span>
+          <input #fileInput type="file" multiple [accept]="acceptAttr" (change)="onFileSelected($event)" />
+        </label>
+        <button
+          type="button"
+          class="ctl__tool-btn ctl__tool-btn--icon"
+          (click)="clearAll()"
+          [disabled]="videoFiles.length === 0"
+          aria-label="Clear all videos"
+          appTooltip="Clear all videos"
+          tooltipPosition="bottom">
+          <img [src]="assetService.getAssetPath('icons/clear.svg')" alt="" width="18" height="18" />
+          <span class="ctl__tool-btn-label">Clear</span>
+        </button>
       </div>
     </div>
 
     <div class="ctl__workspace">
       <div class="ctl__editors">
-        <section class="ctl__editor fv-viewer-panel" aria-label="Video preview">
+        <section class="ctl__editor fv-viewer-panel vp-panel" aria-label="Video preview">
+          <div class="fv-loading" *ngIf="loading" role="status" aria-live="polite">
+            <div class="fv-spinner" aria-hidden="true"></div>
+            <p>Loading video…</p>
+          </div>
+          <div class="ctl__alert ctl__alert--error" *ngIf="errorMessage" role="alert">
+            <p>{{ errorMessage }}</p>
+          </div>
+
           <aside class="vp__suggest" *ngIf="primarySuggestion as suggestion" aria-label="Suggested next step">
             <div class="vp__suggest-body">
               <p class="vp__suggest-title">{{ suggestion.title }}</p>
@@ -61,24 +77,99 @@
             </div>
           </aside>
 
-          <div class="ctl__empty fv-dropzone fv-dropzone--enhanced fv-coming-soon" aria-live="polite">
+          <div class="fv-viewer-body" *ngIf="videoFiles.length > 0">
+            <header class="fv-viewer-bar" *ngIf="currentTrack">
+              <p class="fv-viewer-bar__name" [title]="currentTrack.name">{{ currentTrack.name }}</p>
+              <p class="fv-viewer-bar__hint">{{ formatFileSize(currentTrack.size) }} · Space to play/pause</p>
+            </header>
+
+            <video
+              #videoElement
+              class="vp__video"
+              controls
+              playsinline
+              [volume]="volume / 100"
+              [playbackRate]="playbackRate"
+              (loadedmetadata)="onVideoReady()"></video>
+
+            <div class="player-controls vp__controls">
+              <div class="progress-section">
+                <div class="progress-bar" #progressBar (click)="onProgressBarClick($event)">
+                  <div class="progress-fill" [style.width.%]="duration > 0 ? (currentTime / duration * 100) : 0"></div>
+                </div>
+                <div class="time-display">
+                  <span>{{ formatTime(currentTime) }}</span>
+                  <span>{{ formatTime(duration) }}</span>
+                </div>
+              </div>
+
+              <div class="control-buttons">
+                <button class="btn-icon-large" (click)="previousTrack()" aria-label="Previous video">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+                </button>
+                <button class="btn-play-pause" (click)="isPlaying ? pause() : play()" [disabled]="!currentTrack || isLoading" [attr.aria-label]="isPlaying ? 'Pause' : 'Play'">
+                  <svg *ngIf="!isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  <svg *ngIf="isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                </button>
+                <button class="btn-icon-large" (click)="nextTrack()" aria-label="Next video">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+                </button>
+              </div>
+
+              <div class="secondary-controls">
+                <div class="volume-control">
+                  <button class="btn-icon" (click)="toggleMute()" [attr.aria-label]="isMuted ? 'Unmute' : 'Mute'">
+                    <svg *ngIf="!isMuted && volume > 0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <svg *ngIf="isMuted || volume === 0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+                  </button>
+                  <input type="range" min="0" max="100" [value]="volume" (input)="setVolume(+$any($event.target).value)" class="volume-slider" aria-label="Volume">
+                </div>
+                <div class="speed-control">
+                  <label for="videoPlaybackSpeed">Speed:</label>
+                  <select id="videoPlaybackSpeed" [value]="playbackRate" (change)="setPlaybackRate(+$any($event.target).value)" class="speed-select" aria-label="Playback speed">
+                    <option [value]="0.5">0.5x</option>
+                    <option [value]="0.75">0.75x</option>
+                    <option [value]="1">1x</option>
+                    <option [value]="1.25">1.25x</option>
+                    <option [value]="1.5">1.5x</option>
+                    <option [value]="2">2x</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="ctl__empty fv-dropzone fv-dropzone--enhanced"
+            *ngIf="videoFiles.length === 0 && !loading"
+            [class.fv-dropzone--active]="showDropZone"
+            (click)="openFileDialog()"
+            aria-label="Upload videos by clicking or dragging files here">
             <svg class="fv-dropzone__icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
               <polygon points="23 7 16 12 23 17 23 7" />
               <rect x="1" y="5" width="15" height="14" rx="2" />
             </svg>
-            <p class="fv-dropzone__title">Video player <strong>coming soon</strong></p>
-            <p class="fv-dropzone__formats">Soon this tool will be live · {{ formatsLabel }} · local playback · frame-accurate scrubbing</p>
-          </div>
+            <p class="fv-dropzone__title">Drop videos here or <strong>browse files</strong></p>
+            <p class="fv-dropzone__formats">{{ formatsLabel }} · {{ maxFileSizeLabel }} max per file · local playback</p>
+          </button>
         </section>
       </div>
 
-      <aside class="ctl__sidebar" aria-label="Planned features">
-        <div class="ctl__panel">
-          <header class="ctl__panel-head">Roadmap</header>
+      <aside class="ctl__sidebar" aria-label="Playlist">
+        <div class="ctl__panel" *ngIf="videoFiles.length > 0 && showPlaylist">
+          <header class="ctl__panel-head">Playlist ({{ videoFiles.length }})</header>
           <div class="ctl__panel-body">
-            <p class="ctl__panel-hint">Drag-and-drop uploads and batch processing are on the roadmap.</p>
-            <ul class="fv-planned-list">
-              <li *ngFor="let item of roadmapItems">{{ item.label }}</li>
+            <ul class="fv-files">
+              <li *ngFor="let track of videoFiles; let i = index">
+                <button type="button" class="fv-file" [class.fv-file--selected]="i === currentTrackIndex" (click)="selectTrack(i)">
+                  <span class="fv-file__info">
+                    <strong>{{ track.name }}</strong>
+                    <span>{{ formatFileSize(track.size) }} · {{ formatTime(track.duration) }}</span>
+                  </span>
+                </button>
+                <button type="button" class="fv-file-remove" (click)="removeTrack(i); $event.stopPropagation()" [attr.aria-label]="'Remove ' + track.name">×</button>
+              </li>
             </ul>
           </div>
         </div>
@@ -98,7 +189,7 @@
         <div class="ctl__info">
           <div class="ctl__info-item">
             <span class="ctl__info-dot ctl__info-dot--accent"></span>
-            <p>Videos will play <strong>locally</strong> — nothing is uploaded to a server.</p>
+            <p>Videos play <strong>locally</strong> — nothing is uploaded to a server.</p>
           </div>
         </div>
       </aside>
@@ -107,9 +198,9 @@
     <details class="ctl__help">
       <summary>How to use</summary>
       <ul>
-        <li>Upload {{ formatsLabel }} files once the player launches.</li>
-        <li>Use keyboard shortcuts for frame-accurate scrubbing and volume.</li>
-        <li>Toggle picture-in-picture for multitasking while watching.</li>
+        <li>Upload {{ formatsLabel }} files using the workflow bar or drop zone.</li>
+        <li>Use the progress bar or native controls to scrub through the clip.</li>
+        <li>Build a playlist when you drop multiple files at once.</li>
       </ul>
     </details>
   </main>

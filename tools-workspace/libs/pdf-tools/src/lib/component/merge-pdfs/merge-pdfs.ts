@@ -2,13 +2,18 @@ import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, inject } f
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Navigation, TooltipDirective, AssetService, ToastService } from '@tools-workspace/features-home';
-import { pdfNotifyError, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess, pdfNotifyWarning } from '../../shared/pdf-feedback.util';
 import { PDFDocument } from 'pdf-lib';
 import { validateOutputFilename } from '../../shared/pdf.validation';
 import { fullscreenPreviewWidth } from '../../shared/pdf-fullscreen.util';
 import { downloadBytes, downloadBlob } from '../../shared/pdf.utils';
 import { PdfPreviewService } from '../../services/pdf-preview.service';
 import { PdfFullscreenOverlayComponent } from '../pdf-fullscreen-overlay/pdf-fullscreen-overlay';
+import {
+  PdfBackendApiService,
+  blobToUint8Array,
+  isPdfBackendEnabled,
+} from '../../api';
 
 interface PdfFile {
   file: File;
@@ -34,6 +39,8 @@ export class MergePdfsComponent implements OnInit {
   readonly assetService = inject(AssetService);
   private readonly toast = inject(ToastService);
   private readonly preview = inject(PdfPreviewService);
+  private readonly pdfBackend = inject(PdfBackendApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('previewCanvas') previewCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('optionsFlyout') optionsFlyout?: ElementRef<HTMLElement>;
@@ -45,19 +52,19 @@ export class MergePdfsComponent implements OnInit {
   // PDF files
   pdfFiles: PdfFile[] = [];
   totalPages: number = 0;
-  
+
   // UI state
   showDropZone: boolean = false;
   loading: boolean = false;
   loadingMessage: string = 'Processing...';
-  
+
   // Password handling
   showPasswordDialog: boolean = false;
   passwordInput: string = '';
   passwordForFile: PdfFile | null = null;
   passwordError: string = '';
   processingPasswordFile: boolean = false;
-  
+
   // Merge options
   preserveBookmarks: boolean = true;
   removeDuplicatePages: boolean = false;
@@ -79,10 +86,15 @@ export class MergePdfsComponent implements OnInit {
     return this.canMerge;
   }
 
+  get hasMergedPreview(): boolean {
+    return !!this.mergedPdfBytes?.length && !!this.mergedPdfPreview;
+  }
+
   get mergeSetupHint(): string {
     if (!this.pdfFiles.length) return 'Add at least two PDF files to merge.';
     if (this.needsMoreFiles) return 'Add one more PDF file, then review merge options in Configuration.';
-    return 'Review output filename and merge options in Configuration before downloading.';
+    if (this.hasMergedPreview) return 'Merged preview is ready — download when you are satisfied.';
+    return 'Click Merge to preview the combined document, or Download to get the file directly.';
   }
 
   openOptionsPanel(): void {
@@ -95,7 +107,7 @@ export class MergePdfsComponent implements OnInit {
     this.optionsPanelOpen = !this.optionsPanelOpen;
     this.cdr.detectChanges();
   }
-  
+
   // Preview
   mergedPdfPreview: PDFDocument | null = null;
   previewPage: number = 1;
@@ -103,8 +115,6 @@ export class MergePdfsComponent implements OnInit {
   private previewRenderRetries: number = 0;
   private readonly maxPreviewRetries: number = 10;
   private previewRenderGeneration = 0;
-  
-  constructor(private readonly cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     /* PDF preview uses PdfPreviewService */
@@ -172,7 +182,7 @@ export class MergePdfsComponent implements OnInit {
       this.updateTotalPages();
       this.cdr.detectChanges();
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to load PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not load the PDF');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -270,8 +280,7 @@ export class MergePdfsComponent implements OnInit {
       this.updateTotalPages();
       this.cdr.detectChanges();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      pdfNotifyError(this.toast, `Failed to load PDF "${file.name}": ${errorMessage}`);
+      pdfNotifyFailure(this.toast, error, `Could not load "${file.name}"`);
       throw error;
     }
   }
@@ -403,7 +412,7 @@ export class MergePdfsComponent implements OnInit {
       downloadBytes(bytes, this.outputFilename || 'merged-document.pdf');
       pdfNotifySuccess(this.toast, 'Download started!');
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not download the merged PDF');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -545,6 +554,52 @@ export class MergePdfsComponent implements OnInit {
     this.loadingMessage = 'Merging PDFs...';
 
     try {
+      if (isPdfBackendEnabled(this.pdfBackend.settings, 'merge-pdfs')) {
+        const files = this.pdfFiles.map((p) => p.file);
+        const totalBytes = files.reduce((sum, f) => sum + (f?.size || 0), 0);
+        const threshold =
+          (this.pdfBackend.settings.largeFileThresholdMb || 8) * 1024 * 1024;
+        const minFiles = this.pdfBackend.settings.largeMergeMinFiles || 5;
+        const useAsync = totalBytes >= threshold || files.length >= minFiles;
+
+        if (useAsync) {
+          this.loadingMessage = 'Large merge queued on secure server…';
+          this.cdr.detectChanges();
+          const submitted = await this.pdfBackend.mergeAsync(files);
+          const blob = await this.pdfBackend.awaitJobDownload(submitted.jobId, (s) => {
+            this.loadingMessage = s.message || `Merging… ${Math.round((s.progress || 0) * 100)}%`;
+            this.cdr.detectChanges();
+          });
+          const mergedBytes = await blobToUint8Array(blob);
+          this.mergedPdfBytes = mergedBytes;
+          this.mergedPdfPreview = await PDFDocument.load(mergedBytes);
+          this.previewPage = 1;
+          this.totalPages = this.mergedPdfPreview.getPageCount();
+          this.preview.clearCache();
+          this.previewRenderRetries = 0;
+          this.cdr.detectChanges();
+          this.scheduleRenderPreview();
+          pdfNotifySuccess(this.toast, 'Large merge completed on secure server · file deleted after job');
+          this.cdr.detectChanges();
+          return;
+        }
+
+        this.loadingMessage = 'Merging on secure server…';
+        const blob = await this.pdfBackend.merge(files);
+        const mergedBytes = await blobToUint8Array(blob);
+        this.mergedPdfBytes = mergedBytes;
+        this.mergedPdfPreview = await PDFDocument.load(mergedBytes);
+        this.previewPage = 1;
+        this.totalPages = this.mergedPdfPreview.getPageCount();
+        this.preview.clearCache();
+        this.previewRenderRetries = 0;
+        this.cdr.detectChanges();
+        this.scheduleRenderPreview();
+        pdfNotifySuccess(this.toast, 'PDFs merged on secure server · file deleted after job');
+        this.cdr.detectChanges();
+        return;
+      }
+
       const mergedPdf = await PDFDocument.create();
 
       // Copy pages from all PDFs in order
@@ -567,7 +622,7 @@ export class MergePdfsComponent implements OnInit {
       pdfNotifySuccess(this.toast, 'PDFs merged successfully! Preview is ready below.');
       this.cdr.detectChanges();
     } catch (error) {
-      pdfNotifyError(this.toast, `Failed to merge PDFs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      pdfNotifyFailure(this.toast, error, 'Could not merge the PDFs');
     } finally {
       this.loading = false;
       this.cdr.detectChanges();
@@ -630,9 +685,9 @@ export class MergePdfsComponent implements OnInit {
       if (generation !== this.previewRenderGeneration) return;
     } catch (error) {
       if (generation !== this.previewRenderGeneration) return;
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      if (message.toLowerCase().includes('cancel') || message.toLowerCase().includes('same canvas')) return;
-      pdfNotifyError(this.toast, `Failed to render preview: ${message}`);
+      const raw = error instanceof Error ? error.message : '';
+      if (raw.toLowerCase().includes('cancel') || raw.toLowerCase().includes('same canvas')) return;
+      pdfNotifyFailure(this.toast, error, 'Could not render the merged preview');
     }
   }
 

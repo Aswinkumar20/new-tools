@@ -18,31 +18,28 @@ describe('VideoToGifComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create as coming-soon with image viewer suggestion', () => {
+  it('should create with metadata suggestion', () => {
     expect(component).toBeTruthy();
-    expect(component.isComingSoon).toBe(true);
-    expect(component.primarySuggestion?.id).toBe('vg-image-viewer');
+    expect(component.primarySuggestion()?.id).toBe('vg-meta');
     expect(component.relatedTools.length).toBeGreaterThan(0);
-    expect(component.roadmapItems.length).toBe(4);
-    expect(component.plannedFormatCount).toBe(3);
-    expect(component.qualityPresetCount).toBe(3);
+    expect(component.qualityPresets.length).toBe(3);
     expect(component.recommendedMaxSeconds).toBe(30);
-    expect(component.acceptHint).toContain('MP4');
+    expect(component.formatsLabel).toContain('MP4');
   });
 
   it('dismisses contextual suggestions', () => {
-    const suggestion = component.primarySuggestion;
-    expect(suggestion?.id).toBe('vg-image-viewer');
+    const suggestion = component.primarySuggestion();
+    expect(suggestion?.id).toBe('vg-meta');
     if (suggestion) {
       component.dismissSuggestion(suggestion.id);
-      expect(component.primarySuggestion).toBeNull();
+      expect(component.primarySuggestion()).toBeNull();
     }
   });
 
-  it('exposes planned copy for the empty state', () => {
+  it('starts idle without a loaded source', () => {
     expect(component.title).toBe('Video to GIF');
-    expect(component.uploadHint).toContain('GIF');
-    expect(component.formatsLabel).toContain('WebM');
+    expect(component.hasSource()).toBe(false);
+    expect(component.statusLabel()).toBe('Idle');
     expect(component.helpItems.length).toBe(3);
   });
 });

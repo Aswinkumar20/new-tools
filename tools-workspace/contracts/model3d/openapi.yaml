@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: EasyToolHub Model3D API
+  version: 0.1.0
+  description: |
+    Ephemeral 3D model inspect + normalize (STL/OBJ/GLTF → GLB).
+    Uploads are never stored after the request.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/model3d/health:
+    get:
+      summary: Model3D domain health
+      responses:
+        '200':
+          description: UP
+  /api/v1/model3d/inspect:
+    post:
+      summary: Inspect a 3D model (metadata only)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Mesh metadata JSON
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Unsupported or invalid model
+  /api/v1/model3d/normalize:
+    post:
+      summary: Normalize model to GLB for browser viewing
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: GLB binary
+          content:
+            model/gltf-binary:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unsupported or invalid model

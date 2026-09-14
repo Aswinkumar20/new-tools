@@ -4,6 +4,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  HostListener,
   Input,
   OnDestroy,
   ViewChild,
@@ -11,12 +12,12 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Navigation, AssetService, ToastService } from '@tools-workspace/features-home';
+import { Navigation, AssetService, ToastService, TooltipDirective } from '@tools-workspace/features-home';
 import type { PdfJspdfToolMode } from '../../shared/pdf.types';
 import { loadChartJs, type ChartConstructor } from '../../shared/pdf-jspdf-loader';
 import { PdfJspdfService } from '../../services/pdf-jspdf.service';
 import { downloadBytes, formatFileSize } from '../../shared/pdf.utils';
-import { pdfNotifyError, pdfNotifySuccess } from '../../shared/pdf-feedback.util';
+import { pdfNotifyError, pdfNotifyFailure, pdfNotifySuccess } from '../../shared/pdf-feedback.util';
 import {
   validateEmail,
   validateRequiredText,
@@ -28,7 +29,7 @@ import {
   standalone: true,
   templateUrl: './pdf-jspdf-workbench.html',
   styleUrls: ['./pdf-jspdf-workbench.scss'],
-  imports: [CommonModule, FormsModule, Navigation],
+  imports: [CommonModule, FormsModule, Navigation, TooltipDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
@@ -44,14 +45,10 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
   @ViewChild('chartCanvas') chartCanvas?: ElementRef<HTMLCanvasElement>;
 
   loading = false;
+  loadingMessage = 'Creating PDF…';
   outputBytes: Uint8Array | null = null;
   outputFilename = '';
   fieldErrors: Record<string, string> = {};
-
-  htmlInput = '<h1>Hello PDF</h1><p>Export this HTML to a PDF document.</p>';
-  plainTextInput = '';
-  textFontSize = 12;
-  textMargin = 20;
 
   tableHeaders = 'Item,Quantity,Price';
   tableRows = 'Widget A,2,19.99\nWidget B,1,49.50';
@@ -102,6 +99,28 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
     return !this.loading && (!!this.outputBytes?.length || this.hasUserInput());
   }
 
+  get createWorkflowStep(): 1 | 2 | 3 {
+    if (this.outputBytes?.length) return 3;
+    if (this.hasUserInput()) return 2;
+    return 1;
+  }
+
+  get createSetupHint(): string {
+    const hints: Partial<Record<PdfJspdfToolMode, string>> = {
+      'tables-to-pdf': 'Adjust headers and rows, then Create PDF.',
+      'charts-to-pdf': 'Tweak the live chart, then Create PDF.',
+      'resume-generator': 'Fill name and email (required), then Create PDF.',
+      'invoice-generator': 'Confirm company, customer, and line items, then Create PDF.',
+      'barcode-to-pdf': 'Enter a barcode value, then Create PDF.',
+      'qr-code-to-pdf': 'Enter a URL or text, then Create PDF.',
+    };
+    return hints[this.mode] ?? 'Complete the form, then Create PDF.';
+  }
+
+  get defaultFilenamePublic(): string {
+    return this.defaultFilename();
+  }
+
   fieldError(key: string): string {
     return this.fieldErrors[key] ?? '';
   }
@@ -114,6 +133,25 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  onInputChanged(field?: string): void {
+    if (field) this.clearFieldError(field);
+    if (this.outputBytes) {
+      this.outputBytes = null;
+      this.cdr.markForCheck();
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (!(event.metaKey || event.ctrlKey) || event.key !== 'Enter') return;
+    const target = event.target as HTMLElement | null;
+    const tag = target?.tagName;
+    if (tag === 'BUTTON') return;
+    if (this.loading) return;
+    event.preventDefault();
+    void this.runPrimaryAction();
+  }
+
   async runPrimaryAction(): Promise<void> {
     const validationError = this.validate();
     if (validationError) {
@@ -123,13 +161,11 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
     }
 
     this.loading = true;
+    this.loadingMessage = 'Creating PDF…';
     this.cdr.markForCheck();
     try {
       let bytes: Uint8Array;
       switch (this.mode) {
-        case 'html-to-pdf':
-          bytes = await this.jspdf.createFromHtml(this.htmlInput);
-          break;
         case 'tables-to-pdf': {
           const headers = this.tableHeaders.split(',').map((h) => h.trim());
           const rows = this.tableRows
@@ -174,20 +210,16 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
         case 'qr-code-to-pdf':
           bytes = await this.jspdf.createQrCodePdf(this.qrValue);
           break;
-        case 'text-to-pdf':
-          bytes = await this.jspdf.createFromText(this.plainTextInput, {
-            fontSize: this.textFontSize,
-            margin: this.textMargin,
-            title: this.outputFilename || 'Text Export',
-          });
-          break;
         default:
           throw new Error('Unsupported mode');
       }
       this.outputBytes = bytes;
+      if (!this.outputFilename.trim()) {
+        this.outputFilename = this.defaultFilename();
+      }
       pdfNotifySuccess(this.toast, 'PDF created successfully');
     } catch (error) {
-      pdfNotifyError(this.toast, error instanceof Error ? error.message : 'PDF creation failed');
+      pdfNotifyFailure(this.toast, error, 'Could not create the PDF');
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
@@ -214,6 +246,7 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
   }
 
   async onChartConfigChange(): Promise<void> {
+    this.onInputChanged();
     if (this.mode === 'charts-to-pdf') {
       await this.renderChart();
     }
@@ -228,11 +261,6 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
   private validate(): string | null {
     this.fieldErrors = {};
     switch (this.mode) {
-      case 'html-to-pdf': {
-        const err = validateRequiredText(this.htmlInput, 'HTML content');
-        if (err) this.fieldErrors['htmlInput'] = err;
-        break;
-      }
       case 'tables-to-pdf': {
         const err = validateTableData(this.tableHeaders, this.tableRows);
         if (err) this.fieldErrors['tableRows'] = err;
@@ -261,11 +289,6 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
         if (err) this.fieldErrors['qrValue'] = err;
         break;
       }
-      case 'text-to-pdf': {
-        const err = validateRequiredText(this.plainTextInput, 'Text content');
-        if (err) this.fieldErrors['plainTextInput'] = err;
-        break;
-      }
       default:
         break;
     }
@@ -290,8 +313,6 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
 
   private hasUserInput(): boolean {
     switch (this.mode) {
-      case 'html-to-pdf':
-        return !!this.htmlInput.trim();
       case 'tables-to-pdf':
         return !!this.tableHeaders.trim() || !!this.tableRows.trim();
       case 'charts-to-pdf':
@@ -304,8 +325,6 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
         return !!this.barcodeValue.trim();
       case 'qr-code-to-pdf':
         return !!this.qrValue.trim();
-      case 'text-to-pdf':
-        return !!this.plainTextInput.trim();
       default:
         return false;
     }
@@ -313,14 +332,12 @@ export class PdfJspdfWorkbenchComponent implements AfterViewInit, OnDestroy {
 
   private defaultFilename(): string {
     const names: Record<PdfJspdfToolMode, string> = {
-      'html-to-pdf': 'html-export',
       'tables-to-pdf': 'table-export',
       'charts-to-pdf': 'chart-export',
       'resume-generator': 'resume',
       'invoice-generator': 'invoice',
       'barcode-to-pdf': 'barcode',
       'qr-code-to-pdf': 'qr-code',
-      'text-to-pdf': 'text-export',
     };
     return `${names[this.mode] ?? 'document'}.pdf`;
   }

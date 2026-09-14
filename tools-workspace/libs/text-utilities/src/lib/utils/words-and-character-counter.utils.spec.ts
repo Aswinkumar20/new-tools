@@ -2,6 +2,8 @@ import {
   calculateWordFrequency,
   countCharsNoSpaces,
   countSyllables,
+  formatCompactCount,
+  formatCountTitle,
   interpretReadabilityScore,
   resolveWccSuggestion,
 } from './words-and-character-counter.utils';
@@ -51,5 +53,14 @@ describe('words-and-character-counter.utils', () => {
         excludeStopWords: false,
       })?.id
     ).toBe('wcc-difficult-read');
+  });
+
+  it('formats compact counts with K, L, and Cr', () => {
+    expect(formatCompactCount(9999)).toBe('9,999');
+    expect(formatCompactCount(15000)).toBe('15K');
+    expect(formatCompactCount(100000)).toBe('1 L');
+    expect(formatCompactCount(2500000)).toBe('25 L');
+    expect(formatCompactCount(10000000)).toBe('1 Cr');
+    expect(formatCountTitle(100000)).toBe('1,00,000');
   });
 });

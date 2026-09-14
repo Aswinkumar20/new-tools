@@ -1,0 +1,865 @@
+# EasyToolHub Tool API — PDF domain
+openapi: 3.0.3
+info:
+  title: EasyToolHub Tool API — PDF domain
+  version: 0.1.0
+  description: Client-upload PDF microservice for EasyToolHub (temp processing, no permanent storage).
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/pdf/health:
+    get:
+      summary: Health
+      responses:
+        "200":
+          description: OK
+  /api/v1/pdf/encrypt:
+    post:
+      summary: Password-protect PDF
+      description: >
+        `userPassword` and `ownerPassword` must be Base64-encoded UTF-8 strings
+        (Angular client encodes; tool-api decodes before encrypting).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, userPassword]
+              properties:
+                file: { type: string, format: binary }
+                userPassword:
+                  type: string
+                  description: Base64-encoded UTF-8 user password
+                ownerPassword:
+                  type: string
+                  description: Base64-encoded UTF-8 owner password (optional)
+                allowPrint: { type: boolean, default: true }
+                allowModify: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Encrypted PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/decrypt:
+    post:
+      summary: Remove PDF password
+      description: >
+        `password` must be Base64-encoded UTF-8 (client encodes; server decodes).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, password]
+              properties:
+                file: { type: string, format: binary }
+                password:
+                  type: string
+                  description: Base64-encoded UTF-8 password
+      responses:
+        "200":
+          description: Decrypted PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/compress:
+    post:
+      summary: Compress PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                quality: { type: string, enum: [low, medium, high], default: medium }
+      responses:
+        "200":
+          description: Compressed PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/merge:
+    post:
+      summary: Merge PDFs
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        "200":
+          description: Merged PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/extract:
+    post:
+      summary: Extract pages
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, pages]
+              properties:
+                file: { type: string, format: binary }
+                pages: { type: string, description: "e.g. 1,3,5-7" }
+      responses:
+        "200":
+          description: Extracted PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/delete-pages:
+    post:
+      summary: Delete pages
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, pages]
+              properties:
+                file: { type: string, format: binary }
+                pages: { type: string }
+      responses:
+        "200":
+          description: PDF without deleted pages
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/rotate:
+    post:
+      summary: Rotate pages
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                pages: { type: string }
+                degrees: { type: integer, default: 90 }
+      responses:
+        "200":
+          description: Rotated PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/reorder:
+    post:
+      summary: Reorder pages
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, order]
+              properties:
+                file: { type: string, format: binary }
+                order: { type: string, description: "Full page order e.g. 3,1,2" }
+      responses:
+        "200":
+          description: Reordered PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/watermark:
+    post:
+      summary: Add text watermark
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, text]
+              properties:
+                file: { type: string, format: binary }
+                text: { type: string }
+                opacity: { type: number, default: 0.25 }
+      responses:
+        "200":
+          description: Watermarked PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/page-numbers:
+    post:
+      summary: Add page numbers
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                startAt: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Numbered PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/metadata:
+    post:
+      summary: Set metadata
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                title: { type: string }
+                author: { type: string }
+                subject: { type: string }
+                keywords: { type: string }
+      responses:
+        "200":
+          description: Updated PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/images-to-pdf:
+    post:
+      summary: Images to PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/html-to-pdf:
+    post:
+      summary: HTML to PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [html]
+              properties:
+                html: { type: string }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/text-to-pdf:
+    post:
+      summary: Text to PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/pdf-to-text:
+    post:
+      summary: PDF to text
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Text file
+          content:
+            text/plain:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/pdf-to-images:
+    post:
+      summary: PDF pages to PNG zip
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                dpi: { type: integer, default: 150 }
+      responses:
+        "200":
+          description: ZIP of PNGs
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/split:
+    post:
+      summary: Split PDF into ZIP of page-range parts
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, ranges]
+              properties:
+                file: { type: string, format: binary }
+                ranges:
+                  type: string
+                  description: Semicolon-separated page specs (e.g. "1-3;4;5-7")
+                prefix: { type: string, default: split }
+      responses:
+        "200":
+          description: ZIP of PDFs
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/fill-form:
+    post:
+      summary: Fill AcroForm fields
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, fields]
+              properties:
+                file: { type: string, format: binary }
+                fields:
+                  type: string
+                  description: JSON object map or array of {name,value}
+      responses:
+        "200":
+          description: Filled PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/flatten-form:
+    post:
+      summary: Flatten AcroForm fields into page content
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Flattened PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/annotate:
+    post:
+      summary: Stamp annotations/highlights onto PDF pages
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, annotations]
+              properties:
+                file: { type: string, format: binary }
+                annotations:
+                  type: string
+                  description: JSON array of annotation drafts
+      responses:
+        "200":
+          description: Annotated PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/v1/pdf/stamp-image:
+    post:
+      summary: Stamp a PNG/JPEG image onto a PDF page (signatures)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, image, x, y, width, height]
+              properties:
+                file: { type: string, format: binary }
+                image: { type: string, format: binary }
+                page: { type: integer, default: 1 }
+                x: { type: number }
+                y: { type: number }
+                width: { type: number }
+                height: { type: number }
+      responses:
+        "200":
+          description: Stamped PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/ocr:
+    post:
+      summary: OCR a PDF into a searchable PDF or plain text
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                mode: { type: string, enum: [searchable, text], default: searchable }
+                language: { type: string, default: eng }
+                dpi: { type: integer, default: 200 }
+      responses:
+        "200":
+          description: Searchable PDF or OCR text
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            text/plain:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/sign-pkcs12:
+    post:
+      summary: Cryptographically sign a PDF with a PKCS#12 certificate
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, certificate]
+              properties:
+                file: { type: string, format: binary }
+                certificate: { type: string, format: binary, description: PKCS#12 (.p12/.pfx) }
+                certificatePassword: { type: string }
+                reason: { type: string, default: Document approval }
+                location: { type: string }
+      responses:
+        "200":
+          description: Signed PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/batch:
+    post:
+      summary: Submit an async batch job (ZIP of PDFs or multiple PDFs)
+      description: >
+        Returns a job id immediately. Poll GET /api/v1/pdf/jobs/{id} for progress,
+        then GET /api/v1/pdf/jobs/{id}/download for the result ZIP.
+        Operations: remove-metadata, remove-annotations, remove-hidden, rotate,
+        watermark, page-numbers, flatten-form, repair.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary, description: ZIP of PDFs or a single PDF }
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+                  description: Multiple PDFs and/or ZIPs
+                operation:
+                  type: string
+                  default: remove-metadata
+                degrees: { type: integer, default: 90 }
+                watermarkText: { type: string, default: CONFIDENTIAL }
+                opacity: { type: number, default: 0.3 }
+                startAt: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+
+  /api/v1/pdf/jobs/{id}:
+    get:
+      summary: Poll batch job status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+        "404":
+          description: Job not found or expired
+
+  /api/v1/pdf/jobs/{id}/download:
+    get:
+      summary: Download completed batch result ZIP
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Result ZIP of processed PDFs
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "422":
+          description: Job not ready
+        "404":
+          description: Job not found or expired
+
+
+  /api/v1/pdf/redact:
+    post:
+      summary: Image-redact a PDF (black boxes; underlying text destroyed)
+      description: >
+        Rasterizes pages, paints opaque black boxes for text matches and/or
+        regions, and returns an image-only PDF. Honest OSS approximate redaction.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                query: { type: string, description: Text to find and redact (case-insensitive) }
+                regions:
+                  type: string
+                  description: JSON array of {pageIndex,x,y,width,height} in PDF space
+                dpi: { type: integer, default: 150 }
+      responses:
+        "200":
+          description: Redacted PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/merge-async:
+    post:
+      summary: Async large merge (scratch-file cache)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+  /api/v1/pdf/split-async:
+    post:
+      summary: Async large split
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, ranges]
+              properties:
+                file: { type: string, format: binary }
+                ranges: { type: string, description: 'Semicolon-separated ranges e.g. 1-3;4-6' }
+                prefix: { type: string, default: split }
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+
+  /api/v1/pdf/office-to-pdf-async:
+    post:
+      summary: Convert Office document to PDF (async)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+
+  /api/v1/pdf/url-to-pdf:
+    post:
+      summary: Render a public URL to PDF (Chromium)
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/url-to-pdf-async:
+    post:
+      summary: Render a public URL to PDF asynchronously
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PdfJobStatus'
+
+  /api/v1/pdf/markdown-to-pdf:
+    post:
+      summary: Convert Markdown to PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                markdown: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/to-docx:
+    post:
+      summary: Best-effort PDF to DOCX
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: DOCX
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/preview/session:
+    post:
+      summary: Open an ephemeral page-preview session
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                password: { type: string, description: Base64-encoded UTF-8 password }
+      responses:
+        "200":
+          description: Session metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId: { type: string }
+                  pageCount: { type: integer }
+                  maxDpi: { type: integer }
+
+  /api/v1/pdf/preview/{sessionId}/pages/{page}.png:
+    get:
+      summary: Render one preview page as PNG
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: page
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: dpi
+          schema: { type: integer, default: 120 }
+      responses:
+        "200":
+          description: PNG
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/export-form:
+    post:
+      summary: Export AcroForm fields as JSON or XFDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                format: { type: string, enum: [json, xfdf], default: json }
+      responses:
+        "200":
+          description: Form field export
+
+  /api/v1/pdf/import-form:
+    post:
+      summary: Fill form fields from JSON or XFDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, values]
+              properties:
+                file: { type: string, format: binary }
+                values: { type: string }
+      responses:
+        "200":
+          description: Filled PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+
+  /api/v1/pdf/validate-form:
+    post:
+      summary: Validate required AcroForm fields
+      description: >
+        Returns JSON listing required fields and any that are still empty
+        (blank text or unchecked checkbox "Off").
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Validation report JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  requiredCount: { type: integer }
+                  missingCount: { type: integer }
+                  fieldCount: { type: integer }
+                  missing:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        type: { type: string }
+                        value: {}
+                  required:
+                    type: array
+                    items:
+                      type: object
+
+components:
+  schemas:
+    PdfJobStatus:
+      type: object
+      properties:
+        jobId: { type: string }
+        status:
+          type: string
+          enum: [QUEUED, RUNNING, COMPLETED, FAILED, EXPIRED]
+        operation: { type: string }
+        total: { type: integer }
+        completed: { type: integer }
+        failed: { type: integer }
+        progress: { type: number, minimum: 0, maximum: 1 }
+        message: { type: string }
+        downloadReady: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }

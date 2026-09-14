@@ -12,11 +12,11 @@
           <span class="ttool__stat-label">Mode</span>
         </div>
         <div class="ttool__stat">
-          <span class="ttool__stat-value">{{ inputText.length }}</span>
+          <span class="ttool__stat-value" [title]="formatStatTitle(inputText.length)">{{ formatStatCount(inputText.length) }}</span>
           <span class="ttool__stat-label">Input</span>
         </div>
         <div class="ttool__stat">
-          <span class="ttool__stat-value">{{ outputText.length }}</span>
+          <span class="ttool__stat-value" [title]="formatStatTitle(outputText.length)">{{ formatStatCount(outputText.length) }}</span>
           <span class="ttool__stat-label">Output</span>
         </div>
       </div>
@@ -28,12 +28,17 @@
       </div>
     </div>
     <div class="ttool__workspace">
+          <lib-text-tool-processing-overlay
+            [visible]="isProcessing"
+            [label]="processingLabel"
+            [progress]="processingProgress" />
+
       <div class="ttool__editors" aria-label="Source and converted text">
         <section class="ttool__editor" [class.ttool__editor--dragover]="isDragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
           <header class="ttool__editor-head" aria-label="Input editor actions">
             <span class="ttool__editor-title">{{ inputLabel }}</span>
             <div class="ttool__toolbar">
-              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [disabled]="isReadingFile" [appTooltip]="isReadingFile ? 'Reading file…' : 'Upload text file'" tooltipPosition="bottom">
+              <button type="button" class="ttool__tool-btn" (click)="uploadTextFile()" [appTooltip]="isReadingFile ? 'Reading file…' : (isProcessing ? 'Upload another file (replaces current)' : 'Upload text file')" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath(isReadingFile ? 'icons/spinner.svg' : 'icons/upload.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">{{ isReadingFile ? '…' : 'Upload' }}</span>
               </button>
@@ -97,7 +102,7 @@
                 <img [src]="assetService.getAssetPath('icons/copy.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">Copy</span>
               </button>
-              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!hasOutput" appTooltip="Download TXT" tooltipPosition="bottom">
+              <button type="button" class="ttool__tool-btn" (click)="downloadText()" [disabled]="!hasOutput || isExporting" appTooltip="Download TXT" tooltipPosition="bottom">
                 <img [src]="assetService.getAssetPath('icons/txt.svg')" alt="" width="18" height="18" />
                 <span class="ttool__tool-btn-label">TXT</span>
               </button>

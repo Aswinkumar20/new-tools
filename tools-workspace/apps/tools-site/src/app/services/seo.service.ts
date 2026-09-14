@@ -141,14 +141,20 @@ export class SeoService {
       description,
       url: url.startsWith('http') ? url : `${this.baseUrl}${url}`,
       applicationCategory: 'UtilityApplication',
-      operatingSystem: 'Web',
-      browserRequirements: 'Requires JavaScript',
+      operatingSystem: 'Any',
+      browserRequirements: 'Requires JavaScript. Works in modern browsers.',
+      isAccessibleForFree: true,
       offers: {
         '@type': 'Offer',
         price: '0',
         priceCurrency: 'USD',
       },
       provider: {
+        '@type': 'Organization',
+        name: this.siteName,
+        url: this.baseUrl,
+      },
+      publisher: {
         '@type': 'Organization',
         name: this.siteName,
         url: this.baseUrl,

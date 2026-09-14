@@ -33,4 +33,12 @@ export class ConversionHistoryStore {
   all(): Signal<ConversionResult[]> {
     return this.entries.asReadonly();
   }
+
+  clear(): void {
+    this.entries.set([]);
+  }
+
+  removeAt(index: number): void {
+    this.entries.update((current) => current.filter((_, i) => i !== index));
+  }
 }
